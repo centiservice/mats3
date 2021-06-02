@@ -1,0 +1,24 @@
+// mats-test-junit
+
+dependencies {
+    // This module is an "extension" of JUnit - and we employ classes from it, so API-level dependency.
+    api "junit:junit:$junitVersion"
+
+    // This module extends the generic "Unit" implementations in mats-test
+    // Also the few tools in there should be transitive, so want it exported as transitive dep. Using API.
+    api project(':mats-test')
+
+    // Need the MatsSerializerJson
+    implementation project(":mats-serial-json")
+
+    // The Rule_MatsEndpoint is annotated with @Inject to hook into Spring injection if relevant.
+    implementation "javax.inject:javax.inject:$javaxInjectVersion"
+
+    // :: TEST
+
+    testImplementation project(':mats-spring-test')
+    testImplementation project(':mats-util')
+    // Logging
+    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+}

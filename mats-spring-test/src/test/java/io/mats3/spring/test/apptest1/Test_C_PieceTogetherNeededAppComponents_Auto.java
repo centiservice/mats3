@@ -1,0 +1,75 @@
+package io.mats3.spring.test.apptest1;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import javax.inject.Inject;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringRunner;
+
+import io.mats3.spring.EnableMats;
+import io.mats3.spring.test.MatsTestInfrastructureConfiguration;
+import io.mats3.spring.test.SpringTestDataTO;
+import io.mats3.test.MatsTestHelp;
+import io.mats3.util.MatsFuturizer;
+import io.mats3.util.MatsFuturizer.Reply;
+
+/**
+ * This test "pieces together" what we need from the application to run the test, and then employs the
+ * {@link MatsTestInfrastructureConfiguration} to get the needed Mats infrastructure pieces
+ * (including @{@link EnableMats}) - instead of having to do that manually.
+ */
+@RunWith(SpringRunner.class)
+@ContextConfiguration(classes = { AppEndpoint_MainService.class,
+        AppEndpoint_LeafServices.class, AppServiceCalculator.class, MatsTestInfrastructureConfiguration.class })
+public class Test_C_PieceTogetherNeededAppComponents_Auto {
+    @Inject
+    private MatsFuturizer _matsFuturizer;
+
+    private void matsEndpointTest(double number, String string) {
+        SpringTestDataTO dto = new SpringTestDataTO(number, string);
+        CompletableFuture<Reply<SpringTestDataTO>> future = _matsFuturizer.futurizeNonessential(MatsTestHelp.traceId(),
+                MatsTestHelp.from("testX"),
+                AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINSERVICE,
+                SpringTestDataTO.class, dto);
+
+        SpringTestDataTO reply;
+        try {
+            reply = future.get(10, TimeUnit.SECONDS).getReply();
+        }
+        catch (InterruptedException | ExecutionException | TimeoutException e) {
+            throw new AssertionError("Didn't get reply", e);
+        }
+
+        Assert.assertEquals(Test_A_UseFullApplicationConfiguration.expectedNumber(dto.number), reply.number, 0d);
+        Assert.assertEquals(Test_A_UseFullApplicationConfiguration.expectedString(dto.string), reply.string);
+    }
+
+    // Running the test a few times, to check that the network "stays up" between tests.
+    //
+    // NOTICE: JUnit actually creates a new instance of the test class for each test, i.e. each of the methods below is
+    // run within a new instance. This implies that the injection of the fields in this class is done multiple times,
+    // i.e. for each new test. However, the Spring Context stays the same between the tests, thus the injected fields
+    // get the same values each time.
+
+    @Test
+    public void matsEndpointTest1() {
+        matsEndpointTest(10, "StartString");
+    }
+
+    @Test
+    public void matsEndpointTest2() {
+        matsEndpointTest(20, "BeginnerString");
+    }
+
+    @Test
+    public void matsEndpointTest3() {
+        matsEndpointTest(42, "TheAnswer");
+    }
+}

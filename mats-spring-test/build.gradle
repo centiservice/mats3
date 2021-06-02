@@ -1,0 +1,30 @@
+// mats-spring-test
+
+dependencies {
+    compile project(":mats-spring")
+    compile project(":mats-spring-jms")
+    // We want the standard logging, which will be auto-installed by being on the classpath.
+    compile project(':mats-intercept-logging')
+    // TEMPORARY? Also pulling in the metrics, to get a test of it for all types of mats flows. (autoinstalls)
+    compile project(':mats-intercept-micrometer')
+    // TEMPORARY? Also pulling in the LocalStatsMatsInterceptor, to get it tested. (explicit install)
+    compile project(':mats-localinspect')
+    // MatsSerializerJson (default serializer, if you do not provide yourself)
+    compile project(":mats-serial-json")
+    // MatsTestLatch (provided in the simple test context)
+    compile project(":mats-test")
+    // MatsFuturizer (provided in the simple test context)
+    compile project(":mats-util")
+    // This module "extends" spring-test and employs classes for it
+    compile "org.springframework:spring-test:$springVersion"
+
+    // :: TEST
+
+    // Rule_MatsEndpoint
+    testCompile project(":mats-test-junit")
+    // Checking that it works with Remock
+    testCompile 'no.saua.remock:remock:1.+'
+    // Need logging system in tests
+    testCompile "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testCompile "ch.qos.logback:logback-classic:$logbackVersion"
+}

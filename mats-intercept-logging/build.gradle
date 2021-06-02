@@ -1,0 +1,14 @@
+// mats-intercept-logging
+
+dependencies {
+    // The Logger plugin only depends on the intercept-api
+    api project(':mats-intercept-api')
+    implementation "org.slf4j:slf4j-api:$slf4jVersion"
+
+    // Need the testing tools, using JUnit - this pulls in quite a bit, including the Mats API and the JMS Impl.
+    testImplementation project(":mats-test-junit")
+    // Logging
+    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+
+}

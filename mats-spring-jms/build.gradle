@@ -1,0 +1,47 @@
+// mats-spring-jms
+
+dependencies {
+    compile project(":mats-spring")
+    compile project(":mats-impl-jms")
+    compile project(":mats-util")
+
+    compile "org.springframework:spring-context:$springVersion"
+    compile "org.springframework:spring-tx:$springVersion"
+    compile "org.springframework:spring-jdbc:$springVersion"
+    compile "javax.annotation:javax.annotation-api:$javaxAnnotationVersion"
+
+    // :: compileOnly
+
+    // The ScenarioConnectionFactoryProducer employs the MatsLocalVmActiveMq if in testing, but this should be
+    // imported on the testImplementation classpath of the project.
+    compileOnly project(":mats-test-activemq")
+    // The ActiveMQ Client, used as default in the JmsSpringConnectionFactoryProducer when in test modes
+    // 'mats-localhost' (connect to localhost:61616) and 'mats-localvm' (connect to MatsLocalVmActiveMq).
+    // Don't want this in any production classpath, so bring your own to the testing classpath of your project.
+    compileOnly "org.apache.activemq:activemq-client:$activeMqVersion"
+
+    // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
+    compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
+
+
+    // :: TEST
+
+    testCompile project(":mats-test")
+    testCompile project(":mats-spring")
+    testCompile project(":mats-serial-json")
+    testCompile project(":mats-spring-test")
+    // RandomString
+    testCompile project(":mats-util")
+    // The JUnit library
+    testCompile "junit:junit:$junitVersion"
+    // Using H2 for testing of database tx.
+    testCompile "com.h2database:h2:$h2Version"
+    // Using @RunWith(SpringRunner.class)
+    testCompile "org.springframework:spring-test:$springVersion"
+    // Test with HibernateTransactionManager
+    testCompile "org.springframework:spring-orm:$springVersion"
+    testCompile "org.hibernate:hibernate-core:$hibernateVersion"
+    // Using SLF4J and Logback
+    testCompile "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testCompile "ch.qos.logback:logback-classic:$logbackVersion"
+}

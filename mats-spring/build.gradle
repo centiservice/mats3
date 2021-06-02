@@ -1,0 +1,19 @@
+// mats-spring
+
+dependencies {
+    // :: DEPS
+    compile project(":mats-api")
+
+    compile "org.springframework:spring-context:$springVersion"
+    compile "org.springframework:spring-tx:$springVersion"
+    compile "javax.inject:javax.inject:$javaxInjectVersion"
+
+    // :: TEST-DEPS
+    testCompile project(":mats-test-junit")
+    testCompile project(":mats-serial-json")
+    testCompile project(":mats-spring-test")
+
+    // Logging.
+    testCompile "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testCompile "ch.qos.logback:logback-classic:$logbackVersion"
+}

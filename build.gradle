@@ -1,0 +1,156 @@
+// Customize the Gradle Wrapper generation task.
+wrapper {
+    gradleVersion = "6.2"
+    // Use "-all"-version of distribution, since IntelliJ works better then..
+    setDistributionType(Wrapper.DistributionType.ALL)
+}
+
+allprojects {
+    group = 'io.mats3'
+    version = '0.17.0-SNAPSHOT'
+}
+
+// Versions for all libraries used throughout the subprojects
+ext {
+    activeMqVersion = '5.15.15'
+    springVersion = '4.3.30.RELEASE' // Still using Spring 4 as "baseline", but also fully compatible with Spring 5. 2020-11-14.
+    // NOTE: Spring started supporting JUnit Jupiter with the release of Spring 5.0.0.
+    springVersionForJupiter = '5.3.7'
+    jacksonVersion = '2.11.4'
+    slf4jVersion = '1.7.30'
+    micrometerVersion = '1.6.7'
+
+    jmsApiVersion = '1.1-rev-1'
+    javaxInjectVersion = '1'
+    javaxAnnotationVersion = '1.3.2'
+
+    // For the JUnit system tests, and the JUnit testing tools
+    junitVersion = '4.13.2'
+    // For the Jupiter testing tools
+    jupiterVersion = '5.7.2'
+    jupiterPlatformVersion = '1.7.2'
+
+    // For testing
+    logbackVersion = '1.2.3'
+    h2Version = '1.4.200'
+    jettyVersion = '9.4.41.v20210516'
+    hibernateVersion = '5.5.0.Final'
+}
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'signing'
+    apply plugin: 'maven-publish'
+
+    repositories { mavenCentral() }
+
+    project.buildDir = 'build-gradle'
+
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+
+    compileJava {
+        options.encoding = 'UTF-8'
+        options.deprecation = true
+        options.incremental = true
+        options.compilerArgs += ['-Werror', '-Xlint:all', '-Xlint:-serial']
+    }
+
+    java {
+        withJavadocJar()
+        withSourcesJar()
+    }
+
+    javadoc {
+        // without the -quiet option, the build fails due to errors&warns
+        options.addStringOption('Xdoclint:none', '-quiet')
+    }
+
+    jar {
+        manifest {
+            attributes 'Implementation-Title': 'MATS3',
+                    'Implementation-Version': archiveVersion
+        }
+    }
+
+    signing {
+        // "configurations.archives" didn't sign anything, while this even signs the MDS5s and SHAs..
+        sign publishing.publications
+    }
+
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                pom {
+                    name = 'MATS^3'
+                    description = 'Message-based Asynchronous Transactional Staged Stateless Services'
+                    url = 'https://github.com/centiservice/mats3'
+                    licenses {
+                        license {
+                            name = 'PolyForm Perimeter License 1.0.0 with examples'
+                            url = 'https://github.com/centiservice/mats3/blob/main/LICENSE.md'
+                        }
+                    }
+                    developers {
+                        developer {
+                            id = 'stolsvik'
+                            name = 'Endre Stølsvik'
+                            email = 'endre@stolsvik.com'
+                        }
+                    }
+                    scm {
+                        connection = 'scm:git:https://github.com/stolsvik/mats.git'
+                        developerConnection = 'scm:git:ssh://github.com:centiservice/mats3.git'
+                        url = 'https://github.com/centiservice/mats3'
+                    }
+                }
+                from components.java
+            }
+        }
+        repositories {
+            maven {
+                name 'SonatypeOSSRHSnapshot'
+                url 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
+                credentials {
+                    username sonatypeUsername
+                    password sonatypePassword
+                }
+            }
+            maven {
+                name 'SonatypeOSSRHStaging'
+                url 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2'
+                credentials {
+                    username sonatypeUsername
+                    password sonatypePassword
+                }
+            }
+        }
+    }
+
+    // Tasks to publish to Sonatype's OSSRH (OSS Repository Hosting), Snapshot and Staging
+    task matsPublishStaging(dependsOn: [publishAllPublicationsToSonatypeOSSRHStagingRepository])
+    task matsPublishSnapshot(dependsOn: [publishAllPublicationsToSonatypeOSSRHSnapshotRepository])
+
+    // ------------------------------------------------
+    // -- Simple tools
+
+    // Define dependency report task that all subprojects gets. Invoke with "./gradlew allDeps | less"
+    task allDeps(type: DependencyReportTask) {}
+
+    task systemInformation {
+        doLast {
+            println "\n** Java properties [System.getProperties()], sorted:\n"
+            System.properties.sort().each { k, v ->
+                println("$k = $v")
+            }
+            println "\n** Environment [System.getenv()], sorted:\n"
+            System.env.sort().each { k, v ->
+                println("$k = $v")
+            }
+            println ''
+            println "** Java Version:   " + System.getProperty("java.version")
+            println "** Groovy Version: " + GroovySystem.getVersion()
+            println "** Gradle Version: " + gradle.gradleVersion
+        }
+    }
+}

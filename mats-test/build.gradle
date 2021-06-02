@@ -1,0 +1,24 @@
+// mats-test
+
+dependencies {
+    // The Mats API
+    compile project(':mats-api')
+    // We need an implementation of the Mats API (also pulls the API..)
+    compile project(':mats-impl-jms')
+    // We want the standard logging, which will be auto-installed by being on the classpath.
+    compile project(':mats-intercept-logging')
+    // TEMPORARY? Also pulling in the metrics, to get a test of it for all types of mats flows. (autoinstalls)
+    compile project(':mats-intercept-micrometer')
+    // TEMPORARY? Also pulling in the LocalStatsMatsInterceptor, to get it tested. (explicit install)
+    compile project(':mats-localinspect')
+    // The MatsFuturizer is provided as a convenience in the Rule_Mats and Extension_Mats
+    compile project(':mats-util')
+    // We need a backing JMS-based Message Broker; This is a tool that provides easy instantiation of such.
+    compile project(':mats-test-activemq')
+
+    // .. and pull in ActiveMQ Broker (since 'mats-test-activemq' does not transitively expose it, because _prod_).
+    compile "org.apache.activemq:activemq-broker:$activeMqVersion"
+
+    // H2 Database, for database tests
+    compile "com.h2database:h2:$h2Version"
+}

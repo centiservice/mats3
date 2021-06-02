@@ -1,0 +1,14 @@
+rootProject.name = 'mats'
+
+include 'mats-api', 'mats-impl-jms', 'mats-api-test',
+        'mats-serial', 'mats-serial-json',
+        'mats-test', 'mats-test-junit', 'mats-test-jupiter', 'mats-test-activemq',
+        'mats-intercept-api',
+        'mats-intercept-logging', 'mats-intercept-micrometer',
+        'mats-localinspect',
+        'mats-spring', 'mats-spring-test', 'mats-spring-jms',
+        'mats-util'
+
+println "** Java: ${ System.getProperty('java.version') }, Groovy: $GroovySystem.version," +
+        " Gradle: ${ gradle.gradleVersion }   (printed from settings.gradle)"
+

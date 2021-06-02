@@ -1,0 +1,10 @@
+// mats-serial-json
+
+dependencies {
+    compile project(':mats-serial')
+
+    // Dependency on the Jackson JSON library, which is the serialization mechanism in use.
+    compile "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    compile "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
+    compile "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${jacksonVersion}"
+}

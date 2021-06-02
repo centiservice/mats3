@@ -1,0 +1,44 @@
+// mats-util
+
+dependencies {
+    compile project(':mats-api')
+    compile project(':mats-intercept-api')
+
+    // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
+    compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
+
+    // :: TEST
+
+    // The JUnit library
+    testImplementation "junit:junit:$junitVersion"
+
+    // The MATS JMS Impl
+    testImplementation project(':mats-impl-jms')
+    // We need an implementation of the MatsSerializer, the MatsSerializerJson
+    testImplementation project(':mats-serial-json')
+    // We use the MatsFuturizer
+    testImplementation project(':mats-util')
+
+    // H2 Database, since we pull up a DB
+    testImplementation "com.h2database:h2:$h2Version"
+
+    // ActiveMQ quicksetup:
+    testImplementation project(':mats-test-activemq')
+    // .. and pull in ActiveMQ Broker (since 'mats-test-activemq' does not transitively expose it, because _prod_).
+    testImplementation "org.apache.activemq:activemq-broker:$activeMqVersion"
+
+    // Include the logging and micrometer
+    testImplementation project(":mats-intercept-logging")
+    testImplementation project(":mats-intercept-micrometer")
+
+    // Logging
+    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+
+    // Base Jetty Server
+    testImplementation "org.eclipse.jetty:jetty-server:$jettyVersion"
+    // .. Jetty Servlets
+    testImplementation "org.eclipse.jetty:jetty-webapp:$jettyVersion"
+    // .. Jetty: To get the @WebListener etc. annotation scanning.
+    testImplementation "org.eclipse.jetty:jetty-annotations:$jettyVersion"
+}

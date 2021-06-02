@@ -1,0 +1,11 @@
+// mats-test-activemq
+
+dependencies {
+    compile project(':mats-serial')
+
+    // ActiveMQ BROKER, which is pretty much the sole reason for this module.
+    // HOWEVER, this project is also pulled in by 'mats-spring-jms', and we don't want the broker by default
+    // being included in "production" classpath, thus must be included specifically by users of this testing-tool
+    // in their test compile paths.
+    compileOnly "org.apache.activemq:activemq-broker:$activeMqVersion"
+}

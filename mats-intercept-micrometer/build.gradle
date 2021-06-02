@@ -1,0 +1,36 @@
+// mats-intercept-micrometer
+
+dependencies {
+    // The Logger plugin only depends on the intercept-api
+    api project(':mats-intercept-api')
+    // Micrometer
+    api "io.micrometer:micrometer-core:$micrometerVersion"
+    // Logging
+    implementation "org.slf4j:slf4j-api:$slf4jVersion"
+
+    // ===== TEST
+
+    // Include Prometheus MeterRegistry
+    compile "io.micrometer:micrometer-registry-prometheus:$micrometerVersion"
+
+    // We need an implementation of the MatsSerializer, the MatsSerializer_DefaultJson.
+    testImplementation project(':mats-serial-json')
+
+    // Need the testing tools, using JUnit - this pulls in quite a bit, including the Mats API and the JMS Impl.
+    testImplementation project(":mats-test-junit")
+
+    // Base Jetty Server
+    testImplementation "org.eclipse.jetty:jetty-server:$jettyVersion"
+    // .. Jetty Servlets
+    testImplementation "org.eclipse.jetty:jetty-webapp:$jettyVersion"
+    // .. Jetty: To get the @WebListener etc. annotation scanning.
+    testImplementation "org.eclipse.jetty:jetty-annotations:$jettyVersion"
+
+    // H2 Database
+    testImplementation "com.h2database:h2:$h2Version"
+
+    // Logging
+    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+
+}
