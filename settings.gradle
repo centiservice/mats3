@@ -1,4 +1,4 @@
-rootProject.name = 'mats'
+rootProject.name = 'mats3'
 
 include 'mats-api', 'mats-impl-jms', 'mats-api-test',
         'mats-serial', 'mats-serial-json',

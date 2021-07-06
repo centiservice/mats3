@@ -7,7 +7,7 @@ wrapper {
 
 allprojects {
     group = 'io.mats3'
-    version = '0.17.0-SNAPSHOT'
+    version = '0.17.0'
 }
 
 // Versions for all libraries used throughout the subprojects
@@ -82,7 +82,7 @@ subprojects {
         publications {
             mavenJava(MavenPublication) {
                 pom {
-                    name = 'MATS^3'
+                    name = 'Mats^3'
                     description = 'Message-based Asynchronous Transactional Staged Stateless Services'
                     url = 'https://github.com/centiservice/mats3'
                     licenses {
