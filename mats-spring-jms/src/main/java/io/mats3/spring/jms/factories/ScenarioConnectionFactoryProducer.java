@@ -10,7 +10,7 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 import io.mats3.MatsFactory;
 import io.mats3.spring.jms.factories.ScenarioConnectionFactoryWrapper.ConnectionFactoryProvider;
 import io.mats3.spring.jms.factories.ScenarioConnectionFactoryWrapper.ScenarioDecider;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * Provides a factory for a Spring-integrated Wrapper/Facade around a JMS ConnectionFactory, which in addition to

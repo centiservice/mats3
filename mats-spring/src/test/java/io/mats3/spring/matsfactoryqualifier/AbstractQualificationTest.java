@@ -20,7 +20,7 @@ import io.mats3.spring.SpringTestDataTO;
 import io.mats3.spring.SpringTestStateTO;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * Base class for all the qualification tests - we do not use SpringRunner or other frameworks, but instead do all

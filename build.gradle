@@ -112,16 +112,18 @@ subprojects {
                 name 'SonatypeOSSRHSnapshot'
                 url 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
                 credentials {
-                    username sonatypeUsername
-                    password sonatypePassword
+                    // using findProperty(..) to be able to build without it being defined.
+                    username findProperty('sonatypeUsername') as String ?: "should be in different file"
+                    password findProperty('sonatypePassword') as String ?: "should be in different file"
                 }
             }
             maven {
                 name 'SonatypeOSSRHStaging'
                 url 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2'
                 credentials {
-                    username sonatypeUsername
-                    password sonatypePassword
+                    // using findProperty(..) to be able to build without it being defined.
+                    username findProperty('sonatypeUsername') as String ?: "should be in different file"
+                    password findProperty('sonatypePassword') as String ?: "should be in different file"
                 }
             }
         }
@@ -137,6 +139,7 @@ subprojects {
     // Define dependency report task that all subprojects gets. Invoke with "./gradlew allDeps | less"
     task allDeps(type: DependencyReportTask) {}
 
+    // Some info about current gradle environment.
     task systemInformation {
         doLast {
             println "\n** Java properties [System.getProperties()], sorted:\n"

@@ -27,7 +27,7 @@ import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.EnableMats;
 import io.mats3.spring.matsfactoryqualifier.AbstractQualificationTest;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * Base class for {@link VerifyShutdownOrderUsingFactoryBeanTest} - we do not use SpringRunner or other frameworks, but

@@ -26,7 +26,7 @@ import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * Illustrates that {@link Extension_MatsEndpoint} is autowired by Spring when using the test execution listener

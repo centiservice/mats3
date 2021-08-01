@@ -27,7 +27,7 @@ import io.mats3.spring.jms.factories.ConnectionFactoryWithStartStopWrapper;
 import io.mats3.spring.jms.factories.ScenarioConnectionFactoryProducer;
 import io.mats3.spring.jms.factories.SpringJmsMatsFactoryProducer;
 import io.mats3.test.MatsTestLatch;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * "AppTest2" - showing how multiple MatsFactories work in a Spring environment, along with some testing - in particular

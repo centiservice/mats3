@@ -1,6 +1,7 @@
 package io.mats3.lib_test.basics;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -16,16 +17,16 @@ import io.mats3.test.junit.Rule_Mats;
 
 /**
  * Tests the initiation within a stage functionality.
- * <p />
+ * <p/>
  * FIVE Terminators are set up: One for the normal service return, two for the initiations that are done using the
  * service's context.initiate(...), plus one for an initiation done directly on the MatsFactory.getDefaultInitiator()
  * (which when running within a Mats Stage should take part in the Stage's transactional demarcation), plus one more for
  * an initiation done directly on a MatsFactory.getOrCreateInitiator("NON default") from within the Stage (NOT
  * recommended way to code!).
- * <p />
+ * <p/>
  * A single-stage service is set up - which initiates three new messages to the three extra Terminators (2 x initiations
  * on ProcessContext, and 1 initiation directly on the MatsFactory), and returns a result to the normal Terminator.
- * <p />
+ * <p/>
  * TWO tests are performed:
  * <ol>
  * <li>An initiator does a request to the service, setting replyTo(Terminator) - which should result in all FIVE
@@ -67,6 +68,13 @@ public class Test_InitiateWithinStage {
     private static volatile String _traceId_stageInit_withMatsFactory_DefaultInitiator;
     private static volatile String _traceId_stageInit_withMatsFactory_NonDefaultInitiator;
 
+    private static volatile boolean _alreadySentUsingNonDefaultInitiator;
+
+    @Before
+    public void resetAlreadySentUsingNonDefaultInitiator() {
+        _alreadySentUsingNonDefaultInitiator = false;
+    }
+
     @BeforeClass
     public static void setupService() {
         MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
@@ -74,6 +82,13 @@ public class Test_InitiateWithinStage {
                     // Fire off two new initiations to the two Terminators
                     context.initiate(
                             msg -> {
+                                /*
+                                 * Initiate on the ProcessContext.
+                                 *
+                                 * These will partake in the transaction demarcation of this stage, thus if the stage
+                                 * later exits with an exception (which it will in one of the tests, look further down
+                                 * in this stage's code), the messages will not be sent after all.
+                                 */
                                 msg.traceId("subtraceId1")
                                         .to(TERMINATOR + "_stageInit1")
                                         .send(new DataTO(Math.E, "xyz"));
@@ -82,15 +97,18 @@ public class Test_InitiateWithinStage {
                                         .send(new DataTO(-Math.E, "abc"), new StateTO(Integer.MAX_VALUE, Math.PI));
 
                                 /*
-                                 * Initiate directly on MatsFactory.getDefaultInitiator(), not the ProcessContext.
+                                 * Initiate on MatsFactory.getDefaultInitiator(), not the ProcessContext.
                                  *
-                                 * NOTICE!!! THIS WILL HAPPEN *INSIDE* THE TRANSACTION DEMARCATION FOR THIS STAGE!
+                                 * NOTICE!!! THIS WILL ALSO HAPPEN *INSIDE* THE TRANSACTION DEMARCATION FOR THIS STAGE!
+                                 * Thus, this initiation is exactly similar to the ones above, and thus if the stage
+                                 * later exits with an exception, this message won't be sent after all.
                                  *
-                                 * This USED to happen outside the transaction demarcation for this stage, but I've
-                                 * changed this so that getting the *default* initiator inside a stage will return you a
-                                 * ThreadLocal bound "magic initiator". The rationale here is that you then can make
-                                 * methods which can be invoked "out of context", OR be invoked "in stage", and if the
-                                 * latter, will participate in the same transactional demarcation as the stage.
+                                 * Such an initiation, using matsFactory.getDefaultInitiator(), USED to happen outside
+                                 * the transaction demarcation for this stage, but I've changed this so that getting the
+                                 * *default* initiator inside a stage's thread context will return you a ThreadLocal
+                                 * bound "magic initiator". The rationale here is that you then can make methods which
+                                 * can be invoked "out of context", OR be invoked "in stage", and if the latter, will
+                                 * participate in the same transactional demarcation as the stage.
                                  */
                                 MATS.getMatsFactory().getDefaultInitiator().initiateUnchecked(init -> {
                                     init.traceId("subtraceId3_with_MatsFactory.getDefaultInitiator()")
@@ -117,6 +135,10 @@ public class Test_InitiateWithinStage {
                                  * transaction will commit before the transaction surrounding the Mats process lambda
                                  * that we're within.
                                  *
+                                 * It also means that if this stage later exits out with an exception (as it does in
+                                 * one of the tests), the MQ retries will result in /multiple/ messages being sent, as
+                                 * the sending is immediate.
+                                 *
                                  * Note that with the change 2021-04-12 (one year later!), where I finalized the logic
                                  * of inside/outside, now the original "WithinStageContext" is kept even through such an
                                  * "outside transaction demarcation", thus the TraceId set below ("New TraceId") will be
@@ -126,17 +148,28 @@ public class Test_InitiateWithinStage {
                                  *
                                  * TAKEAWAY: This should not be a normal way to code! But it is possible to do.
                                  */
-                                MATS.getMatsFactory().getOrCreateInitiator("NOT default").initiateUnchecked(
-                                        init -> {
-                                            init.traceId("New TraceId")
-                                                    .from("New Init")
-                                                    .to(TERMINATOR + "_stageInit_withMatsFactory_NonDefaultInitiator")
-                                                    .send(new DataTO(-Math.PI, "Stølsvik"));
-                                        });
+                                // ?: Have we already sent this message in this test round?
+                                // (NOTE: This guard is to avoid sending it multiple times in face of redeliveries, read
+                                // comment about this above).
+                                if (!_alreadySentUsingNonDefaultInitiator) {
+                                    // -> No, not already sent in this test, so do it now.
+                                    MATS.getMatsFactory().getOrCreateInitiator("NOT default").initiateUnchecked(
+                                            init -> {
+                                                init.traceId("subtraceId4_with_MatsFactory.getOrCreateInitiator(...)")
+                                                        .from("New Init")
+                                                        .to(TERMINATOR
+                                                                + "_stageInit_withMatsFactory_NonDefaultInitiator")
+                                                        .send(new DataTO(-Math.PI, "Stølsvik"));
+                                            });
+                                    _alreadySentUsingNonDefaultInitiator = true;
+                                }
+
+                                // NOTE! This is where we in one of the tests specify that the stage should throw.
 
                                 // ?: Should we throw at this point?
                                 if (dto.string.equals("THROW!")) {
-                                    throw new RuntimeException("This should lead to DLQ!");
+                                    throw new RuntimeException("This should lead to DLQ after MQ has performed"
+                                            + " its retries!");
                                 }
 
                             });
@@ -230,7 +263,8 @@ public class Test_InitiateWithinStage {
                 .waitForResult();
         Assert.assertEquals(new StateTO(0, 0), result_withMatsFactory_NonDefaultInitiator.getState());
         Assert.assertEquals(new DataTO(-Math.PI, "Stølsvik"), result_withMatsFactory_NonDefaultInitiator.getData());
-        Assert.assertEquals(traceId + "|New TraceId", _traceId_stageInit_withMatsFactory_NonDefaultInitiator);
+        Assert.assertEquals(traceId + "|subtraceId4_with_MatsFactory.getOrCreateInitiator(...)",
+                _traceId_stageInit_withMatsFactory_NonDefaultInitiator);
     }
 
     @Test
@@ -259,7 +293,8 @@ public class Test_InitiateWithinStage {
                 .waitForResult();
         Assert.assertEquals(new StateTO(0, 0), result_withMatsFactory_NonDefaultInitiator.getState());
         Assert.assertEquals(new DataTO(-Math.PI, "Stølsvik"), result_withMatsFactory_NonDefaultInitiator.getData());
-        Assert.assertEquals(traceId + "|New TraceId", _traceId_stageInit_withMatsFactory_NonDefaultInitiator);
+        Assert.assertEquals(traceId + "|subtraceId4_with_MatsFactory.getOrCreateInitiator(...)",
+                _traceId_stageInit_withMatsFactory_NonDefaultInitiator);
 
         // HOWEVER, NONE of the IN-STAGE-DEMARCATED messages should have come!
 

@@ -22,7 +22,7 @@ import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestMqInterface;
 import io.mats3.test.TestH2DataSource;
 import io.mats3.util.MatsFuturizer;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * Base class containing common code for Rule_Mats and Extension_Mats located in the following modules:

@@ -43,7 +43,7 @@ import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.TestH2DataSource;
 import io.mats3.util.RandomString;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * Abstract test of Spring DB Transaction management, performing INSERTs using Spring JdbcTemplate and Plain JDBC,

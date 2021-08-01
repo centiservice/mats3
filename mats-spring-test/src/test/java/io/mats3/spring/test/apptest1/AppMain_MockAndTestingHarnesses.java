@@ -20,7 +20,7 @@ import io.mats3.spring.jms.factories.ScenarioConnectionFactoryProducer;
 import io.mats3.spring.jms.factories.SpringJmsMatsFactoryProducer;
 import io.mats3.spring.test.SpringTestDataTO;
 import io.mats3.util.MatsFuturizer;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * "AppTest1" - showing different ways to employ the testing harnesses supplied by Mats in a Spring application.

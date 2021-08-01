@@ -23,7 +23,7 @@ import io.mats3.spring.EnableMats;
 import io.mats3.spring.test.MatsTestContext.MatsSimpleTestInfrastructureContextInitializer;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.util.MatsFuturizer;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * One-stop-shop for making <i>simple</i> Spring-based integration/unit tests of MATS endpoints (NOT utilizing SQL

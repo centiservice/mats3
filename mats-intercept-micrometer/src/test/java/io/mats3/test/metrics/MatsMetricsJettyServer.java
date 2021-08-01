@@ -38,7 +38,7 @@ import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.metrics.SetupTestMatsEndpoints.DataTO;
 import io.mats3.test.metrics.SetupTestMatsEndpoints.StateTO;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 import ch.qos.logback.core.CoreConstants;
 import io.micrometer.core.instrument.Metrics;

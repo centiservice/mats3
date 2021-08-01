@@ -24,7 +24,7 @@ import io.mats3.localinspect.LocalStatsMatsInterceptor;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.spring.jms.factories.SpringJmsMatsFactoryWrapper;
 import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * A testing-oriented {@link MatsFactory}-provider which also create a separate LocalVM ActiveMQ broker for the produced

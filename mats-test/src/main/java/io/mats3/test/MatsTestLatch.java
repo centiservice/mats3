@@ -19,21 +19,22 @@ public class MatsTestLatch {
     }
 
     /**
-     * Waits for 2,5 seconds.
+     * Convenience method of {@link #waitForResult(long)}: Waits for 10 seconds for the test-latch to be {@link
+     * #resolve(DetachedProcessContext, Object, Object) resolved}.
      *
      * @return same as {@link #waitForResult(long)}.
      */
     public <S, I> Result<S, I> waitForResult() {
-        return waitForResult(2500);
+        return waitForResult(10_000);
     }
 
     /**
-     * Parks this thread, waiting for the specified time for {@link #resolve(Object, Object) resolve(..)} to be invoked
-     * by some other thread, returning the result. If the result is already in, it immediately returns. If the result
-     * does not come within timeout, an {@link AssertionError} is raised.
+     * Waits for the specified time for {@link #resolve(DetachedProcessContext, Object, Object)} resolve(..)} to be
+     * invoked by some other thread, returning the result. If the result is already in, it immediately returns. If the
+     * result does not come within timeout, an {@link AssertionError} is raised.
      *
      * @param timeout
-     *            the max time to wait.
+     *         the max time to wait.
      * @return the {@link Result}. Throws {@link AssertionError} if not gotten within timeout.
      */
     public <S, I> Result<S, I> waitForResult(long timeout) {
@@ -93,9 +94,9 @@ public class MatsTestLatch {
      * ProcessContext</b>, use {@link #resolve(DetachedProcessContext, Object, Object) the other one}!
      *
      * @param sto
-     *            State object.
+     *         State object.
      * @param dto
-     *            the incoming state object that the Mats processor initially received.
+     *         the incoming state object that the Mats processor initially received.
      * @see #resolve(DetachedProcessContext, Object, Object)
      */
     public void resolve(Object sto, Object dto) {
@@ -114,11 +115,11 @@ public class MatsTestLatch {
      * When this method is invoked, the waiting threads will be released.
      *
      * @param context
-     *            (Detached)ProcessContext
+     *         (Detached)ProcessContext
      * @param sto
-     *            State object.
+     *         State object.
      * @param dto
-     *            the incoming state object that the Mats processor initially received.
+     *         the incoming state object that the Mats processor initially received.
      */
     public void resolve(DetachedProcessContext context, Object sto, Object dto) {
         synchronized (this) {
@@ -132,5 +133,4 @@ public class MatsTestLatch {
             this.notifyAll();
         }
     }
-
 }

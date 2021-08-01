@@ -1,4 +1,4 @@
-package io.mats3.util_activemq;
+package io.mats3.test.activemq;
 
 import java.util.concurrent.ThreadLocalRandom;
 

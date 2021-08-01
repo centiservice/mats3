@@ -48,7 +48,7 @@ import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.junit.Rule_Mats;
 import io.mats3.util.wrappers.ConnectionFactoryWrapper;
-import io.mats3.util_activemq.MatsLocalVmActiveMq;
+import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * Checks that if we do not send any messages in an initiation, no JMS Commit will occur.
