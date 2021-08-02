@@ -82,17 +82,17 @@ public abstract class AbstractMatsTestEndpoint<R, I> {
 
     /**
      * Blocks and waits for the endpoint to be invoked, then returns the incoming message DTO of the type
-     * (<code>I</code>). Will use a default timout value of 5 seconds.
+     * (<code>I</code>). Will use a default timout value of 10 seconds.
      *
      * @return the first incoming message it encounters after calling this method.
      */
     public I waitForRequest() {
-        return waitForRequest(5_000);
+        return waitForRequest(10_000);
     }
 
     /**
      * Blocks and waits for the endpoint to be invoked, then returns the incoming message DTO of the type
-     * (<code>I</code>). Will use a default timout value of 5 seconds.
+     * (<code>I</code>).
      *
      * @param millisToWait
      *            time to wait before timing out.
@@ -104,19 +104,19 @@ public abstract class AbstractMatsTestEndpoint<R, I> {
 
     /**
      * Blocks and waits for the endpoint to be invoked x number of times, then returns the x number of corresponding
-     * incoming message DTO's of the type (<code>I</code>). Will utilize a default timeout value of 5 seconds.
+     * incoming message DTO's of the type (<code>I</code>). Will utilize a default timeout value of 10 seconds.
      *
      * @param expectedNumberOfRequests
      *            the number of requests before unblocking and returning the received objects.
      * @return the x number of incoming message it encounters after calling this method as a List&lt;I&gt;.
      */
     public List<I> waitForRequests(int expectedNumberOfRequests) {
-        return waitForRequests(expectedNumberOfRequests, 5_000);
+        return waitForRequests(expectedNumberOfRequests, 10_000);
     }
 
     /**
      * Blocks and waits for the endpoint to be invoked x number of times, then returns the x number of corresponding
-     * incoming message DTO's of the type (<code>I</code>). Will utilize a default timeout value of 5 seconds.
+     * incoming message DTO's of the type (<code>I</code>).
      *
      * @param expectedNumberOfRequests
      *            the number of requests before unblocking and returning the received objects.
@@ -224,13 +224,9 @@ public abstract class AbstractMatsTestEndpoint<R, I> {
      * <p>
      * This method should be called as a result of the following life cycle events for either JUnit or Jupiter:
      * <ul>
-     * <li>Before - JUnit - Rule</li>
-     * <li>BeforeEachCallback - Jupiter</li>
+     * <li>After - JUnit - Rule</li>
+     * <li>AfterEachCallback - Jupiter</li>
      * </ul>
-     * <p>
-     * Note: If a test utilizes {@link AbstractMatsTest#cleanMatsFactories()} in a method annotated with
-     * {@link org.junit.Before} inside the test class. Then this is obsolete, however for the purpose of cleanliness the
-     * endpoint will clean up after itself.
      */
     public void after() {
         log.debug("+++ " + junitOrJupiter() + " +++ AFTER on '" + idThis() + "'.");
