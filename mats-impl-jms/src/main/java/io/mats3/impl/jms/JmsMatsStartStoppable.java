@@ -29,37 +29,42 @@ public interface JmsMatsStartStoppable extends JmsMatsStatics, StartStoppable {
 
     // ===== Graceful shutdown algorithm.
 
-    default void stopPhase0_SetRunFlagFalseAndCloseSessionIfInReceive() {
-        getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase0_SetRunFlagFalseAndCloseSessionIfInReceive);
+    default void stopPhase0_SetRunFlagFalse() {
+        getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase0_SetRunFlagFalse);
     }
 
-    default void stopPhase1_GracefulWaitAfterRunflagFalse(int gracefulShutdownMillis) {
+    default void stopPhase1_CloseSessionIfInReceive() {
+        getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase1_CloseSessionIfInReceive);
+    }
+
+    default void stopPhase2_GracefulWaitAfterRunflagFalse(int gracefulShutdownMillis) {
         int millisLeft = gracefulShutdownMillis;
         for (JmsMatsStartStoppable child : getChildrenStartStoppable()) {
             long millisBefore = System.currentTimeMillis();
-            child.stopPhase1_GracefulWaitAfterRunflagFalse(millisLeft);
+            child.stopPhase2_GracefulWaitAfterRunflagFalse(millisLeft);
             millisLeft -= (System.currentTimeMillis() - millisBefore);
             millisLeft = Math.max(millisLeft, EXTRA_GRACE_MILLIS);
         }
     }
 
-    default void stopPhase2_InterruptIfStillAlive() {
-        getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase2_InterruptIfStillAlive);
+    default void stopPhase3_InterruptIfStillAlive() {
+        getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase3_InterruptIfStillAlive);
     }
 
-    default boolean stopPhase3_GracefulAfterInterrupt() {
+    default boolean stopPhase4_GracefulAfterInterrupt() {
         boolean stopped = true;
         for (JmsMatsStartStoppable child : getChildrenStartStoppable()) {
-            stopped &= child.stopPhase3_GracefulAfterInterrupt();
+            stopped &= child.stopPhase4_GracefulAfterInterrupt();
         }
         return stopped;
     }
 
     @Override
     default boolean stop(int gracefulShutdownMillis) {
-        stopPhase0_SetRunFlagFalseAndCloseSessionIfInReceive();
-        stopPhase1_GracefulWaitAfterRunflagFalse(gracefulShutdownMillis);
-        stopPhase2_InterruptIfStillAlive();
-        return stopPhase3_GracefulAfterInterrupt();
+        stopPhase0_SetRunFlagFalse();
+        stopPhase1_CloseSessionIfInReceive();
+        stopPhase2_GracefulWaitAfterRunflagFalse(gracefulShutdownMillis);
+        stopPhase3_InterruptIfStillAlive();
+        return stopPhase4_GracefulAfterInterrupt();
     }
 }

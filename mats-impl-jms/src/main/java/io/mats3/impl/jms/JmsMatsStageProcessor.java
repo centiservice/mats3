@@ -128,9 +128,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     @Override
-    public void stopPhase0_SetRunFlagFalseAndCloseSessionIfInReceive() {
+    public void stopPhase0_SetRunFlagFalse() {
         // Start by setting the run-flag to false..
         _runFlag = false;
+    }
+
+    @Override
+    public void stopPhase1_CloseSessionIfInReceive() {
         /*
          * Trying to make very graceful: If we're in consumer.receive(), then close the Session, which makes the
          * receive()-call return null, causing the thread to loop and check run-flag. If not, then assume that the
@@ -153,13 +157,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         // E-> ?: Is thread currently waiting in consumer.receive()?
         // First we do a repeated "pre-check", and wait a tad if it isn't in receive yet (this happens too often in
         // tests, where the system is being closed down before the run-loop has gotten back to consumer.receive())
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 50; i++) {
             // ?: Have we gotten to receive?
             if (_processorInReceive) {
                 // -> Yes, gotten to receive, so break out of chill-loop.
                 break;
             }
-            chillWait(1);
+            chillWait(2);
             // ?: Is the thread dead?
             if (!_processorThread.isAlive()) {
                 // -> Yes, thread is dead, so it has already exited.
@@ -181,7 +185,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     @Override
-    public void stopPhase1_GracefulWaitAfterRunflagFalse(int gracefulShutdownMillis) {
+    public void stopPhase2_GracefulWaitAfterRunflagFalse(int gracefulShutdownMillis) {
         if (_processorThread.isAlive()) {
             log.info(LOG_PREFIX + "Thread " + ident() + " is running, waiting for it to exit gracefully for ["
                     + gracefulShutdownMillis + " ms].");
@@ -195,7 +199,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     @Override
-    public void stopPhase2_InterruptIfStillAlive() {
+    public void stopPhase3_InterruptIfStillAlive() {
         if (_processorThread.isAlive()) {
             // -> No, thread did not exit within graceful wait period.
             log.warn(LOG_PREFIX + ident() + " DID NOT exit after grace period, so interrupt it and wait some more.");
@@ -205,7 +209,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     @Override
-    public boolean stopPhase3_GracefulAfterInterrupt() {
+    public boolean stopPhase4_GracefulAfterInterrupt() {
         if (_processorThread.isAlive()) {
             // Wait a small time more after the interrupt.
             joinProcessorThread(EXTRA_GRACE_MILLIS);
@@ -245,7 +249,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     private void runner() {
-        boolean closeJmsSessionHolder = true;
+        boolean nullFromReceiveThusSessionIsClosed = false;
         // :: OUTER RUN-LOOP, where we'll get a fresh JMS Session, Destination and MessageConsumer.
         OUTER: while (_runFlag) {
             // :: Clean MDC and set the "static" MDC values, since we just MDC.clear()'ed
@@ -328,7 +332,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     + " Breaking out of run-loop to exit.");
                             // Since this means that the session was closed "from the outside", we'll NOT close it
                             // from our side (here in the processor thread)
-                            closeJmsSessionHolder = false;
+                            nullFromReceiveThusSessionIsClosed = true;
                             break OUTER;
                         }
                         else {
@@ -915,17 +919,17 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         clearAndSetStaticMdcValues();
         // :: log "exit line".
         // ?: Should we close the current JMS SessionHolder?
-        if (closeJmsSessionHolder) {
-            // -> Yes, evidently NOT closed from the outside, so DO it here (if double-close, the holder will catch it)
-            log.info(LOG_PREFIX + ident() + " asked to exit, and that we do! Closing current JmsSessionHolder.");
-            // Close current JMS SessionHolder.
-            closeCurrentSessionHolder();
-        }
-        else {
+        if (nullFromReceiveThusSessionIsClosed) {
             // -> No, the JMS SessionHolder has been closed from the outside (since we got 'null' from the receive),
             // so DO NOT do it here, thus avoiding loglines about double closes.
             log.info(LOG_PREFIX + ident() + " asked to exit, and that we do! NOT closing current JmsSessionHolder,"
                     + " as that was done from the outside.");
+        }
+        else {
+            // -> Yes, evidently NOT closed from the outside, so DO it here (if double-close, the holder will catch it)
+            log.info(LOG_PREFIX + ident() + " asked to exit, and that we do! Closing current JmsSessionHolder.");
+            // Close current JMS SessionHolder.
+            closeCurrentSessionHolder();
         }
         _jmsMatsStage.removeStageProcessorFromList(this);
     }

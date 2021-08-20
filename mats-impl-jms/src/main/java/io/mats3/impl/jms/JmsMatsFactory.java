@@ -643,12 +643,11 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         _holdEndpointsUntilFactoryIsStarted = false;
         // :: Now start all the already configured endpoints
         for (MatsEndpoint<?, ?> endpoint : getEndpoints()) {
-            try {
-                endpoint.start();
-            }
-            catch (Throwable t) {
-                log.warn("Got some throwable when starting endpoint [" + endpoint + "].", t);
-            }
+            endpoint.start();
+        }
+        // :: Wait for them entering receiving.
+        for (MatsEndpoint<?, ?> endpoint : getEndpoints()) {
+            endpoint.waitForReceiving(10_000);
         }
     }
 
@@ -690,6 +689,10 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
                 + "], thus stopping/closing all created endpoints and initiators.");
         boolean stopped = JmsMatsStartStoppable.super.stop(gracefulShutdownMillis);
 
+        for (MatsInitiator initiator : getInitiators()) {
+            initiator.close();
+        }
+
         if (stopped) {
             log.info(LOG_PREFIX + "Everything of [" + idThis() + "} stopped nicely. Now cleaning JMS Session pool.");
         }
@@ -698,9 +701,6 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
                     + gracefulShutdownMillis + "] millis, giving up. Now cleaning JMS Session pool.");
         }
 
-        for (MatsInitiator initiator : getInitiators()) {
-            initiator.close();
-        }
 
         // :: "Closing the JMS pool"; closing all available SessionHolder, which should lead to the Connections closing.
         _jmsMatsJmsSessionHandler.closeAllAvailableSessions();

@@ -15,8 +15,8 @@ public class Test_IsSubscription {
 
     @Test
     public void testNonSubscription() {
-        MatsEndpoint<Void, StateTO> nonSubscription = MATS.getMatsFactory().terminator("testNonSubscription",
-                StateTO.class, DataTO.class, (context, sto, dto) -> {
+        MatsEndpoint<Void, StateTO> nonSubscription = MATS.getMatsFactory().terminator(
+                "testNonSubscription", StateTO.class, DataTO.class, (context, sto, dto) -> {
                 });
 
         Assert.assertFalse(nonSubscription.getEndpointConfig().isSubscription());
