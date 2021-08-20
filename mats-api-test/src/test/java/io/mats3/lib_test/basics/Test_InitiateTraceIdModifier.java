@@ -1,12 +1,17 @@
 package io.mats3.lib_test.basics;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -39,7 +44,7 @@ public class Test_InitiateTraceIdModifier {
     private static final String TERMINATOR_MANY = MatsTestHelp.endpointId("Terminator_Many");
 
     // For the "many messages" situation:
-    private static volatile List<String> _traceIds;
+    private static volatile List<String> _traceIdsWithinMats;
     private static volatile CountDownLatch _countDownLatch;
 
     @BeforeClass
@@ -52,9 +57,15 @@ public class Test_InitiateTraceIdModifier {
 
         MATS.getMatsFactory().terminator(TERMINATOR_MANY, StateTO.class, DataTO.class,
                 (context, sto, dto) -> {
-                    _traceIds.add(context.getTraceId());
+                    _traceIdsWithinMats.add(context.getTraceId());
                     _countDownLatch.countDown();
                 });
+    }
+
+    @After
+    @Before
+    public void clearMdc() {
+        MDC.clear();
     }
 
     @Test
@@ -117,7 +128,7 @@ public class Test_InitiateTraceIdModifier {
         MDC.put("traceId", "Prefixed");
 
         // :: Arrange
-        setMdcPrefixingTraceIdModifier();
+        setTraceIdModifier_UsingExistingMdcTraceId();
 
         // :: Act
         StateTO sto = new StateTO(7, 3.14);
@@ -140,10 +151,8 @@ public class Test_InitiateTraceIdModifier {
 
     @Test
     public void usingExistingMdcTraceIdToModify_null() {
-        MDC.remove("traceId");
-
         // :: Arrange
-        setMdcPrefixingTraceIdModifier();
+        setTraceIdModifier_UsingExistingMdcTraceId();
 
         // :: Act
         StateTO sto = new StateTO(7, 3.14);
@@ -170,19 +179,21 @@ public class Test_InitiateTraceIdModifier {
 
         int numMessages = 20;
         _countDownLatch = new CountDownLatch(20);
-        _traceIds = new CopyOnWriteArrayList<>();
+        _traceIdsWithinMats = new CopyOnWriteArrayList<>();
 
         // :: Arrange
-        setMdcPrefixingTraceIdModifier();
+        setTraceIdModifier_UsingExistingMdcTraceId();
 
         // :: Act
         StateTO sto = new StateTO(7, 3.14);
         DataTO dto = new DataTO(42, "TheAnswer");
-        String origTraceId = MatsTestHelp.traceId();
+        List<String> origTraceIds = new ArrayList<>();
         MATS.getMatsInitiator().initiateUnchecked(
                 (init) -> {
                     for (int i = 0; i < numMessages; i++) {
-                        init.traceId(origTraceId)
+                        String traceId = MatsTestHelp.traceId();
+                        origTraceIds.add(traceId);
+                        init.traceId(traceId)
                                 .from(MatsTestHelp.from("test"))
                                 .to(TERMINATOR_MANY)
                                 .send(dto, sto);
@@ -194,33 +205,36 @@ public class Test_InitiateTraceIdModifier {
         Assert.assertTrue("Should have counted down!", waited);
 
         // Assert that we have all the traceIds
-        Assert.assertEquals(_traceIds.size(), numMessages);
-        log.info("######### All traceIds: " + _traceIds);
+        Assert.assertEquals(_traceIdsWithinMats.size(), numMessages);
+        _traceIdsWithinMats.sort(Comparator.naturalOrder());
+        log.info("######### All traceIds within Mats: " + _traceIdsWithinMats);
         // Should have been modified (since MDC was set)
-        for (String traceId : _traceIds) {
-            Assert.assertEquals("Prefixed|" + origTraceId, traceId);
-        }
+        List<String> expectedTraceIds = origTraceIds.stream()
+                .map(s -> "Prefixed|" + s)
+                .sorted()
+                .collect(Collectors.toList());
+        Assert.assertEquals(expectedTraceIds, _traceIdsWithinMats);
     }
 
     @Test
     public void usingExistingMdcTraceIdToModify_manyMessages_mdcNull() throws InterruptedException {
-        MDC.remove("traceId");
-
         int numMessages = 20;
         _countDownLatch = new CountDownLatch(20);
-        _traceIds = new CopyOnWriteArrayList<>();
+        _traceIdsWithinMats = new CopyOnWriteArrayList<>();
 
         // :: Arrange
-        setMdcPrefixingTraceIdModifier();
+        setTraceIdModifier_UsingExistingMdcTraceId();
 
         // :: Act
         StateTO sto = new StateTO(7, 3.14);
         DataTO dto = new DataTO(42, "TheAnswer");
-        String origTraceId = MatsTestHelp.traceId();
+        List<String> origTraceIds = new ArrayList<>();
         MATS.getMatsInitiator().initiateUnchecked(
                 (init) -> {
                     for (int i = 0; i < numMessages; i++) {
-                        init.traceId(origTraceId)
+                        String traceId = MatsTestHelp.traceId();
+                        origTraceIds.add(traceId);
+                        init.traceId(traceId)
                                 .from(MatsTestHelp.from("test"))
                                 .to(TERMINATOR_MANY)
                                 .send(dto, sto);
@@ -231,16 +245,19 @@ public class Test_InitiateTraceIdModifier {
         boolean waited = _countDownLatch.await(10, TimeUnit.SECONDS);
         Assert.assertTrue("Should have counted down!", waited);
 
+
         // Assert that we have all the traceIds
-        Assert.assertEquals(_traceIds.size(), numMessages);
-        log.info("######### All traceIds: " + _traceIds);
+        Assert.assertEquals(_traceIdsWithinMats.size(), numMessages);
+        _traceIdsWithinMats.sort(Comparator.naturalOrder());
+        log.info("######### All traceIds within Mats: " + _traceIdsWithinMats);
         // Should NOT have been modified (since MDC was null)
-        for (String traceId : _traceIds) {
-            Assert.assertEquals(origTraceId, traceId);
-        }
+        List<String> expectedTraceIds = origTraceIds.stream()
+                .sorted()
+                .collect(Collectors.toList());
+        Assert.assertEquals(expectedTraceIds, _traceIdsWithinMats);
     }
 
-    private void setMdcPrefixingTraceIdModifier() {
+    private void setTraceIdModifier_UsingExistingMdcTraceId() {
         MATS.getMatsFactory().getFactoryConfig().setInitiateTraceIdModifier((origTraceId) -> {
             String mdcTraceId = MDC.get("traceId");
             if (mdcTraceId != null) {
