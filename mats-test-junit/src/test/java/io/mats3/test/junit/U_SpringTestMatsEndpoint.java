@@ -26,7 +26,7 @@ import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
+import io.mats3.test.broker.MatsTestBroker;
 
 /**
  * Illustrates that {@link Rule_MatsEndpoint} is autowired by Spring when using the test execution listener provided by
@@ -65,8 +65,8 @@ public class U_SpringTestMatsEndpoint {
         }
 
         @Bean
-        public MatsLocalVmActiveMq mqBroker() {
-            return MatsLocalVmActiveMq.createDefaultInVmActiveMq();
+        public MatsTestBroker mqBroker() {
+            return MatsTestBroker.create();
         }
 
         @Bean
@@ -75,7 +75,7 @@ public class U_SpringTestMatsEndpoint {
         }
 
         @Bean
-        public MatsFactory matsFactory(MatsLocalVmActiveMq broker) {
+        public MatsFactory matsFactory(MatsTestBroker broker) {
             JmsMatsJmsSessionHandler_Simple jmsMatsJmsSessionHandler_simple = JmsMatsJmsSessionHandler_Simple.create(
                     broker.getConnectionFactory());
             return JmsMatsFactory.createMatsFactory_JmsOnlyTransactions("MATS-JUNIT", "test",

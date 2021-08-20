@@ -22,12 +22,12 @@ import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.ComponentScanExcludingConfigurationForTest;
 import io.mats3.spring.ConfigurationForTest;
 import io.mats3.spring.EnableMats;
-import io.mats3.spring.jms.factories.MatsScenario;
 import io.mats3.spring.jms.factories.ConnectionFactoryWithStartStopWrapper;
+import io.mats3.spring.jms.factories.MatsScenario;
 import io.mats3.spring.jms.factories.ScenarioConnectionFactoryProducer;
 import io.mats3.spring.jms.factories.SpringJmsMatsFactoryProducer;
 import io.mats3.test.MatsTestLatch;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
+import io.mats3.test.broker.MatsTestBroker;
 
 /**
  * "AppTest2" - showing how multiple MatsFactories work in a Spring environment, along with some testing - in particular
@@ -40,17 +40,17 @@ import io.mats3.test.activemq.MatsLocalVmActiveMq;
  * <code>{@literal @Bean}</code> methods and Mats SpringConfig-specified Endpoints can utilize two MatsFactories, each
  * using a different ActiveMQ. It also employs some different testing methods.
  * <p>
- * PLEASE NOTE: In this "application", we set up two MatsLocalVmActiveMq in-vm "LocalVM" instances to simulate a
- * production setup where there are two external Message Brokers that this application wants to connect to. The reason
- * is that it should be possible to run this test-application without external resources set up. To connect to these
- * brokers, you may start the application with Spring Profile "mats-regular" active, or set the system property
- * "mats.regular" (i.e. "-Dmats.regular" on the Java command line) - <b>or just run it directly, as the default scenario
- * when nothing is specified is set up to be "regular".</b> <i>However</i>, if the Spring Profile "mats-test" is active
- * (which you do in integration tests), the JmsSpringConnectionFactoryProducer will instead of using the specified
- * ConnectionFactory to these two message brokers, make new (different!) LocalVM instances and return a
- * ConnectionFactory to those. Had this been a real application, where the ConnectionFactory specified in the regular
- * scenario of those beans pointed to the actual external production brokers, this would make it possible to switch
- * between connecting to the production setup, and the integration testing setup (employing LocalVM instances).
+ * PLEASE NOTE: In this "application", we set up two MatsTestBroker in-vm "LocalVM" instances to simulate a production
+ * setup where there are two external Message Brokers that this application wants to connect to. The reason is that it
+ * should be possible to run this test-application without external resources set up. To connect to these brokers, you
+ * may start the application with Spring Profile "mats-regular" active, or set the system property "mats.regular" (i.e.
+ * "-Dmats.regular" on the Java command line) - <b>or just run it directly, as the default scenario when nothing is
+ * specified is set up to be "regular".</b> <i>However</i>, if the Spring Profile "mats-test" is active (which you do in
+ * integration tests), the JmsSpringConnectionFactoryProducer will instead of using the specified ConnectionFactory to
+ * these two message brokers, make new (different!) LocalVM instances and return a ConnectionFactory to those. Had this
+ * been a real application, where the ConnectionFactory specified in the regular scenario of those beans pointed to the
+ * actual external production brokers, this would make it possible to switch between connecting to the production setup,
+ * and the integration testing setup (employing LocalVM instances).
  *
  * @author Endre Stølsvik 2019-05-17 21:42 - http://stolsvik.com/, endre@stolsvik.com
  */
@@ -114,23 +114,25 @@ public class AppMain_TwoMatsFactories {
     protected ConnectionFactory jmsConnectionFactory1() {
         log.info("Creating ConnectionFactory with @Qualifier(\"connectionFactoryA\")");
         return ScenarioConnectionFactoryProducer
-                .withRegularConnectionFactory((springEnvironment) ->
-                // NOTICE: This would normally be something like 'new ActiveMqConnectionFactory(<production URL 1>)'
-                // ALSO NOTICE: This is also where you'd switch between Production and Stagings URLs for MQ broker 1,
-                // typically using the supplied Spring Environment to decide.
-                new ConnectionFactoryWithStartStopWrapper() {
-                    private final MatsLocalVmActiveMq _amq = MatsLocalVmActiveMq.createInVmActiveMq("activeMq1");
+                /*
+                 * NOTICE: This would normally be something like 'new ActiveMqConnectionFactory(<production URL 1>)'
+                 * ALSO NOTICE: This is also where you'd switch between Production and Stagings URLs for MQ broker 1,
+                 * typically using the supplied Spring Environment, or System Properties, or whatever, to decide.
+                 */
+                .withRegularConnectionFactory((springEnvironment) -> new ConnectionFactoryWithStartStopWrapper() {
+                    private final MatsTestBroker _matsTestBroker = MatsTestBroker.create();
 
                     @Override
                     public ConnectionFactory start(String beanName) {
-                        return _amq.getConnectionFactory();
+                        return _matsTestBroker.getConnectionFactory();
                     }
 
                     @Override
                     public void stop() {
-                        _amq.close();
+                        _matsTestBroker.close();
                     }
                 })
+
                 // Choose Regular MatsScenario if none presented.
                 // NOTE: I WOULD ADVISE AGAINST THIS IN REAL SETTINGS!
                 // ... - I believe production should be a specific environment selected with some system property.
@@ -143,23 +145,55 @@ public class AppMain_TwoMatsFactories {
     protected ConnectionFactory jmsConnectionFactory2() {
         log.info("Creating ConnectionFactory with @Qualifier(\"connectionFactoryB\")");
         return ScenarioConnectionFactoryProducer
-                .withRegularConnectionFactory((springEnvironment) ->
-                // NOTICE: This would normally be something like 'new ActiveMqConnectionFactory(<production URL 2>)'
-                // ALSO NOTICE: This is also where you'd switch between Production and Stagings URLs for MQ broker 2,
-                // typically using the supplied Spring Environment to decide.
-                new ConnectionFactoryWithStartStopWrapper() {
-                    private final MatsLocalVmActiveMq _amq = MatsLocalVmActiveMq.createInVmActiveMq("activeMq2");
+                /*
+                 * NOTICE: This would normally be something like 'new ActiveMqConnectionFactory(<production URL 2>)'
+                 * ALSO NOTICE: This is also where you'd switch between Production and Stagings URLs for MQ broker 2,
+                 * typically using the supplied Spring Environment, or System Properties, or whatever, to decide.
+                 */
+                .withRegularConnectionFactory((springEnvironment) -> new ConnectionFactoryWithStartStopWrapper() {
+                    // Specifically creating a MatsTestBroker that uses a unique in-vm ActiveMQ, NOT going external.
+                    // If we didn't set this, the default would employ MatsTestBroker.create(), which would go to
+                    // the external broker if the special properties to MatsTestBroker are set. If those properties
+                    // are not set, MatsTestBroker.create() and MatsTestBroker.createUniqueInVmActiveMq() are identical.
+                    private final MatsTestBroker _matsTestBroker = MatsTestBroker.createUniqueInVmActiveMq();
 
                     @Override
                     public ConnectionFactory start(String beanName) {
-                        return _amq.getConnectionFactory();
+                        return _matsTestBroker.getConnectionFactory();
                     }
 
                     @Override
                     public void stop() {
-                        _amq.close();
+                        _matsTestBroker.close();
                     }
                 })
+
+                /*
+                 * NOTICE: withLocalVmConnectionFactory(..) CONFIGURATION IS NOT NEEDED IN THE VAST MAJORITY OF CASES!!
+                 * We're using two different MatsFactories in this testing scenario. To ensure that we can run the
+                 * entire test suite with the "magic properties" set that directs the MatsTestBroker to use an external
+                 * broker, we need to ensure that both of them DOES NOT go to the same external broker - as otherwise it
+                 * would not be two different brokers! (both ConnectionFactories would connect to the same external
+                 * broker). Therefore, we in this second ConnectionFactory explicitly create a unique, in-vm broker.
+                 */
+                .withLocalVmConnectionFactory((springEnvironment -> new ConnectionFactoryWithStartStopWrapper() {
+                    // Specifically creating a MatsTestBroker that uses a unique in-vm ActiveMQ, NOT going external.
+                    // If we didn't set this, the default would employ MatsTestBroker.create(), which would go to
+                    // the external broker if the special properties to MatsTestBroker are set. If those properties
+                    // are not set, MatsTestBroker.create() and MatsTestBroker.createUniqueInVmActiveMq() are identical.
+                    private final MatsTestBroker _matsTestBroker = MatsTestBroker.createUniqueInVmActiveMq();
+
+                    @Override
+                    public ConnectionFactory start(String beanName) {
+                        return _matsTestBroker.getConnectionFactory();
+                    }
+
+                    @Override
+                    public void stop() {
+                        _matsTestBroker.close();
+                    }
+                }))
+
                 // Choose Regular MatsScenario if none presented.
                 // NOTE: I WOULD ADVISE AGAINST THIS IN REAL SETTINGS!
                 // ... - I believe production should be a specific environment selected with some system property.
@@ -168,7 +202,7 @@ public class AppMain_TwoMatsFactories {
     }
 
     @Bean
-    @TestQualifier(name = "SouthWest")
+    @TestCustomQualifier(region = "SouthWest")
     @Qualifier("matsFactoryX")
     protected MatsFactory matsFactory1(@Qualifier("connectionFactoryA") ConnectionFactory connectionFactory,
             MatsSerializer<String> matsSerializer) {
@@ -191,7 +225,7 @@ public class AppMain_TwoMatsFactories {
     @Target({ ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
     @Retention(RetentionPolicy.RUNTIME)
     @Qualifier
-    public @interface TestQualifier {
-        String name() default "";
+    public @interface TestCustomQualifier {
+        String region() default "";
     }
 }

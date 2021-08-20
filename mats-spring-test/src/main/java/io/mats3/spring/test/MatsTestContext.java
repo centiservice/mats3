@@ -23,7 +23,7 @@ import io.mats3.spring.EnableMats;
 import io.mats3.spring.test.MatsTestContext.MatsSimpleTestInfrastructureContextInitializer;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.util.MatsFuturizer;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
+import io.mats3.test.broker.MatsTestBroker;
 
 /**
  * One-stop-shop for making <i>simple</i> Spring-based integration/unit tests of MATS endpoints (NOT utilizing SQL
@@ -62,7 +62,7 @@ import io.mats3.test.activemq.MatsLocalVmActiveMq;
  * consumers still consuming messages that the new test setup expected its consumers to take. For the in-memory broker
  * case, a solution would be to set up a new message broker (with a new name) for each context (each instantiation of a
  * new Spring context), but this would not solve the situation where we ran the tests against an actual external MQ
- * (which {@link MatsLocalVmActiveMq} supports, read its JavaDoc!). Had there been some "deactivate"/"reactivate" events
+ * (which {@link MatsTestBroker} supports, read its JavaDoc!). Had there been some "deactivate"/"reactivate" events
  * that could be picked, we could have stopped the endpoints in one context (put in the cache) when firing up a new
  * context, and the restarted them when the context was reused from the cache. Since such a solution does not seem to be
  * viable, the only solution seems to be dirtying of the context, this stopping it from being cached.

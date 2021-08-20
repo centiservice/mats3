@@ -20,7 +20,7 @@ import io.mats3.spring.SpringTestDataTO;
 import io.mats3.spring.SpringTestStateTO;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
+import io.mats3.test.broker.MatsTestBroker;
 
 /**
  * Base class for all the qualification tests - we do not use SpringRunner or other frameworks, but instead do all
@@ -41,22 +41,22 @@ public class AbstractQualificationTest {
     }
 
     @Bean
-    protected MatsLocalVmActiveMq activeMq1() {
-        return MatsLocalVmActiveMq.createInVmActiveMq("activeMq1");
+    protected MatsTestBroker activeMq1() {
+        return MatsTestBroker.createUniqueInVmActiveMq();
     }
 
     @Bean
-    protected MatsLocalVmActiveMq activeMq2() {
-        return MatsLocalVmActiveMq.createInVmActiveMq("activeMq2");
+    protected MatsTestBroker activeMq2() {
+        return MatsTestBroker.createUniqueInVmActiveMq();
     }
 
     @Bean
-    protected ConnectionFactory connectionFactory1(@Qualifier("activeMq1") MatsLocalVmActiveMq activeMq1) {
+    protected ConnectionFactory connectionFactory1(@Qualifier("activeMq1") MatsTestBroker activeMq1) {
         return activeMq1.getConnectionFactory();
     }
 
     @Bean
-    protected ConnectionFactory connectionFactory2(@Qualifier("activeMq2") MatsLocalVmActiveMq activeMq2) {
+    protected ConnectionFactory connectionFactory2(@Qualifier("activeMq2") MatsTestBroker activeMq2) {
         return activeMq2.getConnectionFactory();
     }
 

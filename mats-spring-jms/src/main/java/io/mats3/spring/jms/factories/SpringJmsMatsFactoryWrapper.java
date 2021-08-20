@@ -22,13 +22,13 @@ import io.mats3.impl.jms.JmsMatsFactory;
 /**
  * Wrapper that should be used for a JmsMatsFactory in a Spring context. In addition to the wrapped {@link MatsFactory},
  * it also needs the JMS {@link ConnectionFactory} which the the MatsFactory employs as that will be used to handle the
- * properties of "MatsTestMqInterface" for when the MatsFactory produced will be used in a test scenario (which it will
- * in a setup employing the {@link ScenarioConnectionFactoryProducer}).
+ * properties of "MatsTestBrokerInterface" for when the MatsFactory produced will be used in a test scenario (which it
+ * will in a setup employing the {@link ScenarioConnectionFactoryProducer}).
  * <p />
  * Current features:
  * <ul>
- * <li>If the Spring context contains an (empty) instance of 'MatsTestMqInterface', it populates it with the required
- * properties.</li>
+ * <li>If the Spring context contains an (empty) instance of 'MatsTestBrokerInterface', it populates it with the
+ * required properties.</li>
  * <li>When in a test or development scenario <i>(as defined by either Spring profile "mats-test" being active, or the
  * ConnectionFactory provided is of type {@link ScenarioConnectionFactoryWrapper} and the scenario is
  * {@link MatsScenario#LOCALVM})</i>, it sets the MatsFactory's default concurrency to 2, to avoid tons of unnecessary
@@ -43,7 +43,7 @@ import io.mats3.impl.jms.JmsMatsFactory;
  */
 public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
 
-    public static final String MATS_TEST_MQ_INTERFACE_CLASSNAME = "io.mats3.test.MatsTestMqInterface";
+    public static final String MATS_TEST_BROKER_INTERFACE_CLASSNAME = "io.mats3.test.MatsTestBrokerInterface";
     public static final String LATE_POPULATE_METHOD_NAME = "_latePopulate";
 
     private static final Logger log = LoggerFactory.getLogger(SpringJmsMatsFactoryWrapper.class);
@@ -52,7 +52,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
     private final ConnectionFactory _connectionFactory;
     private final MatsFactory _matsFactory;
 
-    private Class<?> _matsTestMqInterfaceClass;
+    private Class<?> _matsTestBrokerInterfaceClass;
 
     private Environment _environment;
     private ApplicationContext _applicationContext;
@@ -68,9 +68,9 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
     }
 
     {
-        // :: Using reflection here to see if we have the MatsTestMqInterface (from mats-test) on classpath.
+        // :: Using reflection here to see if we have the MatsTestBrokerInterface (from mats-test) on classpath.
         try {
-            _matsTestMqInterfaceClass = Class.forName(MATS_TEST_MQ_INTERFACE_CLASSNAME);
+            _matsTestBrokerInterfaceClass = Class.forName(MATS_TEST_BROKER_INTERFACE_CLASSNAME);
         }
         catch (ClassNotFoundException e) {
             // Handled in the @PostConstruct codepath.
@@ -99,7 +99,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
     @PostConstruct
     public void postConstruct() {
         boolean matsTestProfileActive = _environment.acceptsProfiles(MatsProfiles.PROFILE_MATS_TEST);
-        handleMatsTestMqInterfacePopulation(matsTestProfileActive);
+        handleMatsTestBrokerInterfacePopulation(matsTestProfileActive);
         handleMatsFactoryConcurrencyForTestAndDevelopment(matsTestProfileActive);
     }
 
@@ -122,40 +122,38 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
         _environment = environment;
         _applicationContext = applicationContext;
         boolean matsTestProfileActive = environment.acceptsProfiles(MatsProfiles.PROFILE_MATS_TEST);
-        handleMatsTestMqInterfacePopulation(matsTestProfileActive);
+        handleMatsTestBrokerInterfacePopulation(matsTestProfileActive);
         handleMatsFactoryConcurrencyForTestAndDevelopment(matsTestProfileActive);
     }
 
-    public void handleMatsTestMqInterfacePopulation(boolean matsTestProfileActive) {
+    protected void handleMatsTestBrokerInterfacePopulation(boolean matsTestProfileActive) {
         AutowireCapableBeanFactory autowireCapableBeanFactory = _applicationContext.getAutowireCapableBeanFactory();
         log.info(LOG_PREFIX + SpringJmsMatsFactoryWrapper.class.getSimpleName() + " got @PostConstructed.");
 
-        if (_matsTestMqInterfaceClass == null) {
+        if (_matsTestBrokerInterfaceClass == null) {
             if (matsTestProfileActive) {
-                log.warn(LOG_PREFIX + " \\- Class '" + MATS_TEST_MQ_INTERFACE_CLASSNAME + "' not found on classpath."
-                        + " If you need this tool, you would want to have it on classpath, and have your testing Spring"
-                        + " context to contain an \"empty\" such bean (MatsTestMqInterface.createForLaterPopulation())"
-                        + " so that I could populate it for you with the JMS ConnectionFactory and necessary"
-                        + " properties. (The @MatsTestContext and MatsTestInfrastructureConfiguration"
-                        + " will do this for you).");
+                log.warn(LOG_PREFIX + " \\- Class '" + MATS_TEST_BROKER_INTERFACE_CLASSNAME
+                        + "' not found on classpath. If you need this tool, you would want to have it on classpath,"
+                        + " and have your testing Spring context to contain an \"empty\" such bean"
+                        + " (MatsTestBrokerInterface.createForLaterPopulation()) so that I could populate it for you"
+                        + " with the JMS ConnectionFactory and necessary properties. (The @MatsTestContext and"
+                        + " MatsTestInfrastructureConfiguration will do this for you).");
             }
             else {
-                log.info(LOG_PREFIX + " \\- Class '" + MATS_TEST_MQ_INTERFACE_CLASSNAME
+                log.info(LOG_PREFIX + " \\- Class '" + MATS_TEST_BROKER_INTERFACE_CLASSNAME
                         + "' not found on classpath, probably not in a testing scenario.");
             }
             return;
         }
 
-        Object dlqFetcherFromSpringContext;
+        Object matsTestBrokerInterface;
         try {
-            dlqFetcherFromSpringContext = autowireCapableBeanFactory.getBean(_matsTestMqInterfaceClass);
+            matsTestBrokerInterface = autowireCapableBeanFactory.getBean(_matsTestBrokerInterfaceClass);
         }
         catch (NoSuchBeanDefinitionException e) {
-            String msg = " \\- Testing tool '" + MATS_TEST_MQ_INTERFACE_CLASSNAME + "' found on classpath, but not in"
-                    + " Spring context. If you need this tool, you would want your testing Spring context to contain"
-                    + " an \"empty\" such bean (MatsTestMqInterface.createForLaterPopulation()) so that I could"
-                    + " populate it for you with the JMS ConnectionFactory and necessary properties."
-                    + " (The @MatsTestContext and MatsTestInfrastructureConfiguration will do this for you).";
+            String msg = " \\- Testing tool '" + MATS_TEST_BROKER_INTERFACE_CLASSNAME
+                    + "' found on classpath, but not in Spring context. If you need this tool, you would want your"
+                    + " testing Spring context to contain an \"empty\" such bean (MatsTestBrokerInterface.createForLaterPopulation()) so that I could populate it for you with the JMS ConnectionFactory and necessary properties. (The @MatsTestContext and MatsTestInfrastructureConfiguration will do this for you).";
             if (matsTestProfileActive) {
                 log.warn(LOG_PREFIX + msg);
             }
@@ -164,29 +162,29 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
             }
             return;
         }
-        log.info(LOG_PREFIX + " |- Found '" + MATS_TEST_MQ_INTERFACE_CLASSNAME + "' in Spring Context: "
-                + dlqFetcherFromSpringContext);
+        log.info(LOG_PREFIX + " |- Found '" + MATS_TEST_BROKER_INTERFACE_CLASSNAME + "' in Spring Context: "
+                + matsTestBrokerInterface);
 
         // :: Now populate the tool we found in the Spring context.
         try {
-            Method factoryMethod = _matsTestMqInterfaceClass.getMethod(LATE_POPULATE_METHOD_NAME,
+            Method factoryMethod = _matsTestBrokerInterfaceClass.getMethod(LATE_POPULATE_METHOD_NAME,
                     ConnectionFactory.class,
                     MatsFactory.class);
-            factoryMethod.invoke(dlqFetcherFromSpringContext, _connectionFactory, _matsFactory);
+            factoryMethod.invoke(matsTestBrokerInterface, _connectionFactory, _matsFactory);
             if (log.isDebugEnabled()) log.debug(LOG_PREFIX + " \\- Invoked the " + LATE_POPULATE_METHOD_NAME + " on '"
-                    + MATS_TEST_MQ_INTERFACE_CLASSNAME + " to make the tool ready.");
+                    + MATS_TEST_BROKER_INTERFACE_CLASSNAME + " to make the tool ready.");
         }
         catch (NoSuchMethodException e) {
             throw new AssertionError("Didn't find method '" + LATE_POPULATE_METHOD_NAME + "(..)' on Class '"
-                    + MATS_TEST_MQ_INTERFACE_CLASSNAME + "!", e);
+                    + MATS_TEST_BROKER_INTERFACE_CLASSNAME + "!", e);
         }
         catch (IllegalAccessException | InvocationTargetException e) {
             throw new AssertionError("Couldn't invoke method '" + LATE_POPULATE_METHOD_NAME + "(..)' on Class '"
-                    + MATS_TEST_MQ_INTERFACE_CLASSNAME + "!", e);
+                    + MATS_TEST_BROKER_INTERFACE_CLASSNAME + "!", e);
         }
     }
 
-    public void handleMatsFactoryConcurrencyForTestAndDevelopment(boolean matsTestPofileActive) {
+    protected void handleMatsFactoryConcurrencyForTestAndDevelopment(boolean matsTestPofileActive) {
 
         // ?: Is the Concurrency already set to something specific?
 

@@ -20,7 +20,8 @@ public class Test_SpringManagedTx_H2Based_DataSourceTransactionaManager_WrappedD
         extends Test_SpringManagedTx_H2Based_DataSourceTransactionaManager {
     @Configuration
     @EnableMats
-    static class SpringConfiguration_DsTxMgr_WrappedDsInSpringContext extends SpringConfiguration_DataSourceTxMgr {
+    static class SpringConfiguration_DsTxMgr_WrappedDsInSpringContext extends
+            SpringConfiguration_DataSourceTransactionManager {
         /**
          * This ensures that both the JdbcTemplate etc, AND the TransactionManager, gets the wrapped DataSource.
          */

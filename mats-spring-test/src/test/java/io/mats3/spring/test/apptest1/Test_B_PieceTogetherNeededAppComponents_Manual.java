@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -51,6 +52,7 @@ import io.mats3.util.MatsFuturizer.Reply;
  */
 @RunWith(SpringRunner.class)
 @ContextConfiguration(classes = { TestConfiguration.class })
+@DirtiesContext
 public class Test_B_PieceTogetherNeededAppComponents_Manual {
     /**
      * Enables Mats' SpringConfig using {@link EnableMats}, imports the needed application pieces, and sets up the Mats

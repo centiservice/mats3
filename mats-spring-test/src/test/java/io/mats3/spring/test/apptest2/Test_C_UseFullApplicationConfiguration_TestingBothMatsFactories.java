@@ -8,6 +8,7 @@ import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -33,6 +34,7 @@ import io.mats3.util.RandomString;
 @RunWith(SpringRunner.class)
 @MatsTestProfile
 @ContextConfiguration(classes = AppMain_TwoMatsFactories.class)
+@DirtiesContext
 public class Test_C_UseFullApplicationConfiguration_TestingBothMatsFactories {
     private static final Logger log = LoggerFactory.getLogger(
             Test_C_UseFullApplicationConfiguration_TestingBothMatsFactories.class);

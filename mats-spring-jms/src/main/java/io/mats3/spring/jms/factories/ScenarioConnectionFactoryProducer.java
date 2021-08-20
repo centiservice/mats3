@@ -1,16 +1,13 @@
 package io.mats3.spring.jms.factories;
 
-import java.util.Random;
 import java.util.function.Supplier;
 
 import javax.jms.ConnectionFactory;
 
-import org.apache.activemq.ActiveMQConnectionFactory;
-
 import io.mats3.MatsFactory;
 import io.mats3.spring.jms.factories.ScenarioConnectionFactoryWrapper.ConnectionFactoryProvider;
 import io.mats3.spring.jms.factories.ScenarioConnectionFactoryWrapper.ScenarioDecider;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
+import io.mats3.test.broker.MatsTestBroker;
 
 /**
  * Provides a factory for a Spring-integrated Wrapper/Facade around a JMS ConnectionFactory, which in addition to
@@ -169,24 +166,21 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
      * your own extension of {@link ConnectionFactoryWithStartStopWrapper}, which provide a way to start and stop the
      * in-vm MQ Broker. If this configuration is not provided (and not having to handle this mess is a big point of this
      * class, so do not provide this unless you want a different broker entirely!), the class
-     * {@link MatsLocalVmActiveMq} will be instantiated by invoking
-     * {@link MatsLocalVmActiveMq#createInVmActiveMq(String)}, where the 'brokerName' will be the bean-name of the
-     * Spring Bean representing the instance of this class + some random characters (the latter is to handle the
-     * situation where there might be multiple instances of the broker in the same JVM, due to Spring's heavy caching of
-     * contexts unless @DirtiesContext is employed). From the instance of {@code MatsLocalVmActiveMq}, the
-     * {@link MatsLocalVmActiveMq#getConnectionFactory() ConnectionFactory will be gotten}.
+     * {@link MatsTestBroker} will be instantiated by invoking
+     * {@link MatsTestBroker#createUniqueInVmActiveMq()}. From the instance of {@code MatsTestBroker}, the
+     * {@link MatsTestBroker#getConnectionFactory() ConnectionFactory will be gotten}.
      * <p>
-     * Notice that the {@code MatsLocalVmActiveMq} has a small extra feature, where you can have it produce a
+     * Notice that the {@code MatsTestBroker} has a small extra feature, where you can have it produce a
      * ConnectionFactory to localhost or a specific URL instead of the in-vm MQ Broker it otherwise produces, by means
      * of specifying a special system property ("-D" options) (In this case, it does not create the in-vm MQ Broker
      * either). The rationale for this extra feature is if you wonder how big a difference it makes to run your tests
      * against a proper MQ Broker instead of the in-vm and fully non-persistent MQ Broker you by default get. Read
-     * JavaDoc at {@link MatsLocalVmActiveMq}.
+     * JavaDoc at {@link MatsTestBroker}.
      *
      * @param localVmConnectionFactoryProvider
      *            a provider for the ConnectionFactory to use in the {@link MatsScenario#LOCALVM LOCALVM} scenario.
      * @return <code>this</code>, for chaining.
-     * @see MatsLocalVmActiveMq
+     * @see MatsTestBroker
      */
     public ScenarioConnectionFactoryProducer withLocalVmConnectionFactory(
             ConnectionFactoryProvider localVmConnectionFactoryProvider) {
@@ -235,7 +229,7 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
      * {@link ConfigurableScenarioDecider#createDefaultScenarioDecider() default}. We need a decision for which
      * MatsScenario is in effect for this JVM, and you can override the standard here. <i>(Do note that if you want to
      * run integration tests against a specific Active MQ Broker, e.g. on your localhost, there is already a feature for
-     * that in {@link MatsLocalVmActiveMq}, as mentioned in the JavaDoc of
+     * that in {@link MatsTestBroker}, as mentioned in the JavaDoc of
      * {@link #withLocalVmConnectionFactory(ConnectionFactoryProvider) localVmConnectionFactory(..)}).</i>
      * <p />
      * How you otherwise decide between {@link MatsScenario#REGULAR REGULAR}, {@link MatsScenario#LOCALHOST LOCALHOST}
@@ -299,30 +293,43 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
     private ScenarioDecider _scenarioDecider;
 
     {
-        // :: The "mats-localhost" variant directly returns an ActiveMQConnectionFactory to standard localhost.
-        withLocalhostConnectionFactory((springEnvironment) -> new ActiveMQConnectionFactory(
-                "tcp://localhost:61616"));
-
-        // :: The "mats-localvm" fires up an ActiveMQ Broker instance, and creates a ConnectionFactory to that.
-        withLocalVmConnectionFactory((springEnvironment) -> new ConnectionFactoryWithStartStopWrapper() {
-            private MatsLocalVmActiveMq _matsLocalVmActiveMq;
+        // :: Scenario "mats-localhost":
+        // Employing MatsTestBroker, but setting the special LOCALHOST system property to get it to connect to
+        // an external localhost broker, default ActiveMQ.
+        withLocalhostConnectionFactory((springEnvironment) -> new ConnectionFactoryWithStartStopWrapper() {
+            private MatsTestBroker _matsTestBroker;
 
             @Override
             public ConnectionFactory start(String beanName) {
-                /*
-                 * The added randomness is a hack so that if you end up running several of these in the same VM, you
-                 * won't get into problem with unintentionally sharing a MQ Broker instance between tests. This problem
-                 * will happen due to Spring's caching of contexts in its test framework, unless you
-                 * use @DirtiesContext.
-                 */
-                _matsLocalVmActiveMq = MatsLocalVmActiveMq.createInVmActiveMq(
-                        beanName + "_" + Long.toUnsignedString(new Random().nextLong(), 36));
-                return _matsLocalVmActiveMq.getConnectionFactory();
+                // Set System property to get MatsTestBroker to connect to external localhost broker, default ActiveMQ
+                System.setProperty(MatsTestBroker.SYSPROP_MATS_TEST_BROKERURL,
+                        MatsTestBroker.SYSPROP_MATS_TEST_BROKERURL_VALUE_LOCALHOST);
+                _matsTestBroker = MatsTestBroker.create();
+                return _matsTestBroker.getConnectionFactory();
             }
 
             @Override
             public void stop() {
-                _matsLocalVmActiveMq.close();
+                _matsTestBroker.close();
+            }
+        });
+
+        // :: Scenario "mats-localvm":
+        // Employing MatsTestBroker directly, getting a in-vm broker, default ActiveMQ.
+        // (Note that the MatsTestBroker has features to choose which broker type, and can also be directed to connect
+        // to localhost instead of employing an in-vm broker - which is what is done in the 'mats-localhost' scenario
+        // right above.)
+        withLocalVmConnectionFactory((springEnvironment) -> new ConnectionFactoryWithStartStopWrapper() {
+            private final MatsTestBroker _matsTestBroker = MatsTestBroker.create();
+
+            @Override
+            public ConnectionFactory start(String beanName) {
+                return _matsTestBroker.getConnectionFactory();
+            }
+
+            @Override
+            public void stop() {
+                _matsTestBroker.close();
             }
         });
 

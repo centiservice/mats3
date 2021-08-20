@@ -307,9 +307,9 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     // :: GET NEW MESSAGE!! THIS IS THE MESSAGE PUMP!
                     Message message;
                     try {
-                        _processorInReceive = true;
                         if (log.isDebugEnabled()) log.debug(LOG_PREFIX
                                 + "Going into JMS consumer.receive() for [" + destination + "].");
+                        _processorInReceive = true;
                         message = jmsConsumer.receive();
                     }
                     finally {
@@ -643,7 +643,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     matsMessage.serializeAndCacheMatsTrace(nowMillis);
                                 }
                                 long nowNanos = System.nanoTime();
-                                nanosTaken_totalEnvelopeSerAndComp[0] = nowNanos - nanosAtStart_totalEnvelopeSerialization;
+                                nanosTaken_totalEnvelopeSerAndComp[0] = nowNanos
+                                        - nanosAtStart_totalEnvelopeSerialization;
 
                                 long nanosAtStart_totalProduceAndSendMsgSysMessages = nowNanos;
                                 produceAndSendMsgSysMessages(log, _jmsSessionHolder, getFactory(), messagesToSend);
@@ -883,7 +884,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 if (!_runFlag) {
                     // -> No, not running anymore, so exit.
                     // ?: Decide between INFO and WARN-with-Exception - this is to have a nice exit w/o stacktraces.
-                    if (t.getCause().getClass().isAssignableFrom(InterruptedException.class)) {
+                    if ((t.getCause() != null)
+                            && t.getCause().getClass().isAssignableFrom(InterruptedException.class)) {
                         log.info(LOG_PREFIX + "Got [" + t.getClass().getSimpleName() + "]->cause:InterruptedException,"
                                 + " inside the message processing loop, and the run-flag was false,"
                                 + " so we shortcut to exit.");

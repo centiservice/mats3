@@ -8,8 +8,6 @@ import java.util.logging.Logger;
 
 import javax.sql.DataSource;
 
-import io.mats3.MatsFactory.MatsWrapperDefault;
-
 /**
  * A base Wrapper for a JDBC {@link DataSource}, which simply implements DataSource, takes a DataSource instance and
  * forwards all calls to that. Meant to be extended to add extra functionality, e.g. Spring integration.

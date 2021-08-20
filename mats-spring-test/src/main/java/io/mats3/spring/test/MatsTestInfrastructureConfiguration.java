@@ -16,7 +16,7 @@ import io.mats3.MatsInitiator;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.EnableMats;
-import io.mats3.test.MatsTestMqInterface;
+import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.util.MatsFuturizer;
 
@@ -31,7 +31,7 @@ import io.mats3.util.MatsFuturizer;
  * <ol>
  * <li>{@link MatsFactory}.</li>
  * <li>{@link MatsInitiator} from the MatsFactory.</li>
- * <li>{@link MatsTestMqInterface} that "hooks in" to the underlying MQ instance, providing (for now) DLQ access.</li>
+ * <li>{@link MatsTestBrokerInterface} that "hooks in" to the underlying MQ instance, providing (for now) DLQ access.</li>
  * <li>{@link MatsTestLatch} for convenience (if you need to signal from e.g. a Terminator to the @Test method.</li>
  * <li>{@link MatsFuturizer} (lazily created if needed), backed by the MatsFactory.</li>
  * </ol>
@@ -87,8 +87,8 @@ public class MatsTestInfrastructureConfiguration  {
     }
 
     @Bean
-    protected MatsTestMqInterface testMatsTestMqInterface() {
-        return MatsTestMqInterface.createForLaterPopulation();
+    protected MatsTestBrokerInterface testMatsTestMqInterface() {
+        return MatsTestBrokerInterface.createForLaterPopulation();
     }
 
     @Bean

@@ -8,6 +8,7 @@ import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.BootstrapWith;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -17,7 +18,7 @@ import io.mats3.spring.Dto;
 import io.mats3.spring.MatsMapping;
 import io.mats3.spring.Sto;
 import io.mats3.spring.test.MatsTestProfile;
-import io.mats3.spring.test.apptest2.AppMain_TwoMatsFactories.TestQualifier;
+import io.mats3.spring.test.apptest2.AppMain_TwoMatsFactories.TestCustomQualifier;
 import io.mats3.spring.test.SpringTestDataTO;
 import io.mats3.spring.test.SpringTestStateTO;
 import io.mats3.test.MatsTestLatch;
@@ -37,10 +38,9 @@ import no.saua.remock.RemockBootstrapper;
  * @author Endre Stølsvik 2019-06-25 23:31 - http://stolsvik.com/, endre@stolsvik.com
  */
 @RunWith(SpringRunner.class)
-// This overrides the configured ConnectionFactories in the app to be LocalVM testing instances.
 @MatsTestProfile
-// Using Remock
-@BootstrapWith(RemockBootstrapper.class)
+@BootstrapWith(RemockBootstrapper.class) // Using Remock
+@DirtiesContext
 public class Test_D_UseFullApplicationConfiguration_WithRemock {
     private static final Logger log = LoggerFactory.getLogger(Test_D_UseFullApplicationConfiguration_WithRemock.class);
     private static final String TERMINATOR = "Test.TERMINATOR";
@@ -74,7 +74,7 @@ public class Test_D_UseFullApplicationConfiguration_WithRemock {
         /**
          * Test "Terminator" endpoint where we send the result of testing the endpoint in the application.
          */
-        @MatsMapping(endpointId = TERMINATOR, matsFactoryCustomQualifierType = TestQualifier.class)
+        @MatsMapping(endpointId = TERMINATOR, matsFactoryCustomQualifierType = TestCustomQualifier.class)
         public void testTerminatorEndpoint(@Dto SpringTestDataTO msg, @Sto SpringTestStateTO state) {
             log.info("Got result, resolving latch [" + _latch + "]!");
             _latch.resolve(state, msg);
@@ -82,7 +82,7 @@ public class Test_D_UseFullApplicationConfiguration_WithRemock {
     }
 
     @Inject
-    @TestQualifier(name = "SouthWest")
+    @TestCustomQualifier(region = "SouthWest")
     private MatsFactory _matsFactory;
 
     @Inject

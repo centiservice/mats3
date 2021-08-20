@@ -15,8 +15,8 @@ import io.mats3.MatsInitiator;
 import io.mats3.MatsInitiator.MessageReference;
 import io.mats3.spring.test.MatsTestContext;
 import io.mats3.test.MatsTestHelp;
-import io.mats3.test.MatsTestMqInterface;
-import io.mats3.test.MatsTestMqInterface.MatsMessageRepresentation;
+import io.mats3.test.MatsTestBrokerInterface;
+import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 
 @RunWith(SpringRunner.class)
 @MatsTestContext
@@ -41,12 +41,12 @@ public class Test_0_WithMatsTestContext {
     private MatsInitiator _matsInitiator;
 
     @Inject
-    private MatsTestMqInterface _matsTestMqInterface;
+    private MatsTestBrokerInterface _matsTestBrokerInterface;
 
     @Test
     public void doTest() {
         Assert.assertNotNull(_matsInitiator);
-        Assert.assertNotNull(_matsTestMqInterface);
+        Assert.assertNotNull(_matsTestBrokerInterface);
 
         String msg = "Incoming 1, 2, 3";
         String state = "State 1, 2, 3";
@@ -63,7 +63,7 @@ public class Test_0_WithMatsTestContext {
                     .send(msg, state);
         });
 
-        MatsMessageRepresentation dlqMessage = _matsTestMqInterface.getDlqMessage(TERMINATOR);
+        MatsMessageRepresentation dlqMessage = _matsTestBrokerInterface.getDlqMessage(TERMINATOR);
 
         Assert.assertEquals(msg, dlqMessage.getIncomingMessage(String.class));
         Assert.assertEquals(state, dlqMessage.getIncomingState(String.class));

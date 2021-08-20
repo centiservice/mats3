@@ -14,7 +14,7 @@ import io.mats3.lib_test.DataTO;
 import io.mats3.lib_test.StateTO;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
-import io.mats3.test.MatsTestMqInterface.MatsMessageRepresentation;
+import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.TestH2DataSource;
 import io.mats3.test.junit.Rule_Mats;
 
@@ -35,7 +35,7 @@ public class Test_ExceptionInServiceRollbacksDb {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.createWithDb();
 
-    private static final String SERVICE = MatsTestHelp.endpointId("Service");
+    private static final String SERVICE = MatsTestHelp.service();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
@@ -122,7 +122,7 @@ public class Test_ExceptionInServiceRollbacksDb {
                 });
 
         // Wait for the DLQ
-        MatsMessageRepresentation dlqMessage = MATS.getMatsTestMqInterface().getDlqMessage(SERVICE);
+        MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(SERVICE);
 
         Assert.assertEquals(SERVICE, dlqMessage.getTo());
 

@@ -11,7 +11,6 @@ import javax.jms.MessageConsumer;
 import javax.jms.Queue;
 import javax.jms.Session;
 
-import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.RedeliveryPolicy;
 import org.apache.activemq.broker.BrokerService;
 import org.apache.activemq.broker.region.policy.IndividualDeadLetterStrategy;
@@ -34,9 +33,11 @@ import io.mats3.serial.MatsTrace;
  * "{@link #SYSPROP_VALUE_LOCALHOST LOCALHOST}" implies "tcp://localhost:61616", which is the default for a localhost
  * ActiveMQ connection.
  *
+ * @deprecated use <code>MatsTestBroker</code> instead.
  * @author Endre Stølsvik 2019-05-06 22:42, factored out of <code>Rule_Mats</code> from 2015 - http://stolsvik.com/,
  *         endre@stolsvik.com
  */
+@Deprecated
 public class MatsLocalVmActiveMq {
     private static final Logger log = LoggerFactory.getLogger(MatsLocalVmActiveMq.class);
 
@@ -66,7 +67,7 @@ public class MatsLocalVmActiveMq {
     private static final String BROKER_NAME = "MatsLocalVmBroker";
 
     private final BrokerService _brokerService;
-    private final ActiveMQConnectionFactory _activeMQConnectionFactory;
+    private final ConnectionFactory _activeMQConnectionFactory;
 
     /**
      * @return an instance whose brokername is {@link #BROKER_NAME}.
@@ -105,7 +106,7 @@ public class MatsLocalVmActiveMq {
     /**
      * @return the instance of ActiveMQ ConnectionFactory connecting to the ActiveMQ instance.
      */
-    public ActiveMQConnectionFactory getConnectionFactory() {
+    public ConnectionFactory getConnectionFactory() {
         return _activeMQConnectionFactory;
     }
 
@@ -125,7 +126,9 @@ public class MatsLocalVmActiveMq {
      * @param endpointId
      *            the endpoint which is expected to generate a DLQ message.
      * @return the {@link MatsTrace} of the DLQ'ed message.
+     * @deprecated use <code>MatsTestBrokerInterface</code>
      */
+    @Deprecated
     public <Z> MatsTrace<Z> getDlqMessage(MatsSerializer<Z> matsSerializer,
             String matsDestinationPrefix, String matsTraceKey,
             String endpointId) {
@@ -179,41 +182,47 @@ public class MatsLocalVmActiveMq {
         String sysprop_matsTestActiveMq = System.getProperty(SYSPROP_MATS_TEST_ACTIVEMQ);
 
         // :? Do we have specific brokerUrl to connect to?
-        if (sysprop_matsTestActiveMq == null) {
-            // -> No - the system property was not set, hence start the in-vm broker.
-            log.info("Setting up in-vm ActiveMQ BrokerService '" + brokername + "' (i.e. the MQ server).");
-            BrokerService _amqBrokerService = new BrokerService();
-            _amqBrokerService.setBrokerName(brokername);
-            _amqBrokerService.setUseJmx(false); // No need for JMX registry.
-            _amqBrokerService.setPersistent(false); // No need for persistence (prevents KahaDB dirs from being
-                                                    // created).
-            _amqBrokerService.setAdvisorySupport(false); // No need Advisory Messages.
-            _amqBrokerService.setUseShutdownHook(false);
-
-            // :: Set Individual DLQ
-            // Hear, hear: http://activemq.2283324.n4.nabble.com/PolicyMap-api-is-really-bad-td4284307.html
-            PolicyMap destinationPolicy = new PolicyMap();
-            _amqBrokerService.setDestinationPolicy(destinationPolicy);
-            PolicyEntry policyEntry = new PolicyEntry();
-            policyEntry.setQueue(">");
-            destinationPolicy.put(policyEntry.getDestination(), policyEntry);
-
-            IndividualDeadLetterStrategy individualDeadLetterStrategy = new IndividualDeadLetterStrategy();
-            individualDeadLetterStrategy.setQueuePrefix("DLQ.");
-            policyEntry.setDeadLetterStrategy(individualDeadLetterStrategy);
-
-            try {
-                _amqBrokerService.start();
-            }
-            catch (Exception e) {
-                throw new AssertionError("Could not start ActiveMQ BrokerService '" + brokername + "'.", e);
-            }
-            return _amqBrokerService;
+        if (sysprop_matsTestActiveMq != null) {
+            // -> Yes, there is specified a brokerUrl to connect to, so we don't start in-vm ActiveMQ.
+            log.info("SKIPPING setup of in-vm ActiveMQ BrokerService (MQ server), since System Property '"
+                    + SYSPROP_MATS_TEST_ACTIVEMQ + "' was set (to [" + sysprop_matsTestActiveMq + "]).");
+            return null;
         }
-        // E-> Yes, there is specified a brokerUrl to connect to, so we don't start in-vm ActiveMQ.
-        log.info("SKIPPING setup of in-vm ActiveMQ BrokerService (MQ server), since System Property '"
-                + SYSPROP_MATS_TEST_ACTIVEMQ + "' was set (to [" + sysprop_matsTestActiveMq + "]).");
-        return null;
+        // E-> No, the system property was not set, hence start the in-vm broker.
+        log.info("Setting up in-vm ActiveMQ BrokerService '" + brokername + "' (i.e. the MQ server).");
+        BrokerService _amqBrokerService = new BrokerService();
+        _amqBrokerService.setBrokerName(brokername);
+        // No need for JMX registry.
+        _amqBrokerService.setUseJmx(false);
+        // No need for persistence (prevents KahaDB dirs from being created).
+        _amqBrokerService.setPersistent(false);
+        // No need for Advisory Messages.
+        _amqBrokerService.setAdvisorySupport(false);
+        // We'll shut it down ourselves.
+        _amqBrokerService.setUseShutdownHook(false);
+
+        // :: Set Individual DLQ
+        // Hear, hear: http://activemq.2283324.n4.nabble.com/PolicyMap-api-is-really-bad-td4284307.html
+        // Create the individual DLQ policy, targeting all queues.
+        PolicyEntry individualDlqPolicyEntry = new PolicyEntry();
+        individualDlqPolicyEntry.setQueue(">"); // all queues
+        IndividualDeadLetterStrategy individualDeadLetterStrategy = new IndividualDeadLetterStrategy();
+        individualDeadLetterStrategy.setQueuePrefix("DLQ.");
+        individualDlqPolicyEntry.setDeadLetterStrategy(individualDeadLetterStrategy);
+        // .. Create the PolicyMap containing this DLQ policy.
+        PolicyMap policyMap = new PolicyMap();
+        policyMap.put(individualDlqPolicyEntry.getDestination(), individualDlqPolicyEntry);
+        // .. set this individual DLQ policy on the broker.
+        _amqBrokerService.setDestinationPolicy(policyMap);
+
+        // Start the broker.
+        try {
+            _amqBrokerService.start();
+        }
+        catch (Exception e) {
+            throw new AssertionError("Could not start ActiveMQ BrokerService '" + brokername + "'.", e);
+        }
+        return _amqBrokerService;
     }
 
     /**
@@ -224,7 +233,7 @@ public class MatsLocalVmActiveMq {
      *         {@link #SYSPROP_MATS_TEST_ACTIVEMQ} - if this is not set, it connects to the BrokerService that was
      *         created with {@link #createBrokerService(String)}, assuming the provided brokername is the same.
      */
-    public static ActiveMQConnectionFactory createConnectionFactory(String brokername) {
+    public static ConnectionFactory createConnectionFactory(String brokername) {
         String sysprop_matsTestActiveMq = System.getProperty(SYSPROP_MATS_TEST_ACTIVEMQ);
 
         // :: Find which broker URL to use
@@ -241,7 +250,7 @@ public class MatsLocalVmActiveMq {
         // :: Connect to the broker
         log.info("Setting up ActiveMQ ConnectionFactory to broker '" + brokername + "', brokerUrl: ["
                 + brokerUrl + "].");
-        ActiveMQConnectionFactory amqClient = new ActiveMQConnectionFactory(brokerUrl);
+        org.apache.activemq.ActiveMQConnectionFactory amqClient = new org.apache.activemq.ActiveMQConnectionFactory(brokerUrl);
         RedeliveryPolicy redeliveryPolicy = amqClient.getRedeliveryPolicy();
         // :: Only try redelivery once, since the unit tests does not need any more to prove that they work.
         redeliveryPolicy.setInitialRedeliveryDelay(100);

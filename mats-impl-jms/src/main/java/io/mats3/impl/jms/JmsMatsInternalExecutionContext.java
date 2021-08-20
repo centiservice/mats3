@@ -109,15 +109,15 @@ public class JmsMatsInternalExecutionContext {
      * Invoked by initiations if there is no point in committing JMS, since there was never produced any messages after
      * all.
      */
-    void elideJmsCommit() {
+    void elideJmsCommitForInitiation() {
         _elideJmsCommit = true;
     }
 
     /**
-     * @return whether {@link #elideJmsCommit()} was invoked by an initiation, since no message was actually produced,
-     *         thus nothing to commit.
+     * @return whether {@link #elideJmsCommitForInitiation()} was invoked by an initiation, since no message was
+     *         actually produced, thus nothing to commit.
      */
-    boolean shouldElideJmsCommit() {
+    boolean shouldElideJmsCommitForInitiation() {
         return _elideJmsCommit;
     }
 

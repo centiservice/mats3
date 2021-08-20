@@ -11,6 +11,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -30,6 +31,7 @@ import io.mats3.util.MatsFuturizer.Reply;
 @RunWith(SpringRunner.class)
 @ContextConfiguration(classes = AppMain_MockAndTestingHarnesses.class)
 @MatsTestProfile // This overrides the configured ConnectionFactories in the app to be LocalVM testing instances.
+@DirtiesContext
 public class Test_A_UseFullApplicationConfiguration {
     private static final Logger log = MatsTestHelp.getClassLogger();
 

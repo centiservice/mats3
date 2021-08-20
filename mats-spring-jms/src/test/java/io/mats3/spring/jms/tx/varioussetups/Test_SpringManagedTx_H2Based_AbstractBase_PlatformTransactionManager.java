@@ -2,10 +2,8 @@ package io.mats3.spring.jms.tx.varioussetups;
 
 import javax.jms.ConnectionFactory;
 
-import org.junit.runner.RunWith;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import io.mats3.MatsFactory;
@@ -23,12 +21,11 @@ import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx
  *
  * @author Endre Stølsvik 2020-06-05 00:10 - http://stolsvik.com/, endre@stolsvik.com
  */
-@RunWith(SpringRunner.class)
-public abstract class Test_SpringManagedTx_H2Based_Abstract_PlatformTransactionManager
-        extends Test_SpringManagedTx_H2Based_AbstractBase {
+public abstract class Test_SpringManagedTx_H2Based_AbstractBase_PlatformTransactionManager extends
+        Test_SpringManagedTx_H2Based_AbstractBase {
     @Configuration
     @EnableMats
-    static abstract class SpringConfiguration_AbstractPlatformTransactionManager
+    static abstract class SpringConfiguration_Abstract_PlatformTransactionManager
             extends SpringConfiguration_AbstractBase {
         @Bean
         protected MatsFactory createMatsFactory(PlatformTransactionManager platformTransactionManager,

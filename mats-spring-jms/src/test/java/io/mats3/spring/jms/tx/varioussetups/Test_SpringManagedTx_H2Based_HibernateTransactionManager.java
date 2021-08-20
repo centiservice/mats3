@@ -29,12 +29,12 @@ import org.springframework.orm.hibernate5.LocalSessionFactoryBean;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import io.mats3.MatsEndpoint.ProcessContext;
-import io.mats3.serial.MatsTrace;
 import io.mats3.spring.EnableMats;
 import io.mats3.spring.MatsMapping;
 import io.mats3.spring.jms.tx.SpringTestDataTO;
 import io.mats3.spring.jms.tx.SpringTestStateTO;
-import io.mats3.spring.jms.tx.varioussetups.Test_SpringManagedTx_H2Based_Abstract_PlatformTransactionManager.SpringConfiguration_AbstractPlatformTransactionManager;
+import io.mats3.spring.jms.tx.varioussetups.Test_SpringManagedTx_H2Based_AbstractBase_PlatformTransactionManager.SpringConfiguration_Abstract_PlatformTransactionManager;
+import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.util.RandomString;
 
@@ -47,7 +47,7 @@ import io.mats3.util.RandomString;
  */
 @RunWith(SpringRunner.class)
 public class Test_SpringManagedTx_H2Based_HibernateTransactionManager
-        extends Test_SpringManagedTx_H2Based_AbstractBase {
+        extends Test_SpringManagedTx_H2Based_AbstractBase_PlatformTransactionManager {
 
     private static final Logger log = LoggerFactory.getLogger(
             Test_SpringManagedTx_H2Based_HibernateTransactionManager.class);
@@ -57,7 +57,7 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager
     @Configuration
     @EnableMats
     static class SpringConfiguration_HibernateTxMgr
-            extends SpringConfiguration_AbstractPlatformTransactionManager {
+            extends SpringConfiguration_Abstract_PlatformTransactionManager {
 
         @Bean
         LocalSessionFactoryBean createHibernateSessionFactory(DataSource dataSource) {
@@ -193,16 +193,12 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager
         String traceId = "testBad_TraceId:" + RandomString.randomCorrelationId();
         sendMessage(SERVICE_HIBERNATE, dto, traceId);
 
-        // :: This should result in a DLQ, since the SERVICE throws.
-        MatsTrace<String> dlqMessage = _matsLocalVmActiveMq.getDlqMessage(_matsSerializer,
-                _matsFactory.getFactoryConfig().getMatsDestinationPrefix(),
-                _matsFactory.getFactoryConfig().getMatsTraceKey(),
-                SERVICE_HIBERNATE);
+        // :: This should result in a DLQ, since the SERVICE_HIBERNATE throws.
+        MatsMessageRepresentation dlqMessage = _matsTestBrokerInterface.getDlqMessage(SERVICE_HIBERNATE);
         // There should be a DLQ
         Assert.assertNotNull(dlqMessage);
         // The DTO and TraceId of the DLQ'ed message should be the one we sent.
-        String data = dlqMessage.getCurrentCall().getData();
-        SpringTestDataTO dtoInDlq = _matsSerializer.deserializeObject(data, SpringTestDataTO.class);
+        SpringTestDataTO dtoInDlq = dlqMessage.getIncomingMessage(SpringTestDataTO.class);
         Assert.assertEquals(dto, dtoInDlq);
         Assert.assertEquals(traceId, dlqMessage.getTraceId());
 

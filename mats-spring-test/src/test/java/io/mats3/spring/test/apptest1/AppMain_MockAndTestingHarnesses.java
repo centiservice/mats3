@@ -20,7 +20,7 @@ import io.mats3.spring.jms.factories.ScenarioConnectionFactoryProducer;
 import io.mats3.spring.jms.factories.SpringJmsMatsFactoryProducer;
 import io.mats3.spring.test.SpringTestDataTO;
 import io.mats3.util.MatsFuturizer;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
+import io.mats3.test.broker.MatsTestBroker;
 
 /**
  * "AppTest1" - showing different ways to employ the testing harnesses supplied by Mats in a Spring application.
@@ -31,7 +31,7 @@ import io.mats3.test.activemq.MatsLocalVmActiveMq;
  * <code>{@literal @Bean}</code> methods and Mats SpringConfig-specified Endpoints can be tested with the Mats testing
  * tools.
  * <p>
- * PLEASE NOTE: In this "application", we set up a MatsLocalVmActiveMq in-vm "LocalVM" instances to simulate a
+ * PLEASE NOTE: In this "application", we set up a MatsTestBroker in-vm "LocalVM" instances to simulate a
  * production setup where there are an external Message Broker that this application wants to connect to. The reason is
  * that it should be possible to run this test-application without external resources set up. To connect to this broker,
  * you may start the application with Spring Profile "mats-regular" active, or set the system property "mats.regular"
@@ -102,7 +102,7 @@ public class AppMain_MockAndTestingHarnesses {
                 // ALSO NOTICE: This is also where you'd switch between Production and Stagings URLs for the MQ broker,
                 // typically using the supplied Spring Environment to decide.
                 new ConnectionFactoryWithStartStopWrapper() {
-                    private final MatsLocalVmActiveMq _amq = MatsLocalVmActiveMq.createInVmActiveMq("activeMq2");
+                    private final MatsTestBroker _amq = MatsTestBroker.createUniqueInVmActiveMq();
 
                     @Override
                     public ConnectionFactory start(String beanName) {

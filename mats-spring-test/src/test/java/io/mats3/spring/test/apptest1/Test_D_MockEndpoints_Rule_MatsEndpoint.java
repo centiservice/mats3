@@ -7,6 +7,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.slf4j.Logger;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -25,6 +26,7 @@ import io.mats3.test.MatsTestHelp;
 @ContextConfiguration(classes = { AppEndpoint_MainService.class, AppServiceCalculator.class,
         AppServiceMatsInvoker.class, MatsTestInfrastructureConfiguration.class })
 @SpringInjectRulesAndExtensions
+@DirtiesContext
 public class Test_D_MockEndpoints_Rule_MatsEndpoint {
     private static final Logger log = MatsTestHelp.getClassLogger();
     @Rule

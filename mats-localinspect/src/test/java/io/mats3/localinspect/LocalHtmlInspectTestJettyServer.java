@@ -10,6 +10,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ThreadLocalRandom;
 
 import javax.jms.ConnectionFactory;
+import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 import javax.servlet.annotation.WebListener;
@@ -43,7 +44,7 @@ import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
+import io.mats3.test.broker.MatsTestBroker;
 
 import ch.qos.logback.core.CoreConstants;
 
@@ -69,7 +70,8 @@ public class LocalHtmlInspectTestJettyServer {
         @Override
         public void contextInitialized(ServletContextEvent sce) {
             log.info("ServletContextListener.contextInitialized(...): " + sce);
-            log.info("  \\- ServletContext: " + sce.getServletContext());
+            ServletContext sc = sce.getServletContext();
+            log.info("  \\- ServletContext: " + sc);
 
             // ## Create DataSource using H2
             JdbcDataSource h2Ds = new JdbcDataSource();
@@ -79,14 +81,14 @@ public class LocalHtmlInspectTestJettyServer {
             dataSource.setMaxConnections(5);
 
             // ## Create MatsFactory
-            // ActiveMQ ConnectionFactory
-            ConnectionFactory connectionFactory = MatsLocalVmActiveMq.createConnectionFactory(COMMON_AMQ_NAME);
+            // Get JMS ConnectionFactory from ServletContext
+            ConnectionFactory connFactory = (ConnectionFactory) sc.getAttribute(ConnectionFactory.class.getName());
             // MatsSerializer
             MatsSerializer<String> matsSerializer = MatsSerializerJson.create();
             // Create the MatsFactory
             _matsFactory = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
                     LocalHtmlInspectTestJettyServer.class.getSimpleName(), "*testing*",
-                    JmsMatsJmsSessionHandler_Pooling.create(connectionFactory),
+                    JmsMatsJmsSessionHandler_Pooling.create(connFactory),
                     dataSource,
                     matsSerializer);
 
@@ -343,7 +345,7 @@ public class LocalHtmlInspectTestJettyServer {
         }
     }
 
-    public static Server createServer(int port) {
+    public static Server createServer(int port, ConnectionFactory jmsConnectionFactory) {
         WebAppContext webAppContext = new WebAppContext();
         webAppContext.setContextPath("/");
         webAppContext.setBaseResource(Resource.newClassPathResource("webapp"));
@@ -351,6 +353,8 @@ public class LocalHtmlInspectTestJettyServer {
         webAppContext.setThrowUnavailableOnStartupException(true);
         // Store the port number this server shall run under in the ServletContext.
         webAppContext.getServletContext().setAttribute(CONTEXT_ATTRIBUTE_PORTNUMBER, port);
+        // Store the JMS ConnectionFactory in the ServletContext
+        webAppContext.getServletContext().setAttribute(ConnectionFactory.class.getName(), jmsConnectionFactory);
 
         // Override the default configurations, stripping down and adding AnnotationConfiguration.
         // https://www.eclipse.org/jetty/documentation/9.4.x/configuring-webapps.html
@@ -403,9 +407,11 @@ public class LocalHtmlInspectTestJettyServer {
         System.setProperty(CoreConstants.DISABLE_SERVLET_CONTAINER_INITIALIZER_KEY, "true");
 
         // Create common AMQ server
-        MatsLocalVmActiveMq.createInVmActiveMq(COMMON_AMQ_NAME);
+        // Create common AMQ
+        MatsTestBroker matsTestBroker = MatsTestBroker.createUniqueInVmActiveMq();
+        ConnectionFactory jmsConnectionFactory = matsTestBroker.getConnectionFactory();
 
-        Server server = createServer(8080);
+        Server server = createServer(8080, jmsConnectionFactory);
         server.start();
     }
 }

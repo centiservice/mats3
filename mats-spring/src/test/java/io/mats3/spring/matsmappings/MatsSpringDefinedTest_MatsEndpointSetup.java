@@ -72,7 +72,7 @@ public class MatsSpringDefinedTest_MatsEndpointSetup {
         public void springMatsStagedEndpointWithConfig(EndpointConfig<SpringTestDataTO, SpringTestStateTO> config,
                 MatsEndpoint<SpringTestDataTO, SpringTestStateTO> ep) {
             // Just invoke something on the config instance to check that it is sane
-            Assert.assertEquals(1, config.getConcurrency());
+            Assert.assertEquals(2, config.getConcurrency());
             // Set up the stages
             ep.stage(SpringTestDataTO.class, (context, sto, dto) -> {
                 Assert.assertEquals(new SpringTestStateTO(0, null), sto);
@@ -99,7 +99,7 @@ public class MatsSpringDefinedTest_MatsEndpointSetup {
         public void springMatsStagedEndpointWithVoidStateAndVoidReply(MatsEndpoint<Void, Void> ep,
                 EndpointConfig<Void, Void> config) {
             // Just invoke something on the config instance to check that it is sane
-            Assert.assertEquals(1, config.getConcurrency());
+            Assert.assertEquals(2, config.getConcurrency());
             // Set up the stages
             ep.stage(SpringTestDataTO.class, (context, sto, dto) -> {
                 // Void state class should lead to null state.

@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import io.mats3.MatsFactory;
-import io.mats3.spring.test.apptest2.AppMain_TwoMatsFactories.TestQualifier;
+import io.mats3.spring.test.apptest2.AppMain_TwoMatsFactories.TestCustomQualifier;
 import io.mats3.spring.test.SpringTestDataTO;
 import io.mats3.spring.test.SpringTestStateTO;
 import io.mats3.test.MatsTestLatch;
@@ -27,7 +27,7 @@ public class AppService {
     private AtomicInteger _atomicInteger;
 
     @Inject
-    @TestQualifier(name = "SouthWest")
+    @TestCustomQualifier(region = "SouthWest")
     private MatsFactory _matsFactory;
 
     void run() {

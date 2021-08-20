@@ -1,5 +1,9 @@
 package io.mats3.intercept_test;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -26,13 +30,28 @@ public class Test_InitiationIntercept_JavaDoc {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
+
+    public static final CountDownLatch _countDownLatch = new CountDownLatch(2);
+
+    /**
+     * This Terminator is set up just to consume all messages produced by this test, so that they do not linger on the
+     * MQ - which is a point if we use an external, persistent broker, as MatsTestBroker (within Rule_Mats) can be
+     * directed to utilize.
+     */
+    @BeforeClass
+    public static void setupCleanupTerminator() {
+        MATS.getMatsFactory().terminator(MatsTestHelp.terminator(), Object.class, DataTO.class, (ctx, state, msg) -> {
+            _countDownLatch.countDown();
+        });
+    }
+
     @Test
-    public void doTest() {
+    public void doTest() throws InterruptedException {
         final MatsInitiateInterceptor initiationInterceptor_1 = new MyMatsInitiateInterceptor(1);
         final MatsInitiateInterceptor initiationInterceptor_2 = new MyMatsInitiateInterceptor(2);
 
-        MATS.getJmsMatsFactory().addInitiationInterceptor(initiationInterceptor_1);
-        MATS.getJmsMatsFactory().addInitiationInterceptor(initiationInterceptor_2);
+        MATS.getMatsInterceptableMatsFactory().addInitiationInterceptor(initiationInterceptor_1);
+        MATS.getMatsInterceptableMatsFactory().addInitiationInterceptor(initiationInterceptor_2);
 
         MATS.getMatsFactory().getDefaultInitiator().initiateUnchecked(init -> {
             init.traceId(MatsTestHelp.traceId() + "_First")
@@ -44,6 +63,8 @@ public class Test_InitiationIntercept_JavaDoc {
                     .to(MatsTestHelp.terminator())
                     .send(new DataTO(2, "Second message"));
         });
+
+        _countDownLatch.await(30, TimeUnit.SECONDS);
     }
 
     private static class MyMatsInitiateInterceptor implements MatsInitiateInterceptor,

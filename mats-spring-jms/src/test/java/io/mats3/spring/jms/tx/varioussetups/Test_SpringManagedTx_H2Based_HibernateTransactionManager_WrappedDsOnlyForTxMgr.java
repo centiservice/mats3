@@ -23,7 +23,7 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager_WrappedDsO
         extends Test_SpringManagedTx_H2Based_HibernateTransactionManager {
     @Configuration
     @EnableMats
-    static class SpringConfiguration_Hibernate_WrappedDsOnlyForTxMgr extends SpringConfiguration_HibernateTxMgr {
+    static class SpringConfiguration_HibernateTxMgr_WrappedDsOnlyForTxMgr extends SpringConfiguration_HibernateTxMgr {
         /**
          * This ensures that ONLY the TransactionManager gets the wrapped DataSource.
          */
@@ -32,8 +32,8 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager_WrappedDsO
             // This is a FactoryBean that creates a Hibernate SessionFactory working with Spring's HibernateTxMgr
             LocalSessionFactoryBean factory = new LocalSessionFactoryBean();
             // Setting the DataSource
-            factory.setDataSource(
-                    JmsMatsTransactionManager_JmsAndSpringManagedSqlTx.wrapLazyConnectionDatasource(dataSource));
+            factory.setDataSource(JmsMatsTransactionManager_JmsAndSpringManagedSqlTx
+                    .wrapLazyConnectionDatasource(dataSource));
             // Setting the single annotated Entity test class we have
             factory.setAnnotatedClasses(DataTableDbo.class);
             return factory;

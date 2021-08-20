@@ -198,7 +198,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Mark the internal execution context to elide"
                                 + " JMS Commit, since there was no outgoing messages during initiation.");
                         // Mark this execution context as "please elide JMS commit".
-                        internalExecutionContext.elideJmsCommit();
+                        internalExecutionContext.elideJmsCommitForInitiation();
                     }
                     else {
                         // -> Yes, there are messages, so serialize the envelopes and send them

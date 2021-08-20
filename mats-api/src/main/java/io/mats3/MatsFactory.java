@@ -380,6 +380,10 @@ public interface MatsFactory extends StartStoppable {
     }
 
     /**
+     * In a situation where you might be given a {@link MatsFactoryWrapper}, but need the actual implementation, this
+     * method allows you to just always call <code>matsFactory.unwrapFully()</code> instead of first checking whether it
+     * is a proxy and only then cast and unwrap.
+     * 
      * @return default <code>this</code> for implementations, overridden by wrappers.
      */
     default MatsFactory unwrapFully() {
@@ -594,32 +598,6 @@ public interface MatsFactory extends StartStoppable {
     }
 
     /**
-     * Extension of {@link MatsWrapper} that default-implement {@link #unwrapFully()}.
-     *
-     * @param <T>
-     *            the type of the wrapped instance.
-     */
-    interface MatsWrapperDefault<T> extends MatsWrapper<T> {
-        /**
-         * @return the fully unwrapped instance: If the returned instance from {@link #unwrap()} is itself a
-         *         {@link MatsWrapper MatsWrapper}, it will recurse down by invoking this method
-         *         (<code>unwrapFully()</code>) again on the returned target.
-         */
-        default T unwrapFully() {
-            T target = unwrap();
-            // ?: If further wrapped, recurse down. Otherwise return.
-            if (target instanceof MatsWrapper) {
-                // -> Yes, further wrapped, so recurse
-                @SuppressWarnings("unchecked")
-                MatsWrapper<T> wrapped = (MatsWrapper<T>) target;
-                return wrapped.unwrapFully();
-            }
-            // E-> No, not wrapped - this is the end target.
-            return target;
-        }
-    }
-
-    /**
      * A base Wrapper for {@link MatsFactory}, which simply implements MatsFactory, takes a MatsFactory instance and
      * forwards all calls to that. Use this if you need to wrap the MatsFactory, where most of the methods are
      * pass-through to the target, as any changes to the MatsFactory interface then won't break your wrapper.
@@ -803,7 +781,7 @@ public interface MatsFactory extends StartStoppable {
 
         @Override
         public String toString() {
-            return this.getClass().getSimpleName()+"["+unwrap().toString()+"]";
+            return this.getClass().getSimpleName() + "[" + unwrap().toString() + "]";
         }
     }
 }

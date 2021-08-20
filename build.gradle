@@ -13,12 +13,14 @@ allprojects {
 // Versions for all libraries used throughout the subprojects
 ext {
     activeMqVersion = '5.15.15'
-    springVersion = '4.3.30.RELEASE' // Still using Spring 4 as "baseline", but also fully compatible with Spring 5. 2020-11-14.
+    artemisMqVersion = '2.17.0'
+    springVersion = '4.3.30.RELEASE'
+    // Still using Spring 4 as "baseline", but also fully compatible with Spring 5. 2020-11-14.
     // NOTE: Spring started supporting JUnit Jupiter with the release of Spring 5.0.0.
     springVersionForJupiter = '5.3.7'
     jacksonVersion = '2.11.4'
     slf4jVersion = '1.7.30'
-    micrometerVersion = '1.6.7'
+    micrometerVersion = '1.7.3' // 1.7 is LTS. 1.7.3 most recent as of 2021-08-12
 
     jmsApiVersion = '1.1-rev-1'
     javaxInjectVersion = '1'
@@ -59,6 +61,30 @@ subprojects {
     java {
         withJavadocJar()
         withSourcesJar()
+    }
+
+    test {
+        /*
+         * All tests employ MatsTestBroker to get hold of a JMS ConnectionFactory to use for its MatsFactory creation.
+         * This per default starts an in-vm ActiveMQ broker, and connects an ActiveMQConnectionFactory to this.
+         * However, via system properties, you may choose which client to use (activemq, artemis or rabbitmq - and
+         * you may also specify the class name of a MatsTestBroker implementation).
+         * For ActiveMQ and Artemis, it supports in-vm creation of the broker (server) - which is the default.
+         *
+         * Run all tests with in-vm ActiveMQ brokers (ActiveMQ is default, in-vm is default)
+         * ./gradlew clean test
+         *
+         * Run all tests with in-vm Artemis MQ brokers (Apache ActiveMQ Artemis, formerly JBoss HornetQ,
+         * and what Red Hat AMQ is based upon):
+         * ./gradlew -Pmats.test.broker=artemis clean test
+         *
+         * Run all tests against an external ActiveMQ MQ broker on localhost (ActiveMQ is default).
+         * ./gradlew -Pmats.test.brokerurl=localhost clean test
+         *
+         * Run all tests against an external Artemis MQ broker on localhost:
+         * ./gradlew -Pmats.test.broker=artemis -Pmats.test.brokerurl=localhost clean test
+         */
+        systemProperties project.properties.subMap(["mats.test.brokerurl", "mats.test.broker"])
     }
 
     javadoc {

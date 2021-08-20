@@ -14,8 +14,6 @@ import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.mats3.MatsFactory.MatsWrapperDefault;
-
 /**
  * DataSource wrapper which returns thin Connection proxies (currently employing Java's "dynamic proxy" functionality)
  * which do not actually fetch a Connection until it is needed. It defers as long as possible, "holding back" calls to
@@ -50,7 +48,7 @@ import io.mats3.MatsFactory.MatsWrapperDefault;
  * which is invoked after every method invoked on the returned {@link DeferredConnectionProxy DeferredConnectionProxy}s,
  * which primarily is interesting for testing, but might have other uses.
  * <p />
- * If in a Spring environment, the returned instance furthermore implements
+ * If in a Spring environment, the returned Connection instances furthermore implements
  * <code>org.springframework.jdbc.datasource.ConnectionProxy</code>.
  * 
  * @author Endre Stølsvik 2021-01-26 23:45 - http://stolsvik.com/, endre@stolsvik.com

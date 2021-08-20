@@ -13,11 +13,17 @@ dependencies {
     compile project(':mats-localinspect')
     // The MatsFuturizer is provided as a convenience in the Rule_Mats and Extension_Mats
     compile project(':mats-util')
-    // We need a backing JMS-based Message Broker; This is a tool that provides easy instantiation of such.
-    compile project(':mats-test-activemq')
 
-    // .. and pull in ActiveMQ Broker (since 'mats-test-activemq' does not transitively expose it, because _prod_).
+    // Backing message brokers:
+    // We need a backing JMS-based Message Broker; MatsTestBroker is a tool that provides easy instantiation of such.
+    // Note that this does NOT transitively depend on any broker server or client, as the MatsTestBroker also is pulled
+    // in by mats-spring-jms (which is meant for prod code) in conjunction with that toolset's readiness for testing.
+    compile project(':mats-test-broker')
+    // .. therefore, also pull in ActiveMQ Broker with Client
     compile "org.apache.activemq:activemq-broker:$activeMqVersion"
+    // .. and pull in The Artemis (Apache ActiveMQ Artemis) Client and Server, since you can choose to test with it.
+    compile "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
+    compile "org.apache.activemq:artemis-server:$artemisMqVersion"
 
     // H2 Database, for database tests
     compile "com.h2database:h2:$h2Version"

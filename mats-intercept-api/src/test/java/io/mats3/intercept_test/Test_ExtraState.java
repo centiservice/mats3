@@ -70,8 +70,8 @@ public class Test_ExtraState {
         });
 
         InitiateAndStageInterceptor initiateAndStageInterceptor = new InitiateAndStageInterceptor();
-        MATS.getJmsMatsFactory().addInitiationInterceptor(initiateAndStageInterceptor);
-        MATS.getJmsMatsFactory().addStageInterceptor(initiateAndStageInterceptor);
+        MATS.getMatsInterceptableMatsFactory().addInitiationInterceptor(initiateAndStageInterceptor);
+        MATS.getMatsInterceptableMatsFactory().addStageInterceptor(initiateAndStageInterceptor);
 
         // :: Create the interceptor adding extra-state, and validating that state
 

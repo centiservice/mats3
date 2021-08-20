@@ -24,10 +24,10 @@ import io.mats3.localinspect.LocalStatsMatsInterceptor;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.spring.jms.factories.SpringJmsMatsFactoryWrapper;
 import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
+import io.mats3.test.broker.MatsTestBroker;
 
 /**
- * A testing-oriented {@link MatsFactory}-provider which also create a separate LocalVM ActiveMQ broker for the produced
+ * A testing-oriented {@link MatsFactory}-provider which utilizes the {@link MatsTestBroker} for the produced
  * MatsFactory to connect to - this is for the scenarios where you do <i>NOT</i> have your test load the entire
  * application's Spring configuration, but instead "piece together" the relevant Spring
  * <code>{@literal @Components}</code> containing test-relevant Mats endpoints and other beans from your application
@@ -132,7 +132,7 @@ public class TestSpringMatsFactoryProvider {
     /**
      * Convenience variant of
      * {@link #createSpringDataSourceTxTestMatsFactory(int, PlatformTransactionManager, MatsSerializer)} where
-     * concurrency is 1, which should be adequate for most testing - unless you explicitly want to test concurrency.
+     * concurrency is 2, which should be adequate for most testing - unless you explicitly want to test concurrency.
      *
      * @param platformTransactionManager
      *            the {@link PlatformTransactionManager} that the SpringJmsMats transaction manager should employ. From
@@ -147,7 +147,7 @@ public class TestSpringMatsFactoryProvider {
      */
     public static MatsFactory createSpringDataSourceTxTestMatsFactory(
             PlatformTransactionManager platformTransactionManager, MatsSerializer<?> matsSerializer) {
-        return createSpringDataSourceTxTestMatsFactory(1, platformTransactionManager, matsSerializer);
+        return createSpringDataSourceTxTestMatsFactory(2, platformTransactionManager, matsSerializer);
     }
 
     /**
@@ -176,7 +176,7 @@ public class TestSpringMatsFactoryProvider {
     }
 
     /**
-     * Convenience variant of {@link #createJmsTxOnlyTestMatsFactory(int, MatsSerializer)} where concurrency is 1, which
+     * Convenience variant of {@link #createJmsTxOnlyTestMatsFactory(int, MatsSerializer)} where concurrency is 2, which
      * should be adequate for most testing - unless you explicitly want to test concurrency.
      *
      * @param matsSerializer
@@ -185,7 +185,7 @@ public class TestSpringMatsFactoryProvider {
      * @return the produced {@link MatsFactory}
      */
     public static MatsFactory createJmsTxOnlyTestMatsFactory(MatsSerializer<?> matsSerializer) {
-        return createJmsTxOnlyTestMatsFactory(1, matsSerializer);
+        return createJmsTxOnlyTestMatsFactory(2, matsSerializer);
     }
 
     private static SpringJmsMatsFactoryWrapper getMatsFactoryStopLocalVmBrokerWrapper(int concurrency,
@@ -193,7 +193,7 @@ public class TestSpringMatsFactoryProvider {
         // Naming broker as calling class, performing replacement of illegal chars according to ActiveMQ rules.
         String appName = getAppNamePrefix().replaceAll("[^a-zA-Z0-9._\\-:]", ".")
                 + "_" + _sequence.getAndIncrement();
-        MatsLocalVmActiveMq inVmActiveMq = MatsLocalVmActiveMq.createInVmActiveMq(appName);
+        MatsTestBroker inVmActiveMq = MatsTestBroker.create();
         ConnectionFactory jmsConnectionFactory = inVmActiveMq.getConnectionFactory();
         // :: Create the JMS and Spring DataSourceTransactionManager-backed JMS MatsFactory.
         // JmsSessionHandler (pooler)
@@ -216,20 +216,20 @@ public class TestSpringMatsFactoryProvider {
     }
 
     private static class MatsFactoryStopLocalVmBrokerWrapper extends MatsFactoryWrapper {
-        private final MatsLocalVmActiveMq _matsLocalVmActiveMq;
+        private final MatsTestBroker _matsTestBroker;
 
         public MatsFactoryStopLocalVmBrokerWrapper(JmsMatsFactory<?> targetMatsFactory,
-                MatsLocalVmActiveMq matsLocalVmActiveMq) {
+                MatsTestBroker matsTestBroker) {
             super(targetMatsFactory);
-            _matsLocalVmActiveMq = matsLocalVmActiveMq;
+            _matsTestBroker = matsTestBroker;
         }
 
         @Override
         public boolean stop(int gracefulShutdownMillis) {
             log.info(LOG_PREFIX + "Stopping test JmsMatsFactory.");
             boolean stopped = super.stop(gracefulShutdownMillis);
-            log.info(LOG_PREFIX + "Stopping test ActiveMQ instance.");
-            _matsLocalVmActiveMq.close();
+            log.info(LOG_PREFIX + "Stopping MatsTestBroker (stopping any in-vm broker).");
+            _matsTestBroker.close();
             return stopped;
         }
     }

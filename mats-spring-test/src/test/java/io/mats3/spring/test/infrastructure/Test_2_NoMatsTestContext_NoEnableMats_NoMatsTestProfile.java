@@ -18,8 +18,8 @@ import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.test.MatsTestProfile;
 import io.mats3.spring.test.TestSpringMatsFactoryProvider;
 import io.mats3.test.MatsTestHelp;
-import io.mats3.test.MatsTestMqInterface;
-import io.mats3.test.MatsTestMqInterface.MatsMessageRepresentation;
+import io.mats3.test.MatsTestBrokerInterface;
+import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 
 /**
  * Identical to {@link Test_1_NoMatsTestContext_NoEnableMats_WithMatsTestProfile}, only here not even marking with the
@@ -46,10 +46,10 @@ public class Test_2_NoMatsTestContext_NoEnableMats_NoMatsTestProfile {
         }
 
         @Bean
-        MatsTestMqInterface manualMatsTestMqInterface() {
+        MatsTestBrokerInterface manualMatsTestMqInterface() {
             // Notice how this "magically" is populated with necessary features by SpringJmsMatsFactoryWrapper,
             // which TestSpringMatsFactoryProvider wraps the MatsFactory with.
-            return MatsTestMqInterface.createForLaterPopulation();
+            return MatsTestBrokerInterface.createForLaterPopulation();
         }
     }
 
@@ -70,12 +70,12 @@ public class Test_2_NoMatsTestContext_NoEnableMats_NoMatsTestProfile {
     private MatsInitiator _matsInitiator;
 
     @Inject
-    private MatsTestMqInterface _matsTestMqInterface;
+    private MatsTestBrokerInterface _matsTestBrokerInterface;
 
     @Test
     public void doTest() {
         Assert.assertNotNull(_matsInitiator);
-        Assert.assertNotNull(_matsTestMqInterface);
+        Assert.assertNotNull(_matsTestBrokerInterface);
 
         String msg = "Incoming 1, 2, 3";
         String state = "State 1, 2, 3";
@@ -92,7 +92,7 @@ public class Test_2_NoMatsTestContext_NoEnableMats_NoMatsTestProfile {
                     .send(msg, state);
         });
 
-        MatsMessageRepresentation dlqMessage = _matsTestMqInterface.getDlqMessage(TERMINATOR);
+        MatsMessageRepresentation dlqMessage = _matsTestBrokerInterface.getDlqMessage(TERMINATOR);
 
         Assert.assertEquals(msg, dlqMessage.getIncomingMessage(String.class));
         Assert.assertEquals(state, dlqMessage.getIncomingState(String.class));

@@ -11,7 +11,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import io.mats3.spring.EnableMats;
 import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx;
-import io.mats3.spring.jms.tx.varioussetups.Test_SpringManagedTx_H2Based_DataSourceTransactionaManager.SpringConfiguration_DataSourceTxMgr;
 
 /**
  * Testing Spring DB Transaction management, using DataSourceTransactionManager where the DataSource is wrapped only for
@@ -22,15 +21,16 @@ import io.mats3.spring.jms.tx.varioussetups.Test_SpringManagedTx_H2Based_DataSou
  */
 @RunWith(SpringRunner.class)
 public class Test_SpringManagedTx_H2Based_DataSourceTransactionaManager_WrappedDsOnlyForTxMgr
-        extends Test_SpringManagedTx_H2Based_Abstract_PlatformTransactionManager {
+        extends Test_SpringManagedTx_H2Based_DataSourceTransactionaManager {
     @Configuration
     @EnableMats
-    static class SpringConfiguration_DsTxMgr_WrappedDsForAll extends SpringConfiguration_DataSourceTxMgr {
+    static class SpringConfiguration_DsTxMgr_WrappedDsOnlyForTxMgr extends SpringConfiguration_DataSourceTransactionManager {
         /**
          * This ensures that ONLY the TransactionManager gets the wrapped DataSource.
          */
         @Bean
-        PlatformTransactionManager createDataSourceTransactionaManager(DataSource dataSource) {
+        @Override
+        PlatformTransactionManager createDataSourceTransactionManager(DataSource dataSource) {
             return new DataSourceTransactionManager(JmsMatsTransactionManager_JmsAndSpringManagedSqlTx
                     .wrapLazyConnectionDatasource(dataSource));
         }

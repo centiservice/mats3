@@ -12,7 +12,7 @@ import io.mats3.lib_test.StateTO;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
-import io.mats3.test.MatsTestMqInterface.MatsMessageRepresentation;
+import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.junit.Rule_Mats;
 
 /**
@@ -282,7 +282,7 @@ public class Test_InitiateWithinStage {
 
         // The the messages sent to the service should appear in the DLQ!
 
-        MatsMessageRepresentation dlqMessage = MATS.getMatsTestMqInterface().getDlqMessage(SERVICE);
+        MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(SERVICE);
         Assert.assertEquals(traceId, dlqMessage.getTraceId());
         Assert.assertEquals(SERVICE, dlqMessage.getTo());
 

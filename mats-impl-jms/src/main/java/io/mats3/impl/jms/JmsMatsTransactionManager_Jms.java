@@ -156,7 +156,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
 
             // == Handling JMS Commit elision
             // ?: Should we elide JMS Commit?
-            if (internalExecutionContext.shouldElideJmsCommit()) {
+            if (internalExecutionContext.shouldElideJmsCommitForInitiation()) {
                 if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "COMMIT JMS: Asked to elide JMS Commit, so that we do!"
                         + " Transaction finished.");
                 return;
@@ -181,11 +181,11 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 String sqlEmployed = internalExecutionContext.isUsingSqlHandlingTransactionManager()
                         ? "(NOTICE: SQL Connection " + (internalExecutionContext.wasSqlConnectionEmployed()
                                 ? "WAS"
-                                : "was NOT") + " gotten/employed!"
+                                : "was NOT") + " gotten/employed!)"
                         : "(Not using a SQL-handling JmsMatsTransactionManager)";
                 log.error(LOG_PREFIX
                         + "VERY BAD! " + sqlEmployed
-                        + " After a MatsStage or Initiation ProcessingLambda finished nicely, implying that"
+                        + " After " + stageOrInit(_txContextKey) + " finished processing correctly, and"
                         + " any external, potentially state changing operations have committed OK, we could not"
                         + " commit the JMS Session! If this happened within a MATS message initiation, the state"
                         + " changing operations (e.g. database insert/update) have been committed, while the message"
@@ -207,8 +207,9 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                  * JmsMatsJmsException. However, in addition, this is the specific type of error ("VERY BAD!") that
                  * MatsInitiator.MatsMessageSendException is created for.
                  */
-                throw new JmsMatsMessageSendException("VERY BAD! After finished transacting " + stageOrInit(
-                        _txContextKey) + ", we could not commit JMS Session! " + sqlEmployed, t);
+                throw new JmsMatsMessageSendException("VERY BAD! After " + stageOrInit(_txContextKey) + " finished"
+                        + " processing correctly, and any external, potentially state changing operations have"
+                        + " committed OK, we could not commit the JMS Session! " + sqlEmployed, t);
             }
 
             // -> The JMS Session nicely committed.

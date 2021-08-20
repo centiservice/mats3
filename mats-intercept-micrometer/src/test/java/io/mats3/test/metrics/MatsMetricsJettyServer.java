@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.concurrent.ForkJoinPool;
 
 import javax.jms.ConnectionFactory;
+import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 import javax.servlet.annotation.WebListener;
@@ -28,6 +29,7 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ch.qos.logback.core.CoreConstants;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.KeepTrace;
 import io.mats3.api.intercept.MatsInterceptableMatsFactory;
@@ -36,11 +38,9 @@ import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.MatsTestHelp;
+import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.test.metrics.SetupTestMatsEndpoints.DataTO;
 import io.mats3.test.metrics.SetupTestMatsEndpoints.StateTO;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
-
-import ch.qos.logback.core.CoreConstants;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
@@ -67,7 +67,8 @@ public class MatsMetricsJettyServer {
         @Override
         public void contextInitialized(ServletContextEvent sce) {
             log.info("ServletContextListener.contextInitialized(...): " + sce);
-            log.info("  \\- ServletContext: " + sce.getServletContext());
+            ServletContext sc = sce.getServletContext();
+            log.info("  \\- ServletContext: " + sc);
 
             // ## Create DataSource using H2
             JdbcDataSource h2Ds = new JdbcDataSource();
@@ -77,25 +78,25 @@ public class MatsMetricsJettyServer {
             dataSource.setMaxConnections(5);
 
             // ## Create MatsFactory
-            // ActiveMQ ConnectionFactory
-            ConnectionFactory connectionFactory = MatsLocalVmActiveMq.createConnectionFactory(COMMON_AMQ_NAME);
+            // Get JMS ConnectionFactory from ServletContext
+            ConnectionFactory connFactory = (ConnectionFactory) sc.getAttribute(ConnectionFactory.class.getName());
             // MatsSerializer
             MatsSerializer<String> matsSerializer = MatsSerializerJson.create();
             // Create the MatsFactory
             _matsFactory = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
                     MatsMetricsJettyServer.class.getSimpleName(), "*testing*",
-                    JmsMatsJmsSessionHandler_Pooling.create(connectionFactory),
+                    JmsMatsJmsSessionHandler_Pooling.create(connFactory),
                     dataSource,
                     matsSerializer);
             // Configure the MatsFactory for testing (remember, we're running two instances in same JVM)
             // .. Concurrency of only 2
             _matsFactory.getFactoryConfig().setConcurrency(2);
             // .. Use port number of current server as postfix for name of MatsFactory, and of nodename
-            Integer portNumber = (Integer) sce.getServletContext().getAttribute(CONTEXT_ATTRIBUTE_PORTNUMBER);
+            Integer portNumber = (Integer) sc.getAttribute(CONTEXT_ATTRIBUTE_PORTNUMBER);
             _matsFactory.getFactoryConfig().setName("MetricsTestServer_" + portNumber);
             _matsFactory.getFactoryConfig().setNodename("EndreBox_" + portNumber);
             // Put it in ServletContext, for servlet to get
-            sce.getServletContext().setAttribute(JmsMatsFactory.class.getName(), _matsFactory);
+            sc.setAttribute(JmsMatsFactory.class.getName(), _matsFactory);
 
             SetupTestMatsEndpoints.setupMatsAndMatsSocketEndpoints(_matsFactory);
         }
@@ -139,7 +140,8 @@ public class MatsMetricsJettyServer {
         protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
             log.info("Sending request ..");
             resp.getWriter().println("Sending request ..");
-            MatsFactory matsFactory = (MatsFactory) req.getServletContext().getAttribute(JmsMatsFactory.class.getName());
+            MatsFactory matsFactory = (MatsFactory) req.getServletContext().getAttribute(JmsMatsFactory.class
+                    .getName());
 
             StateTO sto = new StateTO(420, 420.024);
             DataTO dto = new DataTO(42, "TheAnswer");
@@ -153,7 +155,6 @@ public class MatsMetricsJettyServer {
             resp.getWriter().println(".. Request sent.");
         }
     }
-
 
     /**
      * Servlet to shut down this JVM (<code>System.exit(0)</code>). Employed from the Gradle integration tests.
@@ -169,9 +170,7 @@ public class MatsMetricsJettyServer {
         }
     }
 
-
-
-    public static Server createServer(int port) {
+    public static Server createServer(int port, ConnectionFactory jmsConnectionFactory) {
         WebAppContext webAppContext = new WebAppContext();
         webAppContext.setContextPath("/");
         webAppContext.setBaseResource(Resource.newClassPathResource("webapp"));
@@ -179,6 +178,8 @@ public class MatsMetricsJettyServer {
         webAppContext.setThrowUnavailableOnStartupException(true);
         // Store the port number this server shall run under in the ServletContext.
         webAppContext.getServletContext().setAttribute(CONTEXT_ATTRIBUTE_PORTNUMBER, port);
+        // Store the JMS ConnectionFactory in the ServletContext
+        webAppContext.getServletContext().setAttribute(ConnectionFactory.class.getName(), jmsConnectionFactory);
 
         // Override the default configurations, stripping down and adding AnnotationConfiguration.
         // https://www.eclipse.org/jetty/documentation/9.4.x/configuring-webapps.html
@@ -236,7 +237,8 @@ public class MatsMetricsJettyServer {
         System.setProperty(CoreConstants.DISABLE_SERVLET_CONTAINER_INITIALIZER_KEY, "true");
 
         // Create common AMQ
-        MatsLocalVmActiveMq.createInVmActiveMq(COMMON_AMQ_NAME);
+        MatsTestBroker matsTestBroker = MatsTestBroker.createUniqueInVmActiveMq();
+        ConnectionFactory jmsConnectionFactory = matsTestBroker.getConnectionFactory();
 
         // ## Configure Micrometer
         __prometheusMeterRegistry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
@@ -263,7 +265,7 @@ public class MatsMetricsJettyServer {
             // Keep looping until we have found a free port that the server was able to start on
             while (true) {
                 int port = nextPort;
-                servers[i] = createServer(port);
+                servers[i] = createServer(port, jmsConnectionFactory);
                 log.info("######### Starting server [" + serverId + "] on [" + port + "]");
 
                 // Add a life cycle hook to log when the server has started

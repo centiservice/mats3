@@ -32,12 +32,9 @@ import javax.jms.TextMessage;
 import javax.jms.Topic;
 import javax.jms.TopicSubscriber;
 
-import org.apache.activemq.ActiveMQConnectionFactory;
 import org.junit.Assert;
 import org.junit.Test;
-import org.slf4j.Logger;
 
-import io.mats3.MatsFactory.MatsWrapperDefault;
 import io.mats3.MatsInitiator;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
@@ -48,7 +45,8 @@ import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.junit.Rule_Mats;
 import io.mats3.util.wrappers.ConnectionFactoryWrapper;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
+import io.mats3.test.broker.MatsTestBroker;
+import io.mats3.util.wrappers.MatsWrapperDefault;
 
 /**
  * Checks that if we do not send any messages in an initiation, no JMS Commit will occur.
@@ -56,8 +54,6 @@ import io.mats3.test.activemq.MatsLocalVmActiveMq;
  * @author Endre Stølsvik - 2021-02-01 - http://endre.stolsvik.com
  */
 public class Test_InitiationElideJmsCommit {
-    private static final Logger log = MatsTestHelp.getClassLogger();
-
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     /**
@@ -97,8 +93,8 @@ public class Test_InitiationElideJmsCommit {
     public void runManyTests() throws InterruptedException {
         // :: Arrange
 
-        MatsLocalVmActiveMq inVmActiveMq = MatsLocalVmActiveMq.createInVmActiveMq("InitiationElision");
-        ActiveMQConnectionFactory connectionFactory = inVmActiveMq.getConnectionFactory();
+        MatsTestBroker inVmActiveMq = MatsTestBroker.create();
+        ConnectionFactory connectionFactory = inVmActiveMq.getConnectionFactory();
         ConnectionFactoryWithCommitCounter wrapper = new ConnectionFactoryWithCommitCounter(connectionFactory);
         JmsMatsJmsSessionHandler_Pooling sessionPool = JmsMatsJmsSessionHandler_Pooling.create(wrapper);
         JmsMatsFactory<String> matsFactory = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions("test", "testversion",

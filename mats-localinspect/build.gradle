@@ -23,7 +23,7 @@ dependencies {
     testImplementation "com.h2database:h2:$h2Version"
 
     // ActiveMQ quicksetup:
-    testImplementation project(':mats-test-activemq')
+    testImplementation project(':mats-test-broker')
     // .. and pull in ActiveMQ Broker (since 'mats-test-activemq' does not transitively expose it, because _prod_).
     testImplementation "org.apache.activemq:activemq-broker:$activeMqVersion"
 

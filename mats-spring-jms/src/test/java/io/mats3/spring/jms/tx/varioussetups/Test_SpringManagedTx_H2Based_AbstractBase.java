@@ -26,24 +26,33 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.jdbc.datasource.DataSourceUtils;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsFactory;
+import io.mats3.impl.jms.JmsMatsFactory;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
+import io.mats3.impl.jms.JmsMatsTransactionManager;
 import io.mats3.serial.MatsSerializer;
-import io.mats3.serial.MatsTrace;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.Dto;
 import io.mats3.spring.EnableMats;
 import io.mats3.spring.MatsMapping;
 import io.mats3.spring.Sto;
+import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx;
 import io.mats3.spring.jms.tx.SpringTestDataTO;
 import io.mats3.spring.jms.tx.SpringTestStateTO;
+import io.mats3.test.MatsTestBrokerInterface;
+import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.TestH2DataSource;
+import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.RandomString;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * Abstract test of Spring DB Transaction management, performing INSERTs using Spring JdbcTemplate and Plain JDBC,
@@ -52,6 +61,7 @@ import io.mats3.test.activemq.MatsLocalVmActiveMq;
  * @author Endre Stølsvik 2019-05-06 21:35 - http://stolsvik.com/, endre@stolsvik.com
  */
 @RunWith(SpringRunner.class)
+@DirtiesContext(classMode = ClassMode.AFTER_CLASS)
 public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
 
     private static final Logger log = LoggerFactory.getLogger(Test_SpringManagedTx_H2Based_AbstractBase.class);
@@ -65,12 +75,12 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
     @EnableMats
     static abstract class SpringConfiguration_AbstractBase {
         @Bean
-        MatsLocalVmActiveMq createMatsTestActiveMq() {
-            return MatsLocalVmActiveMq.createRandomInVmActiveMq();
+        MatsTestBroker createMatsTestActiveMq() {
+            return MatsTestBroker.create();
         }
 
         @Bean
-        public ConnectionFactory createJmsConnectionFactory(MatsLocalVmActiveMq matsLocalVmActiveMq) {
+        public ConnectionFactory createJmsConnectionFactory(MatsTestBroker matsLocalVmActiveMq) {
             return matsLocalVmActiveMq.getConnectionFactory();
         }
 
@@ -114,6 +124,12 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
         @Bean
         public MatsTestLatch createTestLatch() {
             return new MatsTestLatch();
+        }
+
+        @Bean
+        public MatsTestBrokerInterface getMatsTestBrokerInterface(ConnectionFactory connectionFactory,
+                JmsMatsFactory<?> jmsMatsFactory) {
+            return MatsTestBrokerInterface.create(connectionFactory, jmsMatsFactory);
         }
 
         @Inject
@@ -195,14 +211,19 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
                 // -> Yes, multiple, so countdown multiple-counter until latch.
                 context.doAfterCommit(() -> {
                     int thisCount = _counter.decrementAndGet();
+                    log.info("MULTIPLE: Counting down, current count after decrement: " + thisCount);
                     if (thisCount == 0) {
+                        log.info("MULTIPLE: Counted to zero, latching the test, latch is: "+_latch);
                         _latch.resolve(context, state, msg);
                     }
                 });
             }
             else {
                 // -> No, ordinary single-test, so latch away.
-                context.doAfterCommit(() -> _latch.resolve(context, state, msg));
+                context.doAfterCommit(() -> {
+                    log.info("SINGLE: Latching the test, latch is: "+_latch);
+                    _latch.resolve(context, state, msg);
+                });
             }
         }
     }
@@ -217,10 +238,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
     protected MatsTestLatch _latch;
 
     @Inject
-    protected MatsLocalVmActiveMq _matsLocalVmActiveMq;
-
-    @Inject
-    protected MatsSerializer<String> _matsSerializer;
+    protected MatsTestBrokerInterface _matsTestBrokerInterface;
 
     protected static final String GOOD = "Good";
     protected static final String THROW = "Throw";
@@ -241,6 +259,8 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
         String traceId = "testGood_TraceId:" + RandomString.randomCorrelationId();
         sendMessage(SERVICE, dto, traceId);
 
+        // Wait for the message that appears on TERMINATOR
+        log.info("TEST: Waiting for latching, latch is: "+_latch);
         Result<SpringTestStateTO, SpringTestDataTO> result = _latch.waitForResult();
         Assert.assertEquals(traceId, result.getContext().getTraceId());
         Assert.assertEquals(new SpringTestDataTO(dto.number * 2, dto.string), result.getData());
@@ -261,8 +281,9 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
             sendMessage(SERVICE, new SpringTestDataTO(i, MULTIPLE + i), RandomString.randomCorrelationId());
         }
 
-        // Wait for the message that counts it down to zero
-        _latch.waitForResult(60_000);
+        // Wait for the message that appears on TERMINATOR that runs the count down to 0
+        log.info("TEST: Waiting for latching, latch is: "+_latch);
+        _latch.waitForResult(10_000);
 
         // :: Assert against the data from the database - it should be there!
         // Make expected follow order based on "ORDER BY data", by using TreeSet.
@@ -282,15 +303,11 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
         sendMessage(SERVICE, dto, traceId);
 
         // :: This should result in a DLQ, since the SERVICE throws.
-        MatsTrace<String> dlqMessage = _matsLocalVmActiveMq.getDlqMessage(_matsSerializer,
-                _matsFactory.getFactoryConfig().getMatsDestinationPrefix(),
-                _matsFactory.getFactoryConfig().getMatsTraceKey(),
-                SERVICE);
+        MatsMessageRepresentation dlqMessage = _matsTestBrokerInterface.getDlqMessage(SERVICE);
         // There should be a DLQ
         Assert.assertNotNull(dlqMessage);
         // The DTO and TraceId of the DLQ'ed message should be the one we sent.
-        String data = dlqMessage.getCurrentCall().getData();
-        SpringTestDataTO dtoInDlq = _matsSerializer.deserializeObject(data, SpringTestDataTO.class);
+        SpringTestDataTO dtoInDlq = dlqMessage.getIncomingMessage(SpringTestDataTO.class);
         Assert.assertEquals(dto, dtoInDlq);
         Assert.assertEquals(traceId, dlqMessage.getTraceId());
 

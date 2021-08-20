@@ -64,14 +64,14 @@ public interface JmsMatsStatics {
     String MDC_MATS_OUT_MATS_MESSAGE_ID = "mats.out.MatsMsgId"; // Set when producing message
 
     // JMS Properties put on the JMSMessage via set[String|Long|Boolean]Property(..)
-    String JMS_MSG_PROP_TRACE_ID = "mats.TraceId"; // String
-    String JMS_MSG_PROP_MATS_MESSAGE_ID = "mats.MsgId"; // String
-    String JMS_MSG_PROP_DISPATCH_TYPE = "mats.DispatchType"; // String
-    String JMS_MSG_PROP_MESSAGE_TYPE = "mats.MsgType"; // String
-    String JMS_MSG_PROP_ENVELOPE_SIZE = "mats.EnvSize"; // Long
-    String JMS_MSG_PROP_FROM = "mats.From"; // String
-    String JMS_MSG_PROP_TO = "mats.To"; // String
-    String JMS_MSG_PROP_AUDIT = "mats.Audit"; // Boolean
+    String JMS_MSG_PROP_TRACE_ID = "mats_TraceId"; // String
+    String JMS_MSG_PROP_MATS_MESSAGE_ID = "mats_MsgId"; // String
+    String JMS_MSG_PROP_DISPATCH_TYPE = "mats_DispatchType"; // String
+    String JMS_MSG_PROP_MESSAGE_TYPE = "mats_MsgType"; // String
+    String JMS_MSG_PROP_ENVELOPE_SIZE = "mats_EnvSize"; // Long
+    String JMS_MSG_PROP_FROM = "mats_From"; // String
+    String JMS_MSG_PROP_TO = "mats_To"; // String
+    String JMS_MSG_PROP_AUDIT = "mats_Audit"; // Boolean
 
     /**
      * Number of milliseconds to "extra wait" after timeoutMillis or gracefulShutdownMillis is gone.

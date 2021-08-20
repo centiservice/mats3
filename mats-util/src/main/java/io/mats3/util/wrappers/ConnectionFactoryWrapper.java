@@ -4,8 +4,6 @@ import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSException;
 
-import io.mats3.MatsFactory.MatsWrapperDefault;
-
 /**
  * A base Wrapper for a JMS {@link ConnectionFactory}, which simply implements ConnectionFactory, takes a
  * ConnectionFactory instance and forwards all calls to that. Meant to be extended to add extra functionality, e.g.
@@ -67,22 +65,6 @@ public class ConnectionFactoryWrapper implements MatsWrapperDefault<ConnectionFa
                     + " The target ConnectionFactory is not set!");
         }
         return _targetConnectionFactory;
-    }
-
-    /**
-     * @deprecated #setTarget
-     */
-    @Deprecated
-    public void setTargetConnectionFactory(ConnectionFactory targetConnectionFactory) {
-        setWrappee(targetConnectionFactory);
-    }
-
-    /**
-     * @deprecated #getTarget
-     */
-    @Deprecated
-    public ConnectionFactory getTargetConnectionFactory() {
-        return unwrap();
     }
 
     @Override

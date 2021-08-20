@@ -1,0 +1,30 @@
+// mats-test-broker
+
+dependencies {
+    compile project(':mats-serial')
+
+    // ActiveMQ BROKER, which is pretty much the sole reason for this module.
+    // HOWEVER, this project is also pulled in by 'mats-spring-jms' as a part of that toolkit's testing readiness, and
+    // we don't want the broker by default being included in "production" classpath, thus must be included specifically
+    // by users of this testing-tool in their test compile paths.
+    compileOnly "org.apache.activemq:activemq-broker:$activeMqVersion"
+    // The Apache ActiveMQ Artemis client and server.
+    compileOnly "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
+    compileOnly "org.apache.activemq:artemis-server:$artemisMqVersion"
+
+    // TESTING:
+
+    // Bring in JUnit
+    testCompile "junit:junit:$junitVersion"
+    // JMS spec 1.1-rev-1
+    testCompile "javax.jms:jms-api:$jmsApiVersion"
+    // Logging
+    testCompile "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testCompile "ch.qos.logback:logback-classic:$logbackVersion"
+
+    // ActiveMQ BROKER, which is pretty much the sole reason for this module.
+    testCompile "org.apache.activemq:activemq-broker:$activeMqVersion"
+    // The Apache ActiveMQ Artemis client and server.
+    testCompile "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
+    testCompile "org.apache.activemq:artemis-server:$artemisMqVersion"
+}

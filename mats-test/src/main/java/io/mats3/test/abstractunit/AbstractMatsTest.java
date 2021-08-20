@@ -8,21 +8,20 @@ import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsEndpoint.ProcessTerminatorLambda;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator;
+import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.localinspect.LocalStatsMatsInterceptor;
 import io.mats3.serial.MatsSerializer;
-import io.mats3.serial.MatsTrace;
+import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.MatsTestLatch;
-import io.mats3.test.MatsTestMqInterface;
 import io.mats3.test.TestH2DataSource;
+import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.MatsFuturizer;
-import io.mats3.test.activemq.MatsLocalVmActiveMq;
 
 /**
  * Base class containing common code for Rule_Mats and Extension_Mats located in the following modules:
@@ -30,8 +29,8 @@ import io.mats3.test.activemq.MatsLocalVmActiveMq;
  * <li>mats-test-junit</li>
  * <li>mats-test-jupiter</li>
  * </ul>
- * This class sets up an in-vm Active MQ broker through the use of {@link MatsLocalVmActiveMq} which is again utilized
- * to create the {@link MatsFactory} which can be utilized to create unit tests which rely on testing functionality
+ * This class sets up an in-vm Active MQ broker through the use of {@link MatsTestBroker} which is again utilized to
+ * create the {@link MatsFactory} which can be utilized to create unit tests which rely on testing functionality
  * utilizing MATS.
  * <p>
  * The setup and creation of these objects are located in the {@link #beforeAll()} method, this method should be called
@@ -47,15 +46,15 @@ public abstract class AbstractMatsTest<Z> {
     protected MatsSerializer<Z> _matsSerializer;
     protected DataSource _dataSource;
 
-    protected MatsLocalVmActiveMq _matsLocalVmActiveMq;
-    protected JmsMatsFactory<Z> _matsFactory;
+    protected MatsTestBroker _matsTestBroker;
+    protected MatsInterceptableMatsFactory _matsFactory;
     protected CopyOnWriteArrayList<MatsFactory> _createdMatsFactories = new CopyOnWriteArrayList<>();
 
     // :: Lazy init:
     protected MatsInitiator _matsInitiator;
     protected MatsTestLatch _matsTestLatch;
     protected MatsFuturizer _matsFuturizer;
-    protected MatsTestMqInterface _matsTestMqInterface;
+    protected MatsTestBrokerInterface _matsTestBrokerInterface;
 
     protected AbstractMatsTest(MatsSerializer<Z> matsSerializer) {
         _matsSerializer = matsSerializer;
@@ -81,7 +80,7 @@ public abstract class AbstractMatsTest<Z> {
         // ::: ActiveMQ BrokerService and ConnectionFactory
         // ==================================================
 
-        _matsLocalVmActiveMq = MatsLocalVmActiveMq.createRandomInVmActiveMq();
+        _matsTestBroker = MatsTestBroker.create();
 
         // ::: MatsFactory
         // ==================================================
@@ -115,8 +114,8 @@ public abstract class AbstractMatsTest<Z> {
             createdMatsFactory.stop(30_000);
         }
 
-        // :: Close the AMQ Broker
-        _matsLocalVmActiveMq.close();
+        // :: Close the Broker Connection
+        _matsTestBroker.close();
 
         // :: If the DataSource is a TestH2DataSource, then close that
         if (_dataSource instanceof TestH2DataSource) {
@@ -127,12 +126,12 @@ public abstract class AbstractMatsTest<Z> {
         // on a super class of multiple tests, then this instance will be re-used upon the next test class's run
         // (the next class that extends the "base test class" that contains the static @ClassRule).
         // NOTE: NOT doing that for H2 DataSource, as we cannot recreate that here, and instead rely on it re-starting.
-        _matsLocalVmActiveMq = null;
+        _matsTestBroker = null;
         _matsFactory = null;
         _matsInitiator = null;
         _matsTestLatch = null;
         _matsFuturizer = null;
-        _matsTestMqInterface = null;
+        _matsTestBrokerInterface = null;
 
         log.info("--- JUnit/Jupiter --- AFTER_CLASS done on ClassRule/Extension '" + id(getClass()) + "' DONE.");
     }
@@ -168,56 +167,46 @@ public abstract class AbstractMatsTest<Z> {
     }
 
     /**
-     * @return a {@link MatsTestMqInterface} instance for getting DLQs (and hopefully other snacks at a later time).
+     * TODO: Delete when > 0.18
+     * @deprecated use {@link #getMatsTestBrokerInterface()}
      */
-    public synchronized MatsTestMqInterface getMatsTestMqInterface() {
-        if (_matsTestMqInterface == null) {
-            _matsTestMqInterface = MatsTestMqInterface
-                    .create(_matsLocalVmActiveMq.getConnectionFactory(),
-                            _matsSerializer,
-                            _matsFactory.getFactoryConfig().getMatsDestinationPrefix(),
-                            _matsFactory.getFactoryConfig().getMatsTraceKey());
+    @Deprecated
+    public synchronized Object getMatsTestMqInterface() {
+        throw new AssertionError("Renamed to getMatsTestBrokerInterface(),"
+                + " returning a MatsTestBrokerInterface instance.");
+    }
+
+    /**
+     * @return a {@link MatsTestBrokerInterface} instance for getting DLQs (and hopefully other snacks at a later time).
+     */
+    public synchronized MatsTestBrokerInterface getMatsTestBrokerInterface() {
+        if (_matsTestBrokerInterface == null) {
+            _matsTestBrokerInterface = MatsTestBrokerInterface
+                    .create(_matsTestBroker.getConnectionFactory(), _matsFactory);
 
         }
-        return _matsTestMqInterface;
+        return _matsTestBrokerInterface;
     }
 
     /**
      * @return the JMS ConnectionFactory that this JUnit Rule sets up.
      */
     public ConnectionFactory getJmsConnectionFactory() {
-        return _matsLocalVmActiveMq.getConnectionFactory();
-    }
-
-    /**
-     * Waits a couple of seconds for a message to appear on the Dead Letter Queue for the provided endpointId - useful
-     * if the test is designed to fail a stage (i.e. that a stage raises some {@link RuntimeException}, or the special
-     * {@link MatsRefuseMessageException}).
-     *
-     * @param endpointId
-     *            the endpoint which is expected to generate a DLQ message.
-     * @return the {@link MatsTrace} of the DLQ'ed message.
-     * @deprecated use the {@link MatsTestMqInterface}, as provided by the {@link #getMatsTestMqInterface()} method.
-     */
-    @Deprecated
-    public MatsTrace<Z> getDlqMessage(String endpointId) {
-        return _matsLocalVmActiveMq.getDlqMessage(_matsSerializer,
-                _matsFactory.getFactoryConfig().getMatsDestinationPrefix(),
-                _matsFactory.getFactoryConfig().getMatsTraceKey(),
-                endpointId);
-    }
-
-    /**
-     * @return the {@link MatsFactory} that this JUnit Rule sets up - forwards directly to {@link #getJmsMatsFactory()}.
-     */
-    public MatsFactory getMatsFactory() {
-        return getJmsMatsFactory();
+        return _matsTestBroker.getConnectionFactory();
     }
 
     /**
      * @return the {@link MatsFactory} that this JUnit Rule sets up.
      */
-    public JmsMatsFactory<Z> getJmsMatsFactory() {
+    public MatsFactory getMatsFactory() {
+        return getMatsInterceptableMatsFactory();
+    }
+
+    /**
+     * @return the {@link MatsInterceptableMatsFactory} that this JUnit Rule sets up - <b>This should not be used unless
+     *         testing the Interceptor API!</b>
+     */
+    public MatsInterceptableMatsFactory getMatsInterceptableMatsFactory() {
         return _matsFactory;
     }
 
@@ -232,9 +221,9 @@ public abstract class AbstractMatsTest<Z> {
      *
      * @return a <i>new, separate</i> {@link MatsFactory} in addition to the one provided by {@link #getMatsFactory()}.
      */
-    public JmsMatsFactory<Z> createMatsFactory() {
+    public MatsInterceptableMatsFactory createMatsFactory() {
         JmsMatsJmsSessionHandler sessionHandler = JmsMatsJmsSessionHandler_Pooling
-                .create(_matsLocalVmActiveMq.getConnectionFactory());
+                .create(_matsTestBroker.getConnectionFactory());
 
         JmsMatsFactory<Z> matsFactory;
         if (_dataSource == null) {
@@ -298,8 +287,8 @@ public abstract class AbstractMatsTest<Z> {
      * create the endpoints one more time, and they will already exist, thus you'll get an Exception from the
      * MatsFactory. Another scenario is that you have a bunch of @Test methods, which inside the test sets up an
      * endpoint in the "Arrange" section. If you employ the same endpointId for each of those setups (that is, inside
-     * the @Test method itself), you will get "dupliate endpoint". Thus, as the first statement of each test, before
-     * creating the endpoint, invoke this method.
+     * the @Test method itself), you will get "duplicate endpoint" (which is good, as your test would probably randomly
+     * fail anyhow). Thus, as the first statement of each test, before creating the endpoint, invoke this method.
      */
     public void cleanMatsFactories() {
         // :: Since removing all endpoints will destroy the MatsFuturizer if it is made, we'll first close that

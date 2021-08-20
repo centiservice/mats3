@@ -28,7 +28,7 @@ import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx
  * Spring {@link PlatformTransactionManager} (typically <code>DataSourceTransactionManager</code> or
  * <code>HibernateTransactionManager</code>). The code here is very simple, really just creating the {@link MatsFactory}
  * normally and then wrapping it up in a {@link SpringJmsMatsFactoryWrapper} which provides hook-in to the Spring
- * context. Read more about the features on its {@link SpringJmsMatsFactoryWrapper JavaDoc}.
+ * context (read more about those hook-in features on its {@link SpringJmsMatsFactoryWrapper JavaDoc}).
  * <p />
  * <b>NOTE: It returns an instance of {@link SpringJmsMatsFactoryWrapper}, which it is assumed that you put in the
  * Spring context as a bean, so that Spring property injection and <code>@PostConstruct</code> is run on it.</b> If you

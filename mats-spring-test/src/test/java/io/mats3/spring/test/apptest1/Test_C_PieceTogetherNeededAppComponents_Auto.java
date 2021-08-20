@@ -10,6 +10,7 @@ import javax.inject.Inject;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 
@@ -28,6 +29,7 @@ import io.mats3.util.MatsFuturizer.Reply;
 @RunWith(SpringRunner.class)
 @ContextConfiguration(classes = { AppEndpoint_MainService.class,
         AppEndpoint_LeafServices.class, AppServiceCalculator.class, MatsTestInfrastructureConfiguration.class })
+@DirtiesContext
 public class Test_C_PieceTogetherNeededAppComponents_Auto {
     @Inject
     private MatsFuturizer _matsFuturizer;

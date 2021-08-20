@@ -10,7 +10,7 @@ import io.mats3.MatsInitiator.MatsMessageSendException;
 import io.mats3.lib_test.DataTO;
 import io.mats3.lib_test.StateTO;
 import io.mats3.test.MatsTestHelp;
-import io.mats3.test.MatsTestMqInterface.MatsMessageRepresentation;
+import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.junit.Rule_Mats;
 
 /**
@@ -42,7 +42,7 @@ public class Test_CallOverflow {
                 .send(null));
 
         // Assert
-        MatsMessageRepresentation dlqMessage = MATS.getMatsTestMqInterface().getDlqMessage(
+        MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(
                 SERVICE);
         Assert.assertEquals(SERVICE, dlqMessage.getFrom());
     }
@@ -66,7 +66,7 @@ public class Test_CallOverflow {
                 .send(null));
 
         // Assert
-        MatsMessageRepresentation dlqMessage = MATS.getMatsTestMqInterface().getDlqMessage(
+        MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(
                 SERVICE);
         Assert.assertEquals(SERVICE, dlqMessage.getFrom());
     }
@@ -97,7 +97,7 @@ public class Test_CallOverflow {
                 .send(null));
 
         // Assert
-        MatsMessageRepresentation dlqMessage = MATS.getMatsTestMqInterface().getDlqMessage(
+        MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(
                 SERVICE);
         Assert.assertEquals(SERVICE, dlqMessage.getFrom());
     }
@@ -129,7 +129,7 @@ public class Test_CallOverflow {
                 .send(null));
 
         // Assert
-        MatsMessageRepresentation dlqMessage = MATS.getMatsTestMqInterface().getDlqMessage(
+        MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(
                 SERVICE);
         Assert.assertEquals(SERVICE, dlqMessage.getFrom());
     }

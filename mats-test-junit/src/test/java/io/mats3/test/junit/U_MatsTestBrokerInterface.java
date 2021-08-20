@@ -10,10 +10,10 @@ import org.junit.Test;
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsInitiator.MessageReference;
 import io.mats3.test.MatsTestHelp;
-import io.mats3.test.MatsTestMqInterface;
-import io.mats3.test.MatsTestMqInterface.MatsMessageRepresentation;
+import io.mats3.test.MatsTestBrokerInterface;
+import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 
-public class U_MatsTestMqInterface {
+public class U_MatsTestBrokerInterface {
 
     private static final String TERMINATOR_WHICH_THROWS = MatsTestHelp.terminator();
 
@@ -74,10 +74,10 @@ public class U_MatsTestMqInterface {
         // :: Assert
 
         // Fetch the magic MatsTestMqInterface for interfacing "directly" with the underlying ActiveMQ
-        MatsTestMqInterface matsTestMqInterface = MATS.getMatsTestMqInterface();
+        MatsTestBrokerInterface matsTestBrokerInterface = MATS.getMatsTestBrokerInterface();
 
         // Note: Throws AssertionError if not gotten in 10 seconds.
-        MatsMessageRepresentation dlqMessage = matsTestMqInterface.getDlqMessage(TERMINATOR_WHICH_THROWS);
+        MatsMessageRepresentation dlqMessage = matsTestBrokerInterface.getDlqMessage(TERMINATOR_WHICH_THROWS);
 
         // :: Assert that all the values are correct.
         Assert.assertEquals(dto, dlqMessage.getIncomingMessage(MatsTestData.class));

@@ -17,9 +17,9 @@ import io.mats3.spring.MatsClassMapping;
 import io.mats3.spring.MatsClassMapping.Stage;
 import io.mats3.spring.MatsMapping;
 import io.mats3.spring.Sto;
-import io.mats3.spring.test.apptest2.AppMain_TwoMatsFactories.TestQualifier;
 import io.mats3.spring.test.SpringTestDataTO;
 import io.mats3.spring.test.SpringTestStateTO;
+import io.mats3.spring.test.apptest2.AppMain_TwoMatsFactories.TestCustomQualifier;
 import io.mats3.test.MatsTestLatch;
 
 /**
@@ -34,6 +34,9 @@ public class AppEndpoints {
 
     /**
      * Test "Single" endpoint.
+     * <p/>
+     * Notice how we're using the same endpointId as {@link SingleEndpointUsingMatsClassMapping}, but this is OK since
+     * this is on a different MatsFactory.
      */
     @MatsMapping(AppMain_TwoMatsFactories.ENDPOINT_ID + ".single")
     @Qualifier("matsFactoryX")
@@ -45,10 +48,31 @@ public class AppEndpoints {
     }
 
     /**
-     * Test "Terminator" endpoints.
+     * Test Single-Stage @MatsClassMapping endpoint.
+     * <p/>
+     * Notice how we're using the same endpointId as {@link AppEndpoints#springMatsSingleEndpoint(SpringTestDataTO)},
+     * but this is OK since this is on a different MatsFactory.
      */
-    @MatsMapping(endpointId = AppMain_TwoMatsFactories.ENDPOINT_ID + ".terminator", matsFactoryCustomQualifierType = TestQualifier.class)
-    @MatsMapping(endpointId = AppMain_TwoMatsFactories.ENDPOINT_ID + ".terminator", matsFactoryQualifierValue = "matsFactoryY")
+    @MatsClassMapping(endpointId = AppMain_TwoMatsFactories.ENDPOINT_ID
+            + ".single", matsFactoryQualifierValue = "matsFactoryY")
+    static class SingleEndpointUsingMatsClassMapping {
+        @Inject
+        private AtomicInteger _atomicInteger;
+
+        @Stage(0)
+        SpringTestDataTO initialStage(SpringTestDataTO in) {
+            _atomicInteger.incrementAndGet();
+            return new SpringTestDataTO(in.number * 3, in.string + ":single_on_class");
+        }
+    }
+
+    /**
+     * Test "Terminator" endpoints, set up on both MatsFactories.
+     */
+    @MatsMapping(endpointId = AppMain_TwoMatsFactories.ENDPOINT_ID
+            + ".terminator", matsFactoryCustomQualifierType = TestCustomQualifier.class)
+    @MatsMapping(endpointId = AppMain_TwoMatsFactories.ENDPOINT_ID
+            + ".terminator", matsFactoryQualifierValue = "matsFactoryY")
     public void springMatsTerminatorEndpoint(@Dto SpringTestDataTO msg, @Sto SpringTestStateTO state) {
         _latch.resolve(state, msg);
     }
@@ -57,7 +81,7 @@ public class AppEndpoints {
      * Test Multi-Stage @MatsClassMapping endpoint.
      */
     @MatsClassMapping(AppMain_TwoMatsFactories.ENDPOINT_ID + ".multi")
-    @TestQualifier(name = "SouthWest") // This is the same as "matsFactoryX", the first.
+    @TestCustomQualifier(region = "SouthWest") // This is the same as "matsFactoryX", the first.
     static class MultiEndPoint {
         @Inject
         private AtomicInteger _atomicInteger;
@@ -85,7 +109,8 @@ public class AppEndpoints {
             // Perform some advanced stuff with our Dependency Injected Service..!
             _atomicInteger.incrementAndGet();
 
-            _context.request(AppMain_TwoMatsFactories.ENDPOINT_ID + ".single", new SpringTestDataTO(in.number, in.string));
+            _context.request(AppMain_TwoMatsFactories.ENDPOINT_ID + ".single", new SpringTestDataTO(in.number,
+                    in.string));
         }
 
         @Stage(10)
@@ -100,23 +125,4 @@ public class AppEndpoints {
             return new SpringTestDataTO(in.number * 3, in.string + ":multi");
         }
     }
-
-    /**
-     * Test Single-Stage @MatsClassMapping endpoint.
-     * <p/>
-     * Notice how we're using the same endpointId as {@link AppEndpoints#springMatsSingleEndpoint(SpringTestDataTO)},
-     * but this is OK since this is on a different MatsFactory.
-     */
-    @MatsClassMapping(endpointId = AppMain_TwoMatsFactories.ENDPOINT_ID + ".single", matsFactoryQualifierValue = "matsFactoryY")
-    static class SingleEndpointUsingMatsClassMapping {
-        @Inject
-        private AtomicInteger _atomicInteger;
-
-        @Stage(0)
-        SpringTestDataTO initialStage(SpringTestDataTO in) {
-            _atomicInteger.incrementAndGet();
-            return new SpringTestDataTO(in.number * 3, in.string + ":single_on_class");
-        }
-    }
-
 }
