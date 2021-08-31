@@ -25,6 +25,7 @@ import io.mats3.serial.MatsSerializer.SerializedMatsTrace;
 import io.mats3.serial.MatsTrace;
 import io.mats3.serial.MatsTrace.Call.Channel;
 import io.mats3.serial.MatsTrace.Call.MessagingModel;
+import io.mats3.serial.MatsTrace.KeepMatsTrace;
 import io.mats3.serial.MatsTrace.StackState;
 
 /**
@@ -90,11 +91,16 @@ public interface JmsMatsStatics {
      */
     int MAX_STACK_HEIGHT = 25;
 
-
     /**
      * Log prefix (after {@link #LOG_PREFIX} for flows that will be illegal in a later version.
      */
     String ILLEGAL_CALL_FLOWS = "ILLEGAL CALL FLOWS! ";
+
+    /**
+     * We'll use a space-conservative default: {@link KeepMatsTrace#COMPACT}, nulling out the DTOs for calls other than
+     * the current call, while still retaining the flow meta info.
+     */
+    KeepMatsTrace DEFAULT_KEEP_MATS_TRACE = KeepMatsTrace.COMPACT;
 
     /**
      * Send a bunch of {@link JmsMatsMessage}s.

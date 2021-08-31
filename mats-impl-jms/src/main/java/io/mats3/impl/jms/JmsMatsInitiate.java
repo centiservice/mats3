@@ -123,12 +123,12 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         }
 
         // :: Set defaults
-        // _traceId is set above.
-        _keepTrace = KeepMatsTrace.FULL;
+        // NOTE: _traceId is set above.
+        _keepTrace = JmsMatsStatics.DEFAULT_KEEP_MATS_TRACE;
         _nonPersistent = false;
         _interactive = false;
         _timeToLive = 0;
-        // _from is set above
+        // NOTE: _from is set above
         _to = null;
         _replyTo = null;
         _replyToSubscription = false;
@@ -161,8 +161,8 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         }
 
         // Also set this on the MDC so that we have it on log lines if it crashes within the initiation lambda
-        // NOTICE: The MDC will always be reset to the existing, or overwritten with new, after initiation lambda
-        // is finished, so this will not trash the traceId from an existing context.
+        // NOTICE: The MDC will always be reset to the existing (init), or overwritten with new (stage proc), after
+        // initiation lambda is finished, so this will not trash the traceId from an existing context.
         MDC.put(MDC_TRACE_ID, _traceId);
         return this;
     }
