@@ -20,8 +20,8 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * (initiatorId, endpointId and stageIds, and timings and sizes), so that it hopefully is easy to reason about and debug
  * all Mats flows, and to be able to use the logging system (e.g. Kibana over ElasticSearch) to create statistics.
  * <p />
- * Two loggers are used, which are {@link #log_init "io.mats3.log.init"} and {@link #log_stage
- * "io.mats3.log.stage"}. All loglines' message-part is prepended with <code>"#MATSLOG#"</code>.
+ * Two loggers are used, which are {@link #log_init "io.mats3.log.init"} and {@link #log_stage "io.mats3.log.stage"}.
+ * All loglines' message-part is prepended with <code>"#MATSLOG#"</code>.
  *
  * <h2>Log lines and their metadata</h2> There are 4 different type of log lines emitted by this logging interceptor -
  * but note that the "Per Message" log line can be combined with the "Initiate Complete" or "Stage Complete" loglines if
@@ -30,7 +30,7 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * <li>Initiate Complete</li>
  * <li>Message Received (on Stage)</li>
  * <li>Stage Complete</li>
- * <li>Per message (both for initiations and stage produced messages)</li>
+ * <li>Per Created/Sent message (both for initiations and stage produced messages)</li>
  * </ol>
  * Note that some MDC properties are set by the JMS implementation, and not by this interceptor. These are the ones that
  * do not have a JavaDoc-link in the below listings.
@@ -60,12 +60,12 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * actual user lambda, including e.g. any external IO like DB, but excluding all system code, in particular message
  * creation and commits.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_SUM_MSG_OUT_HANDLING "mats.done.ms.SumMsgOutHandling"}</b>: Part of total time taken
- * for the creation and serialization of Mats messages, and "system messages" (e.g. JMS Message for the JMS
- * implementation)</li>
+ * for the creation and serialization of Mats messages, and production <i>and sending</i> of "message system messages"
+ * (e.g. creating and populating JMS Message plus <code>jmsProducer.send(..)</code> for the JMS implementation)</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_SUM_DB_COMMIT "mats.done.ms.DbCommit"}</b>: Part of total time taken for committing
  * DB.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_SUM_MSG_SYS_COMMIT "mats.done.ms.MsgSysCommit"}</b>: Part of total time taken for
- * committing the message system (e.g. JMS commit for the JMS implementation)</li>
+ * committing the message system (e.g. <code>jmsSession.commit()</code> for the JMS implementation)</li>
  * </ul>
  *
  * <h3>MDC Properties for Message Received:</h3>
@@ -126,7 +126,8 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: The Mats flow's traceId, set from the initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_PROCESS_RESULT "mats.done.ProcessResult"}</b>: the ProcessResult enum</li>
  * </ul>
- * Metrics for the processing of the stage (very similar to the metrics for a initiation execution):
+ * Metrics for the processing of the stage (very similar to the metrics for a initiation execution, but includes the
+ * reception of a message):
  * <ul>
  * <li><b>{@link #MDC_MATS_COMPLETE_TOTAL_EXECUTION "mats.done.ms.TotalExecution"}</b>: Total time taken for the stage
  * to complete - including both user code and all system code including commits.</li>
@@ -134,19 +135,14 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * total time taken for the preprocessing and deserialization of the incoming message, same as the message received
  * logline's {@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.in.ms.TotalPreprocDeserial"}, as that piece is
  * also part of the stage processing.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_USER_LAMBDA "mats.done.ms.UserLambda"}</b>: Part of the total time taken for the
- * actual user lambda, including e.g. any external IO like DB, but excluding all system code, in particular message
- * creation and commits.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_SUM_MSG_OUT_HANDLING "mats.done.ms.SumMsgOutHandling"}</b>: Part of total time taken
- * for the creation and serialization of Mats messages, and "system messages" (e.g. JMS Message for the JMS
- * implementation)</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_SUM_DB_COMMIT "mats.done.ms.DbCommit"}</b>: Part of total time taken for committing
- * DB.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_SUM_MSG_SYS_COMMIT "mats.done.ms.MsgSysCommit"}</b>: Part of total time taken for
- * committing the message system (e.g. JMS commit for the JMS implementation)</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_USER_LAMBDA "mats.done.ms.UserLambda"}</b>: Same as for initiation.</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_SUM_MSG_OUT_HANDLING "mats.done.ms.SumMsgOutHandling"}</b>: Same as for
+ * initiation.</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_SUM_DB_COMMIT "mats.done.ms.DbCommit"}</b>: Same as for initiation.</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_SUM_MSG_SYS_COMMIT "mats.done.ms.MsgSysCommit"}</b>: Same as for initiation</li>
  * </ul>
  *
- * <h3>MDC Properties for Per Message (both initiations and stage produced messages):</h3>
+ * <h3>MDC Properties for Per created Message (both initiations and stage produced messages):</h3>
  * <ul>
  * <li><b>{@link #MDC_MATS_MESSAGE_SENT "mats.MessageSent"}</b>: 'true' on single logline per sent message - <i>can be
  * used to count sent messages.</i></li>
