@@ -7,12 +7,16 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import javax.jms.Session;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsConfig;
 import io.mats3.MatsEndpoint.ProcessLambda;
 import io.mats3.MatsStage;
+import io.mats3.impl.jms.JmsMatsException.JmsMatsJmsException;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
 
 /**
  * The JMS implementation of {@link MatsStage}.
@@ -145,8 +149,26 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
             _stageProcessors.add(new JmsMatsStageProcessor<>(this, i, false));
         }
         // :: Add interactive stage processors
+        // ?: Should we add them? (RabbitMQ does not support message selectors for Queues (only topics!))
+        // Hacky way to determine the underlying ConnectionFactory
+        boolean shouldStartInteractiveStageProcessors = false;
+        try {
+            JmsSessionHolder sessionHolder = _parentFactory.getJmsMatsJmsSessionHandler()
+                    .getSessionHolder(_parentFactory
+                            .getOrCreateInitiator_internal(JmsMatsFactory.DEFAULT_INITIATOR_NAME));
+            Session session = sessionHolder.getSession();
+            // We should start the interactive stage processors UNLESS the underlying JMS Client is RabbitMQ.
+            shouldStartInteractiveStageProcessors = ! session.getClass().getName().contains(".rabbitmq.");
+            sessionHolder.release();
+        }
+        catch (JmsMatsJmsException e) {
+            log.warn("Got problems getting a JMS Session to determine underlying broker brand we're connected to;"
+                    + " Checking whether RabbitMQ, in which case we can't start interactive StageProcessors."
+                    + " Assuming worst case: Not starting interactive StageProcessors.", e);
+        }
         // ?: Is this a Queue? (Cannot add multiple processors for topic endpoints - read comment above).
-        if (_queue) {
+        // .. AND should we start interactive StageProcessors?
+        if (_queue && shouldStartInteractiveStageProcessors) {
             // -> Yes, this is a queue, so then we can add the interactive processors
             // Add floor'ed half of the normal numberOfProcessors, but at least 1.
             int numberOfInteractiveProcessors = Math.max(1, (int) (numberOfProcessors / 2d));
