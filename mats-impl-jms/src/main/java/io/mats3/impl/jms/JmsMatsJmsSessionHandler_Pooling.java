@@ -41,8 +41,8 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
 
         /**
          * Each initiator gets its own JSM Connection. Notice that due to the prevalent use of
-         * {@link MatsFactory#getDefaultInitiator()}, this is often equivalent to {@link #FACTORY}. (However, each
-         * instance of the utility <code>MatsFuturizer</code> creates its own initiator).
+         * {@link MatsFactory#getDefaultInitiator()}, this is often equivalent to {@link #FACTORY}. (Note that for the
+         * utility <code>MatsFuturizer</code>, each instance creates its own initiator).
          */
         INITIATOR
     }

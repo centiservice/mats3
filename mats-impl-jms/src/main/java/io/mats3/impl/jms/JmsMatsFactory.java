@@ -51,6 +51,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
     private static final Logger log = LoggerFactory.getLogger(JmsMatsFactory.class);
 
+    static final String DEFAULT_INITIATOR_NAME = "default";
+
     public static <Z> JmsMatsFactory<Z> createMatsFactory_JmsOnlyTransactions(String appName, String appVersion,
             JmsMatsJmsSessionHandler jmsMatsJmsSessionHandler,
             MatsSerializer<Z> matsSerializer) {
@@ -503,7 +505,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         if (_defaultMatsInitiator == null) {
             synchronized (_createdInitiators) {
                 if (_defaultMatsInitiator == null) {
-                    _defaultMatsInitiator = getOrCreateInitiator_internal("default");
+                    _defaultMatsInitiator = getOrCreateInitiator_internal(DEFAULT_INITIATOR_NAME);
                 }
             }
         }
