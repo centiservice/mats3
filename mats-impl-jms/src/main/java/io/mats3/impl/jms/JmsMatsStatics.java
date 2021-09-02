@@ -77,7 +77,7 @@ public interface JmsMatsStatics {
     /**
      * Number of milliseconds to "extra wait" after timeoutMillis or gracefulShutdownMillis is gone.
      */
-    int EXTRA_GRACE_MILLIS = 100;
+    int EXTRA_GRACE_MILLIS = 500;
 
     /**
      * If an outgoing message has {@link MatsTrace#getTotalCallNumber()} higher than this (100), the processing will be

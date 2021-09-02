@@ -88,10 +88,9 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         _jmsMatsStage = jmsMatsStage;
         _processorNumber = processorNumber;
         _interactive = interactive;
-        _processorThread = new Thread(this::runner, THREAD_PREFIX + ident());
-        _processorThread.start();
         _transactionContext = jmsMatsStage.getParentFactory()
                 .getJmsMatsTransactionManager().getTransactionContext(this);
+        _processorThread = new Thread(this::runner, THREAD_PREFIX + ident());
     }
 
     private volatile boolean _runFlag = true; // Start off running.
@@ -124,7 +123,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
     @Override
     public void start() {
-        /* no-op */
+        _processorThread.start();
     }
 
     @Override
@@ -171,6 +170,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 return;
             }
         }
+        // ?: Is the thread in consumer.receive() now?
         if (_processorInReceive) {
             // -> Yes, waiting in receive(), so close session, thus making receive() return null.
             log.info(LOG_PREFIX + ident() + " is waiting in consumer.receive(), so we'll close the current"
@@ -193,7 +193,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             // ?: Did the thread exit?
             if (!_processorThread.isAlive()) {
                 // -> Yes, thread exited.
-                log.info(LOG_PREFIX + ident() + " exited nicely, it should have closed the JMS Session.");
+                log.info(LOG_PREFIX + ident() + " exited nicely, and either we closed the JMS session above, or"
+                        + " the thread did it on its way out.");
             }
         }
     }
@@ -209,20 +210,22 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     @Override
-    public boolean stopPhase4_GracefulAfterInterrupt() {
+    public boolean stopPhase4_GracefulWaitAfterInterrupt() {
         if (_processorThread.isAlive()) {
             // Wait a small time more after the interrupt.
             joinProcessorThread(EXTRA_GRACE_MILLIS);
-            // ?: Did the thread exit now? (Log only)
-            if (!_processorThread.isAlive()) {
-                // -> Yes, thread exited.
-                log.info(LOG_PREFIX + ident()
-                        + " exited after being interrupted, it should have closed the JMS Session.");
+            // ?: Did the thread exit now?
+            if (_processorThread.isAlive()) {
+                // -> No, thread still not exited. Close the JMS session "in his face" to clean this up.
+                log.warn(LOG_PREFIX + ident() + " DID NOT exit even after being interrupted."
+                        + " Giving up, closing JMS Session to clean up. This isn't all that good, should be looked"
+                        + " into why the thread is so stuck.");
+                closeCurrentSessionHolder();
             }
             else {
-                log.warn(LOG_PREFIX + ident() + " DID NOT exit even after being interrupted."
-                        + " Giving up, closing JMS Session.");
-                closeCurrentSessionHolder();
+                // -> Yes, thread exited.
+                log.info(LOG_PREFIX + ident()
+                        + " exited after being interrupted, it should have closed the JMS Session on its way out.");
             }
         }
         return !_processorThread.isAlive();

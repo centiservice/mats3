@@ -176,6 +176,11 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
                 _stageProcessors.add(new JmsMatsStageProcessor<>(this, i, true));
             }
         }
+
+        // Start all stage processors
+        for (JmsMatsStageProcessor<R, S, I, Z> stageProcessor : _stageProcessors) {
+            stageProcessor.start();
+        }
     }
 
     @Override

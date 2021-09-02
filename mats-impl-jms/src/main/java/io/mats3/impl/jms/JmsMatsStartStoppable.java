@@ -51,10 +51,10 @@ public interface JmsMatsStartStoppable extends JmsMatsStatics, StartStoppable {
         getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase3_InterruptIfStillAlive);
     }
 
-    default boolean stopPhase4_GracefulAfterInterrupt() {
+    default boolean stopPhase4_GracefulWaitAfterInterrupt() {
         boolean stopped = true;
         for (JmsMatsStartStoppable child : getChildrenStartStoppable()) {
-            stopped &= child.stopPhase4_GracefulAfterInterrupt();
+            stopped &= child.stopPhase4_GracefulWaitAfterInterrupt();
         }
         return stopped;
     }
@@ -65,6 +65,6 @@ public interface JmsMatsStartStoppable extends JmsMatsStatics, StartStoppable {
         stopPhase1_CloseSessionIfInReceive();
         stopPhase2_GracefulWaitAfterRunflagFalse(gracefulShutdownMillis);
         stopPhase3_InterruptIfStillAlive();
-        return stopPhase4_GracefulAfterInterrupt();
+        return stopPhase4_GracefulWaitAfterInterrupt();
     }
 }
