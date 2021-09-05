@@ -98,9 +98,45 @@ public interface MatsTestBroker {
             // -> Artemis specified
             return new MatsTestBroker_Artemis();
         }
+        else if (SYSPROP_MATS_TEST_BROKER_VALUE_RABBITMQ.equalsIgnoreCase(sysprop_broker)) {
+            // -> RabbitMQ specified
+            throw new IllegalArgumentException("RabbitMQ support is not yet done.");
+        }
+        // ?: Might this be a classname, judged by containing at least a dot?
+        else if (sysprop_broker.contains(".")) {
+            // -> Yes, it contains a dot - might be a class name
+            // Try to load this String as a class name
+            Class<?> matsTestBrokerClass;
+            try {
+                matsTestBrokerClass = Class.forName(sysprop_broker);
+            }
+            catch (ClassNotFoundException e) {
+                throw new IllegalStateException("Do not support broker type [" + sysprop_broker + "],"
+                        + " even tried instantiating this as a class since it contained a dot, but no such"
+                        + " class found.");
+            }
+            Object matsTestBrokerInstance;
+            try {
+                matsTestBrokerInstance = matsTestBrokerClass.newInstance();
+            }
+            catch (InstantiationException | IllegalAccessException e) {
+                throw new IllegalStateException("The '" + SYSPROP_MATS_TEST_BROKER + "' system property's value ["
+                        + sysprop_broker + "] looked like a class, so we loaded it."
+                        + " However, it was not possible to instantiate it.", e);
+            }
+            if (!(matsTestBrokerInstance instanceof MatsTestBroker)) {
+                throw new IllegalStateException("The '" + SYSPROP_MATS_TEST_BROKER + "' system property's value ["
+                        + sysprop_broker + "] looked like a class, so we loaded it."
+                        + " However, when instantiating it, it was not an implementation of MatsTestBroker.");
+            }
+            Logger log = LoggerFactory.getLogger(MatsTestBroker.class);
+            log.info("MatsTestBroker: The '" + SYSPROP_MATS_TEST_BROKER + "' system property's value ["
+                    + sysprop_broker + "] looked like a class, so we loaded and instantiated it. Good luck!");
+            return (MatsTestBroker) matsTestBrokerInstance;
+        }
         else {
-            // TODO: Also check if we can instantiate the value as a MatsTestBroker implementation directly
-            throw new IllegalStateException("Do not support broker type [" + sysprop_broker + "]");
+            // -> Don't know this value, and doesn't look like a class - sorry.
+            throw new IllegalStateException("Do not support broker type [" + sysprop_broker + "].");
         }
     }
 
@@ -252,13 +288,13 @@ public interface MatsTestBroker {
             else if (SYSPROP_MATS_TEST_BROKERURL_VALUE_LOCALHOST.equalsIgnoreCase(sysprop_brokerUrl)) {
                 brokerUrl = "tcp://localhost:61616";
                 log.info("SKIPPING setup of in-vm ActiveMQ BrokerService (MQ server), since System Property '"
-                        + SYSPROP_MATS_TEST_BROKERURL + "' was set (to [" + sysprop_brokerUrl + "])"
+                        + SYSPROP_MATS_TEST_BROKERURL + "' was set to [" + sysprop_brokerUrl + "]"
                         + " - using [" + brokerUrl + "]");
             }
             else {
                 brokerUrl = sysprop_brokerUrl;
                 log.info("SKIPPING setup of in-vm ActiveMQ BrokerService (MQ server), since System Property '"
-                        + SYSPROP_MATS_TEST_BROKERURL + "' was set (to [" + sysprop_brokerUrl + "]).");
+                        + SYSPROP_MATS_TEST_BROKERURL + "' was set to [" + sysprop_brokerUrl + "].");
             }
             _brokerService = brokerService;
             _connectionFactory = MatsTestBroker_InVmActiveMq.createActiveMQConnectionFactory(brokerUrl);
@@ -301,14 +337,14 @@ public interface MatsTestBroker {
                 // -> Yes, there is specified a brokerUrl to connect to, so we don't start in-vm ActiveMQ.
                 brokerUrl = "tcp://localhost:61616";
                 log.info("SKIPPING setup of Artemis broker, since System Property '"
-                        + SYSPROP_MATS_TEST_BROKERURL + "' was set (to [" + sysprop_brokerUrl + "])"
+                        + SYSPROP_MATS_TEST_BROKERURL + "' was set to [" + sysprop_brokerUrl + "]"
                         + " - using [" + brokerUrl + "].");
                 server = null;
             }
             else {
                 // -> Yes, there is specified a brokerUrl to connect to, so we don't start in-vm ActiveMQ.
                 log.info("SKIPPING setup of Artemis broker, since System Property '"
-                        + SYSPROP_MATS_TEST_BROKERURL + "' was set (to [" + sysprop_brokerUrl + "]).");
+                        + SYSPROP_MATS_TEST_BROKERURL + "' was set to [" + sysprop_brokerUrl + "].");
                 brokerUrl = sysprop_brokerUrl;
                 server = null;
             }

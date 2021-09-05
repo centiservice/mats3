@@ -74,23 +74,34 @@ subprojects {
     test {
         /*
          * All tests employ MatsTestBroker to get hold of a JMS ConnectionFactory to use for its MatsFactory creation.
-         * This per default starts an in-vm ActiveMQ broker, and connects an ActiveMQConnectionFactory to this.
-         * However, via system properties, you may choose which client to use (activemq, artemis or rabbitmq - and
-         * you may also specify the class name of a MatsTestBroker implementation).
-         * For ActiveMQ and Artemis, it supports in-vm creation of the broker (server) - which is the default.
+         * This per default starts an in-vm ActiveMQ broker, and connects a client ActiveMQConnectionFactory to this.
          *
-         * Run all tests with in-vm ActiveMQ brokers (ActiveMQ is default, in-vm is default)
+         * However, via system properties, you may choose which JMS client to use (activemq or artemis, and
+         * you may also explicitly specify the class name of a MatsTestBroker implementation. Note: rabbitmq is not
+         * supported yet), and you may specify which URL to use (with a special value "localhost" denoting the
+         * client-specific way to connect to a standard broker-installation on localhost).
+         *
+         * Both ActiveMQ and Artemis supports in-vm creation of the broker (server) - which is the default.
+         *
+         * == Run all tests with in-vm ActiveMQ brokers (ActiveMQ is default, in-vm is default)
          * ./gradlew clean test
          *
-         * Run all tests with in-vm Artemis MQ brokers (Apache ActiveMQ Artemis, formerly JBoss HornetQ,
-         * and what Red Hat AMQ is based upon):
+         * == Run all tests with in-vm Artemis MQ brokers (Apache ActiveMQ Artemis, formerly JBoss HornetQ,
+         * and what Red Hat AMQ is based upon. In-vm is default):
          * ./gradlew -Pmats.test.broker=artemis clean test
          *
-         * Run all tests against an external ActiveMQ MQ broker on localhost (ActiveMQ is default).
+         * == Run all tests against an external ActiveMQ MQ broker on localhost (ActiveMQ is default).
          * ./gradlew -Pmats.test.brokerurl=localhost clean test
          *
-         * Run all tests against an external Artemis MQ broker on localhost:
+         * == Run all tests against an external ActiveMQ MQ broker on specific URL (ActiveMQ is default).
+         * (This URL happens to be identical to specifying just "localhost" for ActiveMQ)
+         * ./gradlew -Pmats.test.brokerurl="tcp://localhost:61616" clean test
+         *
+         * == Run all tests against an external Artemis MQ broker on localhost:
          * ./gradlew -Pmats.test.broker=artemis -Pmats.test.brokerurl=localhost clean test
+         *
+         * == Run with your own implementation of MatsTestBroker:
+         * ./gradlew -Pmats.test.broker=com.example.MyMatsTestBrokerImpl clean test
          */
         systemProperties project.properties.subMap(["mats.test.brokerurl", "mats.test.broker"])
     }
@@ -132,7 +143,7 @@ configure(subprojects.findAll {it.name != 'mats-api-test'}) {
 
 
     signing {
-        // "configurations.archives" didn't sign anything, while this even signs the MDS5s and SHAs..
+        // "configurations.archives" didn't sign anything, while this overeagerly even signs the MD5s and SHAs..
         sign publishing.publications
     }
 
