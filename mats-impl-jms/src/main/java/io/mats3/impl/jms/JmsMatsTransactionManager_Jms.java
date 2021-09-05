@@ -90,7 +90,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 /*
                  * Special exception allowed from the MATS API from the MatsStage lambda, denoting that one wants
                  * immediate refusal of the message. (This is just a hint/wish, as e.g. the JMS specification does
-                 * provide such a mechanism).
+                 * not provide such a mechanism).
                  */
                 log.error(LOG_PREFIX + "ROLLBACK JMS: Got a MatsRefuseMessageException while transacting "
                         + stageOrInit(_txContextKey) + " (most probably from the user code)."

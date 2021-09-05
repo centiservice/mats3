@@ -217,12 +217,15 @@ public class JmsMatsMessageBrokerSpecifics {
                 rollbackLambda.run();
             }
             finally {
-                try {
-                    _activeMqMessageConsumer_setRedeliveryPolicy.invoke(jmsMessageConsumer, existingRedeliveryPolicy);
-                }
-                catch (IllegalAccessException | InvocationTargetException e) {
-                    log.warn("Invoking ActiveMqMessageConsumer.setRedeliveryPolicy() raised exception, which"
-                            + "is not expected: Report a bug on Mats!", e);
+                if (existingRedeliveryPolicy != null) {
+                    try {
+                        _activeMqMessageConsumer_setRedeliveryPolicy
+                                .invoke(jmsMessageConsumer, existingRedeliveryPolicy);
+                    }
+                    catch (IllegalAccessException | InvocationTargetException e) {
+                        log.warn("Invoking ActiveMqMessageConsumer.setRedeliveryPolicy() raised exception, which"
+                                + "is not expected: Report a bug on Mats!", e);
+                    }
                 }
             }
         }
