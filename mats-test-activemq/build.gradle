@@ -9,3 +9,14 @@ dependencies {
     // in their test compile paths.
     compileOnly "org.apache.activemq:activemq-broker:$activeMqVersion"
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 DEPRECATED test-ActiveMQ'
+                description = 'Mats^3 DEPRECATED test-ActiveMQ, use "mats-test-broker" instead.'
+            }
+        }
+    }
+}

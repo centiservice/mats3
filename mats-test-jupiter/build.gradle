@@ -37,3 +37,14 @@ dependencies {
 test {
     useJUnitPlatform()
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 Jupiter (JUnit 5) testing tools'
+                description = 'Mats^3 testing tools for Jupiter (JUnit 5).'
+            }
+        }
+    }
+}

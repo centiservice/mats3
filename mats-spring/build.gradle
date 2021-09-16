@@ -17,3 +17,16 @@ dependencies {
     testCompile "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testCompile "ch.qos.logback:logback-classic:$logbackVersion"
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 "SpringConfig"'
+                description = 'Mats^3 Spring integration, supplying a set of annotations including @EnableMats to' +
+                        ' enable bean scanning for @MatsMapping and @MatsClassMapping annotations, simplifying Mats^3' +
+                        ' use in a Spring context.'
+            }
+        }
+    }
+}

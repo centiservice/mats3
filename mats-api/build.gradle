@@ -3,3 +3,14 @@
 dependencies {
     // None
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 API'
+                description = 'API for Mats^3: Message-based Asynchronous Transactional Staged Stateless Services.'
+            }
+        }
+    }
+}

@@ -315,7 +315,7 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
         });
 
         // :: Scenario "mats-localvm":
-        // Employing MatsTestBroker directly, getting a in-vm broker, default ActiveMQ.
+        // Employing MatsTestBroker directly, getting an in-vm broker, default ActiveMQ.
         // (Note that the MatsTestBroker has features to choose which broker type, and can also be directed to connect
         // to localhost instead of employing an in-vm broker - which is what is done in the 'mats-localhost' scenario
         // right above.)

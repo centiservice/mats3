@@ -42,3 +42,15 @@ dependencies {
     // .. Jetty: To get the @WebListener etc. annotation scanning.
     testImplementation "org.eclipse.jetty:jetty-annotations:$jettyVersion"
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 Introspector and Local Statistics'
+                description = 'Mats^3 tool that can output a HTML page describing a MatsFactory and all its endpoints,' +
+                        ' as well as "local statistics", gathered using a Mats Interceptor.'
+            }
+        }
+    }
+}

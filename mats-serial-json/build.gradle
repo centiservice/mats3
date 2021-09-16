@@ -8,3 +8,15 @@ dependencies {
     compile "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
     compile "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${jacksonVersion}"
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 Jackson-based MatsSerializer implementation'
+                description = 'Mats^3 MatsSerializer implementation using Jackson to serialize between' +
+                        ' MatsTraceStringImpl and byte arrays. Employed by the Mats^3 JMS Implementation.'
+            }
+        }
+    }
+}

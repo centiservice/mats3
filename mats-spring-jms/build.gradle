@@ -15,11 +15,11 @@ dependencies {
     // The ScenarioConnectionFactoryProducer employs the MatsTestBroker if in testing
     // Don't want this in any production classpath, so bring your own to the testing classpath of your project.
     compileOnly project(":mats-test-broker")
-    // TODO: Is this true?
-    // The ActiveMQ Client, used as default in the JmsSpringConnectionFactoryProducer when in test modes
-    // 'mats-localhost' (connect to localhost:61616) and 'mats-localvm' (connects to MatsTestBroker).
-    // Don't want this in any production classpath, so bring your own to the testing classpath of your project.
-    compileOnly "org.apache.activemq:activemq-client:$activeMqVersion"
+//    // TODO: Is this true?
+//    // The ActiveMQ Client, used as default in the ScenarioConnectionFactoryProducer when in test modes
+//    // 'mats-localhost' (connect to localhost:61616) and 'mats-localvm' (connects to MatsTestBroker).
+//    // Don't want this in any production classpath, so bring your own to the testing classpath of your project.
+//    compileOnly "org.apache.activemq:activemq-client:$activeMqVersion"
 
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
@@ -45,4 +45,18 @@ dependencies {
     // Using SLF4J and Logback
     testCompile "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testCompile "ch.qos.logback:logback-classic:$logbackVersion"
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 Spring tooling for Mats^3 JMS Implementation'
+                description = 'Mats^3 Spring tooling for the Mats^3 JMS implementation, including an' +
+                        ' implementation of JmsMatsTransactionManager using Spring\'s PlatformTransactionManager,' +
+                        ' and tooling for configuring a MatsFactory for different scenarios: development, staging,' +
+                        ' production.'
+            }
+        }
+    }
 }

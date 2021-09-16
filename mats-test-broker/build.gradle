@@ -28,3 +28,16 @@ dependencies {
     testCompile "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
     testCompile "org.apache.activemq:artemis-server:$artemisMqVersion"
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 Testing MQ Broker'
+                description = 'Mats^3 Testing MQ Broker to easily create a MatsFactory backed by an in-vm MQ Broker.' +
+                        ' Also employed by several of the other Mats^3 testing tools. Default uses Apache ActiveMQ,' +
+                        ' but may be directed to use Apache Artemis instead.'
+            }
+        }
+    }
+}

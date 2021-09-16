@@ -16,3 +16,14 @@ dependencies {
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 JMS 1.1 Implementation'
+                description = 'Java Message Service v1.1 implementation of the Mats^3 API and Mats^3 Intercept API.'
+            }
+        }
+    }
+}

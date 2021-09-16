@@ -28,3 +28,14 @@ dependencies {
     // H2 Database, for database tests
     compile "com.h2database:h2:$h2Version"
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 Testing tooling'
+                description = 'Mats^3 Testing tools, as well as the base for specific JUnit or Jupiter (Junit 5) tools.'
+            }
+        }
+    }
+}

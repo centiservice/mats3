@@ -28,3 +28,15 @@ dependencies {
     testCompile "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testCompile "ch.qos.logback:logback-classic:$logbackVersion"
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 Spring testing tooling'
+                description = 'Mats^3 Spring-specific testing tools, for quickly firing up a test-harness using' +
+                        ' either JUnit or Jupiter (JUnit 5).'
+            }
+        }
+    }
+}

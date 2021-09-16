@@ -39,10 +39,11 @@ ext {
     hibernateVersion = '5.5.0.Final'
 }
 
+// :: Note: Two different subproject-blocks, one for all common elements, and one for publishing.
+
+// Common for all subprojects, even 'mats-api-test'
 subprojects {
     apply plugin: 'java-library'
-    apply plugin: 'signing'
-    apply plugin: 'maven-publish'
 
     repositories { mavenCentral() }
 
@@ -58,9 +59,16 @@ subprojects {
         options.compilerArgs += ['-Werror', '-Xlint:all', '-Xlint:-serial']
     }
 
-    java {
-        withJavadocJar()
-        withSourcesJar()
+    javadoc {
+        // without the -quiet option, the build fails due to errors&warns
+        options.addStringOption('Xdoclint:none', '-quiet')
+    }
+
+    jar {
+        manifest {
+            attributes 'Implementation-Title': 'MATS3',
+                    'Implementation-Version': archiveVersion
+        }
     }
 
     test {
@@ -87,17 +95,41 @@ subprojects {
         systemProperties project.properties.subMap(["mats.test.brokerurl", "mats.test.broker"])
     }
 
-    javadoc {
-        // without the -quiet option, the build fails due to errors&warns
-        options.addStringOption('Xdoclint:none', '-quiet')
-    }
+    // ------------------------------------------------
+    // -- Simple tools
 
-    jar {
-        manifest {
-            attributes 'Implementation-Title': 'MATS3',
-                    'Implementation-Version': archiveVersion
+    // Define dependency report task that all subprojects gets. Invoke with "./gradlew allDeps | less"
+    task allDeps(type: DependencyReportTask) {}
+
+    // Some info about current gradle environment.
+    task systemInformation {
+        doLast {
+            println "\n** Java properties [System.getProperties()], sorted:\n"
+            System.properties.sort().each { k, v ->
+                println("$k = $v")
+            }
+            println "\n** Environment [System.getenv()], sorted:\n"
+            System.env.sort().each { k, v ->
+                println("$k = $v")
+            }
+            println ''
+            println "** Java Version:   " + System.getProperty("java.version")
+            println "** Groovy Version: " + GroovySystem.getVersion()
+            println "** Gradle Version: " + gradle.gradleVersion
         }
     }
+}
+
+// For publishing subprojects: All, minus 'mats-api-test'
+configure(subprojects.findAll {it.name != 'mats-api-test'}) {
+    apply plugin: 'signing'
+    apply plugin: 'maven-publish'
+
+    java {
+        withJavadocJar()
+        withSourcesJar()
+    }
+
 
     signing {
         // "configurations.archives" didn't sign anything, while this even signs the MDS5s and SHAs..
@@ -158,28 +190,4 @@ subprojects {
     // Tasks to publish to Sonatype's OSSRH (OSS Repository Hosting), Snapshot and Staging
     task matsPublishSnapshot(dependsOn: [publishAllPublicationsToSonatypeOSSRHSnapshotRepository])
     task matsPublishStaging(dependsOn: [publishAllPublicationsToSonatypeOSSRHStagingRepository])
-
-    // ------------------------------------------------
-    // -- Simple tools
-
-    // Define dependency report task that all subprojects gets. Invoke with "./gradlew allDeps | less"
-    task allDeps(type: DependencyReportTask) {}
-
-    // Some info about current gradle environment.
-    task systemInformation {
-        doLast {
-            println "\n** Java properties [System.getProperties()], sorted:\n"
-            System.properties.sort().each { k, v ->
-                println("$k = $v")
-            }
-            println "\n** Environment [System.getenv()], sorted:\n"
-            System.env.sort().each { k, v ->
-                println("$k = $v")
-            }
-            println ''
-            println "** Java Version:   " + System.getProperty("java.version")
-            println "** Groovy Version: " + GroovySystem.getVersion()
-            println "** Gradle Version: " + gradle.gradleVersion
-        }
-    }
 }

@@ -3,3 +3,17 @@
 dependencies {
     // none
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 "MatsTrace" Wire Format solution'
+                description = 'Mats^3 wire format solution called "MatsTrace", which defines a set of parameters and' +
+                        ' structures sufficient to represent an envelope carrying Mats messages, as well as a' +
+                        ' deser-interface "MatsSerializer" which defines methods between MatsTrace and byte arrays.' +
+                        ' Employed by the Mats^3 JMS Implementation.'
+            }
+        }
+    }
+}

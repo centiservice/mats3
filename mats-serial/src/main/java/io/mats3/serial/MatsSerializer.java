@@ -68,7 +68,7 @@ public interface MatsSerializer<Z> {
             boolean interactive);
 
     /**
-     * Used when initiating a new MATS processing. Since the {@link MatsTrace} implementation is dependent on the
+     * Used when initiating a new MATS flow. Since the {@link MatsTrace} implementation is dependent on the
      * serialization mechanism in use, we need a way provided by the serializer to instantiate new instances of the
      * implementation of MatsTrace. A {@link Call} must be added before it is good to be sent.
      *
@@ -167,8 +167,8 @@ public interface MatsSerializer<Z> {
      *            the byte array from which to reconstitute the {@link MatsTrace}.
      * @param offset
      *            from where to start in the byte array.
-     * @param offset
-     *            from where to start in the byte array.
+     * @param len
+     *            how many bytes to use of the byte array, from the offset.
      * @param meta
      *            some meta information that the deserialized needs back {@link SerializedMatsTrace#getMeta() from the
      *            serialization process}.

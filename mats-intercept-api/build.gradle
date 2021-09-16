@@ -10,3 +10,14 @@ dependencies {
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 Intercept API'
+                description = 'Extension API to the Mats^3 API which adds interception capabilities.'
+            }
+        }
+    }
+}

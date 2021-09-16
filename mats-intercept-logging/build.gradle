@@ -10,5 +10,16 @@ dependencies {
     // Logging
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+}
 
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 Logging with metrics'
+                description = 'Mats^3 interceptor for structured logging over SLF4J, adding several' +
+                        ' data points using the SLF4J MDC for each initiation, message receive and message send.'
+            }
+        }
+    }
 }

@@ -19,3 +19,15 @@ dependencies {
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Mats^3 Utilities'
+                description = 'Mats^3 Utilities - notably the MatsFuturizer, which provides a bridge from' +
+                        ' synchronous processes to the highly asynchronous Mats^3 services.'
+            }
+        }
+    }
+}
