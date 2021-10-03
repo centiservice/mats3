@@ -55,8 +55,6 @@ public class MatsMetricsJettyServer {
 
     private static final String WEBSOCKET_PATH = "/matssocket";
 
-    private static final String COMMON_AMQ_NAME = "CommonAMQ";
-
     private static final Logger log = LoggerFactory.getLogger(MatsMetricsJettyServer.class);
 
     @WebListener
@@ -132,7 +130,7 @@ public class MatsMetricsJettyServer {
     }
 
     /**
-     * Prometheus metrics.
+     * Send Mats request.
      */
     @WebServlet("/sendRequest")
     public static class SendRequestServlet extends HttpServlet {
@@ -170,7 +168,7 @@ public class MatsMetricsJettyServer {
         }
     }
 
-    public static Server createServer(int port, ConnectionFactory jmsConnectionFactory) {
+    public static Server createServer(ConnectionFactory jmsConnectionFactory, int port) {
         WebAppContext webAppContext = new WebAppContext();
         webAppContext.setContextPath("/");
         webAppContext.setBaseResource(Resource.newClassPathResource("webapp"));
@@ -265,7 +263,7 @@ public class MatsMetricsJettyServer {
             // Keep looping until we have found a free port that the server was able to start on
             while (true) {
                 int port = nextPort;
-                servers[i] = createServer(port, jmsConnectionFactory);
+                servers[i] = createServer(jmsConnectionFactory, port);
                 log.info("######### Starting server [" + serverId + "] on [" + port + "]");
 
                 // Add a life cycle hook to log when the server has started

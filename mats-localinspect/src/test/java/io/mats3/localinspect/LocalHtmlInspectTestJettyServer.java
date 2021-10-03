@@ -1,24 +1,18 @@
 package io.mats3.localinspect;
 
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.net.URL;
-import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ThreadLocalRandom;
-
-import javax.jms.ConnectionFactory;
-import javax.servlet.ServletContext;
-import javax.servlet.ServletContextEvent;
-import javax.servlet.ServletContextListener;
-import javax.servlet.annotation.WebListener;
-import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
+import ch.qos.logback.core.CoreConstants;
+import io.mats3.MatsFactory;
+import io.mats3.MatsInitiator.KeepTrace;
+import io.mats3.api.intercept.MatsInterceptableMatsFactory;
+import io.mats3.impl.jms.JmsMatsFactory;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
+import io.mats3.localinspect.SetupTestMatsEndpoints.DataTO;
+import io.mats3.localinspect.SetupTestMatsEndpoints.StateTO;
+import io.mats3.serial.MatsSerializer;
+import io.mats3.serial.json.MatsSerializerJson;
+import io.mats3.test.broker.MatsTestBroker;
+import io.mats3.util.MatsFuturizer;
+import io.mats3.util.MatsFuturizer.Reply;
 import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
@@ -33,20 +27,23 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.mats3.MatsFactory;
-import io.mats3.MatsInitiator.KeepTrace;
-import io.mats3.api.intercept.MatsInterceptableMatsFactory;
-import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
-import io.mats3.localinspect.SetupTestMatsEndpoints.DataTO;
-import io.mats3.localinspect.SetupTestMatsEndpoints.StateTO;
-import io.mats3.serial.MatsSerializer;
-import io.mats3.serial.json.MatsSerializerJson;
-import io.mats3.util.MatsFuturizer;
-import io.mats3.util.MatsFuturizer.Reply;
-import io.mats3.test.broker.MatsTestBroker;
-
-import ch.qos.logback.core.CoreConstants;
+import javax.jms.ConnectionFactory;
+import javax.servlet.ServletContext;
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
+import javax.servlet.annotation.WebListener;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.net.URL;
+import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Test server for the HTML interface generation. Pulling up a bunch of endpoints, and having a traffic generator to put
@@ -57,8 +54,6 @@ import ch.qos.logback.core.CoreConstants;
 public class LocalHtmlInspectTestJettyServer {
 
     private static final String CONTEXT_ATTRIBUTE_PORTNUMBER = "ServerPortNumber";
-
-    private static final String COMMON_AMQ_NAME = "CommonAMQ";
 
     private static final Logger log = LoggerFactory.getLogger(LocalHtmlInspectTestJettyServer.class);
 
@@ -194,27 +189,19 @@ public class LocalHtmlInspectTestJettyServer {
             out.println("    <script>");
             interface1.getJavaScript(out); // Include just once, use the first.
             out.println("    </script>");
-            // out.println(" <h1>Test h1</h1>");
-            // out.println(" Endre tester h1");
-            //
-            // out.println(" <h2>Test h2</h2>");
-            // out.println(" Endre tester h2");
-            //
-            // out.println(" <h3>Test h3</h3>");
-            // out.println(" Endre tester h3");
-            //
-            // out.println(" <h4>Test h4</h4>");
-            // out.println(" Endre tester h4<br /><br />");
-            //
-            // out.println(" <a href=\"sendRequest\">Send request</a> - to initialize Initiator"
-            // + " and get some traffic.<br /><br />");
+            out.println("<h1>Initiate Mats flow</h1>");
+            out.println(" <a href=\"sendRequest\">Send request</a> - to initialize Initiator"
+                    + " and get some traffic.<br /><br />");
+
 
             // :: Bootstrap3 sets the body's font size to 14px.
             // We scale all the affected rem-using elements back up to check consistency.
             if (includeBootstrap3) {
                 out.write("<div style=\"font-size: 114.29%\">\n");
             }
+            out.println("<h1>Introspection GUI 1</h1>");
             interface1.createFactoryReport(out, true, true, true);
+            out.println("<h1>Introspection GUI 2</h1>");
             interface2.createFactoryReport(out, true, true, true);
             if (includeBootstrap3) {
                 out.write("</div>\n");
@@ -359,7 +346,7 @@ public class LocalHtmlInspectTestJettyServer {
         // Override the default configurations, stripping down and adding AnnotationConfiguration.
         // https://www.eclipse.org/jetty/documentation/9.4.x/configuring-webapps.html
         // Note: The default resides in WebAppContext.DEFAULT_CONFIGURATION_CLASSES
-        webAppContext.setConfigurations(new Configuration[] {
+        webAppContext.setConfigurations(new Configuration[]{
                 // new WebInfConfiguration(),
                 new WebXmlConfiguration(), // Evidently adds the DefaultServlet, as otherwise no read of "/webapp/"
                 // new MetaInfConfiguration(),
@@ -407,7 +394,6 @@ public class LocalHtmlInspectTestJettyServer {
         System.setProperty(CoreConstants.DISABLE_SERVLET_CONTAINER_INITIALIZER_KEY, "true");
 
         // Create common AMQ server
-        // Create common AMQ
         MatsTestBroker matsTestBroker = MatsTestBroker.createUniqueInVmActiveMq();
         ConnectionFactory jmsConnectionFactory = matsTestBroker.getConnectionFactory();
 

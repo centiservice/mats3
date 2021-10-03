@@ -2,22 +2,32 @@
 
 *Introducing "MOARPC" - Message-Oriented Asynchronous Remote Procedure Calls!*
 
-*Mats* is a library that facilitates the development of asynchronous, stateless (or stateful, depending on your point of view), multi-stage, message-based services.
+*Mats* is a Java library that facilitates the development of asynchronous, stateless (or stateful, depending on your point of view), multi-stage, message-based services. Mats Endpoints immediately provide all the benefits you get from a fully asynchronous messaging-based architecture, while being *almost* as simple to code as blocking, synchronous JSON-over-HTTP "REST" endpoints.
 
-Mats Endpoints immediately provide all the benefits you get from a fully asynchronous messaging-based architecture, while being *almost* as simple to code as blocking, synchronous JSON-over-HTTP "REST" endpoints.
+*Currently, to play around with the library, the simplest option is to clone it and run `./gradlew clean check test`. After this pans out, fire up your IDE and head over to the unit/integration tests of [API](mats-api-test/src/test/java/io/mats3/api_test), [Spring](mats-spring/src/test/java/io/mats3/spring), [MatsFuturizer](mats-util/src/test/java/io/mats3/util/futurizer), and tests of testing tools [JUnit](mats-test-junit/src/test/java/io/mats3/test/junit)/[Jupiter](mats-test-jupiter/src/test/java/io/mats3/test/jupiter)/[Spring](mats-spring-test/src/test/java/io/mats3/spring/test). There's also a very rudimentary "dev area" for the Metrics Interceptor [MatsMetricsJettyServer](mats-intercept-micrometer/src/test/java/io/mats3/test/metrics/MatsMetricsJettyServer.java), and same for Local Introspector [LocalHtmlInspectTestJettyServer](mats-localinspect/src/test/java/io/mats3/localinspect/LocalHtmlInspectTestJettyServer.java), both of which you may start from your IDE.*
+
+To use Mats in a project, fetch [`mats-impl-jms`](https://mvnrepository.com/artifact/io.mats3/mats-impl-jms) from [Maven Central](https://mvnrepository.com/artifact/io.mats3).
+
+License: [Polyform Perimeter 1.0.0 with examples](LICENSE.md)
+
+If you find Mats interesting, you might want to check out the "companion project" [MatsSocket](https://github.com/centiservice/matssocket).
 
 ## What is Mats?
 
-To try to explain Mats, we'll set up an example of an inter-process communication flow:
+To explain Mats, we'll set up an example of an inter-service communication flow:
 
 ![Standard Example Mats Flow](docs/img/StandardExampleMatsFlow-halfsize-pagescaled.svg)
 
-*For a moment now, just to set the context, envision that the image above represents a multi-service setup using synchronous, blocking HTTP-calls ("REST services"). Each of the Endpoint A-D is a different REST service, while the Initiator+Terminator represent the initial synchronous, blocking HTTP call to EndpointA. The dashed lines in the diagram would then represent the blocking wait times each of the service threads would experience - where the initial call would block until the entire processing was finished, finally getting its response from EndpointA. Pretty standard stuff, right?*
+*For a moment now, just to set the context, envision that the diagram above represents a multi-service setup using synchronous, blocking HTTP-calls ("REST services"). Each of the Endpoint A-D is a different REST service, while the Initiator+Terminator represent the initial synchronous, blocking HTTP call to EndpointA. The dashed lines in the diagram would then represent the blocking wait times each of the service threads would experience - where the initial call would block until the entire processing was finished, finally getting its response from EndpointA. Pretty standard stuff, right?*
+
+
+> ### Attempt at a condensed explanation
+> In e.g. a microservice, you may run one or more Mats Endpoints. A Mats Endpoint can be a multi-staged service, where each Stage is an independent consumer and producer of messages to and from a message broker. A Stage of an Endpoint may invoke another Mats Endpoint by way of sending a Request-message targeting the invoked Endpoint's id, which is directly mapped over to a message queue name. The passed message is an envelope which contains a call stack, in addition to the Request call data for the targeted Endpoint. On the call stack, the current "state object" is serialized, as well as the StageId of the next Stage which the reply value from the invoked Endpoint should go to when a Stage of the invoked Endpoint performs a reply, thus sending a Reply-message (StageIds are again just directly mapped to a queue name). The state object, by being carried "on the wire" along the Request and Reply flow of messages, provides "local variables" that persist through the different stages of a particular Endpoint. A Mats Endpoint can, as explained, be invoked by a Stage of another Endpoint, or can be targeted by an Initiator. A message from an Initiator initiates a Mats Flow. The Mats system thus provides "invokable", general services, which are coded in a very straight down, linear manner, and thus resembles ordinary synchronous HTTP/"REST" endpoints both in coding style and usage. By running multiple instances of the microservice containing Mats Endpoints, you gain high availability. The ideas behind Mats are inspired by [SEDA](https://en.wikipedia.org/wiki/Staged_event-driven_architecture) and elements of the [Actor model](https://en.wikipedia.org/wiki/Actor_model), as well as the [EIP book](https://www.enterpriseintegrationpatterns.com/), where many of the patterns/features are relevant to Mats (and most other message oriented architectures), but the ["Process Manager"](https://www.enterpriseintegrationpatterns.com/patterns/messaging/ProcessManager.html), and ["Request-Reply"](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RequestReply.html) with ["Return Address"](https://www.enterpriseintegrationpatterns.com/patterns/messaging/ReturnAddress.html) probably relates the most to a Mats Endpoint - where Mats adds a call stack and state to the Request-Reply pattern, packaging it in an API that lets you forget about these intricacies.
+>
 
 A *Mats Endpoint* is a messaging-based service that contains one or multiple *Stages*. Each stage is a small independent multi-threaded "server" that listens to incoming messages on a queue, and performs some processing on the incoming DTO. For *Request* messages it will then typically either send a *Reply* message to the queue specified below it on the incoming message's call stack (i.e. to the caller's next stage), or perform a Request by sending a message to a different Mats endpoint, who's Reply will then be received on the next stage of the present endpoint.
 
-So, in the above image, we have 5 independent Mats Endpoints (A to D + Terminator), and an Initiator. Each of the Endpoints would typically reside on a different service, i.e. in different codebases, running inside different processes, albeit the Terminator
-would typically reside in the same codebase as the initiating code. EndpointA and EndpointC consist of multiple stages.
+So, in the above diagram, we have 5 independent Mats Endpoints (A to D + Terminator), and an Initiator. Each of the Endpoints would typically reside on a different (micro-)service, i.e. in different codebases, running inside different processes, albeit the Terminator would typically reside in the same codebase as the initiating code. EndpointA and EndpointC consist of multiple stages.
 
 In a Mats Endpoint consisting of multiple stages, the stages of the endpoint are connected with an Endpoint-specified *state object* ("STO") which is transparently passed along with the message flow. This is what the dashed lines represent - but the actual content of the state object follows the continuous lines, representing the logical message flows. (Actually, all those messages go to and from the message broker, but logically they go as shown). This state object gives the effect of having "local variables" that are present through all the different Stages of a particular Mats Endpoint.
 
@@ -27,6 +37,11 @@ The incoming messages to a Mats Endpoint is either from another Mats Stage, or t
 
 Here's an example of code for EndpointA, using plain Java to define it *(You may also define endpoints via the annotation-based [SpringConfig](mats-spring) if Spring is your cup of tea)*:
 ```java
+    private static class EndpointAState {
+        double result_a_multiply_b;
+        double c, d, e;
+    }
+    
     // Vulgarly complex Mats Endpoint to calculate 'a*b - (c/d + e)'.
     static void setupEndpoint(MatsFactory matsFactory) {
         MatsEndpoint<EndpointAReplyDTO, EndpointAState> ep = matsFactory
@@ -64,7 +79,7 @@ The next stage again specifies which incoming type it expects, which is the type
 
 The next and final stage is specified using `lastStage(..)`, which is a convenience that lets you Reply using a normal `return` statement, as well as invoking `ep.finishSetup()` for you to tell Mats that all stages are now added. The stage again specifies which incoming type it expects, which is the type of the Reply from EndpointC, and then the user code lambda, which gets the context, the state object, and the reply value from EndpointC. And again, the user code performs some logic, and simply `return` its finished Reply DTO instance, which will be passed to whoever invoked EndpointA.
 
-*(Note: The return-functionality is literally a shorthand for invoking `context.reply(..)` - you could instead have added this stage by using `ep.stage(..)` as with the two previous Stages, and used `context.reply(..)` within the user code - but aside from not looking as nice, you'd then also have to manually tell Mats that the endpoint was finished set up by invoking `ep.finishSetup()` after the last Stage was added. You can also use `context.reply(..)` in an earlier Stage to do early exit, but then you cannot - naturally - also invoke `context.request(..)`.)*
+*(Note: The return-functionality is literally a shorthand for invoking `context.reply(..)` - you could instead have added this stage by using `ep.stage(..)` as with the two previous Stages, and used `context.reply(..)` within the user code - but aside from not looking as nice, you'd then also have to manually tell Mats that the endpoint was finished set up by invoking `ep.finishSetup()` after the last Stage was added. You can also use `context.reply(..)` instead of `context.request(..)` in an earlier Stage to do early exit from this Endpoint.)*
 
 The State type that the endpoint was specified with appears in all three stages' user code lambda as an instance passed in from Mats: For the initial stage, this will be a newly created instance of the State class - all fields having their default value. However, if you set any fields on this state object in a Stage, they will "magically" be present in the subsequent Stages.
 
@@ -72,7 +87,7 @@ Notice that you do not need to explicitly handle the state object - it is just p
 
 If you squint really hard, this could look like a single service method, receiving a DTO, performing two synchronous/blocking service calls, and then return a DTO as response.
 
-*(Note: There are several other features, like fire-and-forget style `initiator.send(..)`, "broadcast" pub/sub (topic) `matsFactory.topicTerminator(..)` with corresponding `initiator.publish(..)`, `context.next()` to jump to the next stage which can be good if you conditionally need to perform a request or not, "sideloads" for larger String or byte arrays, "trace properties" which works a bit like thread locals or "flow scoped variables", interactive and non-persistent flags which concerns the entire Mats flow, and much more..)*
+*(Note: There are several other features, like fire-and-forget style `initiator.send(..)`, "broadcast" pub/sub (topic) `matsFactory.subscriptionTerminator(..)` with corresponding `initiator.publish(..)`, `context.next()` to jump to the next stage which can be good if you conditionally need to perform a request or not, "sideloads" for larger Strings or byte arrays, "trace properties" which works a bit like thread locals or "flow scoped variables", interactive and non-persistent flags which concerns the entire Mats flow, and much more..)*
 
 ## Stages are independent
 
@@ -91,6 +106,10 @@ Technically, the Request and Reply, and well as the State objects, are serialize
 The intention is that coding a Mats service Endpoint *feels like* coding a normal service method that performs synchronous RPC (e.g. REST) calls to other services, while reaping all the benefits of an asynchronous Message-Oriented communication paradigm. In addition, each stage is independently transactional, making a system made up of these services exceptionally resilient against any type of failure. The use of message queues, along with the stateless nature of the system, makes high availability and scalability as simple as running the same endpoint on more than one node.
 
 The Mats API consist nearly solely of interfaces, not depending on any specific messaging platform's protocol or API. In the current sole implementation of the Mats API, which employs the Java Message Service API (JMS v1.1) as the queue interface, each stage has a set of threads that receives messages using a JMS MessageConsumer.
+
+## Production Ready
+
+This code has for several years been running in production as the sole inter service communication layer in a quite large financial system consisting of >40 "micro" services and several hundred Mats Endpoints, and before that (since 2014) the system ran on a previous incarnation of the underlying ideas. Several million messages are produced and consumed each day. The Message Broker in use in this production setup is Apache ActiveMQ, but all unit and integration tests also run on Apache Artemis (formerly JBoss HornetQ, and what RedHat AMQ is built on). *(RabbitMQ with its JMS client is not yet advised, due to some differing semantics in this broker, e.g. infinite, tight-loop retries without DLQ)*.
 
 # Rationale
 
@@ -124,9 +143,9 @@ However, the result is brittle: So, lets say your service invokes a second servi
 
 ## Message-Oriented Multi Service Architecture
 
-With a Messaging-Oriented Architecture, each part of the total process would actually be a separate subprocess. Instead of the above described nested call based logic (which is easy on the brain!), you now get a bunch of message processing stages which will be invoked in sequence: The process initiator puts a message on a queue, and another processor picks that up (probably on a different service, on a different host, and in different code base) - does some processing, and puts its (intermediate) result on another queue. This action may need to happen multiple times, traversing multiple services. This multiple *"post message - another processor consumes and processes - post new message"* processing flow is harder to reason about. State is now not implicit, but needs to be passed along with the messages. And these stages will typically be within separate code bases, as they reside in different services.
+With a Messaging-Oriented Architecture, each part of the total process would actually be a separate subprocess. Instead of the above described nested call based logic (which is easy on the brain!), you now get a bunch of message processing stages which will be invoked in sequence: The process initiator puts a message on a queue, and another processor picks that up (probably on a different service, on a different host, and in different code base) - does some processing, and puts its (intermediate) result on another queue. This action may need to happen multiple times, traversing multiple services. This is the ["Pipes and Filters"](https://www.enterpriseintegrationpatterns.com/patterns/messaging/PipesAndFilters.html) architectural style as defined in the EIP book. This multiple *"consume message from inbound queue - process the message - post new message to outbound queue"* processing flow is harder to reason about: State is now not implicit, but needs to be passed along with the messages. And these stages will typically be within separate code bases, as they reside in different services.
 
-You gain much: Each of these stages are independent processes. There is no longer a distributed blocking state residing through multiple services, as the queues acts as intermediaries, each stage processor having fully performed its part of the total process before posting the intermediate result on a queue (and then goes back fetching a new message to process from its incoming queue). Each service can fire up a specific number of queue processors utilizing the available resources optimally. There cannot be a cascading failure scenario, at least not until the message queue broker is exhausted of space to store messages - which has a considerably higher ceiling than the thread and memory resources on individual processing nodes. The operations of consuming and posting messages are transactional operations, and if you don't mess too much up, each stage is independently transactional: If a failure occurs on a node, all processing having occurred on that node which have not run to completion will be rolled back, and simply retried on another node: The total process flow does not fail.
+You gain much: Each of these stages are independent processes. There is no longer a distributed blocking state residing through multiple services, as the queues acts as intermediaries, each stage processor having fully performed its part of the total process before posting the (intermediate) result on a queue (and then goes back fetching a new message to process from its incoming queue). Each service can fire up a specific number of queue processors utilizing the available resources optimally. There cannot be a cascading failure scenario, at least not until the message queue broker is exhausted of space to store messages - which has a considerably higher ceiling than the thread and memory resources on individual processing nodes. The operations of consuming and posting messages are transactional operations, and if you don't mess too much up, each stage is independently transactional: If a failure occurs on a node, all processing having occurred on that node which have not run to completion will be rolled back, and simply retried on another node: The total process flow does not fail.
 
 However, you also loose much: The simple service method where you could reason locally and code in a straight down manner, with state implicitly being handled by the ordinary machinery of the thread stack and local variables, now becomes a distributed process spread over several code bases, and any state needed between the process stages must be handled explicitly. If you realize that you in the last stage need some extra information that was available in the initial stage, you must wade through multiple code bases to make sure this piece of information is forwarded through those intermediate stages. This also give a result that such processing stages aren't generic - they are bespoke to a particular flow. And let's just hope that you don't want to refactor the entire total process.
 
@@ -134,7 +153,7 @@ Thus, the overall structure in a message oriented architecture typically ends up
 
 ## What MATS brings to the table
 
-**The main idea of the Mats library is to let developers code message-based endpoints that themselves may "invoke" other such endpoints, in a manner that closely resembles the familiar synchronous "straight down" linear code style.** In this familiar code style, all the state built up before the call out to the service is present after the service returns: Envision a plain Java method that invokes other methods, or more relevant, a REST service which invokes other REST services. With Mats, such an endpoint, while *looking* like a "straight down" synchronous method, is actually a multi-stage *(each stage processed by consumers on a specific queue)*, asynchronous *(the flow passes from queue to queue, never synchronously waiting for a reply)*, fully stateless *(as state resides "on the wire")* message oriented distributed process.
+**The main idea of the Mats library is to let developers code message-based endpoints that themselves may "invoke" other such endpoints, in a manner that closely resembles the familiar synchronous "straight down" linear code style.** In this familiar code style, all the state built up before the call out to the requested service is present after the service returns: Envision a plain Java method that invokes other methods, or more relevant, a REST service which invokes other REST services. With Mats, such an endpoint, while *looking* like a "straight down" synchronous method, is actually a multi-stage *(each stage processed by consumers on a specific queue)*, asynchronous *(the flow passes from queue to queue, never synchronously waiting for a reply)*, fully stateless *(as state resides "on the wire")* message oriented distributed process.
 **Effectively, the Mats library gives you a mental coding model which feels like home, and coding is really straightforward (both literally and figuratively!), while you reap all the benefits of a Message-Oriented Architecture.**
 
 # Examples
@@ -418,6 +437,48 @@ public class Test_MultiLevelMultiStage {
                                 + ":FromLeafService" + ":FromMainService"),
                 result.getData());
     }
+}
+```
+
+## MatsFuturizer - the sync-async bridge
+
+This class tests the most basic [`MatsFuturizer`](mats-util/src/main/java/io/mats3/util/MatsFuturizer.java) situation: Sets up a single-stage endpoint, and then uses the MatsFuturizer to invoke this service, which returns a `CompletableFuture` that will be completed when the Reply comes back from the requested endpoint.
+
+How does this work in a multi-node setup, where the Reply should randomly come to this node, or any other node? Behind the scenes, the MatsFuturizer sets up a `subscriptionTerminator` (a topic) that has the nodename as a part of the topic name. Furthermore, the request uses the special `replyToSubscription` feature of an initiation, targeting this node-specific topic. Thus, the Reply will only be picked up by this node.
+
+Why a topic? Not because of a topic's "broadcast" functionality (it is only a single consumer on this specific node that listens to this specific topic), but the topic's "if you're not there, the message is gone" effect: If the node is gone in the time since the Mats flow was initiated, then so is obviously the Future's waiting thread, so no need to have any messages stuck on the MQ.
+
+There are multiple modes of operation of the MatsFuturizer, but all of them share the fact that completion of the future cannot be guaranteed - simply because the node might be booted or die while the Mats flow is running. You can however decide whether the Mats flow should run using persistent ("guaranteed") or non-persistent messaging.
+
+The futurizer should mostly be used for "GET-style" requests.
+
+```java
+public class Test_MatsFuturizer_Basics {
+    private static final Logger log = MatsTestHelp.getClassLogger();
+
+    @ClassRule
+    public static final Rule_Mats MATS = Rule_Mats.create();
+
+    private static final String SERVICE = MatsTestHelp.service();
+
+    @BeforeClass
+    public static void setupService() {
+        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+                (context, msg) -> new DataTO(msg.number * 2, msg.string + ":FromService"));
+    }
+
+    @Test
+    public void normalMessage() throws ExecutionException, InterruptedException, TimeoutException {
+        MatsFuturizer futurizer = MATS.getMatsFuturizer();
+
+        DataTO dto = new DataTO(42, "TheAnswer");
+        CompletableFuture<Reply<DataTO>> future = futurizer.futurizeNonessential(
+                "traceId", "OneSingleMessage", SERVICE, DataTO.class, dto);
+
+        Reply<DataTO> result = future.get(1, TimeUnit.SECONDS);
+
+        Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), result.reply);
+   }
 }
 ```
 
