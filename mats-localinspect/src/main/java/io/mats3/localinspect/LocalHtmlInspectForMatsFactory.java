@@ -1,7 +1,6 @@
 package io.mats3.localinspect;
 
 import java.io.IOException;
-import java.io.Writer;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.List;
@@ -33,9 +32,9 @@ import io.mats3.localinspect.LocalStatsMatsInterceptor.StageStats;
 import io.mats3.localinspect.LocalStatsMatsInterceptor.StatsSnapshot;
 
 /**
- * Will produce an "embeddable" HTML interface - notice that there are CSS ({@link #getStyleSheet(Writer)}), JavaScript
- * ({@link #getJavaScript(Writer)}) and HTML ({@link #createFactoryReport(Writer, boolean, boolean, boolean)
- * createFactoryReport(Writer,..)}) to include. If the {@link LocalStatsMatsInterceptor} is installed on the
+ * Will produce an "embeddable" HTML interface - notice that there are CSS ({@link #getStyleSheet(Appendable)}), JavaScript
+ * ({@link #getJavaScript(Appendable)}) and HTML ({@link #createFactoryReport(Appendable, boolean, boolean, boolean)
+ * createFactoryReport(Appendable,..)}) to include. If the {@link LocalStatsMatsInterceptor} is installed on the
  * {@link MatsFactory} implementing {@link MatsInterceptable}, it will include pretty nice "local statistics" for all
  * initiators, endpoints and stages.
  * <p />
@@ -79,7 +78,7 @@ public class LocalHtmlInspectForMatsFactory {
      * Note: The return from this method is static, and should only be included once per HTML page, no matter how many
      * MatsFactories you display.
      */
-    public void getStyleSheet(Writer out) throws IOException {
+    public void getStyleSheet(Appendable out) throws IOException {
         // Regular fonts: Using the "Native font stack" of Bootstrap 5
         String font_regular = ""
                 // Cross-platform generic font family (default user interface font)
@@ -105,7 +104,7 @@ public class LocalHtmlInspectForMatsFactory {
         // Monospaced fonts: Using the "Native font stack" of Bootstrap 5
         String font_mono = "SFMono-Regular,Menlo,Monaco,Consolas,\"Liberation Mono\",\"Courier New\",monospace;";
 
-        out.write(".mats_report {\n"
+        out.append(".mats_report {\n"
                 + "  font-family: " + font_regular + ";\n"
                 + "  font-weight: 400;\n"
                 + "  font-size: 95%;\n"
@@ -113,7 +112,7 @@ public class LocalHtmlInspectForMatsFactory {
                 + "  color: #212529;\n"
                 + "}\n");
 
-        out.write(".mats_report hr {\n"
+        out.append(".mats_report hr {\n"
                 + "  border: 1px dashed #aaa;\n"
                 + "  margin: 0.2em 0 0.8em 0;\n"
                 + "  color: inherit;\n"
@@ -122,29 +121,29 @@ public class LocalHtmlInspectForMatsFactory {
                 + "}\n");
 
         // :: Fonts and headings
-        out.write(".mats_report h2, .mats_report h3, .mats_report h4 {\n"
+        out.append(".mats_report h2, .mats_report h3, .mats_report h4 {\n"
                 // Have to re-set font here, otherwise Bootstrap 3 takes over.
                 + "  font-family: " + font_regular + ";\n"
                 + "  display: inline;\n"
                 + "  line-height: 1.2;\n"
                 + "}\n");
-        out.write(".mats_report h2 {\n"
+        out.append(".mats_report h2 {\n"
                 + "  font-size: 1.5em;\n"
                 + "  font-weight: 400;\n"
                 + "}\n");
-        out.write(".mats_report h3 {\n"
+        out.append(".mats_report h3 {\n"
                 + "  font-size: 1.4em;\n"
                 + "  font-weight: 400;\n"
                 + "}\n");
-        out.write(".mats_report h4 {\n"
+        out.append(".mats_report h4 {\n"
                 + "  font-size: 1.3em;\n"
                 + "  font-weight: 400;\n"
                 + "}\n");
-        out.write(".mats_heading {\n"
+        out.append(".mats_heading {\n"
                 + "  display: block;\n"
                 + "  margin: 0em 0em 0.5em 0em;\n"
                 + "}\n");
-        out.write(".mats_report code {\n"
+        out.append(".mats_report code {\n"
                 + "  font-family: " + font_mono + ";\n"
                 + "  font-size: .875em;\n"
                 + "  color: #d63384;\n"
@@ -153,19 +152,19 @@ public class LocalHtmlInspectForMatsFactory {
                 + "  border-radius: 3px;\n"
                 + "}\n");
         // .. min and max (timings)
-        out.write(".mats_min {\n"
+        out.append(".mats_min {\n"
                 + "  top: +0.15em;\n"
                 + "  position: relative;\n"
                 + "  font-size: 0.75em;\n"
                 + "}\n");
-        out.write(".mats_max {\n"
+        out.append(".mats_max {\n"
                 + "  top: -0.45em;\n"
                 + "  position: relative;\n"
                 + "  font-size: 0.75em;\n"
                 + "}\n");
 
         // .. InitiatorIds and EndpointIds
-        out.write(".mats_iid {\n"
+        out.append(".mats_iid {\n"
                 + "  font-family: " + font_mono + ";\n"
                 + "  font-size: .875em;\n"
                 + "  color: #d63384;\n"
@@ -173,7 +172,7 @@ public class LocalHtmlInspectForMatsFactory {
                 + "  padding: 2px 4px 1px 4px;\n"
                 + "  border-radius: 3px;\n"
                 + "}\n");
-        out.write(".mats_epid {\n"
+        out.append(".mats_epid {\n"
                 + "  font-family: " + font_mono + ";\n"
                 + "  font-size: .875em;\n"
                 + "  color: #d63384;\n"
@@ -181,7 +180,7 @@ public class LocalHtmlInspectForMatsFactory {
                 + "  padding: 2px 4px 1px 4px;\n"
                 + "  border-radius: 3px;\n"
                 + "}\n");
-        out.write(".mats_appname {\n"
+        out.append(".mats_appname {\n"
                 // + " color: #d63384;\n"
                 + "  background-color: rgba(0, 255, 255, 0.07);\n"
                 + "  padding: 2px 4px 1px 4px;\n"
@@ -191,29 +190,29 @@ public class LocalHtmlInspectForMatsFactory {
         // .. integers in timings (i.e. ms >= 500)
         // NOTE! The point of this class is NOT denote "high timings", but to denote that there are no
         // decimals, to visually make it easier to compare a number '1 235' with '1.235'.
-        out.write(".mats_integer {\n"
+        out.append(".mats_integer {\n"
                 + "  color: #b02a37;\n"
                 + "}\n");
 
         // :: The different parts of the report
-        out.write(".mats_info {\n"
+        out.append(".mats_info {\n"
                 + "  margin: 0em 0em 0em 0.5em;\n"
                 + "}\n");
 
-        out.write(".mats_factory {\n"
+        out.append(".mats_factory {\n"
                 + "  background: #f0f0f0;\n"
                 + "}\n");
-        out.write(".mats_initiator {\n"
+        out.append(".mats_initiator {\n"
                 + "  background: #e0f0e0;\n"
                 + "}\n");
-        out.write(".mats_endpoint {\n"
+        out.append(".mats_endpoint {\n"
                 + "  background: #e0e0f0;\n"
                 + "}\n");
-        out.write(".mats_stage {\n"
+        out.append(".mats_stage {\n"
                 + "  background: #f0f0f0;\n"
                 + "}\n");
         // Boxes:
-        out.write(".mats_factory, .mats_initiator, .mats_endpoint, .mats_stage {\n"
+        out.append(".mats_factory, .mats_initiator, .mats_endpoint, .mats_stage {\n"
                 + "  border-radius: 3px;\n"
                 + "  box-shadow: 2px 2px 2px 0px rgba(0,0,0,0.37);\n"
                 + "  border: thin solid #a0a0a0;\n"
@@ -221,11 +220,11 @@ public class LocalHtmlInspectForMatsFactory {
                 + "  padding: 0.1em 0.5em 0.5em 0.5em;\n"
                 + "}\n");
 
-        out.write(".mats_initiator, .mats_endpoint {\n"
+        out.append(".mats_initiator, .mats_endpoint {\n"
                 + "  margin: 0.5em 0.5em 2em 0.5em;\n"
                 + "}\n");
 
-        out.write(".mats_hot {\n"
+        out.append(".mats_hot {\n"
                 + "  box-shadow: #FFF 0 -1px 4px, #ff0 0 -2px 10px, #ff8000 0 -10px 20px, red 0 -18px 40px, 5px 5px 15px 5px rgba(0,0,0,0);\n"
                 + "  border: 0.2em solid red;\n"
                 + "  background: #ECEFCF;\n"
@@ -236,11 +235,11 @@ public class LocalHtmlInspectForMatsFactory {
      * Note: The return from this method is static, and should only be included once per HTML page, no matter how many
      * MatsFactories you display.
      */
-    public void getJavaScript(Writer out) throws IOException {
-        out.write("");
+    public void getJavaScript(Appendable out) throws IOException {
+        out.append("");
     }
 
-    public void createFactoryReport(Writer out, boolean includeInitiators,
+    public void createFactoryReport(Appendable out, boolean includeInitiators,
             boolean includeEndpoints, boolean includeStages) throws IOException {
         // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
         LocalStatsMatsInterceptor localStats = null;
@@ -250,21 +249,21 @@ public class LocalHtmlInspectForMatsFactory {
         }
 
         FactoryConfig config = _matsFactory.getFactoryConfig();
-        out.write("<div class=\"mats_report mats_factory\">\n");
-        out.write("<div class=\"mats_heading\">MatsFactory <h2>" + config.getName() + "</h2>\n");
-        out.write(" - <b>Known number of CPUs:</b> " + config.getNumberOfCpus());
-        out.write(" - <b>Concurrency:</b> " + formatConcurrency(config));
-        out.write(" - <b>Running:</b> " + config.isRunning());
-        out.write("</div>\n");
-        out.write("<hr />\n");
+        out.append("<div class=\"mats_report mats_factory\">\n");
+        out.append("<div class=\"mats_heading\">MatsFactory <h2>" + config.getName() + "</h2>\n");
+        out.append(" - <b>Known number of CPUs:</b> " + config.getNumberOfCpus());
+        out.append(" - <b>Concurrency:</b> " + formatConcurrency(config));
+        out.append(" - <b>Running:</b> " + config.isRunning());
+        out.append("</div>\n");
+        out.append("<hr />\n");
 
-        out.write("<div class=\"mats_info\">");
-        out.write("config: <b>Name:</b> " + config.getName());
-        out.write(" - <b>App:</b> " + config.getAppName() + " v." + config.getAppVersion());
-        out.write(" - <b>Nodename:</b> " + config.getNodename());
-        out.write(" - <b>Destination prefix:</b> \"" + config.getMatsDestinationPrefix() + "\"");
-        out.write(" - <b>Trace key:</b> \"" + config.getMatsTraceKey() + "\"<br />\n");
-        out.write((localStats != null
+        out.append("<div class=\"mats_info\">");
+        out.append("config: <b>Name:</b> " + config.getName());
+        out.append(" - <b>App:</b> " + config.getAppName() + " v." + config.getAppVersion());
+        out.append(" - <b>Nodename:</b> " + config.getNodename());
+        out.append(" - <b>Destination prefix:</b> \"" + config.getMatsDestinationPrefix() + "\"");
+        out.append(" - <b>Trace key:</b> \"" + config.getMatsTraceKey() + "\"<br />\n");
+        out.append((localStats != null
                 ? "<b>Local Statistics collector present in MatsFactory!</b>"
                         + " (<code>" + LocalStatsMatsInterceptor.class.getSimpleName() + "</code> installed)"
                 : "<b>Missing Local Statistics collector in MatsFactory - <code>"
@@ -272,21 +271,21 @@ public class LocalHtmlInspectForMatsFactory {
                         + "</code> is not installed!</b>") + "</b><br />");
 
         if (_matsInterceptable != null) {
-            out.write("<b>Installed InitiationInterceptors:</b><br />\n");
+            out.append("<b>Installed InitiationInterceptors:</b><br />\n");
             List<MatsInitiateInterceptor> initiationInterceptors = _matsInterceptable.getInitiationInterceptors();
             for (MatsInitiateInterceptor initiationInterceptor : initiationInterceptors) {
-                out.write("&nbsp;&nbsp;<code>" + initiationInterceptor.getClass().getName() + "</code>: "
+                out.append("&nbsp;&nbsp;<code>" + initiationInterceptor.getClass().getName() + "</code>: "
                         + initiationInterceptor + "<br />\n");
             }
-            out.write("<b>Installed StageInterceptors:</b><br />\n");
+            out.append("<b>Installed StageInterceptors:</b><br />\n");
             List<MatsStageInterceptor> stageInterceptors = _matsInterceptable.getStageInterceptors();
             for (MatsStageInterceptor stageInterceptor : stageInterceptors) {
-                out.write("&nbsp;&nbsp;<code>" + stageInterceptor.getClass().getName() + "</code>: "
+                out.append("&nbsp;&nbsp;<code>" + stageInterceptor.getClass().getName() + "</code>: "
                         + stageInterceptor + "<br />\n");
             }
         }
 
-        out.write("</div>");
+        out.append("</div>");
         if (includeInitiators) {
             for (MatsInitiator initiator : _matsFactory.getInitiators()) {
                 createInitiatorReport(out, initiator);
@@ -298,10 +297,10 @@ public class LocalHtmlInspectForMatsFactory {
                 createEndpointReport(out, endpoint, includeStages);
             }
         }
-        out.write("</div>\n");
+        out.append("</div>\n");
     }
 
-    public void createInitiatorReport(Writer out, MatsInitiator matsInitiator)
+    public void createInitiatorReport(Appendable out, MatsInitiator matsInitiator)
             throws IOException {
         // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
         LocalStatsMatsInterceptor localStats = null;
@@ -310,45 +309,45 @@ public class LocalHtmlInspectForMatsFactory {
                     .getInitiationInterceptor(LocalStatsMatsInterceptor.class).orElse(null);
         }
 
-        out.write("<div class=\"mats_report mats_initiator\">\n");
-        out.write("<div class=\"mats_heading\">Initiator <h3>" + matsInitiator.getName() + "</h3>\n");
-        out.write("</div>\n");
-        out.write("<hr />\n");
-        out.write("<div class=\"mats_info\">\n");
+        out.append("<div class=\"mats_report mats_initiator\">\n");
+        out.append("<div class=\"mats_heading\">Initiator <h3>" + matsInitiator.getName() + "</h3>\n");
+        out.append("</div>\n");
+        out.append("<hr />\n");
+        out.append("<div class=\"mats_info\">\n");
         if (localStats != null) {
             Optional<InitiatorStats> initiatorStats_ = localStats.getInitiatorStats(matsInitiator);
             if (initiatorStats_.isPresent()) {
                 InitiatorStats initiatorStats = initiatorStats_.get();
                 StatsSnapshot stats = initiatorStats.getTotalExecutionTimeNanos();
 
-                out.write("<b>Total initiation time:</b> " + formatStats(stats) + "<br />\n");
+                out.append("<b>Total initiation time:</b> " + formatStats(stats) + "<br />\n");
                 SortedMap<OutgoingMessageRepresentation, Long> outgoingMessageCounts = initiatorStats
                         .getOutgoingMessageCounts();
                 long sumOutMsgs = outgoingMessageCounts.values().stream().mapToLong(Long::longValue).sum();
                 if (outgoingMessageCounts.isEmpty()) {
-                    out.write("<b>NO outgoing messages!</b><br />\n");
+                    out.append("<b>NO outgoing messages!</b><br />\n");
                 }
                 else if (outgoingMessageCounts.size() == 1) {
-                    out.write("<b>Outgoing messages:</b> \n");
+                    out.append("<b>Outgoing messages:</b> \n");
 
                 }
                 else {
-                    out.write("<b>Outgoing messages (" + formatInt(sumOutMsgs) + "):</b><br />\n");
+                    out.append("<b>Outgoing messages (" + formatInt(sumOutMsgs) + "):</b><br />\n");
                 }
 
                 for (Entry<OutgoingMessageRepresentation, Long> entry : outgoingMessageCounts.entrySet()) {
                     OutgoingMessageRepresentation msg = entry.getKey();
-                    out.write("&nbsp;&nbsp;" + formatInt(entry.getValue()) + " x " + formatClass(msg.getMessageClass())
+                    out.append("&nbsp;&nbsp;" + formatInt(entry.getValue()) + " x " + formatClass(msg.getMessageClass())
                             + " " + msg.getMessageType() + " from initiatorId " + formatIid(msg.getInitiatorId())
                             + " to " + formatEpid(msg.getTo()) + "<br />");
                 }
             }
         }
-        out.write("</div>\n");
-        out.write("</div>\n");
+        out.append("</div>\n");
+        out.append("</div>\n");
     }
 
-    public void createEndpointReport(Writer out, MatsEndpoint<?, ?> matsEndpoint, boolean includeStages)
+    public void createEndpointReport(Appendable out, MatsEndpoint<?, ?> matsEndpoint, boolean includeStages)
             throws IOException {
         // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
         LocalStatsMatsInterceptor localStats = null;
@@ -386,21 +385,21 @@ public class LocalHtmlInspectForMatsFactory {
                 ? " mats_hot"
                 : "";
 
-        out.write("<div class=\"mats_report mats_endpoint" + hot + "\">\n");
-        out.write("<div class=\"mats_heading\">" + type + " <h3>" + config.getEndpointId() + "</h3>");
-        out.write(" - " + formatIoClass("Incoming", config.getIncomingClass()));
-        out.write(" - " + formatIoClass("Reply", config.getReplyClass()));
-        out.write(" - " + formatIoClass("State", config.getStateClass()));
-        out.write(" - <b>Running:</b> " + config.isRunning());
-        out.write(" - <b>Concurrency:</b> " + formatConcurrency(config) + "\n");
-        out.write("</div>\n");
-        out.write("<hr />\n");
+        out.append("<div class=\"mats_report mats_endpoint" + hot + "\">\n");
+        out.append("<div class=\"mats_heading\">" + type + " <h3>" + config.getEndpointId() + "</h3>");
+        out.append(" - " + formatIoClass("Incoming", config.getIncomingClass()));
+        out.append(" - " + formatIoClass("Reply", config.getReplyClass()));
+        out.append(" - " + formatIoClass("State", config.getStateClass()));
+        out.append(" - <b>Running:</b> " + config.isRunning());
+        out.append(" - <b>Concurrency:</b> " + formatConcurrency(config) + "\n");
+        out.append("</div>\n");
+        out.append("<hr />\n");
 
-        out.write("<div class=\"mats_info\">\n");
-        // out.write("Creation debug info: ### <br />\n");
-        // out.write("Worst stage duty cycle: ### <br />\n");
+        out.append("<div class=\"mats_info\">\n");
+        // out.append()("Creation debug info: ### <br />\n");
+        // out.append()("Worst stage duty cycle: ### <br />\n");
         if (totExecSnapshot != null) {
-            out.write("<b>Total endpoint time:</b> " + formatStats(totExecSnapshot) + "<br /><br />\n");
+            out.append("<b>Total endpoint time:</b> " + formatStats(totExecSnapshot) + "<br /><br />\n");
         }
 
         if (endpointStats != null) {
@@ -408,7 +407,7 @@ public class LocalHtmlInspectForMatsFactory {
                     .getInitiatorToTerminatorTimeNanos();
 
             if (!initiatorToTerminatorTimeNanos.isEmpty()) {
-                out.write("<b>From Initiator to Terminator times:</b><br />\n");
+                out.append("<b>From Initiator to Terminator times:</b><br />\n");
                 boolean first = true;
                 for (Entry<IncomingMessageRepresentation, StatsSnapshot> entry : initiatorToTerminatorTimeNanos
                         .entrySet()) {
@@ -419,18 +418,18 @@ public class LocalHtmlInspectForMatsFactory {
                         first = false;
                     }
                     else {
-                        out.write("<br />\n");
+                        out.append("<br />\n");
                     }
-                    out.write("&nbsp;&nbsp; From initiatorId " + formatIid(msg.getInitiatorId())
+                    out.append("&nbsp;&nbsp; From initiatorId " + formatIid(msg.getInitiatorId())
                             + " @ " + formatAppName(msg.getInitiatingAppName())
                             + " &mdash; (" + msg.getMessageType() + "s from: " + formatEpid(msg.getFromStageId())
                             + " @ " + formatAppName(msg.getFromAppName()) + ")<br />\n");
-                    out.write("&nbsp;&nbsp;&nbsp;&nbsp;" + formatStats(stats));
-                    out.write("<br />\n");
+                    out.append("&nbsp;&nbsp;&nbsp;&nbsp;" + formatStats(stats));
+                    out.append("<br />\n");
                 }
             }
         }
-        out.write("</div>\n");
+        out.append("</div>\n");
 
         if (includeStages) {
             for (MatsStage<?, ?, ?> stage : matsEndpoint.getStages()) {
@@ -443,7 +442,7 @@ public class LocalHtmlInspectForMatsFactory {
                         Optional<StatsSnapshot> stats = stageStats.getBetweenStagesTimeNanos();
                         // ?: Do we have Between-stats? (Do not have for initial stage).
                         if (stats.isPresent()) {
-                            out.write("<div class=\"mats_info\"><b>Time between:</b> "
+                            out.append("<div class=\"mats_info\"><b>Time between:</b> "
                                     + formatStats(stats.get()) + "</div>\n");
                         }
                     }
@@ -452,10 +451,10 @@ public class LocalHtmlInspectForMatsFactory {
                 createStageReport(out, stage);
             }
         }
-        out.write("</div>\n");
+        out.append("</div>\n");
     }
 
-    public void createStageReport(Writer out, MatsStage<?, ?, ?> matsStage) throws IOException {
+    public void createStageReport(Appendable out, MatsStage<?, ?, ?> matsStage) throws IOException {
         // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
         LocalStatsMatsInterceptor localStats = null;
         if (_matsInterceptable != null) {
@@ -479,65 +478,65 @@ public class LocalHtmlInspectForMatsFactory {
         String hot = (totExecSnapshot != null) && (totExecSnapshot.get999thPercentile() > 500_000_000d)
                 ? " mats_hot"
                 : "";
-        out.write("<div class=\"mats_report mats_stage" + hot + "\">\n");
-        out.write("<div class=\"mats_heading\">Stage <h4>" + config.getStageId() + "</h4>\n");
-        out.write(" - <b>Incoming:</b> <code>" + config.getIncomingClass().getSimpleName() + "</code>\n");
-        out.write(" - <b>Running:</b> " + config.isRunning());
-        out.write(" - <b>Concurrency:</b> " + formatConcurrency(config) + "\n");
-        out.write(" - <b>Running stage processors:</b> " + config.getRunningStageProcessors() + "\n");
-        out.write("</div>\n");
-        out.write("<hr />\n");
+        out.append("<div class=\"mats_report mats_stage" + hot + "\">\n");
+        out.append("<div class=\"mats_heading\">Stage <h4>" + config.getStageId() + "</h4>\n");
+        out.append(" - <b>Incoming:</b> <code>" + config.getIncomingClass().getSimpleName() + "</code>\n");
+        out.append(" - <b>Running:</b> " + config.isRunning());
+        out.append(" - <b>Concurrency:</b> " + formatConcurrency(config) + "\n");
+        out.append(" - <b>Running stage processors:</b> " + config.getRunningStageProcessors() + "\n");
+        out.append("</div>\n");
+        out.append("<hr />\n");
 
-        out.write("<div class=\"mats_info\">\n");
-        // out.write("Creation debug info: ### <br />\n");
-        // out.write("Duty cycle: ### <br />\n");
-        // out.write("Oldest reported \"check-in\" for stage procs: ### seconds ago."
+        out.append("<div class=\"mats_info\">\n");
+        // out.append()("Creation debug info: ### <br />\n");
+        // out.append()("Duty cycle: ### <br />\n");
+        // out.append()("Oldest reported \"check-in\" for stage procs: ### seconds ago."
         // + " <b>Stuck stage procs: ###</b><br />\n");
-        // out.write("<b>For terminators: - total times per outgoing initiation to difference services"
+        // out.append()("<b>For terminators: - total times per outgoing initiation to difference services"
         // + " (use extra-state), should make things better for MatsFuturizer</b><br />\n");
         if ((stageStats != null) && (totExecSnapshot != null)) {
 
-            out.write("<b>Queue time</b>: " + formatStats(stageStats.getSpentQueueTimeNanos())
+            out.append("<b>Queue time</b>: " + formatStats(stageStats.getSpentQueueTimeNanos())
                     + " (susceptible to time skews between nodes)<br/>\n");
 
             Map<IncomingMessageRepresentation, Long> incomingMessageCounts = stageStats.getIncomingMessageCounts();
             if (incomingMessageCounts.isEmpty()) {
-                out.write("<b>NO incoming messages!</b>\n");
+                out.append("<b>NO incoming messages!</b>\n");
             }
             else if (incomingMessageCounts.size() == 1) {
-                out.write("<b>Incoming messages:</b> ");
+                out.append("<b>Incoming messages:</b> ");
             }
             else {
-                out.write("<b>Incoming messages (" + formatInt(totExecSnapshot.getNumObservations())
+                out.append("<b>Incoming messages (" + formatInt(totExecSnapshot.getNumObservations())
                         + "):</b><br />\n");
             }
             for (Entry<IncomingMessageRepresentation, Long> entry : incomingMessageCounts.entrySet()) {
                 IncomingMessageRepresentation msg = entry.getKey();
-                out.write("&nbsp;&nbsp;" + formatInt(entry.getValue()) + " x " + msg.getMessageType()
+                out.append("&nbsp;&nbsp;" + formatInt(entry.getValue()) + " x " + msg.getMessageType()
                         + " from " + formatEpid(msg.getFromStageId()) + " <b>@</b> "
                         + formatAppName(msg.getFromAppName())
                         + formatInit(msg)
                         + "<br />");
             }
 
-            out.write("<b>Total stage time:</b> " + formatStats(totExecSnapshot) + "<br />\n");
+            out.append("<b>Total stage time:</b> " + formatStats(totExecSnapshot) + "<br />\n");
 
             // :: ProcessingResults
             SortedMap<ProcessResult, Long> processResultCounts = stageStats.getProcessResultCounts();
             if (processResultCounts.isEmpty()) {
-                out.write("<b>NO processing results!</b><br />\n");
+                out.append("<b>NO processing results!</b><br />\n");
             }
             else if (processResultCounts.size() == 1) {
                 ProcessResult processResult = processResultCounts.firstKey();
                 Long count = processResultCounts.get(processResult);
-                out.write("<b>Processing results:</b>\n");
+                out.append("<b>Processing results:</b>\n");
             }
             else {
-                out.write("<b>Processing results:</b><br />\n");
+                out.append("<b>Processing results:</b><br />\n");
             }
             for (Entry<ProcessResult, Long> entry : processResultCounts.entrySet()) {
                 ProcessResult processResult = entry.getKey();
-                out.write(formatInt(entry.getValue()) + " x " + processResult + "<br />\n");
+                out.append(formatInt(entry.getValue()) + " x " + processResult + "<br />\n");
             }
 
             // :: Outgoing messages
@@ -545,27 +544,27 @@ public class LocalHtmlInspectForMatsFactory {
                     .getOutgoingMessageCounts();
             long sumOutMsgs = outgoingMessageCounts.values().stream().mapToLong(Long::longValue).sum();
             if (outgoingMessageCounts.isEmpty()) {
-                out.write("<b>NO outgoing messages!</b><br />\n");
+                out.append("<b>NO outgoing messages!</b><br />\n");
             }
             else if (outgoingMessageCounts.size() == 1) {
-                out.write("<b>Outgoing messages:</b> \n");
+                out.append("<b>Outgoing messages:</b> \n");
 
             }
             else {
-                out.write("<b>Outgoing messages (" + formatInt(sumOutMsgs) + "):</b><br />\n");
+                out.append("<b>Outgoing messages (" + formatInt(sumOutMsgs) + "):</b><br />\n");
             }
 
             for (Entry<OutgoingMessageRepresentation, Long> entry : outgoingMessageCounts.entrySet()) {
                 OutgoingMessageRepresentation msg = entry.getKey();
-                out.write("&nbsp;&nbsp;" + formatInt(entry.getValue())
+                out.append("&nbsp;&nbsp;" + formatInt(entry.getValue())
                         + " x " + formatClass(msg.getMessageClass())
                         + " " + msg.getMessageType() + " to " + formatEpid(msg.getTo())
                         + formatInit(msg)
                         + "<br />");
             }
         }
-        out.write("</div>\n");
-        out.write("</div>\n");
+        out.append("</div>\n");
+        out.append("</div>\n");
     }
 
     // Could be static, but aren't, in case anyone wants to override them.
