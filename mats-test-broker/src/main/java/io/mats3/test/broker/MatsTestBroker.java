@@ -1,5 +1,6 @@
 package io.mats3.test.broker;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.ThreadLocalRandom;
 
 import javax.jms.ConnectionFactory;
@@ -117,9 +118,10 @@ public interface MatsTestBroker {
             }
             Object matsTestBrokerInstance;
             try {
-                matsTestBrokerInstance = matsTestBrokerClass.newInstance();
+                matsTestBrokerInstance = matsTestBrokerClass.getDeclaredConstructor().newInstance();
             }
-            catch (InstantiationException | IllegalAccessException e) {
+            catch (InstantiationException | IllegalAccessException
+                    | NoSuchMethodException | InvocationTargetException e) {
                 throw new IllegalStateException("The '" + SYSPROP_MATS_TEST_BROKER + "' system property's value ["
                         + sysprop_broker + "] looked like a class, so we loaded it."
                         + " However, it was not possible to instantiate it.", e);
