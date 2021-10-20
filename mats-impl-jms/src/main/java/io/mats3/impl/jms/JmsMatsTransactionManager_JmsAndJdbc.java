@@ -124,6 +124,7 @@ public class JmsMatsTransactionManager_JmsAndJdbc extends JmsMatsTransactionMana
                     // ----- The user code had some error occur, or want to reject this message.
                     log.error(LOG_PREFIX + "ROLLBACK SQL: " + e.getClass().getSimpleName() + " while processing "
                             + stageOrInit(_txContextKey) + " Rolling back the SQL Connection.", e);
+                    internalExecutionContext.setUserLambdaExceptionLogged();
                     /*
                      * IFF the SQL Connection was fetched, we will now rollback (and close) it.
                      */
@@ -140,6 +141,7 @@ public class JmsMatsTransactionManager_JmsAndJdbc extends JmsMatsTransactionMana
                     log.error(LOG_PREFIX + "ROLLBACK SQL: Got an undeclared checked exception " + t.getClass()
                             .getSimpleName() + " while processing " + stageOrInit(_txContextKey)
                             + " (probably 'sneaky throws' of checked exception). Rolling back the SQL Connection.", t);
+                    internalExecutionContext.setUserLambdaExceptionLogged();
                     /*
                      * IFF the SQL Connection was fetched, we will now rollback (and close) it.
                      */

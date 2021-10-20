@@ -92,9 +92,15 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                  * immediate refusal of the message. (This is just a hint/wish, as e.g. the JMS specification does
                  * not provide such a mechanism).
                  */
-                log.error(LOG_PREFIX + "ROLLBACK JMS: Got a MatsRefuseMessageException while transacting "
+                String msg = LOG_PREFIX + "ROLLBACK JMS: Got a MatsRefuseMessageException while transacting "
                         + stageOrInit(_txContextKey) + " (most probably from the user code)."
-                        + " Rolling back the JMS transaction - trying to ensure that it goes directly to DLQ.", e);
+                        + " Rolling back the JMS transaction - trying to ensure that it goes directly to DLQ.";
+                if (internalExecutionContext.isUserLambdaExceptionLogged()) {
+                    log.error(msg);
+                }
+                else {
+                    log.error(msg, e);
+                }
                 // Fetch the MessageConsumer used for this MatsStage, so that we can insta-DLQ.
                 Optional<MessageConsumer> messageConsumer = internalExecutionContext.getMessageConsumer();
                 // ?: Assert that it is present
@@ -119,10 +125,17 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                  * the received [Map]Message, and for both Stage and Init when sending out new messages. Sending this on
                  * to the outside catch block, as this means that we have an unstable JMS context.
                  */
-                log.error(LOG_PREFIX + "ROLLBACK JMS: Got a " + JmsMatsJmsException.class.getSimpleName()
+                String msg = LOG_PREFIX + "ROLLBACK JMS: Got a " + JmsMatsJmsException.class.getSimpleName()
                         + " while transacting " + stageOrInit(_txContextKey)
                         + ", indicating that the MATS JMS implementation had problems performing"
-                        + " some operation. Rolling back JMS Session, throwing on to get new JMS Connection.", e);
+                        + " some operation. Rolling back JMS Session, throwing on to get new JMS Connection.";
+                if (internalExecutionContext.isUserLambdaExceptionLogged()) {
+                    log.error(msg);
+                }
+                else {
+                    log.error(msg, e);
+                }
+
                 rollback(jmsSession, e);
                 // Throwing out, since the JMS Connection most probably is unstable.
                 throw e;
@@ -143,9 +156,15 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 /*
                  * This must have been a "sneaky throws"; Throwing of an undeclared checked exception.
                  */
-                log.error(LOG_PREFIX + "ROLLBACK JMS: " + t.getClass().getSimpleName() + " while transacting "
+                String msg = LOG_PREFIX + "ROLLBACK JMS: " + t.getClass().getSimpleName() + " while transacting "
                         + stageOrInit(_txContextKey) + " (probably 'sneaky throws' of checked exception)."
-                        + " Rolling back the JMS session.", t);
+                        + " Rolling back the JMS session.";
+                if (internalExecutionContext.isUserLambdaExceptionLogged()) {
+                    log.error(msg);
+                }
+                else {
+                    log.error(msg, t);
+                }
                 rollback(jmsSession, t);
                 // Rethrow the Throwable as special RTE, which if Initiate will percolate all the way out.
                 throw new JmsMatsUndeclaredCheckedExceptionRaisedRuntimeException("Got a undeclared checked exception "
@@ -157,10 +176,14 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
             // == Handling JMS Commit elision
             // ?: Should we elide JMS Commit?
             if (internalExecutionContext.shouldElideJmsCommitForInitiation()) {
+                // -> Yes, we should elide JMS Commit - i.e. NOT commit it, since there was no messages sent.
                 if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "COMMIT JMS: Asked to elide JMS Commit, so that we do!"
                         + " Transaction finished.");
+                internalExecutionContext.setMessageSystemCommitNanos(0L);
                 return;
             }
+
+            // E-> No, NOT eliding JMS Commit - i.e. we SHOULD commit it, since messages has been produced.
 
             if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "COMMIT JMS: ProcessingLambda finished,"
                     + " committing JMS Session.");

@@ -671,12 +671,13 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
                         // handling.
                         log.error(LOG_PREFIX + "ROLLBACK SQL: " + e.getClass().getSimpleName() + " while processing "
                                 + stageOrInit(_txContextKey) + " (should only be from user code)."
-                                + " Rolling back the SQL Connection.");
+                                + " Rolling back the SQL Connection.", e);
+                        internalExecutionContext.setUserLambdaExceptionLogged();
                         /*
                          * IFF the SQL Connection was fetched, we will now rollback (and close) it.
                          */
-                        commitOrRollbackSqlTransaction(internalExecutionContext, connectionEmployedState, false,
-                                transactionStatus, e);
+                        commitOrRollbackSqlTransaction(internalExecutionContext, connectionEmployedState,
+                                SqlTxAction.ROLLBACK, transactionStatus, e);
 
                         // ----- We're *outside* the SQL Transaction demarcation (rolled back).
 
@@ -690,12 +691,13 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
                         log.error(LOG_PREFIX + "ROLLBACK SQL: Got an undeclared checked exception " + t.getClass()
                                 .getSimpleName() + " while processing " + stageOrInit(_txContextKey)
                                 + " (should only be 'sneaky throws' of checked exception in user code)."
-                                + " Rolling back the SQL Connection.");
+                                + " Rolling back the SQL Connection.", t);
+                        internalExecutionContext.setUserLambdaExceptionLogged();
                         /*
                          * IFF the SQL Connection was fetched, we will now rollback (and close) it.
                          */
-                        commitOrRollbackSqlTransaction(internalExecutionContext, connectionEmployedState, false,
-                                transactionStatus, t);
+                        commitOrRollbackSqlTransaction(internalExecutionContext, connectionEmployedState,
+                                SqlTxAction.ROLLBACK, transactionStatus, t);
 
                         // ----- We're *outside* the SQL Transaction demarcation (rolled back).
 
@@ -711,15 +713,33 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
                             + " committing SQL Connection.");
 
                     // Check whether Session/Connection is ok before committing DB (per contract with JmsSessionHolder).
-                    internalExecutionContext.getJmsSessionHolder().isSessionOk();
+                    try {
+                        internalExecutionContext.getJmsSessionHolder().isSessionOk();
+                    }
+                    catch (JmsMatsJmsException e) {
+                        // ----- Evidently the JMS Session is broken - so rollback SQL
+                        log.error(LOG_PREFIX + "ROLLBACK SQL: " + e.getClass().getSimpleName()
+                                + " when checking whether"
+                                + " the JMS Session was OK. Rolling back the SQL Connection.", e);
+                        /*
+                         * IFF the SQL Connection was fetched, we will now rollback (and close) it.
+                         */
+                        commitOrRollbackSqlTransaction(internalExecutionContext, connectionEmployedState,
+                                SqlTxAction.ROLLBACK, transactionStatus, e);
+
+                        // ----- We're *outside* the SQL Transaction demarcation (rolled back).
+
+                        // We will now throw on the Exception, which will rollback the JMS Transaction.
+                        throw e;
+                    }
 
                     // TODO: Also somehow check runFlag of StageProcessor before committing.
 
                     /*
                      * IFF the SQL Connection was fetched, we will now commit (and close) it.
                      */
-                    commitOrRollbackSqlTransaction(internalExecutionContext, connectionEmployedState, true,
-                            transactionStatus, null);
+                    commitOrRollbackSqlTransaction(internalExecutionContext, connectionEmployedState,
+                            SqlTxAction.COMMIT, transactionStatus, null);
 
                     // ----- We're now *outside* the SQL Transaction demarcation (committed).
 
@@ -742,6 +762,10 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
             }
         }
 
+        private enum SqlTxAction {
+            COMMIT, ROLLBACK
+        }
+
         /**
          * Make note: The Spring DataSourceTransactionManager closes the SQL Connection after commit or rollback. Read
          * more e.g. <a href="https://stackoverflow.com/a/18207654/39334">here</a>, or look in
@@ -750,8 +774,8 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
          * eventually calls connection.close().
          */
         private void commitOrRollbackSqlTransaction(JmsMatsInternalExecutionContext internalExecutionContext,
-                Supplier<Boolean> sqlConnectionEmployedSupplier, boolean commit, TransactionStatus transactionStatus,
-                Throwable exceptionThatHappened) {
+                Supplier<Boolean> sqlConnectionEmployedSupplier, SqlTxAction sqlTxAction,
+                TransactionStatus transactionStatus, Throwable exceptionThatHappened) {
             // NOTICE: THE FOLLOWING if-STATEMENT IS JUST FOR LOGGING!
             // ?: Was connection gotten by code in ProcessingLambda (user code)
             // NOTICE: We must commit or rollback the Spring TransactionManager nevertheless, to clean up
@@ -768,7 +792,7 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
             // :: Commit or Rollback
             try {
                 // ?: Commit or rollback?
-                if (commit) {
+                if (sqlTxAction == SqlTxAction.COMMIT) {
                     // -> Commit.
                     // ?: Check if we have gotten into "RollbackOnly" state, implying that the user has messed up.
                     if (transactionStatus.isRollbackOnly()) {
@@ -777,13 +801,13 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
                                 + transactionStatus + "], we found that it was in a 'RollbackOnly' state. This implies"
                                 + " that you have performed your own Spring transaction management within the Mats"
                                 + " Stage/Initiation, which is not supported. Will now rollback the SQL, and throw"
-                                + " out.";
+                                + " out to rollback JMS.";
                         log.error(LOG_PREFIX + msg);
                         // If the rollback throws, it was a rollback (read the Exception-throwing at final catch).
-                        commit = false;
+                        sqlTxAction = SqlTxAction.ROLLBACK;
                         // Do rollback.
                         _platformTransactionManager.rollback(transactionStatus);
-                        // Throw out.
+                        // Throw out, so that we /do not/ commit the JMS.
                         // (NOTE: There won't be an exceptionThatHappened in the "good case" of commit.)
                         throw new MatsSqlCommitWasRollbackOnlyException(msg);
                     }
@@ -800,9 +824,9 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
                 }
             }
             catch (TransactionException e) {
-                MatsSqlCommitOrRollbackFailedException failedException =
-                        new MatsSqlCommitOrRollbackFailedException("Could not " + (commit ? "commit" : "rollback")
-                                + " SQL Transaction [" + transactionStatus + "] - for [" + _txContextKey + "].", e);
+                MatsSqlCommitOrRollbackFailedException failedException = new MatsSqlCommitOrRollbackFailedException(
+                        "Could not [" + sqlTxAction + "] SQL Transaction [" + transactionStatus
+                                + "] - for [" + _txContextKey + "].", e);
                 // ?: If we had an Exception "on its way out", then we'll have to add this as suppressed.
                 if (exceptionThatHappened != null) {
                     failedException.addSuppressed(exceptionThatHappened);

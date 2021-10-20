@@ -53,7 +53,7 @@ public class JmsMatsInternalExecutionContext {
      * If the current {@link JmsMatsTransactionManager} is managing a SQL Connection, then it SHALL set a way to get the
      * current transactional SQL Connection, and a way to determine whether the SQL Connection was actually employed (if
      * this is not possible to determine, then return whether it was gotten).
-     * 
+     *
      * @param sqlConnectionSupplier
      *            a supplier for the current transactional SQL Connection
      * @param sqlConnectionEmployedSupplier
@@ -119,6 +119,17 @@ public class JmsMatsInternalExecutionContext {
      */
     boolean shouldElideJmsCommitForInitiation() {
         return _elideJmsCommit;
+    }
+
+    // For transaction manager - if a user lambda throws, the "innermost" tx should log it, and then "outer" should not.
+    private boolean _userLambdaExceptionLogged;
+
+    public void setUserLambdaExceptionLogged() {
+        _userLambdaExceptionLogged = true;
+    }
+
+    public boolean isUserLambdaExceptionLogged() {
+        return _userLambdaExceptionLogged;
     }
 
     // ===== Timings
