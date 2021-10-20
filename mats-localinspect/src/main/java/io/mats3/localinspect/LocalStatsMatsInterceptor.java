@@ -62,9 +62,9 @@ public class LocalStatsMatsInterceptor
     public static final int DEFAULT_NUM_SAMPLES = 1100;
 
     /**
-     * This is a Out Of Memory avoidance in case of wrongly used initiatorIds. These are not supposed to be dynamic, but
-     * there is nothing hindering a user from creating a new initiatorId per initiation. Thus, if we go above a certain
-     * number of such entries, we stop adding.
+     * This is an Out Of Memory avoidance in case of wrongly used initiatorIds. These are not supposed to be dynamic,
+     * but there is nothing hindering a user from creating a new initiatorId per initiation. Thus, if we go above a
+     * certain number of such entries, we stop adding.
      * <p />
      * Value is 100.
      */

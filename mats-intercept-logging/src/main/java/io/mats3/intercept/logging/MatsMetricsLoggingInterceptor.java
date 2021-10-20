@@ -601,11 +601,11 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_OUT_SIZE_ENVELOPE_SERIAL, Long.toString(msg.getEnvelopeSerializedSize()));
             MDC.put(MDC_MATS_OUT_TIME_ENVELOPE_COMPRESS, msS(msg.getEnvelopeCompressionNanos()));
             MDC.put(MDC_MATS_OUT_SIZE_ENVELOPE_WIRE, Long.toString(msg.getEnvelopeWireSize()));
-            MDC.put(MDC_MATS_OUT_TIME_MSGSYS_CONSTRUCT_AND_SEND, msS(msg.getMessageSystemProductionAndSendNanos()));
+            MDC.put(MDC_MATS_OUT_TIME_MSGSYS_CONSTRUCT_AND_SEND, msS(msg.getMessageSystemProduceAndSendNanos()));
             long nanosTaken_Total = msg.getEnvelopeProduceNanos()
                     + msg.getEnvelopeSerializationNanos()
                     + msg.getEnvelopeCompressionNanos()
-                    + msg.getMessageSystemProductionAndSendNanos();
+                    + msg.getMessageSystemProduceAndSendNanos();
             MDC.put(MDC_MATS_OUT_TIME_TOTAL, msS(nanosTaken_Total));
 
             // :: Actually run the Runnable
@@ -649,7 +649,7 @@ public class MatsMetricsLoggingInterceptor
         long nanosTaken_Total = msg.getEnvelopeProduceNanos()
                 + msg.getEnvelopeSerializationNanos()
                 + msg.getEnvelopeCompressionNanos()
-                + msg.getMessageSystemProductionAndSendNanos();
+                + msg.getMessageSystemProduceAndSendNanos();
 
         return msg.getDispatchType() + " outgoing " + msg.getMessageType()
                 + " message from [" + messageSenderName + "|" + msg.getFrom()
@@ -660,7 +660,7 @@ public class MatsMetricsLoggingInterceptor
                 + " ms]->serialSize:[" + msg.getEnvelopeSerializedSize()
                 + " B]->comp:[" + ms(msg.getEnvelopeCompressionNanos())
                 + " ms]->envelopeWireSize:[" + msg.getEnvelopeWireSize()
-                + " B]->msgSysConstruct&Send:[" + ms(msg.getMessageSystemProductionAndSendNanos())
+                + " B]->msgSysConstruct&Send:[" + ms(msg.getMessageSystemProduceAndSendNanos())
                 + " ms]";
     }
 

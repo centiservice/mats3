@@ -1,6 +1,7 @@
 package io.mats3.test.metrics;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.URL;
 import java.util.Collections;
 import java.util.concurrent.ForkJoinPool;
@@ -113,8 +114,13 @@ public class MatsMetricsJettyServer {
     @WebServlet("/")
     public static class RootServlet extends HttpServlet {
         @Override
-        protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-            resp.getWriter().println("Hello");
+        protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
+            res.setContentType("text/html; charset=utf-8");
+            PrintWriter out = res.getWriter();
+            out.println("<h1>Menu</h1>");
+            out.println("<a href=\"./sendRequest\">Send Mats requests</a><br />");
+            out.println("<a href=\"./metrics\">Metrics Prometheus Scrape</a><br />");
+            out.println("<a href=\"./shutdown\">Shutdown</a><br />");
         }
     }
 
@@ -124,8 +130,9 @@ public class MatsMetricsJettyServer {
     @WebServlet("/metrics")
     public static class MetricsServlet extends HttpServlet {
         @Override
-        protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-            __prometheusMeterRegistry.scrape(resp.getWriter());
+        protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
+            res.setContentType("text/plain; charset=utf-8");
+            __prometheusMeterRegistry.scrape(res.getWriter());
         }
     }
 
@@ -135,9 +142,10 @@ public class MatsMetricsJettyServer {
     @WebServlet("/sendRequest")
     public static class SendRequestServlet extends HttpServlet {
         @Override
-        protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
+            res.setContentType("text/plain; charset=utf-8");
             log.info("Sending request ..");
-            resp.getWriter().println("Sending request ..");
+            res.getWriter().println("Sending request ..");
             MatsFactory matsFactory = (MatsFactory) req.getServletContext().getAttribute(JmsMatsFactory.class
                     .getName());
 
@@ -146,22 +154,22 @@ public class MatsMetricsJettyServer {
             matsFactory.getDefaultInitiator().initiateUnchecked(
                     (msg) -> msg.traceId(MatsTestHelp.traceId())
                             .keepTrace(KeepTrace.FULL)
-                            .from(MatsTestHelp.from("test"))
+                            .from("/sendRequestInitiated")
                             .to(SetupTestMatsEndpoints.SERVICE)
                             .replyTo(SetupTestMatsEndpoints.TERMINATOR, sto)
                             .request(dto));
-            resp.getWriter().println(".. Request sent.");
+            res.getWriter().println(".. Request sent.");
         }
     }
 
     /**
-     * Servlet to shut down this JVM (<code>System.exit(0)</code>). Employed from the Gradle integration tests.
+     * Servlet to shut down this JVM (<code>System.exit(0)</code>).
      */
     @WebServlet("/shutdown")
     public static class ShutdownServlet extends HttpServlet {
         @Override
-        protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-            resp.getWriter().println("Shutting down");
+        protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
+            res.getWriter().println("Shutting down");
 
             // Shut down the process
             ForkJoinPool.commonPool().submit(() -> System.exit(0));

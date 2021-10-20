@@ -10,7 +10,4 @@
     </root>
     <logger name="org.eclipse.jetty" level="INFO"/>
     <logger name="org.apache.activemq" level="INFO"/>
-
-    <!-- The mats endpoints logs a bit on debug -->
-    <logger name="io.mats3.localinspect.SetupTestMatsEndpoints" level="INFO" />
 </configuration>

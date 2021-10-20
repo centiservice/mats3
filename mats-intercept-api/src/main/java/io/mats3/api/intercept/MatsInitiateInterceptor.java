@@ -15,7 +15,7 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * <p />
  * When more than one interceptor is installed, the ordering becomes interesting. If the following class is added twice,
  * <b>first</b> with 1 as the argument, and then <b>secondly</b> with 2 as the argument ..:
- * 
+ *
  * <pre>
  * private static class MyMatsInitiateInterceptor implements MatsInitiateInterceptor {
  *
@@ -58,7 +58,7 @@ import io.mats3.MatsInitiator.MatsInitiate;
  *     }
  * }
  * </pre>
- * 
+ *
  * .. then the following sequence of log lines and operations ensues:
  * <ol>
  * <li>First the {@link MatsInitiateInterceptor#initiateStarted(InitiateStartedContext) initiateStarted(..)} are invoked
@@ -107,8 +107,8 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * <p />
  * The concept of "outside" vs. "inside" perhaps seems subtle, but there is a distinct difference: No processing will
  * ever happen in a Mats fabric if no initiations happens "from the outside": It is always a "from the outside"
- * initiation that will set process flows in action. Such a process flow might then set several new process flows in
- * action (i.e. initiations "from the inside"), but those are dependent on the initial process flow that was set in
+ * initiation that will set Mats flows in action. Such a process flow might then set several new Mats flows in
+ * action (i.e. initiations "from the inside"), but those are dependent on the initial Mats flow that was set in
  * motion "from the outside", and would never have been initiated was it not for such initiation.
  * <p />
  * To catch initiations "from the inside", you will employ a {@link MatsStageInterceptor}.

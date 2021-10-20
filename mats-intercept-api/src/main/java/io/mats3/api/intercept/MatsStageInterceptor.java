@@ -53,8 +53,8 @@ public interface MatsStageInterceptor {
      * message - or even take over the entire stage. Wrt. changing messages, you should also consider
      * {@link MatsStageInterceptOutgoingMessages#stageInterceptOutgoingMessages(StageInterceptOutgoingMessageContext)}.
      * <p />
-     * Default implementation is to call directly through - and you also need to call through to get the actual stage to
-     * execute.
+     * Default implementation is to call directly through - and if overriding, you also need to call through to get the
+     * actual stage to execute.
      * <p />
      * Pulled out in separate interface, so that we don't need to invoke it if the interceptor doesn't need it.
      */
@@ -248,11 +248,11 @@ public interface MatsStageInterceptor {
 
             /**
              * If the messaging or processing system failed, this will be either
-             * {@link io.mats3.MatsInitiator.MatsBackendException MatsBackendException} (messaging handling or
-             * db commit), or {@link io.mats3.MatsInitiator.MatsMessageSendException MatsMessageSendException}
-             * (which is the "VERY BAD!" scenario where db is committed, whereupon the messaging commit failed - which
-             * most probably is a "notify the humans!"-situation, unless the user code is crafted very specifically to
-             * handle such a situation).
+             * {@link io.mats3.MatsInitiator.MatsBackendException MatsBackendException} (messaging handling or db
+             * commit), or {@link io.mats3.MatsInitiator.MatsMessageSendException MatsMessageSendException} (which is
+             * the "VERY BAD!" scenario where db is committed, whereupon the messaging commit failed - which most
+             * probably is a "notify the humans!"-situation, unless the user code is crafted very specifically to handle
+             * such a situation).
              */
             SYSTEM_EXCEPTION
         }

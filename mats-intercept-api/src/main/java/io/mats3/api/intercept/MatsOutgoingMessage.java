@@ -4,8 +4,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import io.mats3.MatsEndpoint.ProcessContext;
-import io.mats3.api.intercept.MatsInitiateInterceptor.InitiateCompletedContext;
-import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext;
 
 /**
  * Represents an Outgoing Mats Message.
@@ -36,8 +34,8 @@ public interface MatsOutgoingMessage {
      * Note: For messages out of an initiator, this method and {@link #getFrom()} returns the same value, i.e. it is
      * initiated from, and from, the same source.
      *
-     * @return the value supplied to {@link io.mats3.MatsInitiator.MatsInitiate#from(String)} at the time of
-     *         the Mats flow initiation.
+     * @return the value supplied to {@link io.mats3.MatsInitiator.MatsInitiate#from(String)} at the time of the Mats
+     *         flow initiation.
      */
     String getInitiatorId();
 
@@ -52,8 +50,8 @@ public interface MatsOutgoingMessage {
     // ===== Basics
 
     /**
-     * Note: For messages out of an initiator, this method and {@link #getInitiatorId()} returns the same value, i.e. it is
-     * initiated from, and from, the same source.
+     * Note: For messages out of an initiator, this method and {@link #getInitiatorId()} returns the same value, i.e. it
+     * is initiated from, and from, the same source.
      *
      * @return which stage the message is from, or for initiations, the same value as {@link #getInitiatorId()}.
      */
@@ -159,11 +157,10 @@ public interface MatsOutgoingMessage {
 
         /**
          * @return time taken (in nanoseconds) to create the Mats envelope, including serialization of all relevant
-         *         constituents: DTO, STO and any Trace Properties. <b>Note that this will be a part of the user lambda
-         *         timing (for {@link StageCompletedContext#getUserLambdaNanos() stage}, or for
-         *         {@link InitiateCompletedContext#getUserLambdaNanos() init}), as it is done at the time of e.g.
-         *         invoking {@link ProcessContext#request(String, Object) processContext.request()}, which happens
-         *         within the user lambda.</b>
+         *         constituents: DTO, STO and any Trace Properties. <b>Note that this will be a slice of the user lambda
+         *         timing ({@link CommonCompletedContext#getUserLambdaNanos() getUserLambdaNanos()} for both init and
+         *         stage), as it is done at the time of e.g. invoking {@link ProcessContext#request(String, Object)
+         *         processContext.request()} inside the user lambda.</b>
          */
         long getEnvelopeProduceNanos();
 
@@ -197,6 +194,6 @@ public interface MatsOutgoingMessage {
         /**
          * @return time taken (in nanoseconds) to produce, and then send (transfer) the message to the message broker.
          */
-        long getMessageSystemProductionAndSendNanos();
+        long getMessageSystemProduceAndSendNanos();
     }
 }
