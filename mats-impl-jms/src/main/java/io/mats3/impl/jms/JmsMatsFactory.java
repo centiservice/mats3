@@ -132,8 +132,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         _matsSerializer = matsSerializer;
         _factoryConfig = new JmsMatsFactoryConfig();
 
-        installIfPresent(_matsLoggingInterceptor);
-        installIfPresent(_matsMetricsInterceptor);
+        installIfPresent(_matsLoggingInterceptor, MatsInterceptable.class);
+        installIfPresent(_matsMetricsInterceptor, MatsInterceptableMatsFactory.class);
 
         log.info(LOG_PREFIX + "Created [" + idThis() + "].");
     }
@@ -165,12 +165,12 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         return _initiateTraceIdModifier;
     }
 
-    private void installIfPresent(Class<?> standardInterceptorClass) {
+    private void installIfPresent(Class<?> standardInterceptorClass, Class<?> interceptable) {
         if (standardInterceptorClass != null) {
             log.info(LOG_PREFIX + "Found '" + standardInterceptorClass.getSimpleName()
                     + "' on classpath, installing for [" + idThis() + "].");
             try {
-                Method install = standardInterceptorClass.getDeclaredMethod("install", MatsInterceptable.class);
+                Method install = standardInterceptorClass.getDeclaredMethod("install", interceptable);
                 install.invoke(null, this);
             }
             catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {

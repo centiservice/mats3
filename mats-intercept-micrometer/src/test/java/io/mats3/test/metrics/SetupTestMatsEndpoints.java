@@ -93,6 +93,16 @@ public class SetupTestMatsEndpoints {
             Assert.assertEquals(new StateTO(Integer.MAX_VALUE, Math.E), sto);
             sto.number1 = Integer.MIN_VALUE;
             sto.number2 = Math.E * 2;
+
+            // Add measurement
+            context.logMeasurement("test.measure1", "Test measurement 1 from stage 1 of master", "test", Math.PI);
+            context.logMeasurement("test.measure2", "Test measurement 2 from stage 1 of master", "test", Math.PI, "labelKeyA", "labelValueA");
+            context.logMeasurement("test.measure3", "Test measurement 3 from stage 1 of master", "test", Math.PI, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
+
+            context.logTimingMeasurement("test.timing1", "Test measurement 1 from stage 1 of master", 1_000);
+            context.logTimingMeasurement("test.timing2", "Test measurement 2 from stage 1 of master", 1_000_000, "labelKeyA", "labelValueA");
+            context.logTimingMeasurement("test.timing3", "Test measurement 3 from stage 1 of master", 1_000_000_000, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
+
             context.request(SERVICE + ".Mid", new DataTO(dto.number, dto.string + ":MidCall2", 7));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {

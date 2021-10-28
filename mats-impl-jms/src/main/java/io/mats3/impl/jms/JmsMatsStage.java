@@ -27,6 +27,7 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
     private static final Logger log = LoggerFactory.getLogger(JmsMatsStage.class);
 
     private final JmsMatsEndpoint<R, S, Z> _parentEndpoint;
+    private final int _stageIndex;
     private final String _stageId;
     private final boolean _queue;
     private final Class<S> _stateClass;
@@ -37,9 +38,10 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
 
     private final JmsStageConfig _stageConfig = new JmsStageConfig();
 
-    public JmsMatsStage(JmsMatsEndpoint<R, S, Z> parentEndpoint, String stageId, boolean queue,
+    public JmsMatsStage(JmsMatsEndpoint<R, S, Z> parentEndpoint, int stageIndex, String stageId, boolean queue,
             Class<I> incomingClass, Class<S> stateClass, ProcessLambda<R, S, I> processLambda) {
         _parentEndpoint = parentEndpoint;
+        _stageIndex = stageIndex;
         _stageId = stageId;
         _queue = queue;
         _stateClass = stateClass;
@@ -262,6 +264,11 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         @Override
         public String getStageId() {
             return _stageId;
+        }
+
+        @Override
+        public int getStageIndex() {
+            return _stageIndex;
         }
 
         @Override

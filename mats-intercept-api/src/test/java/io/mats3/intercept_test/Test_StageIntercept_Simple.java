@@ -21,6 +21,8 @@ import io.mats3.test.junit.Rule_Mats;
 
 /**
  * Simple test adding a MatsStageInterceptor, just for visual inspection in logs.
+ *
+ * TODO: De-shit this test, i.e. make it into a test.
  */
 public class Test_StageIntercept_Simple {
     private static final Logger log = MatsTestHelp.getClassLogger();

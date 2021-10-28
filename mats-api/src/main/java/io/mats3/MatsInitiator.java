@@ -266,15 +266,17 @@ public interface MatsInitiator extends Closeable {
 
         /**
          * Hint to the underlying implementation to which level of call and state history the underlying protocol should
-         * retain. The default (unless configured otherwise), {@link KeepTrace#FULL}, is rather verbose, keeping all
-         * history, i.e. all requests and replies and state transitions throughout the entire call flow. Once a certain
-         * call flow stabilizes, without much errors or DLQs, you should consider initializing it with
-         * {@link KeepTrace#COMPACT} or even {@link KeepTrace#MINIMAL}.
+         * retain. The default (unless configured otherwise), {@link KeepTrace#COMPACT}, keeps a trail of all the stages
+         * the flow has been through, but drops state and DTOs that aren't relevant for the current message. You might
+         * want to use {@link KeepTrace#FULL} while developing new functionality, while once a certain call flow
+         * stabilizes, without much errors or DLQs, you should consider initializing it with {@link KeepTrace#COMPACT}
+         * or even {@link KeepTrace#MINIMAL} (the latter also dropping the "trail", thus only keeping information
+         * strictly relevant for the current message).
          * <p />
          * <b>This functionality is solely for debugging, the Mats endpoints works identically with any setting</b>,
-         * thus it is a tradeoff between performance and debuggability. The resulting kept trace would typically be
-         * visible in a "toString()" of the {@link ProcessContext} - or in an external (e.g. Brokerside)
-         * debugging/tracing system.
+         * thus it is a tradeoff between performance (size of messages) and debuggability. The resulting kept trace
+         * would typically be visible in a "toString()" of the {@link ProcessContext} - or in an external (e.g.
+         * Brokerside) debugging/tracing system.
          *
          * @return the {@link MatsInitiate} for chaining.
          */
@@ -284,10 +286,10 @@ public interface MatsInitiator extends Closeable {
          * <b>Enable unreliable, but fast, messaging!</b> Hint to the underlying implementation that it does not matter
          * that much if this message is lost. The implication is that the messages that this flow consist of are
          * unreliable - typically, if the MQ broker is restarted, any outstanding "non persistent" messages are lost.
-         * (Also, some backends will loose the Dead Letter Queue (DLQ) functionality when this is used, where a ordinary
-         * persistent message would be DLQed if it failed to be delivered to an endpoint. This can severely impact
-         * monitoring (as you don't get a build-up of DLQs when things goes wrong - only log lines) and to a degree
-         * debugging (since you don't have the DLQ'ed messages to look at).)
+         * (Also, some backends will (in default config) lose the Dead Letter Queue (DLQ) functionality when this is
+         * used, where a ordinary persistent message would be DLQed if it failed to be delivered to an endpoint. This
+         * can severely impact monitoring (as you don't get a build-up of DLQs when things goes wrong - only log lines)
+         * and to a degree debugging (since you don't have the DLQ'ed messages to look at).)
          * <p />
          * <b>This is only usable for "pure GET"-style requests <i>without <u>any</u> state changes along the flow</i>,
          * i.e. "AccountService.getBalances", for display to an end user.</b> If such a message is lost, the world won't
@@ -528,6 +530,103 @@ public interface MatsInitiator extends Closeable {
          * @see #addBytes(String, byte[])
          */
         MatsInitiate addString(String key, String payload);
+
+        /**
+         * Adds a measurement of a described variable, in a base unit, for this Initiation - <b>be sure to understand
+         * that the three String parameters are <i>constants</i> for each measurement.</b> To exemplify, you may measure
+         * five different things in an Initiation, i.e. "number of items in order", "total amount for order in dollar",
+         * etc - and each of these obviously have different metricId, metricDescription and possibly different baseUnit
+         * from each other. BUT, the specific arguments for "number of items in order" (outside the measure itself!)
+         * shall not change between one Initiation and the next (of the same "type", i.e. place in the code): e.g. the
+         * metricDescription shall <b>NOT</b> be dynamically constructed to e.g. say <i>"Number of items in order 1234
+         * for customer 5678"</i>.
+         * <p />
+         * Note: It is illegal to use the same 'metricId' for more than one measurement for a given Initiation, and this
+         * also goes between measurements and {@link #logTimingMeasurement(String, String, long, String...) timing
+         * measurements}.
+         * <p />
+         * <b>Inclusion as metric by plugin 'mats-intercept-micrometer'</b>: A new meter will be created (and cached),
+         * of type <code>DistributionSummary</code>, with the 'name' set to
+         * <code>"mats.exec.ops.measure.{metricId}.{baseUnit}"</code> ("measure"-&gt;"time" for timings), and
+         * 'description' to description. (Tags/labels already added on the meter by the plugin include 'appName',
+         * 'initiatorId', 'initiatingAppName', 'stageId' (for stages), and 'initiatorName' (for inits)). Read about
+         * parameter 'labelKeyValue' below.
+         * <p />
+         * <b>Inclusion as log line by plugin 'mats-intercept-logging'</b>: A log line will be output by each added
+         * measurement, where the MDC for that log line will have an entry with key
+         * <code>"mats.ops.measure.{metricId}.{baseUnit}"</code>. Read about parameter 'labelKeyValue' below.
+         * <p />
+         * It generally makes most sense if the same metrics are added for each processing of a particular Initiation,
+         * i.e. if the "number of items" are 0, then that should also be recorded along with the "total amount for order
+         * in dollar" as 0, not just elided. Otherwise, your metrics will be skewed.
+         * <p />
+         * You should use a dot-notation for the metricId if you want to add multiple meters with a
+         * hierarchical/subdivision layout.
+         * <p />
+         * The vararg 'labelKeyValue' is an optional element where the String-array consist of one or several alternate
+         * key, value pairs. <b>Do not employ this feature unless you know what the effects are, and you actually need
+         * it!</b> This will be added as labels/tags to the metric, and added to the SLF4J MDC for the measurement log
+         * line with the key being <code>"mats.ops.measure.{metricId}.{labelKey}"</code> ("measure"-&gt;"time" for
+         * timings). The keys should be constants as explained for the other parameters, while the value can change, but
+         * only between a given set of values (think <code>enum</code>) - using e.g. the 'customerId' as value doesn't
+         * make sense and will blow up your metric cardinality. Notice that if you do employ e.g. two labels, each
+         * having one of three values, <i>you'll effectively create 9 different meters</i>, where your measurement will
+         * go to one of them.
+         * <p />
+         * <b>NOTICE: If you want to do a timing, then instead use
+         * {@link #logTimingMeasurement(String, String, long, String...)}</b>
+         *
+         * @param metricId
+         *            constant, short, possibly dot-separated if hierarchical, id for this particular metric, e.g.
+         *            "items" or "amount", or "db.query.orders".
+         * @param metricDescription
+         *            constant, textual description for this metric, e.g. "Number of items in customer order", "Total
+         *            amount of customer order"
+         * @param baseUnit
+         *            the unit for this measurement, e.g. "quantity" (for a count measure), "dollar" (for an amount), or
+         *            "bytes" (for a document size).
+         * @param measure
+         *            value of the measurement
+         * @param labelKeyValue
+         *            a String-vararg array consisting of alternate key,value pairs which will becomes labels or tags or
+         *            entries for the metrics and log lines. <b>Read the JavaDoc above; the keys shall be "static" for a
+         *            specific measure, while the values can change between a specific small set values.</b>
+         * @return the {@link MatsInitiate} for chaining.
+         */
+        MatsInitiate logMeasurement(String metricId, String metricDescription, String baseUnit, double measure,
+                String... labelKeyValue);
+
+        /**
+         * Same as {@link #logMeasurement(String, String, String, double, String...) addMeasurement(..)}, but
+         * specifically for timings - <b>Read that JavaDoc!</b>
+         * <p />
+         * Note: It is illegal to use the same 'metricId' for more than one measurement for a given Initiation, and this
+         * also goes between timing measurements and {@link #logMeasurement(String, String, String, double, String...)
+         * measurements}.
+         * <p />
+         * For the metrics-plugin 'mats-intercept-micrometer' plugin, the 'baseUnit' argument is deduced to whatever is
+         * appropriate for the receiving metrics system, e.g. for Prometheus it is "seconds", even though you always
+         * record the measurement in nanoseconds using this method.
+         * <p />
+         * For the logging-plugin 'mats-intercept-logging' plugin, the timing in the log line will be in milliseconds
+         * (with fractions), even though you always record the measurement in nanoseconds using this method.
+         *
+         * @param metricId
+         *            constant, short, possibly dot-separated if hierarchical, id for this particular metric, e.g.
+         *            "db.query.orders" or "calcprofit".
+         * @param metricDescription
+         *            constant, textual description for this metric, e.g. "Time taken to execute order query", "Time
+         *            taken to calculate profit or loss".
+         * @param nanos
+         *            time taken <b>in nanoseconds</b>
+         * @param labelKeyValue
+         *            a String-vararg array consisting of alternate key,value pairs which will becomes labels or tags or
+         *            entries for the metrics and log lines. Read the JavaDoc at
+         *            {@link #logMeasurement(String, String, String, double, String...) addMeasurement(..)}
+         * @return the {@link MatsInitiate} for chaining.
+         */
+        MatsInitiate logTimingMeasurement(String metricId, String metricDescription, long nanos,
+                String... labelKeyValue);
 
         /**
          * <i>The standard request initiation method</i>: All of from, to and replyTo must be set. A message is sent to
@@ -868,6 +967,20 @@ public interface MatsInitiator extends Closeable {
         @Override
         public MatsInitiate setTraceProperty(String propertyName, Object propertyValue) {
             unwrap().setTraceProperty(propertyName, propertyValue);
+            return this;
+        }
+
+        @Override
+        public MatsInitiate logMeasurement(String metricId, String metricDescription, String baseUnit, double measure,
+                String... labelKeyValue) {
+            unwrap().logMeasurement(metricId, metricDescription, baseUnit, measure, labelKeyValue);
+            return this;
+        }
+
+        @Override
+        public MatsInitiate logTimingMeasurement(String metricId, String metricDescription, long nanos,
+                String... labelKeyValue) {
+            unwrap().logTimingMeasurement(metricId, metricDescription, nanos, labelKeyValue);
             return this;
         }
 

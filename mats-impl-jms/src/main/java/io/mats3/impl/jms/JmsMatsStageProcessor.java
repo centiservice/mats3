@@ -373,7 +373,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                     ReceiveDeconstructError[] receiveDeconstructError = new ReceiveDeconstructError[1];
                     @SuppressWarnings({ "unchecked", "rawtypes" })
-                    ProcessContext<R>[] processContext = new ProcessContext[1];
+                    JmsMatsProcessContext<R, S, Z>[] processContext = new JmsMatsProcessContext[1];
 
                     try { // try-catch-finally: Catch processing Exceptions, handle cleanup in finally
 
@@ -684,13 +684,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                          * to signal that the JMS Connection is probably broken.
                          */
                         // :: Create the API-level Exception for this situation, so that interceptor will get that.
-                        MatsMessageSendException rethrow = new MatsMessageSendException("Evidently got problems sending"
-                                + " out the JMS message after having run the process lambda and potentially committed"
-                                + " other resources, typically database.", e);
+                        MatsMessageSendException exceptionForInterceptor = new MatsMessageSendException("Evidently got"
+                                + " problems sending out the JMS message after having run the process lambda and"
+                                + " potentially committed other resources, typically database.", e);
                         // Record for interceptor
-                        throwableResult = rethrow;
+                        throwableResult = exceptionForInterceptor;
                         throwableProcessResult = ProcessResult.SYSTEM_EXCEPTION;
-                        // TODO: Do retries if it fails!
                         // Throw on (the original exception) to crash the JMS Session
                         throw e;
                     }
@@ -703,10 +702,10 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                          */
                         // Notice that we shall NOT have committed "external resources" at this point, meaning database.
                         // :: Create the API-level Exception for this situation, so that interceptor will get that.
-                        MatsBackendException rethrow = new MatsBackendException("Evidently have problems talking with"
-                                + " our backend, which is a JMS Broker.", e);
+                        MatsBackendException exceptionForInterceptor = new MatsBackendException("Evidently have"
+                                + " problems talking with our backend, which is a JMS Broker.", e);
                         // Record for interceptor
-                        throwableResult = rethrow;
+                        throwableResult = exceptionForInterceptor;
                         throwableProcessResult = ProcessResult.SYSTEM_EXCEPTION;
                         // Throw on (the original exception) to crash the JMS Session
                         throw e;
@@ -748,7 +747,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                         }
                         else {
                             // -> All good!
-                            if (log.isDebugEnabled()) log.info(LOG_PREFIX + "The Stage processing went without a"
+                            if (log.isDebugEnabled()) log.debug(LOG_PREFIX + " The Stage processing went without a"
                                     + " hitch.");
                         }
 
@@ -833,6 +832,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         stageCommonContext[0], processContext[0],
                                         processResult,
                                         nanosTaken_UserLambda[0],
+                                        processContext[0].getMeasurements(),
+                                        processContext[0].getTimingMeasurements(),
                                         nanosTaken_totalEnvelopeSerAndComp[0],
                                         internalExecutionContext.getDbCommitNanos(),
                                         nanosTaken_totalMsgSysProdAndSend[0],
@@ -850,8 +851,9 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         interceptorsForStage.get(i).stageCompleted(stageCompletedContext);
                                     }
                                     catch (Throwable t) {
-                                        log.error(LOG_PREFIX + "StageInterceptor raised exception on"
-                                                + " 'completed(..)', ignored.", t);
+                                        log.error(LOG_PREFIX + "StageInterceptor [" + interceptorsForStage.get(i)
+                                                + "] raised a [" + t.getClass().getSimpleName() + "] when invoking"
+                                                + " stageCompleted(..) - ignoring, but this is probably quite bad.", t);
                                     }
                                 }
                             }
@@ -1385,6 +1387,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         private final ProcessResult _processResult;
 
         private final long _userLambdaNanos;
+        private final List<MatsMeasurement> _measurements;
+        private final List<MatsTimingMeasurement> _timingMeasurements;
         private final long _envelopeSerializationNanos;
         private final long _dbCommitNanos;
         private final long _messageSystemMessageProductionAndSendNanos;
@@ -1403,6 +1407,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 ProcessResult processResult,
 
                 long userLambdaNanos,
+                List<MatsMeasurement> measurements,
+                List<MatsTimingMeasurement> timingMeasurements,
                 long envelopeSerializationNanos,
                 long dbCommitNanos,
                 long messageSystemMessageProductionAndSendNanos,
@@ -1419,6 +1425,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             _processResult = processResult;
 
             _userLambdaNanos = userLambdaNanos;
+            _measurements = measurements;
+            _timingMeasurements = timingMeasurements;
             _envelopeSerializationNanos = envelopeSerializationNanos;
             _dbCommitNanos = dbCommitNanos;
             _messageSystemMessageProductionAndSendNanos = messageSystemMessageProductionAndSendNanos;
@@ -1445,6 +1453,16 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         @Override
         public long getUserLambdaNanos() {
             return _userLambdaNanos;
+        }
+
+        @Override
+        public List<MatsMeasurement> getMeasurements() {
+            return _measurements;
+        }
+
+        @Override
+        public List<MatsTimingMeasurement> getTimingMeasurements() {
+            return _timingMeasurements;
         }
 
         @Override

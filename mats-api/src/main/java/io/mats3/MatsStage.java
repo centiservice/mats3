@@ -5,9 +5,8 @@ import io.mats3.MatsEndpoint.EndpointConfig;
 
 /**
  * A representation of a process stage of a {@link MatsEndpoint}. Either constructed implicitly (for single-stage
- * endpoints, and terminators), or by invoking the
- * {@link MatsEndpoint#stage(Class, io.mats3.MatsEndpoint.ProcessLambda) MatsEndpoint.stage(...)}-methods on
- * {@link MatsFactory#staged(String, Class, Class) multi-stage} endpoints.
+ * endpoints, and terminators), or by invoking the {@link MatsEndpoint#stage(Class, io.mats3.MatsEndpoint.ProcessLambda)
+ * MatsEndpoint.stage(...)}-methods on {@link MatsFactory#staged(String, Class, Class) multi-stage} endpoints.
  * <p />
  * Note: It should be possible to use instances of <code>MatsStage</code> as keys in a <code>HashMap</code>, i.e. their
  * equals and hashCode should remain stable throughout the life of the MatsFactory - and similar instances but with
@@ -62,6 +61,14 @@ public interface MatsStage<R, S, I> extends StartStoppable {
          *         {@link EndpointConfig#getEndpointId()}.
          */
         String getStageId();
+
+        /**
+         * @return the index number of the stage, where 0 is the initial stage where the {@link #getStageId()} is equal
+         *         to the Endpoint's {@link EndpointConfig#getEndpointId() endpointId}. Subsequent stages will have
+         *         indices 1, 2, 3 etc. This will typically also be reflected in the stageId for all non-initial stages,
+         *         where their stageIds are equal to <code>{endpointId}.stage{stageIndex}"
+         */
+        int getStageIndex();
 
         /**
          * TODO: Remove once all are >= 0.17

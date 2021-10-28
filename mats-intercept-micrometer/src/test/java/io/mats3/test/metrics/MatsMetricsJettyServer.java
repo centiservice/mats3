@@ -3,7 +3,9 @@ package io.mats3.test.metrics;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URL;
+import java.time.Duration;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.concurrent.ForkJoinPool;
 
 import javax.jms.ConnectionFactory;
@@ -16,6 +18,11 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import io.mats3.intercept.micrometer.MatsMicrometerInterceptor;
+import io.mats3.intercept.micrometer.MatsMicrometerInterceptor.SuggestedTimingHistogramsMeterFilter;
+import io.micrometer.core.instrument.Meter;
+import io.micrometer.core.instrument.config.MeterFilter;
+import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
 import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
@@ -45,6 +52,8 @@ import io.mats3.test.metrics.SetupTestMatsEndpoints.StateTO;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
+import io.prometheus.client.Collector.MetricFamilySamples;
+import io.prometheus.client.Collector.MetricFamilySamples.Sample;
 
 /**
  * @author Endre Stølsvik 2021-02-17 12:57 - http://stolsvik.com/, endre@stolsvik.com
@@ -132,7 +141,27 @@ public class MatsMetricsJettyServer {
         @Override
         protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
             res.setContentType("text/plain; charset=utf-8");
-            __prometheusMeterRegistry.scrape(res.getWriter());
+            log.info("Scrape!");
+            PrintWriter out = res.getWriter();
+
+            Enumeration<MetricFamilySamples> metricFamilySamplesEnumeration = __prometheusMeterRegistry
+                    .getPrometheusRegistry().metricFamilySamples();
+            int metricFamilies = 0;
+            int samples = 0;
+            while (metricFamilySamplesEnumeration.hasMoreElements()) {
+                MetricFamilySamples metricFamilySamples = metricFamilySamplesEnumeration.nextElement();
+                metricFamilies ++;
+                for (Sample sample : metricFamilySamples.samples) {
+                    samples ++;
+                }
+            }
+            out.println("# Debug info: ==========================");
+            out.println("#  MetricFamilySamples instances: " + metricFamilies);
+            out.println("#  Sample instances: " + samples);
+            out.println();
+            out.println("# Actual scrape: =======================");
+
+            __prometheusMeterRegistry.scrape(out);
         }
     }
 
@@ -257,6 +286,8 @@ public class MatsMetricsJettyServer {
         // new DiskSpaceMetrics(new File("/")).bindTo(Metrics.globalRegistry);
         // new ProcessorMetrics().bindTo(Metrics.globalRegistry); // metrics related to the CPU stats
         // new UptimeMetrics().bindTo(Metrics.globalRegistry);
+
+        Metrics.globalRegistry.config().meterFilter(new SuggestedTimingHistogramsMeterFilter());
 
         // Read in the server count as an argument, or assume 2
         int serverCount = (args.length > 0) ? Integer.parseInt(args[0]) : 2;

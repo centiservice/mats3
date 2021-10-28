@@ -3,9 +3,14 @@ package io.mats3.impl.jms;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -17,8 +22,10 @@ import io.mats3.MatsInitiator.InitiateLambda;
 import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.MatsInitiator.MessageReference;
 import io.mats3.MatsStage;
-import io.mats3.impl.jms.JmsMatsInitiator.MessageReferenceImpl;
+import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
+import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
 import io.mats3.api.intercept.MatsOutgoingMessage.DispatchType;
+import io.mats3.impl.jms.JmsMatsInitiator.MessageReferenceImpl;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
 import io.mats3.serial.MatsTrace.Call;
@@ -225,6 +232,152 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     @Override
     public void setTraceProperty(String propertyName, Object propertyValue) {
         _outgoingProps.put(propertyName, propertyValue);
+    }
+
+    static class Measurement implements MatsMeasurement {
+        final String _metricId;
+        final String _metricDescription;
+        final String _baseUnit;
+        final double _measure;
+        final String[] _labelKeyValue;
+
+        public Measurement(String metricId, String metricDescription, String baseUnit, double measure,
+                String[] labelKeyValue) {
+            _metricId = metricId;
+            _metricDescription = metricDescription;
+            _baseUnit = baseUnit;
+            _measure = measure;
+            _labelKeyValue = labelKeyValue;
+        }
+
+        @Override
+        public String getMetricId() {
+            return _metricId;
+        }
+
+        @Override
+        public String getMetricDescription() {
+            return _metricDescription;
+        }
+
+        @Override
+        public String getBaseUnit() {
+            return _baseUnit;
+        }
+
+        @Override
+        public double getMeasure() {
+            return _measure;
+        }
+
+        @Override
+        public String[] getLabelKeyValue() {
+            return _labelKeyValue;
+        }
+    }
+
+    static class TimingMeasurement implements MatsTimingMeasurement {
+        final String _metricId;
+        final String _metricDescription;
+        final long _nanos;
+        final String[] _labelKeyValue;
+
+        public TimingMeasurement(String metricId, String metricDescription, long nanos, String[] labelKeyValue) {
+            _metricId = metricId;
+            _metricDescription = metricDescription;
+            _nanos = nanos;
+            _labelKeyValue = labelKeyValue;
+        }
+
+        @Override
+        public String getMetricId() {
+            return _metricId;
+        }
+
+        @Override
+        public String getMetricDescription() {
+            return _metricDescription;
+        }
+
+        @Override
+        public long getNanos() {
+            return _nanos;
+        }
+
+        @Override
+        public String[] getLabelKeyValue() {
+            return _labelKeyValue;
+        }
+    }
+
+    private Set<String> _metricsIds = Collections.emptySet();
+    private List<MatsMeasurement> _measurements = Collections.emptyList();
+    private List<MatsTimingMeasurement> _timingMeasurements = Collections.emptyList();
+
+    @Override
+    public void logMeasurement(String metricId, String metricDescription, String baseUnit, double measure,
+            String... labelKeyValue) {
+        assertMetricArgs(metricId, metricDescription, baseUnit, labelKeyValue);
+        assertMetricId(metricId);
+        if (_measurements.isEmpty()) {
+            _measurements = new ArrayList<>();
+        }
+        _measurements.add(new Measurement(metricId, metricDescription, baseUnit, measure, labelKeyValue));
+    }
+
+    @Override
+    public void logTimingMeasurement(String metricId, String metricDescription, long nanos, String... labelKeyValue) {
+        assertMetricArgs(metricId, metricDescription, "dummy", labelKeyValue);
+        assertMetricId(metricId);
+        if (_timingMeasurements.isEmpty()) {
+            _timingMeasurements = new ArrayList<>();
+        }
+        _timingMeasurements.add(new TimingMeasurement(metricId, metricDescription, nanos, labelKeyValue));
+    }
+
+    static void assertMetricArgs(String metricId, String metricDescription, String baseUnit, String... labelKeyValue) {
+        if (metricId == null) {
+            throw new NullPointerException("metricId");
+        }
+        if (metricId.isEmpty()) {
+            throw new IllegalArgumentException("'metricId' is empty.");
+        }
+        if (metricDescription == null) {
+            throw new NullPointerException("metricDescription");
+        }
+        if (baseUnit == null) {
+            throw new NullPointerException("baseUnit");
+        }
+        for (int i = 0; i < labelKeyValue.length; i++) {
+            if (labelKeyValue[i] == null) {
+                throw new IllegalArgumentException("Value [" + i + "] of the labelKeyValue vararg array is null: "
+                        + Arrays.toString(labelKeyValue));
+            }
+        }
+        if ((labelKeyValue.length & 1) == 1) {
+            throw new IllegalArgumentException("The labelKeyValue vararg array has an odd number of elements, which"
+                    + " doesn't make sense since it should be alternate key-value pars: " + Arrays.toString(
+                    labelKeyValue));
+        }
+    }
+
+    private void assertMetricId(String metricId) {
+        if (_metricsIds.contains(metricId)) {
+            throw new IllegalArgumentException("The metricId [" + metricId + "] has been logged earlier.");
+        }
+        if (_metricsIds.isEmpty()) {
+            _metricsIds = new HashSet<>();
+        }
+        _metricsIds.add(metricId);
+    }
+
+
+    List<MatsMeasurement> getMeasurements() {
+        return _measurements;
+    }
+
+    List<MatsTimingMeasurement> getTimingMeasurements() {
+        return _timingMeasurements;
     }
 
     static final byte[] NO_NEXT_STAGE = "-".getBytes(StandardCharsets.UTF_8);
@@ -496,7 +649,6 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _outgoingStrings.clear();
         return matsMessageId;
     }
-
 
     @Override
     public void initiate(InitiateLambda lambda) {

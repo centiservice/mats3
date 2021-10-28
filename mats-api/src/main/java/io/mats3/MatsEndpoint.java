@@ -526,6 +526,99 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         void setTraceProperty(String propertyName, Object propertyValue);
 
         /**
+         * Adds a measurement of a described variable, in a base unit, for this Stage - <b>be sure to understand that
+         * the three String parameters are <i>constants</i> for each measurement.</b> To exemplify, you may measure five
+         * different things in a Stage, i.e. "number of items in order", "total amount for order in dollar", etc - and
+         * each of these obviously have different metricId, metricDescription and possibly different baseUnit from each
+         * other. BUT, the specific arguments for "number of items in order" (outside the measure itself!) shall not
+         * change between one Stage processing and the next: e.g. the metricDescription shall <b>NOT</b> be dynamically
+         * constructed to e.g. say <i>"Number of items in order 1234 for customer 5678"</i>.
+         * <p />
+         * Note: It is illegal to use the same 'metricId' for more than one measurement for a given stage, and this also
+         * goes between measurements and {@link #logTimingMeasurement(String, String, long, String...) timing
+         * measurements}.
+         * <p />
+         * <b>Inclusion as metric by plugin 'mats-intercept-micrometer'</b>: A new meter will be created (and cached),
+         * of type <code>DistributionSummary</code>, with the 'name' set to
+         * <code>"mats.exec.ops.measure.{metricId}.{baseUnit}"</code> ("measure"-&gt;"time" for timings), and
+         * 'description' to description. (Tags/labels already added on the meter by the plugin include 'appName',
+         * 'initiatorId', 'initiatingAppName', 'stageId' (for stages), and 'initiatorName' (for inits)). Read about
+         * parameter 'labelKeyValue' below.
+         * <p />
+         * <b>Inclusion as log line by plugin 'mats-intercept-logging'</b>: A log line will be output by each added
+         * measurement, where the MDC for that log line will have an entry with key
+         * <code>"mats.ops.measure.{metricId}.{baseUnit}"</code>. Read about parameter 'labelKeyValue' below.
+         * <p />
+         * It generally makes most sense if the same metrics are added for each processing of a particular Stage, i.e.
+         * if the "number of items" are 0, then that should also be recorded along with the "total amount for order in
+         * dollar" as 0, not just elided. Otherwise, your metrics will be skewed.
+         * <p />
+         * You should use a dot-notation for the metricId if you want to add multiple meters with a
+         * hierarchical/subdivision layout.
+         * <p />
+         * The vararg 'labelKeyValue' is an optional element where the String-array consist of one or several alternate
+         * key, value pairs. <b>Do not employ this feature unless you know what the effects are, and you actually need
+         * it!</b> This will be added as labels/tags to the metric, and added to the SLF4J MDC for the measurement log
+         * line with the key being <code>"mats.ops.measure.{metricId}.{labelKey}"</code> ("measure"-&gt;"time" for
+         * timings). The keys should be constants as explained for the other parameters, while the value can change, but
+         * only between a given set of values (think <code>enum</code>) - using e.g. the 'customerId' as value doesn't
+         * make sense and will blow up your metric cardinality. Notice that if you do employ e.g. two labels, each
+         * having one of three values, <i>you'll effectively create 9 different meters</i>, where your measurement will
+         * go to one of them.
+         * <p />
+         * <b>NOTICE: If you want to do a timing, then instead use
+         * {@link #logTimingMeasurement(String, String, long, String...)}</b>
+         *
+         * @param metricId
+         *            constant, short, possibly dot-separated if hierarchical, id for this particular metric, e.g.
+         *            "items" or "amount", or "db.query.orders".
+         * @param metricDescription
+         *            constant, textual description for this metric, e.g. "Number of items in customer order", "Total
+         *            amount of customer order"
+         * @param baseUnit
+         *            the unit for this measurement, e.g. "quantity" (for a count measure), "dollar" (for an amount), or
+         *            "bytes" (for a document size).
+         * @param measure
+         *            value of the measurement
+         * @param labelKeyValue
+         *            a String-vararg array consisting of alternate key,value pairs which will becomes labels or tags or
+         *            entries for the metrics and log lines. <b>Read the JavaDoc above; the keys shall be "static" for a
+         *            specific measure, while the values can change between a specific small set values.</b>
+         */
+        void logMeasurement(String metricId, String metricDescription, String baseUnit, double measure,
+                String... labelKeyValue);
+
+        /**
+         * Same as {@link #logMeasurement(String, String, String, double, String...) addMeasurement(..)}, but
+         * specifically for timings - <b>Read that JavaDoc!</b>
+         * <p />
+         * Note: It is illegal to use the same 'metricId' for more than one measurement for a given stage, and this also
+         * goes between timing measurements and {@link #logMeasurement(String, String, String, double, String...)
+         * measurements}.
+         * <p />
+         * For the metrics-plugin 'mats-intercept-micrometer' plugin, the 'baseUnit' argument is deduced to whatever is
+         * appropriate for the receiving metrics system, e.g. for Prometheus it is "seconds", even though you always
+         * record the measurement in nanoseconds using this method.
+         * <p />
+         * For the logging-plugin 'mats-intercept-logging' plugin, the timing in the log line will be in milliseconds
+         * (with fractions), even though you always record the measurement in nanoseconds using this method.
+         *
+         * @param metricId
+         *            constant, short, possibly dot-separated if hierarchical, id for this particular metric, e.g.
+         *            "db.query.orders" or "calcprofit".
+         * @param metricDescription
+         *            constant, textual description for this metric, e.g. "Time taken to execute order query", "Time
+         *            taken to calculate profit or loss".
+         * @param nanos
+         *            time taken <b>in nanoseconds</b>
+         * @param labelKeyValue
+         *            a String-vararg array consisting of alternate key,value pairs which will becomes labels or tags or
+         *            entries for the metrics and log lines. Read the JavaDoc at
+         *            {@link #logMeasurement(String, String, String, double, String...) addMeasurement(..)}
+         */
+        void logTimingMeasurement(String metricId, String metricDescription, long nanos, String... labelKeyValue);
+
+        /**
          * Returns a binary representation of the current Mats flow's incoming execution point, which can be
          * {@link MatsInitiate#unstash(byte[], Class, Class, Class, ProcessLambda) unstashed} again at a later time
          * using the {@link MatsInitiator}, thereby providing a simplistic "continuation" feature in Mats. You will have
@@ -965,6 +1058,18 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         @Override
         public void setTraceProperty(String propertyName, Object propertyValue) {
             unwrap().setTraceProperty(propertyName, propertyValue);
+        }
+
+        @Override
+        public void logMeasurement(String metricId, String metricDescription, String baseUnit, double measure,
+                String... labelKeyValue) {
+            unwrap().logMeasurement(metricId, metricDescription, baseUnit, measure, labelKeyValue);
+        }
+
+        @Override
+        public void logTimingMeasurement(String metricId, String metricDescription, long nanos,
+                String... labelKeyValue) {
+            unwrap().logTimingMeasurement(metricId, metricDescription, nanos, labelKeyValue);
         }
 
         @Override

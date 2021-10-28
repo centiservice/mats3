@@ -2,11 +2,19 @@ package io.mats3.impl.jms;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
+import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
+import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
+import io.mats3.impl.jms.JmsMatsProcessContext.Measurement;
+import io.mats3.impl.jms.JmsMatsProcessContext.TimingMeasurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -266,6 +274,51 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
     public MatsInitiate addString(String key, String payload) {
         _strings.put(key, payload);
         return this;
+    }
+
+    private Set<String> _metricsIds = Collections.emptySet();
+    private List<MatsMeasurement> _measurements = Collections.emptyList();
+    private List<MatsTimingMeasurement> _timingMeasurements = Collections.emptyList();
+
+    @Override
+    public MatsInitiate logMeasurement(String metricId, String metricDescription, String baseUnit, double measure,
+            String... labelKeyValue) {
+        JmsMatsProcessContext.assertMetricArgs(metricId, metricDescription, baseUnit, labelKeyValue);
+        assertMetricId(metricId);
+        if (_measurements.isEmpty()) {
+            _measurements = new ArrayList<>();
+        }
+        _measurements.add(new Measurement(metricId, metricDescription, baseUnit, measure, labelKeyValue));
+        return this;
+    }
+
+    @Override
+    public MatsInitiate logTimingMeasurement(String metricId, String metricDescription, long nanos, String... labelKeyValue) {
+        JmsMatsProcessContext.assertMetricArgs(metricId, metricDescription, "dummy", labelKeyValue);
+        assertMetricId(metricId);
+        if (_timingMeasurements.isEmpty()) {
+            _timingMeasurements = new ArrayList<>();
+        }
+        _timingMeasurements.add(new TimingMeasurement(metricId, metricDescription, nanos, labelKeyValue));
+        return this;
+    }
+
+    private void assertMetricId(String metricId) {
+        if (_metricsIds.contains(metricId)) {
+            throw new IllegalArgumentException("The metricId [" + metricId + "] has been logged earlier.");
+        }
+        if (_metricsIds.isEmpty()) {
+            _metricsIds = new HashSet<>();
+        }
+        _metricsIds.add(metricId);
+    }
+
+    List<MatsMeasurement> getMeasurements() {
+        return _measurements;
+    }
+
+    List<MatsTimingMeasurement> getTimingMeasurements() {
+        return _timingMeasurements;
     }
 
     @Override

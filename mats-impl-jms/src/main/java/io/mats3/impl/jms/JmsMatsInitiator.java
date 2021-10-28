@@ -308,6 +308,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                 InitiateCompletedContextImpl initiateCompletedContext = new InitiateCompletedContextImpl(
                         interceptContext,
                         nanosTaken_UserLambda[0],
+                        init.getMeasurements(),
+                        init.getTimingMeasurements(),
                         nanosTaken_totalEnvelopeSerialization[0],
                         internalExecutionContext.getDbCommitNanos(),
                         nanosTaken_totalProduceAndSendMsgSysMessages[0],
@@ -317,7 +319,14 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                         Collections.unmodifiableList(messagesToSend));
                 // Go through interceptors "backwards" for this exit-style stage
                 for (int i = interceptorsForInitiation.size() - 1; i >= 0; i--) {
-                    interceptorsForInitiation.get(i).initiateCompleted(initiateCompletedContext);
+                    try {
+                        interceptorsForInitiation.get(i).initiateCompleted(initiateCompletedContext);
+                    }
+                    catch (Throwable t) {
+                        log.error("InitiateInterceptor [" + interceptorsForInitiation.get(i) + "] raised a ["
+                                + t.getClass().getSimpleName() + "] when invoking initiateCompleted(..)"
+                                + " - ignoring, but this is probably quite bad.", t);
+                    }
                 }
             }
         }
@@ -590,6 +599,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         private final InitiateContextImpl _initiationInterceptContext;
 
         private final long _userLambdaNanos;
+        private final List<MatsMeasurement> _measurements;
+        private final List<MatsTimingMeasurement> _timingMeasurements;
         private final long _envelopeSerializationNanos;
         private final long _messageSystemMessageProductionAndSendNanos;
         private final long _dbCommitNanos;
@@ -602,6 +613,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                 InitiateContextImpl initiationInterceptContext,
 
                 long userLambdaNanos,
+                List<MatsMeasurement> measurements,
+                List<MatsTimingMeasurement> timingMeasurements,
                 long envelopeSerializationNanos,
                 long dbCommitNanos,
                 long messageSystemMessageProductionAndSendNanos,
@@ -613,6 +626,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             _initiationInterceptContext = initiationInterceptContext;
 
             _userLambdaNanos = userLambdaNanos;
+            _measurements = measurements;
+            _timingMeasurements = timingMeasurements;
             _envelopeSerializationNanos = envelopeSerializationNanos;
             _messageSystemMessageProductionAndSendNanos = messageSystemMessageProductionAndSendNanos;
             _dbCommitNanos = dbCommitNanos;
@@ -636,6 +651,16 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         @Override
         public long getUserLambdaNanos() {
             return _userLambdaNanos;
+        }
+
+        @Override
+        public List<MatsMeasurement> getMeasurements() {
+            return _measurements;
+        }
+
+        @Override
+        public List<MatsTimingMeasurement> getTimingMeasurements() {
+            return _timingMeasurements;
         }
 
         @Override

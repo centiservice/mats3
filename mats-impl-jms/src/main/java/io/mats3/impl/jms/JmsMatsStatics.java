@@ -11,6 +11,7 @@ import javax.jms.MapMessage;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 
+import io.mats3.serial.MatsTrace.Call;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
 
@@ -86,7 +87,7 @@ public interface JmsMatsStatics {
     int MAX_TOTAL_CALL_NUMBER = 100;
 
     /**
-     * If an outgoing message has {@link MatsTrace#getTotalCallNumber()} higher than this (25), the processing will be
+     * If an outgoing message has {@link Call#getReplyStackHeight()} higher than this (25), the processing will be
      * refused (i.e. {@link MatsRefuseMessageException} will be thrown).
      */
     int MAX_STACK_HEIGHT = 25;

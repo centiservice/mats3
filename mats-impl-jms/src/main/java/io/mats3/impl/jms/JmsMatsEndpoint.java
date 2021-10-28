@@ -73,8 +73,10 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
             throw new IllegalStateException("Endpoint [" + _endpointId
                     + "] has already had its finishSetup() invoked.");
         }
+        // Get the stageIndex: Current number of stages in the _stages-list, the first get #0.
+        int stageIndex = _stages.size();
         // Make stageId, which is the endpointId for the first, then endpointId.stage1, stage2 etc.
-        String stageId = _stages.size() == 0 ? _endpointId : _endpointId + ".stage" + (_stages.size());
+        String stageId = stageIndex == 0 ? _endpointId : _endpointId + ".stage" + (stageIndex);
 
         // :: Assert that we can instantiate an object of incoming class
         // ?: Is this "MatsObject", in which case the deserialization will happen runtime, i.e. cannot early check.
@@ -83,7 +85,7 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
             _parentFactory.assertOkToInstantiateClass(incomingClass, "Incoming DTO Class", "Stage " + stageId);
         }
 
-        JmsMatsStage<R, S, I, Z> stage = new JmsMatsStage<>(this, stageId, _queue,
+        JmsMatsStage<R, S, I, Z> stage = new JmsMatsStage<>(this, stageIndex, stageId, _queue,
                 incomingClass, _stateClass, processor);
         // :: Set this next stage's Id on the previous stage, unless we're first, in which case there is no previous.
         if (_stages.size() > 0) {

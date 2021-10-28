@@ -13,14 +13,16 @@ import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.MatsInitiator.MatsInitiateWrapper;
 import io.mats3.MatsInitiator.MessageReference;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
-import io.mats3.api.intercept.MatsInitiateInterceptor.MatsInitiateInterceptUserLambda;
 import io.mats3.api.intercept.MatsInitiateInterceptor.MatsInitiateInterceptOutgoingMessages;
+import io.mats3.api.intercept.MatsInitiateInterceptor.MatsInitiateInterceptUserLambda;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.junit.Rule_Mats;
 
 /**
  * Simple interception test which doesn't really test anything except showing, in the logs, the code sequence described
  * in JavaDoc of {@link MatsInitiateInterceptor}.
+ *
+ * TODO: De-shit this test, i.e. make it into a test.
  *
  * @author Endre Stølsvik - 2021-01-17 13:35 - http://endre.stolsvik.com
  */
@@ -29,7 +31,6 @@ public class Test_InitiationIntercept_JavaDoc {
 
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
-
 
     public static final CountDownLatch _countDownLatch = new CountDownLatch(2);
 
@@ -120,6 +121,5 @@ public class Test_InitiationIntercept_JavaDoc {
             log.info("Stage 'Completed', interceptor #" + _number + ", messages:" + context
                     .getOutgoingMessages());
         }
-
     }
 }
