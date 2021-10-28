@@ -7,7 +7,7 @@ wrapper {
 
 allprojects {
     group = 'io.mats3'
-    version = '0.18.2-2021-10-15'
+    version = 'RC-0.18.3-2021-10-28'
 }
 
 // Versions for all libraries used throughout the subprojects
