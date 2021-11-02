@@ -25,6 +25,7 @@ import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.api.intercept.MatsMetricsInterceptor;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
+import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor;
 import io.mats3.intercept.micrometer.MatsMicrometerInterceptor.ExecutionMetrics.ExecutionMetricsParams;
 import io.mats3.intercept.micrometer.MatsMicrometerInterceptor.MessageMetrics.MessageMetricsParams;
@@ -57,16 +58,17 @@ import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
  * <p />
  * Note the argument 'includeAllTags' on the second install(..) method: If this is <code>true</code>, then tags will be
  * added to the meters which will give higher semantic resolution and more information, but which might result in a
- * quite substantial number of time series - if you have a popular with many stages targeted by many other services
- * (thus getting many differing 'initiatingAppName' and 'initiatorId'), you may get a "cardinality explosion", in
- * particular if you also configure histograms. It is thus <code>false</code> by default, i.e. when using the first
- * install(..) method.<br />
- * Which situation and which extra tags if 'includeAllTags' is <code>true</code>:
+ * quite substantial number of time series - if you have a popular Mats endpoint with many stages targeted by many other
+ * services (thus getting many differing 'from', 'initiatingAppName' and 'initiatorId'), you may get a "cardinality
+ * explosion", in particular if you also configure histograms. It is thus <code>false</code> by default, i.e. when using
+ * the first install(..) method.<br />
+ * Which extra tags are omitted in which situations when 'includeAllTags' is <code>false</code>:
  * <ul>
- * <li>Initiation outgoing messages: "to" (to which stage).</li>
- * <li>Received (incoming message): "from" (from which stage), "initiatingAppName" and "initiatorId".</li>
+ * <li>Received (incoming message): "from" (from which stage) <i>for initial stage</i>, "initiatingAppName" and
+ * "initiatorId".</li>
  * <li>Stage execution: "initiatingAppName" and "initiatorId".</li>
- * <li>Stage outgoing messages: "to", "initiatingAppName" and "initiatorId".</li>
+ * <li>Stage outgoing messages: "to" (to which stage) <i>for REPLY-messages</i> (as that will have same cardinality as
+ * 'from'), "initiatingAppName" and "initiatorId".</li>
  * </ul>
  * You may set 'includeAllTags' to <code>true</code>, and then use a {@link MeterFilter} to tweak the tags with more
  * precision than this all-or-nothing approach, e.g. include "initiatingAppName" and "initiatorId" for specific
@@ -259,27 +261,30 @@ public class MatsMicrometerInterceptor
         return install(matsInterceptableMatsFactory, Metrics.globalRegistry, false);
     }
 
+    /*
+     * NOTE: We're forced to use identical set of Tags (labels) across initiations and stages, due to this issue
+     * https://github.com/micrometer-metrics/micrometer/issues/877. The underlying issue seems to be the official
+     * Prometheus "client_java" which doesn't allow registering two distinct measures having the same name but differing
+     * labels: https://github.com/prometheus/client_java/issues/696.
+     *
+     * Therefore, we add all Tags both for init and stage, with the empty string for those irrelevant, bypassing the
+     * problem.
+     */
+
     @Override
     public void initiateCompleted(InitiateCompletedContext ctx) {
         // :: INITIATION TIMINGS AND SIZES
-
-        /*
-         * NOTE: We're forced to use identical set of Tags (labels) across initiations and stages, due to this issue
-         * https://github.com/micrometer-metrics/micrometer/issues/877. The underlying issue seems to be the official
-         * Prometheus "client_java" which doesn't allow registering two distinct measures having the same name but
-         * differing labels: https://github.com/prometheus/client_java/issues/696.
-         *
-         * Therefore, we add the "opposite" Tags with the empty string, bypassing the problem.
-         */
 
         String initiatingAppName = ctx.getInitiator().getParentFactory().getFactoryConfig().getAppName();
         String initiatorName = ctx.getInitiator().getName();
         /*
          * The initiatorId is set by sending an actual message. If no message is sent from an initation lambda, there is
-         * no initiatorId. But the lambda still executed, so we want to measure it. In case of multiple messages in one
-         * initiation, each "initiatorId" (i.e. MatsInitiate.from(..)) might be different. Assuming that I have an idea
-         * of how developers use the system, this should really not be a common situation. Therefore, we just pick the
-         * first message's "from" (i.e. "initiatorId") to tag the timings with.
+         * no initiatorId. But the lambda still executed, so we want to measure it - thus using a fictive initiatorId in
+         * the no-outgoing-message case.
+         *
+         * In case of multiple messages in one initiation, each "initiatorId" (i.e. MatsInitiate.from(..)) might be
+         * different. Assuming that I have an idea of how developers use the system, this should really not be a common
+         * situation. Therefore, we just pick the first message's "from" (i.e. "initiatorId") to tag the timings with.
          */
         List<MatsSentOutgoingMessage> outgoingMessages = ctx.getOutgoingMessages();
         String commonInitiatorId = outgoingMessages.isEmpty()
@@ -299,9 +304,9 @@ public class MatsMicrometerInterceptor
         // :: FOR-EACH-MESSAGE: RECORD TIMING AND SIZES
         // Note: here we use each message's "from" (i.e. "initiatorId").
         for (MatsSentOutgoingMessage msg : outgoingMessages) {
-            String to = _includeAllTags ? msg.getTo() : "";
             MessageMetrics messageMetrics = _messageMetricsCache.getOrCreate(new MessageMetricsParams("init",
-                    initiatingAppName, initiatorName, msg.getInitiatorId(), "", NO_STAGE_INDEX, to));
+                    msg.getMessageType().toString(), initiatingAppName, initiatorName, msg.getInitiatorId(),
+                    "", NO_STAGE_INDEX, msg.getTo()));
             // ?: Did we get a MessageMetrics?
             if (messageMetrics != null) {
                 // -> Yes, we got it, so cardinality-explosion-avoidance has NOT kicked in.
@@ -315,12 +320,13 @@ public class MatsMicrometerInterceptor
         ProcessContext<Object> processContext = ctx.getProcessContext();
         String initiatingAppName = _includeAllTags ? processContext.getInitiatingAppName() : "";
         String initiatorId = _includeAllTags ? processContext.getInitiatorId() : "";
-        String from = _includeAllTags ? processContext.getFromStageId() : "";
         String stageId = processContext.getStageId();
         int stageIndex = ctx.getStage().getStageConfig().getStageIndex();
 
-        ReceivedMetrics receivedMetrics = _receivedMetricsCache.getOrCreate(new ReceivedMetricsParams(initiatingAppName,
-                initiatorId, from, stageId, stageIndex));
+        String from = (!_includeAllTags) && (stageIndex == 0) ? "" : processContext.getFromStageId();
+
+        ReceivedMetrics receivedMetrics = _receivedMetricsCache.getOrCreate(new ReceivedMetricsParams(
+                ctx.getIncomingMessageType().toString(), initiatingAppName, initiatorId, from, stageId, stageIndex));
         // ?: Did we get an ReceivedMetrics?
         if (receivedMetrics != null) {
             // -> Yes, we got it, so cardinality-explosion-avoidance has NOT kicked in.
@@ -349,6 +355,16 @@ public class MatsMicrometerInterceptor
         // :: FOR-EACH-MESSAGE: RECORD TIMING AND SIZES
         for (MatsSentOutgoingMessage msg : ctx.getOutgoingMessages()) {
             /*
+             * If 'includeAllTags' == false, AND this is a REPLY, then DO NOT include the 'to'. The rationale here is
+             * that a popular endpoint will potentially have many different incoming 'from' (which we exclude if
+             * 'includeAllTags' is false), and therefore also many different outgoing 'REPLY'-to (which we then also
+             * should exclude). For all other types, the 'to' will typically just be a single collaborator, i.e.
+             * "SomeEndpoint.stage1" will always send a REQUEST to "SomeSpecificEndpoint" - the exception to this is
+             * that if stage1 sometimes run NEXT or GOTO instead of REQUEST (thus different 'to') - but which won't
+             * explode the cardinality to the same level (if it does REPLY, that is still excluded).
+             */
+            String to = (!_includeAllTags) && (msg.getMessageType() == MessageType.REPLY) ? "" : msg.getTo();
+            /*
              * NOTICE: We use the current stageId as "from", not 'msg.getFrom()'. The reason here is both that a) in a
              * normal Mats flow situation (REQUEST/REPLY/NEXT/GOTO), it will be the same anyway, b) the latter can
              * potentially lead to cardinality explosion as it may be set by the user when initiating from a stage, but
@@ -357,9 +373,9 @@ public class MatsMicrometerInterceptor
              * lambda by the user. (I somewhat regret that it is possible to set the 'from' when initiating within a
              * stage).
              */
-            String to = _includeAllTags ? msg.getTo() : "";
             MessageMetrics messageMetrics = _messageMetricsCache.getOrCreate(new MessageMetricsParams("stage",
-                    initiatingAppName, "", msg.getInitiatorId(), stageId, stageIndex, to));
+                    msg.getMessageType().toString(), initiatingAppName, "", msg.getInitiatorId(),
+                    stageId, stageIndex, to));
             // ?: Did we get a MessageMetrics?
             if (messageMetrics != null) {
                 // -> Yes, we got it, so cardinality-explosion-avoidance has NOT kicked in.
@@ -582,6 +598,7 @@ public class MatsMicrometerInterceptor
                 _stageId = stageId;
                 _stageIndex = stageIndex;
 
+                // Ignoring stageIndex, since it follows stageId, which we include.
                 _hashCode = executionType.hashCode() + initiatingAppName.hashCode() + initiatorName.hashCode()
                         + initiatorId.hashCode() + stageId.hashCode();
             }
@@ -589,7 +606,7 @@ public class MatsMicrometerInterceptor
             @Override
             public boolean equals(Object o) {
                 ExecutionMetricsParams that = (ExecutionMetricsParams) o;
-                // Ignoring stageIndex, since it follows stageId, which we include. (stageIndex might here be -1)
+                // Ignoring stageIndex, since it follows stageId, which we include.
                 return Objects.equals(_executionType, that._executionType)
                         && Objects.equals(_initiatingAppName, that._initiatingAppName)
                         && Objects.equals(_initiatorName, that._initiatorName)
@@ -730,12 +747,12 @@ public class MatsMicrometerInterceptor
         @Override
         public boolean equals(Object o) {
             UserMetricsParams that = (UserMetricsParams) o;
-            // Ignore stageId, as it follows stageIndex.
+            // Ignoring stageIndex, since it follows stageId, which we include.
             // Ignoring metricDescription, since this is not part of the key for the meter.
             return Objects.equals(_executionType, that._executionType)
                     && Objects.equals(_initiatingAppName, that._initiatingAppName)
                     && Objects.equals(_initiatorId, that._initiatorId)
-                    && _stageIndex == that._stageIndex
+                    && Objects.equals(_stageId, that._stageId)
 
                     && Objects.equals(_metricId, that._metricId)
                     && Objects.equals(_baseUnit, that._baseUnit)
@@ -774,6 +791,7 @@ public class MatsMicrometerInterceptor
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", "stage") // Just adding this to point out that it definitely refers to a stage.
+                    .tag("type", params._messageType)
                     .tag("initiatingAppName", params._initiatingAppName)
                     .tag("initiatorId", params._initiatorId)
                     .tag("from", params._from)
@@ -788,6 +806,7 @@ public class MatsMicrometerInterceptor
         }
 
         static class ReceivedMetricsParams {
+            final String _messageType;
             final String _initiatingAppName;
             final String _initiatorId;
             final String _from;
@@ -796,28 +815,30 @@ public class MatsMicrometerInterceptor
 
             final int _hashCode;
 
-            public ReceivedMetricsParams(String initiatingAppName, String initiatorId,
+            public ReceivedMetricsParams(String messageType, String initiatingAppName, String initiatorId,
                     String from, String stageId, int stageIndex) {
+                _messageType = messageType;
                 _initiatingAppName = initiatingAppName;
                 _initiatorId = initiatorId;
                 _from = from;
                 _stageId = stageId;
                 _stageIndex = stageIndex;
 
-                // Ignore stageId, as it follows stageIndex. (stageIndex will be 0-n, since this will always be stage)
+                // Ignoring stageIndex, since it follows stageId, which we include.
                 // Not using Objects.hash(..) to avoid array creation, and effectively unroll.
-                _hashCode = (initiatingAppName.hashCode() + initiatorId.hashCode()
-                        + from.hashCode()) * (stageIndex + 1);
+                _hashCode = messageType.hashCode() + initiatingAppName.hashCode() + initiatorId.hashCode()
+                        + from.hashCode() + stageId.hashCode();
             }
 
             @Override
             public boolean equals(Object o) {
                 ReceivedMetricsParams that = (ReceivedMetricsParams) o;
-                // Ignore stageId, as it follows stageIndex.
-                return Objects.equals(_initiatingAppName, that._initiatingAppName)
+                // Ignoring stageIndex, since it follows stageId, which we include.
+                return Objects.equals(_messageType, that._messageType)
+                        && Objects.equals(_initiatingAppName, that._initiatingAppName)
                         && Objects.equals(_initiatorId, that._initiatorId)
                         && Objects.equals(_from, that._from)
-                        && _stageIndex == that._stageIndex;
+                        && Objects.equals(_stageId, that._stageId);
             }
 
             @Override
@@ -828,7 +849,8 @@ public class MatsMicrometerInterceptor
             @Override
             public String toString() {
                 return "ReceivedMetricsParams{" +
-                        "_initiatingAppName='" + _initiatingAppName + '\'' +
+                        "_messageType='" + _messageType + '\'' +
+                        ", _initiatingAppName='" + _initiatingAppName + '\'' +
                         ", _initiatorId='" + _initiatorId + '\'' +
                         ", _from='" + _from + '\'' +
                         ", _stageId='" + _stageId + '\'' +
@@ -854,9 +876,10 @@ public class MatsMicrometerInterceptor
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
+                    .tag("type", params._messageType)
                     .tag("initiatingAppName", params._initiatingAppName)
                     .tag("initiatorName", params._initiatorName)
-                    .tag("initiatorId", params._msgInitiatorId)
+                    .tag("initiatorId", params._initiatorId)
                     .tag("stageId", params._stageId)
                     .tag("stageIndex", stageIndexValue)
                     .tag("to", params._to)
@@ -868,9 +891,10 @@ public class MatsMicrometerInterceptor
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
+                    .tag("type", params._messageType)
                     .tag("initiatingAppName", params._initiatingAppName)
                     .tag("initiatorName", params._initiatorName)
-                    .tag("initiatorId", params._msgInitiatorId)
+                    .tag("initiatorId", params._initiatorId)
                     .tag("stageId", params._stageId)
                     .tag("stageIndex", stageIndexValue)
                     .tag("to", params._to)
@@ -882,9 +906,10 @@ public class MatsMicrometerInterceptor
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
+                    .tag("type", params._messageType)
                     .tag("initiatingAppName", params._initiatingAppName)
                     .tag("initiatorName", params._initiatorName)
-                    .tag("initiatorId", params._msgInitiatorId)
+                    .tag("initiatorId", params._initiatorId)
                     .tag("stageId", params._stageId)
                     .tag("stageIndex", stageIndexValue)
                     .tag("to", params._to)
@@ -895,9 +920,10 @@ public class MatsMicrometerInterceptor
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
+                    .tag("type", params._messageType)
                     .tag("initiatingAppName", params._initiatingAppName)
                     .tag("initiatorName", params._initiatorName)
-                    .tag("initiatorId", params._msgInitiatorId)
+                    .tag("initiatorId", params._initiatorId)
                     .tag("stageId", params._stageId)
                     .tag("stageIndex", stageIndexValue)
                     .tag("to", params._to)
@@ -918,40 +944,44 @@ public class MatsMicrometerInterceptor
 
         static class MessageMetricsParams {
             final String _executionType;
+            final String _messageType;
             final String _initiatingAppName;
             final String _initiatorName;
-            final String _msgInitiatorId;
+            final String _initiatorId;
             final String _stageId;
             final int _stageIndex; // NO_STAGE_INDEX if initiation
             final String _to;
 
             final int _hashCode;
 
-            MessageMetricsParams(String executionType, String initiatingAppName, String initiatorName,
-                    String msgInitiatorId, String stageId, int stageIndex, String to) {
+            MessageMetricsParams(String executionType, String messageType,
+                    String initiatingAppName, String initiatorName, String initiatorId,
+                    String stageId, int stageIndex, String to) {
                 _executionType = executionType;
+                _messageType = messageType;
                 _initiatingAppName = initiatingAppName;
                 _initiatorName = initiatorName;
-                _msgInitiatorId = msgInitiatorId;
+                _initiatorId = initiatorId;
                 _stageId = stageId;
                 _stageIndex = stageIndex;
                 _to = to;
 
-                // Ignoring stageIndex, since it follows stageId, which we include. (stageIndex might here be -1)
+                // Ignoring stageIndex, since it follows stageId, which we include.
                 // Not using Objects.hash(..) to avoid array creation, and effectively unroll.
-                _hashCode = executionType.hashCode() + initiatingAppName.hashCode() + initiatorName.hashCode()
-                        + msgInitiatorId.hashCode() + stageId.hashCode() + to.hashCode();
+                _hashCode = executionType.hashCode() + messageType.hashCode() + initiatingAppName.hashCode()
+                        + initiatorName.hashCode() + initiatorId.hashCode() + stageId.hashCode() + to.hashCode();
             }
 
             @Override
             public boolean equals(Object o) {
                 MessageMetricsParams that = (MessageMetricsParams) o;
-                // Ignore stageId, as it follows stageIndex.
+                // Ignoring stageIndex, since it follows stageId, which we include.
                 return Objects.equals(_executionType, that._executionType)
+                        && Objects.equals(_messageType, that._messageType)
                         && Objects.equals(_initiatingAppName, that._initiatingAppName)
                         && Objects.equals(_initiatorName, that._initiatorName)
-                        && Objects.equals(_msgInitiatorId, that._msgInitiatorId)
-                        && _stageIndex == that._stageIndex
+                        && Objects.equals(_initiatorId, that._initiatorId)
+                        && Objects.equals(_stageId, that._stageId)
                         && Objects.equals(_to, that._to);
             }
 
@@ -964,9 +994,10 @@ public class MatsMicrometerInterceptor
             public String toString() {
                 return "MessageMetricsParams{" +
                         "_executionType='" + _executionType + '\'' +
+                        ", _messageType='" + _messageType + '\'' +
                         ", _initiatingAppName='" + _initiatingAppName + '\'' +
                         ", _initiatorName='" + _initiatorName + '\'' +
-                        ", _msgInitiatorId='" + _msgInitiatorId + '\'' +
+                        ", _initiatorId='" + _initiatorId + '\'' +
                         ", _stageId='" + _stageId + '\'' +
                         ", _stageIndex=" + _stageIndex +
                         ", _to='" + _to + '\'' +
