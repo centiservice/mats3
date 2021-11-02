@@ -95,13 +95,17 @@ public class SetupTestMatsEndpoints {
             sto.number2 = Math.E * 2;
 
             // Add measurement
-            context.logMeasurement("test.measure1", "Test measurement 1 from stage 1 of master", "test", Math.PI);
-            context.logMeasurement("test.measure2", "Test measurement 2 from stage 1 of master", "test", Math.PI, "labelKeyA", "labelValueA");
-            context.logMeasurement("test.measure3", "Test measurement 3 from stage 1 of master", "test", Math.PI, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
+            context.logMeasurement("test.stagemeasure1", "Test measurement 1 from stage 1 of master", "test", Math.PI);
+            context.logMeasurement("test.stagemeasure2", "Test measurement 2 from stage 1 of master", "test", Math.PI,
+                    "labelKeyA", "labelValueA");
+            context.logMeasurement("test.stagemeasure3", "Test measurement 3 from stage 1 of master", "test", Math.PI,
+                    "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
 
-            context.logTimingMeasurement("test.timing1", "Test measurement 1 from stage 1 of master", 1_000);
-            context.logTimingMeasurement("test.timing2", "Test measurement 2 from stage 1 of master", 1_000_000, "labelKeyA", "labelValueA");
-            context.logTimingMeasurement("test.timing3", "Test measurement 3 from stage 1 of master", 1_000_000_000, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
+            context.logTimingMeasurement("test.stagetiming1", "Test measurement 1 from stage 1 of master", 1_000);
+            context.logTimingMeasurement("test.stagetiming2", "Test measurement 2 from stage 1 of master", 1_000_000,
+                    "labelKeyA", "labelValueA");
+            context.logTimingMeasurement("test.stagetiming3", "Test measurement 3 from stage 1 of master",
+                    1_000_000_000, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
 
             context.request(SERVICE + ".Mid", new DataTO(dto.number, dto.string + ":MidCall2", 7));
         });
@@ -150,7 +154,7 @@ public class SetupTestMatsEndpoints {
         getMatsFactory().terminator(TERMINATOR, StateTO.class, DataTO.class,
                 (context, sto, dto) -> {
                     log.debug("TERMINATOR MatsTrace:\n" + context.toString());
-//                    getMatsTestLatch().resolve(sto, dto);
+                    // getMatsTestLatch().resolve(sto, dto);
                 });
     }
 
@@ -158,7 +162,8 @@ public class SetupTestMatsEndpoints {
         public double number;
         public String string;
 
-        // This is used for the "Test_ComplexLargeMultiStage" to tell the service what it should multiply 'number' with..!
+        // This is used for the "Test_ComplexLargeMultiStage" to tell the service what it should multiply 'number'
+        // with..!
         public int multiplier;
 
         public DataTO() {
@@ -196,7 +201,7 @@ public class SetupTestMatsEndpoints {
         public String toString() {
             return "DataTO [number=" + number
                     + ", string=" + string
-                    + (multiplier != 0 ? ", multiplier="+multiplier : "")
+                    + (multiplier != 0 ? ", multiplier=" + multiplier : "")
                     + "]";
         }
     }

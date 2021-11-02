@@ -45,13 +45,35 @@ import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
  * <p />
  * <b>Note: This interceptor (Micrometer Metrics) has special support in <code>JmsMatsFactory</code>: If present on the
  * classpath, it is automatically installed using the {@link #install(MatsInterceptableMatsFactory)} install method.</b>
- * This implies that it employs the {@link Metrics#globalRegistry Micrometer 'globalRegistry'}. If you rather want to
- * supply a specific registry, then install a different instance using the
- * {@link #install(MatsInterceptableMatsFactory, MeterRegistry)} method - the <code>JmsMatsFactory</code> will then
- * remove the automatically installed, since it implements the special marker-interface {@link MatsMetricsInterceptor}
- * of which there can only be one instance installed.
+ * This implies that it employs the {@link Metrics#globalRegistry Micrometer 'globalRegistry'} - and 'includeAllTags'
+ * will be <code>false</code>. If you rather want to supply a specific registry, then install a different instance using
+ * the {@link #install(MatsInterceptableMatsFactory, MeterRegistry, boolean)} method - the <code>JmsMatsFactory</code>
+ * will then remove the automatically installed, since it implements the special marker-interface
+ * {@link MatsMetricsInterceptor} of which there can only be one instance installed. <i>(In a Spring context where the
+ * MatsFactory is created for you using an annotation, you should still be able to do this during early phases of Spring
+ * initialization, i.e. inject a reference to the <code>MatsInterceptable</code> and just install the new instance. This
+ * is possible since no Micrometer meters are created (and hence tags are set) until Mats initiations are performed or
+ * Mats stages receive messages.)</i>
  * <p />
- * <b>Notice the class {@link SuggestedTimingHistogramsMeterFilter}.</b> You may apply this as such:<br />
+ * Note the argument 'includeAllTags' on the second install(..) method: If this is <code>true</code>, then tags will be
+ * added to the meters which will give higher semantic resolution and more information, but which might result in a
+ * quite substantial number of time series - if you have a popular with many stages targeted by many other services
+ * (thus getting many differing 'initiatingAppName' and 'initiatorId'), you may get a "cardinality explosion", in
+ * particular if you also configure histograms. It is thus <code>false</code> by default, i.e. when using the first
+ * install(..) method.<br />
+ * Which situation and which extra tags if 'includeAllTags' is <code>true</code>:
+ * <ul>
+ * <li>Initiation outgoing messages: "to" (to which stage).</li>
+ * <li>Received (incoming message): "from" (from which stage), "initiatingAppName" and "initiatorId".</li>
+ * <li>Stage execution: "initiatingAppName" and "initiatorId".</li>
+ * <li>Stage outgoing messages: "to", "initiatingAppName" and "initiatorId".</li>
+ * </ul>
+ * You may set 'includeAllTags' to <code>true</code>, and then use a {@link MeterFilter} to tweak the tags with more
+ * precision than this all-or-nothing approach, e.g. include "initiatingAppName" and "initiatorId" for specific
+ * endpoints or stages.
+ * <p />
+ * <b>Notice the class {@link SuggestedTimingHistogramsMeterFilter}</b>, which configures the timing-specific metrics
+ * with hopefully relevant histograms. You may apply this as such:<br />
  * <code>Metrics.globalRegistry.config().meterFilter(new SuggestedTimingHistogramsMeterFilter());</code><br />
  * .. or you may apply any other distribution or histogram configuration using the {@link MeterFilter} logic of
  * Micrometer.
@@ -71,16 +93,18 @@ public class MatsMicrometerInterceptor
     public static final String TIMER_EXEC_TOTAL_DESC = "Total time taken to execute init or stage";
 
     public static final String TIMER_EXEC_USER_LAMBDA_NAME = "mats.exec.userlambda";
-    public static final String TIMER_EXEC_USER_LAMBDA_DESC = " Part of total time taken for the actual user lambda,"
-            + " including e.g. any external IO like DB, but excluding all system code, in particular message"
-            + " creation, and commits.";
+    public static final String TIMER_EXEC_USER_LAMBDA_DESC = " Part of total time taken for the actual user lambda"
+            + " itself (from start to finish, which thus includes any external IO like e.g. DB or HTTP calls the user"
+            + " code performs), minus any time taken to construct outbound Mats messages."
+            + " (Use 'log[Timing]Measurement(..)' within user lambda to break out metrics for any potentially"
+            + " expensive IO)";
 
-    public static final String TIMER_EXEC_MSGS_OUT_NAME = "mats.exec.msgsout";
-    public static final String TIMER_EXEC_MSGS_OUT_DESC = "Part of total time taken to produce, serialize and compress"
+    public static final String TIMER_EXEC_OUT_NAME = "mats.exec.out";
+    public static final String TIMER_EXEC_OUT_DESC = "Part of total time taken to produce, serialize and compress"
             + " all envelopes, and produce and send all system messages";
 
-    public static final String COUNT_EXEC_MSGS_OUT_NAME = "mats.exec.msgsout.quantity";
-    public static final String COUNT_EXEC_MSGS_OUT_DESC = "Number of outgoing messages from execution";
+    public static final String QUANTITY_EXEC_OUT_NAME = "mats.exec.out.quantity";
+    public static final String QUANTITY_EXEC_OUT_DESC = "Number of outgoing messages from execution";
 
     public static final String TIMER_EXEC_DB_COMMIT_NAME = "mats.exec.db.commit";
     public static final String TIMER_EXEC_DB_COMMIT_DESC = "Part of total time taken to commit database";
@@ -89,22 +113,27 @@ public class MatsMicrometerInterceptor
     public static final String TIMER_EXEC_MSGSYS_COMMIT_DESC = "Part of total time taken to commit message system";
 
     // :: User provided metrics: timings and measurements
-    public static final String METRIC_EXEC_OPS_TIMING_PREFIX = "mats.exec.ops.time.";
-    public static final String METRIC_EXEC_OPS_MEASURE_PREFIX = "mats.exec.ops.measure.";
+    public static final String TIMER_EXEC_OPS_PREFIX = "mats.exec.ops.time.";
+    public static final String MEASURE_EXEC_OP_PREFIX = "mats.exec.ops.measure.";
+
+    // :: Receive
+    public static final String TIMER_IN_TOTAL_NAME = "mats.in.total";
+    public static final String TIMER_IN_TOTAL_DESC = "Total time taken to preprocess and deserialize incoming message.";
 
     // :: Per message
-    public static final String TIMER_MSG_TOTAL_NAME = "mats.msg.total";
-    public static final String TIMER_MSG_TOTAL_DESC = "Total time taken to produce, serialize and compress envelope,"
+    public static final String TIMER_OUT_TOTAL_NAME = "mats.out.total";
+    public static final String TIMER_OUT_TOTAL_DESC = "Total time taken to produce, serialize and compress envelope,"
             + " and produce and send system message";
 
-    public static final String TIMER_MSG_MSGSYS_SEND_NAME = "mats.msg.msgsys.send";
-    public static final String TIMER_MSG_MSGSYS_SEND_DESC = "From total, time taken to produce and send message";
+    public static final String TIMER_OUT_MSGSYS_SEND_NAME = "mats.out.msgsys";
+    public static final String TIMER_OUT_MSGSYS_SEND_DESC = "From total, time taken to produce and send message system"
+            + " message";
 
-    public static final String SIZE_MSG_ENVELOPE_NAME = "mats.msg.envelope";
-    public static final String SIZE_MSG_ENVELOPE_DESC = "Outgoing mats envelope full size";
+    public static final String SIZE_OUT_ENVELOPE_NAME = "mats.out.envelope";
+    public static final String SIZE_OUT_ENVELOPE_DESC = "Outgoing mats envelope full size";
 
-    public static final String SIZE_MSG_WIRE_NAME = "mats.msg.wire";
-    public static final String SIZE_MSG_WIRE_DESC = "Outgoing mats envelope wire size";
+    public static final String SIZE_OUT_WIRE_NAME = "mats.out.wire";
+    public static final String SIZE_OUT_WIRE_DESC = "Outgoing mats envelope wire size";
 
     private static final int NO_STAGE_INDEX = -1;
 
@@ -127,8 +156,8 @@ public class MatsMicrometerInterceptor
             // seconds?
             if (TIMER_EXEC_TOTAL_NAME.equals(name)
                     || TIMER_EXEC_USER_LAMBDA_NAME.equals(name)
-                    || TIMER_EXEC_MSGS_OUT_NAME.equals(name)
-                    || name.startsWith(METRIC_EXEC_OPS_TIMING_PREFIX)) {
+                    || TIMER_EXEC_OUT_NAME.equals(name)
+                    || name.startsWith(TIMER_EXEC_OPS_PREFIX) /* <- user timing, thus 'startsWith(..)' */) {
                 return DistributionStatisticConfig.builder()
                         // Only use specific buckets, CIRCA 3x-logic
                         .serviceLevelObjectives(ms(1.5), ms(5), ms(15), ms(50), ms(150),
@@ -140,8 +169,9 @@ public class MatsMicrometerInterceptor
             // but could conceivably take a few seconds in bad cases.
             else if (TIMER_EXEC_DB_COMMIT_NAME.equals(name)
                     || TIMER_EXEC_MSGSYS_COMMIT_NAME.equals(name)
-                    || TIMER_MSG_TOTAL_NAME.equals(name)
-                    || TIMER_MSG_MSGSYS_SEND_NAME.equals(name)) {
+                    || TIMER_OUT_TOTAL_NAME.equals(name)
+                    || TIMER_OUT_MSGSYS_SEND_NAME.equals(name)
+                    || TIMER_IN_TOTAL_NAME.equals(name)) {
                 return DistributionStatisticConfig.builder()
                         // Only use specific buckets, CIRCA 3x-logic
                         .serviceLevelObjectives(ms(0.15), ms(0.5), ms(1.5), ms(5), ms(15),
@@ -164,25 +194,32 @@ public class MatsMicrometerInterceptor
      */
     public static final int MAX_NUMBER_OF_METRICS = 200;
 
-    private final LazyPopulatedStaticMap<ExecutionMetricsParams, ExecutionMetrics> _executionMetricsCache;
-    private final LazyPopulatedStaticMap<UserMetricsParams, UserMeasurementMetrics> _userMeasurementMetrics;
-    private final LazyPopulatedStaticMap<UserMetricsParams, UserTimingMetrics> _userTimingMetrics;
+    private final boolean _includeAllTags;
 
-    private final LazyPopulatedStaticMap<ReceivedMetricsParams, ReceivedMetrics> _receivedMetricsCache;
-    private final LazyPopulatedStaticMap<MessageMetricsParams, MessageMetrics> _messageMetricsCache;
+    private final LazyPopulatedCopyOnWriteMap<ExecutionMetricsParams, ExecutionMetrics> _executionMetricsCache;
+    private final LazyPopulatedCopyOnWriteMap<UserMetricsParams, UserMeasurementMetrics> _userMeasurementMetrics;
+    private final LazyPopulatedCopyOnWriteMap<UserMetricsParams, UserTimingMetrics> _userTimingMetrics;
 
-    private MatsMicrometerInterceptor(MeterRegistry meterRegistry, String appName, String appVersion) {
-        _executionMetricsCache = new LazyPopulatedStaticMap<>(params -> new ExecutionMetrics(meterRegistry,
+    private final LazyPopulatedCopyOnWriteMap<ReceivedMetricsParams, ReceivedMetrics> _receivedMetricsCache;
+
+    private final LazyPopulatedCopyOnWriteMap<MessageMetricsParams, MessageMetrics> _messageMetricsCache;
+
+    private MatsMicrometerInterceptor(MeterRegistry meterRegistry, String appName, String appVersion,
+            boolean includeAllTags) {
+        _executionMetricsCache = new LazyPopulatedCopyOnWriteMap<>(params -> new ExecutionMetrics(meterRegistry,
                 appName, appVersion, params));
-        _userMeasurementMetrics = new LazyPopulatedStaticMap<>(params -> new UserMeasurementMetrics(meterRegistry,
+        _userMeasurementMetrics = new LazyPopulatedCopyOnWriteMap<>(params -> new UserMeasurementMetrics(meterRegistry,
                 appName, appVersion, params));
-        _userTimingMetrics = new LazyPopulatedStaticMap<>(params -> new UserTimingMetrics(meterRegistry,
+        _userTimingMetrics = new LazyPopulatedCopyOnWriteMap<>(params -> new UserTimingMetrics(meterRegistry,
                 appName, appVersion, params));
 
-        _receivedMetricsCache = new LazyPopulatedStaticMap<>(params -> new ReceivedMetrics(meterRegistry,
+        _receivedMetricsCache = new LazyPopulatedCopyOnWriteMap<>(params -> new ReceivedMetrics(meterRegistry,
                 appName, appVersion, params));
-        _messageMetricsCache = new LazyPopulatedStaticMap<>(params -> new MessageMetrics(meterRegistry,
+
+        _messageMetricsCache = new LazyPopulatedCopyOnWriteMap<>(params -> new MessageMetrics(meterRegistry,
                 appName, appVersion, params));
+
+        _includeAllTags = includeAllTags;
     }
 
     /**
@@ -193,29 +230,33 @@ public class MatsMicrometerInterceptor
      *            the {@link MatsInterceptable} to install on (probably a {@link MatsFactory}.
      * @param meterRegistry
      *            the Micrometer {@link MeterRegistry} to create meters on.
+     * @param includeAllTags
+     *            whether all tags should be included (which may easily result in very many time series) or not.
      * @return the {@link MatsMicrometerInterceptor} instance which was installed as singleton.
      */
     public static MatsMicrometerInterceptor install(
             MatsInterceptableMatsFactory matsInterceptableMatsFactory,
-            MeterRegistry meterRegistry) {
+            MeterRegistry meterRegistry, boolean includeAllTags) {
         FactoryConfig factoryConfig = matsInterceptableMatsFactory.getFactoryConfig();
+
         MatsMicrometerInterceptor metrics = new MatsMicrometerInterceptor(meterRegistry,
-                factoryConfig.getAppName(), factoryConfig.getAppVersion());
+                factoryConfig.getAppName(), factoryConfig.getAppVersion(), includeAllTags);
+
         matsInterceptableMatsFactory.addInitiationInterceptor(metrics);
         matsInterceptableMatsFactory.addStageInterceptor(metrics);
         return metrics;
     }
 
     /**
-     * Installs a singleton instance of {@link MatsMicrometerInterceptor} which employs the
-     * {@link Metrics#globalRegistry}, on the provided {@link MatsInterceptableMatsFactory}.
+     * Creates a {@link MatsMicrometerInterceptor} employing the provided {@link Metrics#globalRegistry globalRegistry},
+     * and installs it as a singleton on the provided {@link MatsInterceptableMatsFactory}
      *
      * @param matsInterceptableMatsFactory
      *            the {@link MatsInterceptable} to install on (probably a {@link MatsFactory}.
      * @return the {@link MatsMicrometerInterceptor} instance which was installed as singleton.
      */
     public static MatsMicrometerInterceptor install(MatsInterceptableMatsFactory matsInterceptableMatsFactory) {
-        return install(matsInterceptableMatsFactory, Metrics.globalRegistry);
+        return install(matsInterceptableMatsFactory, Metrics.globalRegistry, false);
     }
 
     @Override
@@ -231,6 +272,8 @@ public class MatsMicrometerInterceptor
          * Therefore, we add the "opposite" Tags with the empty string, bypassing the problem.
          */
 
+        String initiatingAppName = ctx.getInitiator().getParentFactory().getFactoryConfig().getAppName();
+        String initiatorName = ctx.getInitiator().getName();
         /*
          * The initiatorId is set by sending an actual message. If no message is sent from an initation lambda, there is
          * no initiatorId. But the lambda still executed, so we want to measure it. In case of multiple messages in one
@@ -243,9 +286,6 @@ public class MatsMicrometerInterceptor
                 ? "_no_outgoing_messages_"
                 : outgoingMessages.get(0).getInitiatorId();
 
-        String initiatorName = ctx.getInitiator().getName();
-        String initiatingAppName = ctx.getInitiator().getParentFactory().getFactoryConfig().getAppName();
-
         ExecutionMetrics executionMetrics = _executionMetricsCache.getOrCreate(new ExecutionMetricsParams("init",
                 initiatingAppName, initiatorName, commonInitiatorId, "", NO_STAGE_INDEX));
         // ?: Did we get an ExecutionMetrics?
@@ -254,11 +294,14 @@ public class MatsMicrometerInterceptor
             executionMetrics.registerMeasurements(ctx);
         }
 
+        userTimingsAndMeasurements(ctx, "init", initiatingAppName, commonInitiatorId, "", NO_STAGE_INDEX);
+
         // :: FOR-EACH-MESSAGE: RECORD TIMING AND SIZES
         // Note: here we use each message's "from" (i.e. "initiatorId").
         for (MatsSentOutgoingMessage msg : outgoingMessages) {
+            String to = _includeAllTags ? msg.getTo() : "";
             MessageMetrics messageMetrics = _messageMetricsCache.getOrCreate(new MessageMetricsParams("init",
-                    initiatingAppName, initiatorName, msg.getInitiatorId(), "", NO_STAGE_INDEX, msg.getTo()));
+                    initiatingAppName, initiatorName, msg.getInitiatorId(), "", NO_STAGE_INDEX, to));
             // ?: Did we get a MessageMetrics?
             if (messageMetrics != null) {
                 // -> Yes, we got it, so cardinality-explosion-avoidance has NOT kicked in.
@@ -270,9 +313,9 @@ public class MatsMicrometerInterceptor
     @Override
     public void stageReceived(StageReceivedContext ctx) {
         ProcessContext<Object> processContext = ctx.getProcessContext();
-        String initiatingAppName = processContext.getInitiatingAppName();
-        String initiatorId = processContext.getInitiatorId();
-        String from = processContext.getFromStageId();
+        String initiatingAppName = _includeAllTags ? processContext.getInitiatingAppName() : "";
+        String initiatorId = _includeAllTags ? processContext.getInitiatorId() : "";
+        String from = _includeAllTags ? processContext.getFromStageId() : "";
         String stageId = processContext.getStageId();
         int stageIndex = ctx.getStage().getStageConfig().getStageIndex();
 
@@ -288,8 +331,8 @@ public class MatsMicrometerInterceptor
     @Override
     public void stageCompleted(StageCompletedContext ctx) {
         DetachedProcessContext processContext = ctx.getProcessContext();
-        String initiatingAppName = processContext.getInitiatingAppName();
-        String initiatorId = processContext.getInitiatorId();
+        String initiatingAppName = _includeAllTags ? processContext.getInitiatingAppName() : "";
+        String initiatorId = _includeAllTags ? processContext.getInitiatorId() : "";
         String stageId = processContext.getStageId();
         int stageIndex = ctx.getStage().getStageConfig().getStageIndex();
 
@@ -299,6 +342,51 @@ public class MatsMicrometerInterceptor
         if (executionMetrics != null) {
             // -> Yes, we got it, so cardinality-explosion-avoidance has NOT kicked in.
             executionMetrics.registerMeasurements(ctx);
+        }
+
+        userTimingsAndMeasurements(ctx, "stage", initiatingAppName, initiatorId, stageId, stageIndex);
+
+        // :: FOR-EACH-MESSAGE: RECORD TIMING AND SIZES
+        for (MatsSentOutgoingMessage msg : ctx.getOutgoingMessages()) {
+            /*
+             * NOTICE: We use the current stageId as "from", not 'msg.getFrom()'. The reason here is both that a) in a
+             * normal Mats flow situation (REQUEST/REPLY/NEXT/GOTO), it will be the same anyway, b) the latter can
+             * potentially lead to cardinality explosion as it may be set by the user when initiating from a stage, but
+             * c) most importantly that I believe it makes more sense in a metrics overview situation to see which
+             * Endpoint/Stage that produces the message, instead of a somewhat arbitrary 'from' set inside the stage
+             * lambda by the user. (I somewhat regret that it is possible to set the 'from' when initiating within a
+             * stage).
+             */
+            String to = _includeAllTags ? msg.getTo() : "";
+            MessageMetrics messageMetrics = _messageMetricsCache.getOrCreate(new MessageMetricsParams("stage",
+                    initiatingAppName, "", msg.getInitiatorId(), stageId, stageIndex, to));
+            // ?: Did we get a MessageMetrics?
+            if (messageMetrics != null) {
+                // -> Yes, we got it, so cardinality-explosion-avoidance has NOT kicked in.
+                messageMetrics.registerMeasurements(msg);
+            }
+        }
+    }
+
+    private void userTimingsAndMeasurements(CommonCompletedContext ctx, String executionType, String initiatingAppName,
+            String initiatorId, String stageId, int stageIndex) {
+        // :: User Timings
+        List<MatsTimingMeasurement> timings = ctx.getTimingMeasurements();
+        for (MatsTimingMeasurement timing : timings) {
+            String metricId = timing.getMetricId();
+            String metricDescription = timing.getMetricDescription();
+            String[] labelKeyValue = timing.getLabelKeyValue();
+
+            long nanos = timing.getNanos();
+
+            UserTimingMetrics userTimingMetrics = _userTimingMetrics.getOrCreate(new UserMetricsParams(
+                    executionType, initiatingAppName, initiatorId, stageId, stageIndex, metricId,
+                    metricDescription, "", labelKeyValue));
+            // ?: Did we get an UserTimingMetrics?
+            if (userTimingMetrics != null) {
+                // -> Yes, we got it, so cardinality-explosion-avoidance has NOT kicked in.
+                userTimingMetrics.registerMeasurements(nanos);
+            }
         }
 
         // :: User Measurements
@@ -312,7 +400,7 @@ public class MatsMicrometerInterceptor
             double measure = measurement.getMeasure();
 
             UserMeasurementMetrics userMeasurementMetrics = _userMeasurementMetrics.getOrCreate(new UserMetricsParams(
-                    "stage", initiatingAppName, initiatorId, stageId, stageIndex, metricId,
+                    executionType, initiatingAppName, initiatorId, stageId, stageIndex, metricId,
                     metricDescription, baseUnit, labelKeyValue));
             // ?: Did we get an UserMeasurementMetrics?
             if (userMeasurementMetrics != null) {
@@ -320,64 +408,25 @@ public class MatsMicrometerInterceptor
                 userMeasurementMetrics.registerMeasurements(measure);
             }
         }
-
-        // :: User Timings
-        List<MatsTimingMeasurement> timings = ctx.getTimingMeasurements();
-        for (MatsTimingMeasurement timing : timings) {
-            String metricId = timing.getMetricId();
-            String metricDescription = timing.getMetricDescription();
-            String[] labelKeyValue = timing.getLabelKeyValue();
-
-            long nanos = timing.getNanos();
-
-            UserTimingMetrics userTimingMetrics = _userTimingMetrics.getOrCreate(new UserMetricsParams(
-                    "stage", initiatingAppName, initiatorId, stageId, stageIndex, metricId,
-                    metricDescription, "", labelKeyValue));
-            // ?: Did we get an UserTimingMetrics?
-            if (userTimingMetrics != null) {
-                // -> Yes, we got it, so cardinality-explosion-avoidance has NOT kicked in.
-                userTimingMetrics.registerMeasurements(nanos);
-            }
-        }
-
-        // :: FOR-EACH-MESSAGE: RECORD TIMING AND SIZES
-        for (MatsSentOutgoingMessage msg : ctx.getOutgoingMessages()) {
-            /*
-             * NOTICE: We use the current stageId as "from", not 'msg.getFrom()'. The reason here is both that a) in a
-             * normal Mats flow situation (REQUEST/REPLY/NEXT/GOTO), it will be the same anyway, b) the latter can
-             * potentially lead to cardinality explosion as it may be set by the user when initiating from a stage, but
-             * c) most importantly that I believe it makes more sense in a metrics overview situation to see which
-             * Endpoint/Stage that produces the message, instead of a somewhat arbitrary 'from' set inside the stage
-             * lambda by the user. (I somewhat regret that it is possible to set the 'from' when initiating within a
-             * stage).
-             */
-            MessageMetrics messageMetrics = _messageMetricsCache.getOrCreate(new MessageMetricsParams("stage",
-                    initiatingAppName, "", msg.getInitiatorId(), stageId, stageIndex, msg.getTo()));
-            // ?: Did we get a MessageMetrics?
-            if (messageMetrics != null) {
-                // -> Yes, we got it, so cardinality-explosion-avoidance has NOT kicked in.
-                messageMetrics.registerMeasurements(msg);
-            }
-        }
     }
 
     // =======================
 
     /**
-     * Concurrent, lazy build-up, permanent cache. Using a plain HashMap, albeit with volatile reference. When a new
-     * item needs to be added, the entire map is recreated before setting the new instance (so that any ongoing lookup
-     * won't be affected by the put) - but this creation is done with "double-checked locking" inside a synchronized
-     * block. Could have used a ConcurrentHashMap, but since I believe I am so clever, I'll make a stab at making a
-     * faster variant. The thinking is that since this Map will have a volley of puts soon after startup, and then
-     * forever be static, the following might make sense: a volatile, non-contended read of the ref, and then a plain
-     * HashMap lookup.
+     * Concurrent copy-on-write, lazy build-up, permanent cache. Using a plain HashMap, albeit with volatile reference.
+     * When a new item needs to be added, the entire map is recreated before setting the new instance (so that any
+     * ongoing lookup won't be affected by the put) - but this creation is done with "double-checked locking" inside a
+     * synchronized block. Could have used a ConcurrentHashMap, but since I believe I am so clever, I'll make a stab at
+     * making a faster, copy-on-write variant. The thinking is that since this Map will have a volley of puts soon after
+     * startup, and then forever be static, the following might make sense: a volatile, non-contended read of the ref,
+     * and then a plain HashMap lookup.
      */
-    private static class LazyPopulatedStaticMap<VP, V> {
+    private static class LazyPopulatedCopyOnWriteMap<VP, V> {
         private volatile Map<VP, V> _cache = Collections.emptyMap();
 
         private final Function<VP, V> _creator;
 
-        public LazyPopulatedStaticMap(Function<VP, V> creator) {
+        public LazyPopulatedCopyOnWriteMap(Function<VP, V> creator) {
             _creator = creator;
         }
 
@@ -391,8 +440,16 @@ public class MatsMicrometerInterceptor
             // E-> value was null, now go for "double-checked locking" to create it.
             synchronized (this) {
                 // ----- From now on, the reference to _cache won't change until we set it, because we must be within
-                // the synchronized block to do the setting.
+                // this synchronized block to do the setting.
                 Map<VP, V> oldCache = _cache;
+
+                // NOTE: We check again for the presence of the cached item, i.e. "double checked".
+
+                // ?: Still not in the currently present reference?
+                V v2 = oldCache.get(params);
+                if (v2 != null) {
+                    return v2;
+                }
 
                 // First check the size - if too big, we stop making new ones
                 if (oldCache.size() >= MAX_NUMBER_OF_METRICS) {
@@ -403,13 +460,9 @@ public class MatsMicrometerInterceptor
                     return null;
                 }
 
-                // ?: Still not in the currently present reference?
-                V v2 = oldCache.get(params);
-                if (v2 != null) {
-                    return v2;
-                }
-                // E-> It was still not created, and now we "own" the '_cache' ref while we go about creating new.
-                // The existing instance of the Map will never "move", so we can safely add all entries from it
+                // E-> It was still not created, and we're below the "cardinality explosion" limit - and now we "own"
+                // the '_cache' ref while we go about creating new. The existing instance of the Map will not change
+                // while within the sync block, so we can safely add all entries from it:
                 Map<VP, V> newCache = new HashMap<>(oldCache);
                 // Create the new entry
                 log.info("Creating and caching new metric " + params);
@@ -461,13 +514,13 @@ public class MatsMicrometerInterceptor
             _timer_DbCommit = timerAddTagsAndRegister(Timer.builder(TIMER_EXEC_DB_COMMIT_NAME)
                     .description(TIMER_EXEC_DB_COMMIT_DESC), meterRegistry, appName, appVersion, params);
 
-            _timer_MsgOut = timerAddTagsAndRegister(Timer.builder(TIMER_EXEC_MSGS_OUT_NAME)
-                    .description(TIMER_EXEC_MSGS_OUT_DESC), meterRegistry, appName, appVersion, params);
+            _timer_MsgOut = timerAddTagsAndRegister(Timer.builder(TIMER_EXEC_OUT_NAME)
+                    .description(TIMER_EXEC_OUT_DESC), meterRegistry, appName, appVersion, params);
 
             _timer_MsgCommit = timerAddTagsAndRegister(Timer.builder(TIMER_EXEC_MSGSYS_COMMIT_NAME)
                     .description(TIMER_EXEC_MSGSYS_COMMIT_DESC), meterRegistry, appName, appVersion, params);
 
-            _count_Messages = DistributionSummary.builder(COUNT_EXEC_MSGS_OUT_NAME)
+            _count_Messages = DistributionSummary.builder(QUANTITY_EXEC_OUT_NAME)
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
@@ -478,7 +531,7 @@ public class MatsMicrometerInterceptor
                     .tag("stageIndex", params._stageIndex == NO_STAGE_INDEX ? "" : Integer.toString(params._stageIndex))
                     // NOTE! If we use baseUnit, we'll get crash on the meter name - instead embed directly in name.
                     // .baseUnit("quantity")
-                    .description(COUNT_EXEC_MSGS_OUT_DESC)
+                    .description(QUANTITY_EXEC_OUT_DESC)
                     .register(meterRegistry);
         }
 
@@ -573,7 +626,7 @@ public class MatsMicrometerInterceptor
         UserMeasurementMetrics(MeterRegistry meterRegistry, String appName, String appVersion,
                 UserMetricsParams params) {
             DistributionSummary.Builder builder = DistributionSummary
-                    .builder(METRIC_EXEC_OPS_MEASURE_PREFIX + params._metricId)
+                    .builder(MEASURE_EXEC_OP_PREFIX + params._metricId)
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
@@ -610,7 +663,7 @@ public class MatsMicrometerInterceptor
         UserTimingMetrics(MeterRegistry meterRegistry, String appName, String appVersion,
                 UserMetricsParams params) {
             Builder builder = Timer
-                    .builder(METRIC_EXEC_OPS_TIMING_PREFIX + params._metricId)
+                    .builder(TIMER_EXEC_OPS_PREFIX + params._metricId)
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
@@ -717,15 +770,16 @@ public class MatsMicrometerInterceptor
         private final Timer _timer_Total;
 
         ReceivedMetrics(MeterRegistry meterRegistry, String appName, String appVersion, ReceivedMetricsParams params) {
-            _timer_Total = Timer.builder(TIMER_MSG_TOTAL_NAME)
+            _timer_Total = Timer.builder(TIMER_IN_TOTAL_NAME)
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
+                    .tag("exec", "stage") // Just adding this to point out that it definitely refers to a stage.
                     .tag("initiatingAppName", params._initiatingAppName)
                     .tag("initiatorId", params._initiatorId)
                     .tag("from", params._from)
                     .tag("stageId", params._stageId)
                     .tag("stageIndex", Integer.toString(params._stageIndex))
-                    .description(TIMER_MSG_TOTAL_DESC)
+                    .description(TIMER_IN_TOTAL_DESC)
                     .register(meterRegistry);
         }
 
@@ -796,7 +850,7 @@ public class MatsMicrometerInterceptor
         MessageMetrics(MeterRegistry meterRegistry, String appName, String appVersion,
                 MessageMetricsParams params) {
             String stageIndexValue = params._stageIndex == NO_STAGE_INDEX ? "" : Integer.toString(params._stageIndex);
-            _size_Envelope = DistributionSummary.builder(SIZE_MSG_ENVELOPE_NAME)
+            _size_Envelope = DistributionSummary.builder(SIZE_OUT_ENVELOPE_NAME)
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
@@ -807,10 +861,10 @@ public class MatsMicrometerInterceptor
                     .tag("stageIndex", stageIndexValue)
                     .tag("to", params._to)
                     .baseUnit("bytes")
-                    .description(SIZE_MSG_ENVELOPE_DESC)
+                    .description(SIZE_OUT_ENVELOPE_DESC)
                     .register(meterRegistry);
 
-            _size_Wire = DistributionSummary.builder(SIZE_MSG_WIRE_NAME)
+            _size_Wire = DistributionSummary.builder(SIZE_OUT_WIRE_NAME)
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
@@ -821,10 +875,10 @@ public class MatsMicrometerInterceptor
                     .tag("stageIndex", stageIndexValue)
                     .tag("to", params._to)
                     .baseUnit("bytes")
-                    .description(SIZE_MSG_WIRE_DESC)
+                    .description(SIZE_OUT_WIRE_DESC)
                     .register(meterRegistry);
 
-            _timer_Total = Timer.builder(TIMER_MSG_TOTAL_NAME)
+            _timer_Total = Timer.builder(TIMER_OUT_TOTAL_NAME)
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
@@ -834,10 +888,10 @@ public class MatsMicrometerInterceptor
                     .tag("stageId", params._stageId)
                     .tag("stageIndex", stageIndexValue)
                     .tag("to", params._to)
-                    .description(TIMER_MSG_TOTAL_DESC)
+                    .description(TIMER_OUT_TOTAL_DESC)
                     .register(meterRegistry);
 
-            _timer_MsgSys = Timer.builder(TIMER_MSG_MSGSYS_SEND_NAME)
+            _timer_MsgSys = Timer.builder(TIMER_OUT_MSGSYS_SEND_NAME)
                     .tag("appName", appName)
                     .tag("appVersion", appVersion)
                     .tag("exec", params._executionType)
@@ -848,7 +902,7 @@ public class MatsMicrometerInterceptor
                     .tag("stageIndex", stageIndexValue)
                     .tag("to", params._to)
 
-                    .description(TIMER_MSG_MSGSYS_SEND_DESC)
+                    .description(TIMER_OUT_MSGSYS_SEND_DESC)
                     .register(meterRegistry);
         }
 

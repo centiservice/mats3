@@ -64,10 +64,10 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Part of total time taken for the
  * actual user lambda, including e.g. any external IO like DB, but excluding all system code, in particular message
  * creation, and commits.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSGS_OUT "mats.exec.MsgsOut.ms"}</b>: Part of total time taken for the creation
+ * <li><b>{@link #MDC_MATS_COMPLETE_TIME_OUT "mats.exec.Out.ms"}</b>: Part of total time taken for the creation
  * and serialization of Mats messages, and production <i>and sending</i> of "message system messages" (e.g. creating and
  * populating JMS Message plus <code>jmsProducer.send(..)</code> for the JMS implementation)</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_MSGS_OUT "mats.exec.MsgsOut.quantity"}</b>: Number of messages sent</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Number of messages sent</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Part of total time taken for committing
  * DB.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Part of total time taken for
@@ -150,8 +150,8 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * logline's {@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.in.TotalPreprocDeserial.ms"}, as that piece is
  * also part of the stage processing.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Same as for initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSGS_OUT "mats.exec.MsgsOut.ms"}</b>: Same as for initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_MSGS_OUT "mats.exec.MsgsOut.quantity"}</b>: Same as for initiation.</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_TIME_OUT "mats.exec.Out.ms"}</b>: Same as for initiation.</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Same as for initiation</li>
  * </ul>
@@ -202,8 +202,8 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * to compress the serialized Mats envelope</li>
  * <li><b>{@link #MDC_MATS_OUT_SIZE_ENVELOPE_WIRE "mats.out.EnvelopeWire.bytes"}</b>: Size of the compressed serialized
  * Mats envelope.</li>
- * <li><b>{@link #MDC_MATS_OUT_TIME_MSGSYS_CONSTRUCT_AND_SEND "mats.out.MsgSysConstructAndSend.ms"}</b>: Part of the
- * total time taken to produce the message system message.</li>
+ * <li><b>{@link #MDC_MATS_OUT_TIME_MSGSYS "mats.out.MsgSys.ms"}</b>: Part of the total time taken to produce the
+ * message system message.</li>
  * </ul>
  *
  * <b>Note:</b> Both Initiation and Stage completed can produce messages. For the very common case where this is just a
@@ -249,8 +249,8 @@ public class MatsMetricsLoggingInterceptor
     // ... Metrics:
     public static final String MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION = "mats.exec.Total.ms";
     public static final String MDC_MATS_COMPLETE_TIME_USER_LAMBDA = "mats.exec.UserLambda.ms";
-    public static final String MDC_MATS_COMPLETE_TIME_MSGS_OUT = "mats.exec.MsgsOut.ms";
-    public static final String MDC_MATS_COMPLETE_QUANTITY_MSGS_OUT = "mats.exec.MsgsOut.quantity";
+    public static final String MDC_MATS_COMPLETE_TIME_OUT = "mats.exec.Out.ms";
+    public static final String MDC_MATS_COMPLETE_QUANTITY_OUT = "mats.exec.Out.quantity";
     public static final String MDC_MATS_COMPLETE_TIME_DB_COMMIT = "mats.exec.DbCommit.ms";
     public static final String MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT = "mats.exec.MsgSysCommit.ms";
     public static final String MDC_MATS_COMPLETE_OPS_TIMING_PREFIX = "mats.exec.ops.time.";
@@ -321,13 +321,13 @@ public class MatsMetricsLoggingInterceptor
     // NOTICE: NOT using MDC_MATS_OUT_TO_APP, since we do not know which app will consume it.
 
     // ... Metrics:
+    public static final String MDC_MATS_OUT_TIME_TOTAL = "mats.out.Total.ms";
     public static final String MDC_MATS_OUT_TIME_ENVELOPE_PRODUCE = "mats.out.EnvelopeProduce.ms";
     public static final String MDC_MATS_OUT_TIME_ENVELOPE_SERIAL = "mats.out.EnvelopeSerial.ms";
     public static final String MDC_MATS_OUT_SIZE_ENVELOPE_SERIAL = "mats.out.EnvelopeSerial.bytes";
     public static final String MDC_MATS_OUT_TIME_ENVELOPE_COMPRESS = "mats.out.EnvelopeCompress.ms";
     public static final String MDC_MATS_OUT_SIZE_ENVELOPE_WIRE = "mats.out.EnvelopeWire.bytes";
-    public static final String MDC_MATS_OUT_TIME_MSGSYS_CONSTRUCT_AND_SEND = "mats.out.MsgSysConstructAndSend.ms";
-    public static final String MDC_MATS_OUT_TIME_TOTAL = "mats.out.Total.ms";
+    public static final String MDC_MATS_OUT_TIME_MSGSYS = "mats.out.MsgSys.ms";
 
     // ============================================================================================================
     // ===== For both Message Received and Message Send (note: part of root MatsTrace, common for all msgs in flow)
@@ -643,8 +643,8 @@ public class MatsMetricsLoggingInterceptor
         try {
             MDC.put(MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION, msS(ctx.getTotalExecutionNanos()));
             MDC.put(MDC_MATS_COMPLETE_TIME_USER_LAMBDA, msS(nanosTaken_UserLambdaAlone));
-            MDC.put(MDC_MATS_COMPLETE_TIME_MSGS_OUT, msS(nanosTaken_SumMessageOutHandling));
-            MDC.put(MDC_MATS_COMPLETE_QUANTITY_MSGS_OUT, String.valueOf(outgoingMessages.size()));
+            MDC.put(MDC_MATS_COMPLETE_TIME_OUT, msS(nanosTaken_SumMessageOutHandling));
+            MDC.put(MDC_MATS_COMPLETE_QUANTITY_OUT, String.valueOf(outgoingMessages.size()));
             MDC.put(MDC_MATS_COMPLETE_TIME_DB_COMMIT, msS(ctx.getDbCommitNanos()));
             MDC.put(MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT, msS(ctx.getMessageSystemCommitNanos()));
 
@@ -675,8 +675,8 @@ public class MatsMetricsLoggingInterceptor
         finally {
             MDC.remove(MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION);
             MDC.remove(MDC_MATS_COMPLETE_TIME_USER_LAMBDA);
-            MDC.remove(MDC_MATS_COMPLETE_TIME_MSGS_OUT);
-            MDC.remove(MDC_MATS_COMPLETE_QUANTITY_MSGS_OUT);
+            MDC.remove(MDC_MATS_COMPLETE_TIME_OUT);
+            MDC.remove(MDC_MATS_COMPLETE_QUANTITY_OUT);
             MDC.remove(MDC_MATS_COMPLETE_TIME_DB_COMMIT);
             MDC.remove(MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT);
         }
@@ -707,7 +707,7 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_OUT_SIZE_ENVELOPE_SERIAL, Long.toString(msg.getEnvelopeSerializedSize()));
             MDC.put(MDC_MATS_OUT_TIME_ENVELOPE_COMPRESS, msS(msg.getEnvelopeCompressionNanos()));
             MDC.put(MDC_MATS_OUT_SIZE_ENVELOPE_WIRE, Long.toString(msg.getEnvelopeWireSize()));
-            MDC.put(MDC_MATS_OUT_TIME_MSGSYS_CONSTRUCT_AND_SEND, msS(msg.getMessageSystemProduceAndSendNanos()));
+            MDC.put(MDC_MATS_OUT_TIME_MSGSYS, msS(msg.getMessageSystemProduceAndSendNanos()));
             long nanosTaken_Total = msg.getEnvelopeProduceNanos()
                     + msg.getEnvelopeSerializationNanos()
                     + msg.getEnvelopeCompressionNanos()
@@ -746,7 +746,7 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_OUT_SIZE_ENVELOPE_SERIAL);
             MDC.remove(MDC_MATS_OUT_TIME_ENVELOPE_COMPRESS);
             MDC.remove(MDC_MATS_OUT_SIZE_ENVELOPE_WIRE);
-            MDC.remove(MDC_MATS_OUT_TIME_MSGSYS_CONSTRUCT_AND_SEND);
+            MDC.remove(MDC_MATS_OUT_TIME_MSGSYS);
             MDC.remove(MDC_MATS_OUT_TIME_TOTAL);
         }
     }

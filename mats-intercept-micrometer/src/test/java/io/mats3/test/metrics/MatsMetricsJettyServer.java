@@ -3,7 +3,6 @@ package io.mats3.test.metrics;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URL;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.concurrent.ForkJoinPool;
@@ -18,11 +17,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import io.mats3.intercept.micrometer.MatsMicrometerInterceptor;
-import io.mats3.intercept.micrometer.MatsMicrometerInterceptor.SuggestedTimingHistogramsMeterFilter;
-import io.micrometer.core.instrument.Meter;
-import io.micrometer.core.instrument.config.MeterFilter;
-import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
 import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
@@ -43,6 +37,7 @@ import io.mats3.MatsInitiator.KeepTrace;
 import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
+import io.mats3.intercept.micrometer.MatsMicrometerInterceptor.SuggestedTimingHistogramsMeterFilter;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.MatsTestHelp;
@@ -53,7 +48,6 @@ import io.micrometer.core.instrument.Metrics;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.prometheus.client.Collector.MetricFamilySamples;
-import io.prometheus.client.Collector.MetricFamilySamples.Sample;
 
 /**
  * @author Endre Stølsvik 2021-02-17 12:57 - http://stolsvik.com/, endre@stolsvik.com
@@ -144,22 +138,20 @@ public class MatsMetricsJettyServer {
             log.info("Scrape!");
             PrintWriter out = res.getWriter();
 
-            Enumeration<MetricFamilySamples> metricFamilySamplesEnumeration = __prometheusMeterRegistry
+            Enumeration<MetricFamilySamples> metricFamilySamplesEnum = __prometheusMeterRegistry
                     .getPrometheusRegistry().metricFamilySamples();
-            int metricFamilies = 0;
-            int samples = 0;
-            while (metricFamilySamplesEnumeration.hasMoreElements()) {
-                MetricFamilySamples metricFamilySamples = metricFamilySamplesEnumeration.nextElement();
-                metricFamilies ++;
-                for (Sample sample : metricFamilySamples.samples) {
-                    samples ++;
-                }
+            int numMetricFamilies = 0;
+            int numSamples = 0;
+            while (metricFamilySamplesEnum.hasMoreElements()) {
+                MetricFamilySamples metricFamilySamples = metricFamilySamplesEnum.nextElement();
+                numMetricFamilies++;
+                numSamples += metricFamilySamples.samples.size();
             }
-            out.println("# Debug info: ==========================");
-            out.println("#  MetricFamilySamples instances: " + metricFamilies);
-            out.println("#  Sample instances: " + samples);
+            out.println("# === Meta info: ===============================");
+            out.println("#  MetricFamilySamples instances: " + numMetricFamilies);
+            out.println("#  Sample instances: " + numSamples);
             out.println();
-            out.println("# Actual scrape: =======================");
+            out.println("# === Prometheus scrape: =======================");
 
             __prometheusMeterRegistry.scrape(out);
         }
@@ -181,12 +173,27 @@ public class MatsMetricsJettyServer {
             StateTO sto = new StateTO(420, 420.024);
             DataTO dto = new DataTO(42, "TheAnswer");
             matsFactory.getDefaultInitiator().initiateUnchecked(
-                    (msg) -> msg.traceId(MatsTestHelp.traceId())
-                            .keepTrace(KeepTrace.FULL)
-                            .from("/sendRequestInitiated")
-                            .to(SetupTestMatsEndpoints.SERVICE)
-                            .replyTo(SetupTestMatsEndpoints.TERMINATOR, sto)
-                            .request(dto));
+                    (msg) -> {
+                        msg.logMeasurement("test.initmeasure1", "Test measurement 1 from initiation", "test", Math.PI);
+                        msg.logMeasurement("test.initmeasure2", "Test measurement 2 from initiation", "test", Math.PI,
+                                "labelKeyA", "labelValueA");
+                        msg.logMeasurement("test.initmeasure3", "Test measurement 3 from initiation", "test", Math.PI,
+                                "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
+
+                        msg.logTimingMeasurement("test.inittiming1", "Test measurement 1 from initiation", 1_000);
+                        msg.logTimingMeasurement("test.inittiming2", "Test measurement 2 from initiation", 1_000_000,
+                                "labelKeyA", "labelValueA");
+                        msg.logTimingMeasurement("test.inittiming3", "Test measurement 3 from initiation",
+                                1_000_000_000, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
+
+
+                        msg.traceId(MatsTestHelp.traceId())
+                                .keepTrace(KeepTrace.FULL)
+                                .from("/sendRequestInitiated")
+                                .to(SetupTestMatsEndpoints.SERVICE)
+                                .replyTo(SetupTestMatsEndpoints.TERMINATOR, sto)
+                                .request(dto);
+                    });
             res.getWriter().println(".. Request sent.");
         }
     }
