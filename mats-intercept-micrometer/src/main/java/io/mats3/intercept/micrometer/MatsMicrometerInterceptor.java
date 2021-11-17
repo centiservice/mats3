@@ -374,8 +374,7 @@ public class MatsMicrometerInterceptor
              * stage).
              */
             MessageMetrics messageMetrics = _messageMetricsCache.getOrCreate(new MessageMetricsParams("stage",
-                    msg.getMessageType().toString(), initiatingAppName, "", msg.getInitiatorId(),
-                    stageId, stageIndex, to));
+                    msg.getMessageType().toString(), initiatingAppName, "", initiatorId, stageId, stageIndex, to));
             // ?: Did we get a MessageMetrics?
             if (messageMetrics != null) {
                 // -> Yes, we got it, so cardinality-explosion-avoidance has NOT kicked in.
