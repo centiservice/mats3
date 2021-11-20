@@ -147,12 +147,13 @@ public class MatsMetricsJettyServer {
                 numMetricFamilies++;
                 numSamples += metricFamilySamples.samples.size();
             }
-            out.println("# === Meta info: ===============================");
-            out.println("#  MetricFamilySamples instances: " + numMetricFamilies);
-            out.println("#  Sample instances: " + numSamples);
-            out.println();
-            out.println("# === Prometheus scrape: =======================");
-
+            // NOTE!! We must use "\n" here, and not "println(..)", as the latter uses System.lineSeparator(), while
+            // Prometheus is extremely picky and only tolerates "\n". This is a problem if running on Windows.
+            out.print("# === Meta info: ===============================\n");
+            out.print("#  MetricFamilySamples instances: " + numMetricFamilies + "\n");
+            out.print("#  Sample instances: " + numSamples + "\n");
+            out.print("\n");
+            out.print("# === Prometheus scrape: =======================\n");
             __prometheusMeterRegistry.scrape(out);
         }
     }
