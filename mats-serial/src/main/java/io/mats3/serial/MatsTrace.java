@@ -6,7 +6,6 @@ import java.util.Set;
 
 import io.mats3.serial.MatsTrace.Call.MessagingModel;
 import io.mats3.serial.impl.MatsTraceStringImpl;
-import io.mats3.serial.impl.MatsTraceStringImpl.CallImpl;
 
 /**
  * Together with the {@link MatsSerializer}, this interface describes one way to implement a wire-protocol for how Mats
@@ -26,6 +25,24 @@ import io.mats3.serial.impl.MatsTraceStringImpl.CallImpl;
  * @author Endre Stølsvik - 2018-03-17 23:37, factored out from original from 2015 - http://endre.stolsvik.com
  */
 public interface MatsTrace<Z> {
+
+    /**
+     * String employed as return value for "debug only" fields which may as well be null - by setting them to null, we
+     * conserve time and space in the serialization (For JSON, even the field itself is not serialized if the value is
+     * null). If they are null, the corresponding getter returns this value.
+     */
+    String NULLED = "-nulled-";
+
+    /**
+     * @deprecated TODO: delete once all > v0.18.4
+     */
+    @Deprecated
+    default MatsTrace<Z> withDebugInfo(String initializingAppName, String initializingAppVersion,
+            String initializingHost,
+            String initiatorId, long initializedTimestamp, String debugInfo) {
+        return withDebugInfo(initializingAppName, initializingAppVersion, initializingHost, initiatorId, debugInfo);
+    }
+
     /**
      * Can only be set once..
      *
@@ -35,7 +52,7 @@ public interface MatsTrace<Z> {
      *         methods, which return a new, independent instance.
      */
     MatsTrace<Z> withDebugInfo(String initializingAppName, String initializingAppVersion, String initializingHost,
-            String initiatorId, long initializedTimestamp, String debugInfo);
+            String initiatorId, String debugInfo);
 
     /**
      * If this newly created MatsTrace is a child-flow (initiated within a Stage) of an existing flow, then this method
@@ -90,6 +107,8 @@ public interface MatsTrace<Z> {
      *         of each {@link Call#getMatsMessageId()}, separated by a "_".
      */
     String getFlowId();
+
+    long getInitializedTimestamp();
 
     /**
      * @return to which extent the Call history (with State) should be kept. The default is
@@ -160,8 +179,6 @@ public interface MatsTrace<Z> {
      * @return a fictive "endpointId" of the initiator, see <code>MatsInitiator.MatsInitiate.from(String)</code>.
      */
     String getInitiatorId();
-
-    long getInitializedTimestamp();
 
     String getDebugInfo();
 
@@ -380,48 +397,43 @@ public interface MatsTrace<Z> {
      * Represents an entry in the {@link MatsTrace}.
      */
     interface Call<Z> {
-        /**
-         * TODO: Remove once all are >= 0.16
-         *
-         * DEPRECATED! Use {@link #setDebugInfo(String, String, String, long, String, String)} (the right below).
-         */
-        @Deprecated
-        Call<Z> setDebugInfo(String callingAppName, String callingAppVersion, String callingHost,
-                long calledTimestamp, String debugInfo);
-
-        /**
-         * Can only be set once.
-         *
-         * @param matsMessageId
-         *            REMEMBER to prefix this by {@link MatsTrace#getFlowId()}, separated with a "_", thus only needs to
-         *            be unique within this trace/flow.
-         */
-        Call<Z> setDebugInfo(String callingAppName, String callingAppVersion, String callingHost,
-                long calledTimestamp, String matsMessageId, String debugInfo);
-
-        /**
-         * Resets the calledTimestamp set with {@link #setDebugInfo(String, String, String, long, String, String)}, to
-         * be more closely timed to the exact sending time. I.e. the message may have been constructed, then a massive
-         * SQL query was performed, and then a new message is constructed, and then the messages are actually turned
-         * into JMS messages and committed on the wire. This means that the first message will have a much earlier
-         * timestamp than the second. Using this method, all outgoing messages can have the Called Timestamp set
-         * <i>right</i> before it is serialized and JMS-constructed and committed.
-         */
-        CallImpl setCalledTimestamp(long calledTimestamp);
-
-        String getCallingAppName();
-
-        String getCallingAppVersion();
-
-        String getCallingHost();
-
         long getCalledTimestamp();
+
+        /**
+         * Resets the calledTimestamp set by constructor, to be more closely timed to the exact sending time. I.e. the
+         * message may have been constructed, then a massive SQL query was performed, and then a new message is
+         * constructed, and then the messages are actually turned into JMS messages and committed on the wire. This
+         * means that the first message will have a much earlier timestamp than the second. Using this method, all
+         * outgoing messages can have the Called Timestamp set <i>right</i> before it is serialized and JMS-constructed
+         * and committed.
+         */
+        Call<Z> setCalledTimestamp(long calledTimestamp);
 
         /**
          * @return the Mats Message Id, a guaranteed-globally-unique id for this particular message - it SHALL be
          *         constructed as follows: {@link MatsTrace#getFlowId()} + "_" + flow-unique messageId.
          */
         String getMatsMessageId();
+
+        /**
+         * @deprecated TODO: Remove once all are >= 0.18.4
+         */
+        @Deprecated
+        default Call<Z> setDebugInfo(String callingAppName, String callingAppVersion, String callingHost,
+                long calledTimestamp, String matsMessageId, String debugInfo) {
+            return setDebugInfo(callingAppName, callingAppVersion, callingHost, debugInfo);
+        }
+
+        /**
+         * Can only be set once.
+         */
+        Call<Z> setDebugInfo(String callingAppName, String callingAppVersion, String callingHost, String debugInfo);
+
+        String getCallingAppName();
+
+        String getCallingAppVersion();
+
+        String getCallingHost();
 
         String getDebugInfo();
 
@@ -450,11 +462,11 @@ public interface MatsTrace<Z> {
         }
 
         /**
-         * @return the stageId that sent this call - will most probably be the string "-nulled-" for any other Call than
-         *         the {@link MatsTrace#getCurrentCall()}, to conserve space in the MatsTrace. The rationale for this,
-         *         is that if those Calls are available, they are there for debug purposes only, and then you can use
-         *         the order of the Calls to see who is the caller: The previous Call's {@link #getTo() "to"} is the
-         *         {@link #getFrom() "from"} of this Call.
+         * @return the stageId that sent this call - will most probably be the string {@link #NULLED "-nulled-"} for any
+         *         other Call than the {@link MatsTrace#getCurrentCall()}, to conserve space in the MatsTrace. The
+         *         rationale for this, is that if those Calls are available, they are there for debug purposes only, and
+         *         then you can use the order of the Calls to see who is the caller: The previous Call's {@link #getTo()
+         *         "to"} is the {@link #getFrom() "from"} of this Call.
          */
         String getFrom();
 

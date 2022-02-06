@@ -622,18 +622,13 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     }
 
     private String produceMessage(Object incomingDto, long nanosStart, MatsTrace<Z> outgoingMatsTrace) {
-        long now = System.currentTimeMillis();
         Call<Z> currentCall = outgoingMatsTrace.getCurrentCall();
-        String matsMessageId = createMatsMessageId(outgoingMatsTrace.getFlowId(),
-                outgoingMatsTrace.getInitializedTimestamp(), now, outgoingMatsTrace.getCallNumber());
-
         String debugInfo = outgoingMatsTrace.getKeepTrace() != KeepMatsTrace.MINIMAL
                 ? getInvocationPoint()
                 : null;
         currentCall.setDebugInfo(_parentFactory.getFactoryConfig().getAppName(),
                 _parentFactory.getFactoryConfig().getAppVersion(),
-                _parentFactory.getFactoryConfig().getNodename(), now, matsMessageId,
-                debugInfo);
+                _parentFactory.getFactoryConfig().getNodename(), debugInfo);
 
         // Produce the JmsMatsMessage to send
         JmsMatsMessage<Z> next = JmsMatsMessage.produceMessage(DispatchType.STAGE, nanosStart,
@@ -647,7 +642,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _outgoingProps.clear();
         _outgoingBinaries.clear();
         _outgoingStrings.clear();
-        return matsMessageId;
+        return currentCall.getMatsMessageId();
     }
 
     @Override

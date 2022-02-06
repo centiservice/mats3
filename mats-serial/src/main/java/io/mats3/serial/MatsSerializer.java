@@ -1,5 +1,7 @@
 package io.mats3.serial;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 import io.mats3.serial.MatsTrace.Call;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
 
@@ -23,7 +25,6 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
  * @author Endre Stølsvik - 2015-07-22 - http://endre.stolsvik.com
  */
 public interface MatsSerializer<Z> {
-
     /**
      * Whether this implementation of MatsSerializer handles the specified {@link SerializedMatsTrace#getMeta() "meta"}.
      * <p>
@@ -39,33 +40,14 @@ public interface MatsSerializer<Z> {
     }
 
     /**
-     * NOTE: DELETE after users are at > 0.15.0.
-     *
-     * Used when initiating a new MATS processing. Since the {@link MatsTrace} implementation is dependent on the
-     * serialization mechanism in use, we need a way provided by the serializer to instantiate new instances of the
-     * implementation of MatsTrace.
-     *
-     * @param traceId
-     *            the Trace Id of this new {@link MatsTrace}.
-     * @param keepMatsTrace
-     *            to which extent the MatsTrace should "keep trace", i.e. whether all Calls and States should be kept
-     *            through the entire flow from initiation to terminator - default shall be
-     *            {@link KeepMatsTrace#COMPACT}. The only reason for why this exists is for debugging: The
-     *            implementation cannot depend on this feature. To see the call history, do a toString() on the
-     *            ProcessContext of the lambda, which should perform a toString() on the corresponding MatsTrace, which
-     *            should have a human readable trace output.
-     * @param nonPersistent
-     *            whether the message should be JMS-style "non-persistent" - default shall be <code>false</code>, i.e.
-     *            the default is that a message is persistent.
-     * @param interactive
-     *            whether the message should be prioritized in that a human is actively waiting for the reply, default
-     *            shall be <code>false</code>.
-     * @return a new instance of the underlying {@link MatsTrace} implementation.
-     * @deprecated use {@link #createNewMatsTrace(String, String, KeepMatsTrace, boolean, boolean, long, boolean)}.
+     * NOTE: DELETE after users are at > 0.15.0. (Evaluate whether extensions @Override).
      */
     @Deprecated
-    MatsTrace<Z> createNewMatsTrace(String traceId, KeepMatsTrace keepMatsTrace, boolean nonPersistent,
-            boolean interactive);
+    default MatsTrace<Z> createNewMatsTrace(String traceId, KeepMatsTrace keepMatsTrace, boolean nonPersistent,
+            boolean interactive) {
+        return createNewMatsTrace(traceId, Long.toHexString(Math.abs(ThreadLocalRandom.current().nextLong())),
+                keepMatsTrace, nonPersistent, interactive, 0, false);
+    }
 
     /**
      * Used when initiating a new MATS flow. Since the {@link MatsTrace} implementation is dependent on the
@@ -95,8 +77,8 @@ public interface MatsSerializer<Z> {
      * @param noAudit
      *            hint to the underlying implementation, or to any monitoring/auditing tooling on the Message Broker,
      *            that it does not make much value in auditing this message flow, typically because it is just a
-     *            "getter" of information to show to some user, or a health-check validating that some service is up
-     *            and answers in a timely fashion.
+     *            "getter" of information to show to some user, or a health-check validating that some service is up and
+     *            answers in a timely fashion.
      * @return a new instance of the underlying {@link MatsTrace} implementation.
      */
     MatsTrace<Z> createNewMatsTrace(String traceId, String flowId,

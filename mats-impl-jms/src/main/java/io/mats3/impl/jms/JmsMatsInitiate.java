@@ -342,7 +342,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
                         ser.serializeObject(requestDto),
                         ser.serializeObject(_replySto),
                         ser.serializeObject(initialTargetSto));
-        produceMessage(requestDto, initialTargetSto, nanosStartProducingOutgoingMessage, now, requestMatsTrace);
+        produceMessage(requestDto, initialTargetSto, nanosStartProducingOutgoingMessage, requestMatsTrace);
 
         return new MessageReferenceImpl(requestMatsTrace.getCurrentCall().getMatsMessageId());
     }
@@ -366,7 +366,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         MatsTrace<Z> sendMatsTrace = createMatsTrace(ser, now)
                 .addSendCall(_from, _to, MessagingModel.QUEUE,
                         ser.serializeObject(messageDto), ser.serializeObject(initialTargetSto));
-        produceMessage(messageDto, initialTargetSto, nanosStart, now, sendMatsTrace);
+        produceMessage(messageDto, initialTargetSto, nanosStart, sendMatsTrace);
 
         return new MessageReferenceImpl(sendMatsTrace.getCurrentCall().getMatsMessageId());
     }
@@ -389,20 +389,14 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         MatsTrace<Z> publishMatsTrace = createMatsTrace(ser, now)
                 .addSendCall(_from, _to, MessagingModel.TOPIC,
                         ser.serializeObject(messageDto), ser.serializeObject(initialTargetSto));
-        produceMessage(messageDto, initialTargetSto, nanosStart, now, publishMatsTrace);
+        produceMessage(messageDto, initialTargetSto, nanosStart, publishMatsTrace);
 
         return new MessageReferenceImpl(publishMatsTrace.getCurrentCall().getMatsMessageId());
     }
 
     private void produceMessage(Object messageDto, Object initialTargetSto, long nanosStartProducingOutgoingMessage,
-            long now, MatsTrace<Z> outgoingMatsTrace) {
-        Call<Z> currentCall = outgoingMatsTrace.getCurrentCall();
-
-        currentCall.setDebugInfo(_parentFactory.getFactoryConfig().getAppName(),
-                _parentFactory.getFactoryConfig().getAppVersion(),
-                _parentFactory.getFactoryConfig().getNodename(), now,
-                createMatsMessageId(outgoingMatsTrace.getFlowId(), now, now, outgoingMatsTrace.getCallNumber()),
-                "#init#");
+            MatsTrace<Z> outgoingMatsTrace) {
+        // NOTICE: We do not set currentCall.setDebugInfo(..), as it is the same as on the initiation.
 
         // ?: Do we have an existing MatsTrace (implying that we are being initiated within a Stage)
         if (_existingMatsTrace != null) {
@@ -435,11 +429,9 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
                 : null;
         MatsTrace<Z> matsTrace = ser.createNewMatsTrace(_traceId, flowId, _keepTrace, _nonPersistent, _interactive,
                 _timeToLive, _noAudit)
-                // NOTE! We set "from" both on the MatsTrace, AND on the initial Call, so that you can have the
-                // origin of the flow even though it is in KeepTrace.MINIMAL mode.
                 .withDebugInfo(_parentFactory.getFactoryConfig().getAppName(),
                         _parentFactory.getFactoryConfig().getAppVersion(),
-                        _parentFactory.getFactoryConfig().getNodename(), _from, now, debugInfo);
+                        _parentFactory.getFactoryConfig().getNodename(), _from, debugInfo);
         // ?: Is this a child flow?
         if (_existingMatsTrace != null) {
             // -> Yes, so initialize it as such.

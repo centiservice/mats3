@@ -142,13 +142,6 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     }
 
     @Override
-    @Deprecated
-    public MatsTrace<String> createNewMatsTrace(String traceId, KeepMatsTrace keepMatsTrace, boolean nonPersistent,
-            boolean interactive) {
-        return MatsTraceStringImpl.createNew(traceId, keepMatsTrace, nonPersistent, interactive);
-    }
-
-    @Override
     public MatsTrace<String> createNewMatsTrace(String traceId, String flowId,
             KeepMatsTrace keepMatsTrace, boolean nonPersistent, boolean interactive, long ttlMillis, boolean noAudit) {
         return MatsTraceStringImpl.createNew(traceId, flowId, keepMatsTrace, nonPersistent, interactive, ttlMillis,
