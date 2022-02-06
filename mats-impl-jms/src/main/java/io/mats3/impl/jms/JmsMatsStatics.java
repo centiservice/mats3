@@ -72,6 +72,8 @@ public interface JmsMatsStatics {
     String JMS_MSG_PROP_MESSAGE_TYPE = "mats_MsgType"; // String
     String JMS_MSG_PROP_ENVELOPE_SIZE = "mats_EnvSize"; // Long
     String JMS_MSG_PROP_FROM = "mats_From"; // String
+    String JMS_MSG_PROP_INITIALIZING_APP = "mats_InitApp"; // String
+    String JMS_MSG_PROP_INITIATOR_ID = "mats_InitId"; // String
     String JMS_MSG_PROP_TO = "mats_To"; // String
     String JMS_MSG_PROP_AUDIT = "mats_Audit"; // Boolean
 
@@ -148,11 +150,13 @@ public interface JmsMatsStatics {
 
                 // :: Add some JMS Message Properties to simplify intercepting/logging on MQ Broker.
                 mm.setStringProperty(JMS_MSG_PROP_TRACE_ID, outgoingMatsTrace.getTraceId());
-                mm.setStringProperty(JMS_MSG_PROP_MATS_MESSAGE_ID, outgoingMatsTrace.getCurrentCall()
-                        .getMatsMessageId());
+                mm.setStringProperty(JMS_MSG_PROP_MATS_MESSAGE_ID,
+                        outgoingMatsTrace.getCurrentCall().getMatsMessageId());
                 mm.setStringProperty(JMS_MSG_PROP_DISPATCH_TYPE, jmsMatsMessage.getDispatchType().toString());
                 mm.setStringProperty(JMS_MSG_PROP_MESSAGE_TYPE, jmsMatsMessage.getMessageType().toString());
                 mm.setLongProperty(JMS_MSG_PROP_ENVELOPE_SIZE, serializedOutgoingMatsTrace.getSizeCompressed());
+                mm.setStringProperty(JMS_MSG_PROP_INITIALIZING_APP, outgoingMatsTrace.getInitializingAppName());
+                mm.setStringProperty(JMS_MSG_PROP_INITIATOR_ID, outgoingMatsTrace.getInitiatorId());
                 mm.setStringProperty(JMS_MSG_PROP_FROM, outgoingMatsTrace.getCurrentCall().getFrom());
                 mm.setStringProperty(JMS_MSG_PROP_TO, toChannel.getId());
                 mm.setBooleanProperty(JMS_MSG_PROP_AUDIT, !outgoingMatsTrace.isNoAudit());
