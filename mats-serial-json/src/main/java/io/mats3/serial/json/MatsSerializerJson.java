@@ -21,10 +21,10 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
-import io.mats3.serial.impl.MatsTraceStringImpl;
 
 /**
  * Implementation of {@link MatsSerializer} that employs <a href="https://github.com/FasterXML/jackson">Jackson JSON
@@ -402,7 +402,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         // ?: Did we get an Inflater from the pool?
         if (deflater == null) {
             // -> No, so make a new one.
-            deflater = new Deflater();
+            deflater = new Deflater(_compressionLevel);
         }
 
         // Whether we should enpool the deflater at end

@@ -5,17 +5,26 @@ import java.util.Optional;
 import java.util.Set;
 
 import io.mats3.serial.MatsTrace.Call.MessagingModel;
-import io.mats3.serial.impl.MatsTraceStringImpl;
 
 /**
  * Together with the {@link MatsSerializer}, this interface describes one way to implement a wire-protocol for how Mats
  * communicates. It is up to the implementation of the <code>MatsFactory</code> to implement a protocol of how the Mats
  * API is transferred over the wire. This is one such implementation that can be used, which is employed by the default
  * JMS implementation of Mats.
- * <p />
- * From the outset, there is one format (JSON serialization of the {@link MatsTraceStringImpl} class using Jackson), and
- * one transport (JMS MATS). Notice that the serialization of the actual DTOs and STOs can be handled independently,
- * e.g. use GSON, or protobuf, or whatever can handle serialization to and from the DTOs and STOs being used.
+ * <p>
+ * The MatsTrace is designed to contain all previous {@link Call}s in a processing, thus helping the debugging for
+ * any particular stage immensely: All earlier calls with data and stack frames for this processing is kept in the
+ * trace, thus enabling immediate understanding of what lead up to the particular situation.
+ * <p>
+ * However, for any particular invocation (invoke, request or reply), only the current (last) {@link Call} - along
+ * with the stack frames for the same and lower stack depths than the current call - is needed to execute the stage.
+ * This makes it possible to use a condensed variant of MatsTrace that only includes the single current
+ * {@link Call}, along with the relevant stack frames. This is defined by the {@link KeepMatsTrace} enum.
+ * <p>
+ * One envisions that for development and the production stabilization phase of the system, the long form is used, while
+ * when the system have performed flawless for a while, one can change it to use the condensed form, thereby shaving
+ * some cycles for the serialization and deserialization, but more importantly potentially quite a bit of bandwidth and
+ * message processing compared to transfer of the full trace.
  *
  * @param <Z>
  *            The type which STOs and DTOs are serialized into. When employing JSON for the "outer" serialization of
@@ -76,25 +85,6 @@ public interface MatsTrace<Z> {
      *         methods, which return a new, independent instance.
      */
     MatsTrace<Z> withChildFlow(String parentMatsMessageId, int totalCallNumber);
-
-    /**
-     * If this is a {@link #withChildFlow(String, int) child flow} of an existing flow, this should return the
-     * MatsMessageId of the message whose processing spawned this new flow.
-     *
-     * @return the MatsMessageId of the message whose processing spawned this new flow.
-     */
-    String getParentMatsMessageId();
-
-    /**
-     * "Stack overflow protection" mechanism.
-     *
-     * @return the total call number, which is the same as {@link #getCallNumber()} <i>unless</i> this flow was
-     *         initiated within a stage, in which case the totalCallNumber starts at the current call number at that
-     *         stage (as set with {@link #withChildFlow(String, int)}). This ensures that if we end up with e.g. a mats
-     *         flow initiating a new mats flow to itself, thus creating a loop, this number will continuously increase,
-     *         and we can thus break out at some obviously-too-large value.
-     */
-    int getTotalCallNumber();
 
     /**
      * @return the TraceId that this {@link MatsTrace} was initiated with - this is set once, at initiation time, and
@@ -181,6 +171,38 @@ public interface MatsTrace<Z> {
     String getInitiatorId();
 
     String getDebugInfo();
+
+    /**
+     * @return the number of calls that this MatsTrace have been through, i.e. how many times
+     *         {@link MatsTrace#addRequestCall(String, String, MessagingModel, String, MessagingModel, Object, Object, Object)
+     *         MatsTrace.add[Request|Next|Reply..](..)} has been invoked on this MatsTrace. This means that right after
+     *         a new MatsTrace has been created, before a call has been added, 0 is returned. With KeepMatsTrace at
+     *         {@link KeepMatsTrace#FULL FULL} or {@link KeepMatsTrace#COMPACT COMPACT}, the returned number will be the
+     *         same as {@link #getCallFlow()}.size(), but with {@link KeepMatsTrace#MINIMAL MINIMAL}, that number of
+     *         always 1, but this number will still return the number of calls that has been added through the flow.
+     *
+     * @see #getTotalCallNumber()
+     */
+    int getCallNumber();
+
+    /**
+     * "Stack overflow protection" mechanism.
+     *
+     * @return the total call number, which is the same as {@link #getCallNumber()} <i>unless</i> this flow was
+     *         initiated within a stage, in which case the totalCallNumber starts at the current call number at that
+     *         stage (as set with {@link #withChildFlow(String, int)}). This ensures that if we end up with e.g. a mats
+     *         flow initiating a new mats flow to itself, thus creating a loop, this number will continuously increase,
+     *         and we can thus break out at some obviously-too-large value.
+     */
+    int getTotalCallNumber();
+
+    /**
+     * If this is a {@link #withChildFlow(String, int) child flow} of an existing flow, this should return the
+     * MatsMessageId of the message whose processing spawned this new flow.
+     *
+     * @return the MatsMessageId of the message whose processing spawned this new flow.
+     */
+    String getParentMatsMessageId();
 
     /**
      * Sets a trace property, refer to <code>ProcessContext.setTraceProperty(String, Object)</code>. Notice that on the
@@ -323,19 +345,6 @@ public interface MatsTrace<Z> {
      *         <code>null</code> if not call has yet been added to the trace.
      */
     Call<Z> getCurrentCall();
-
-    /**
-     * @return the number of calls that this MatsTrace have been through, i.e. how many times
-     *         {@link MatsTrace#addRequestCall(String, String, MessagingModel, String, MessagingModel, Object, Object, Object)
-     *         MatsTrace.add[Request|Next|Reply..](..)} has been invoked on this MatsTrace. This means that right after
-     *         a new MatsTrace has been created, before a call has been added, 0 is returned. With KeepMatsTrace at
-     *         {@link KeepMatsTrace#FULL FULL} or {@link KeepMatsTrace#COMPACT COMPACT}, the returned number will be the
-     *         same as {@link #getCallFlow()}.size(), but with {@link KeepMatsTrace#MINIMAL MINIMAL}, that number of
-     *         always 1, but this number will still return the number of calls that has been added through the flow.
-     *
-     * @see #getTotalCallNumber()
-     */
-    int getCallNumber();
 
     /**
      * Returns the {@link StackState} for the {@link #getCurrentCall()}, if present.

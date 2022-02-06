@@ -10,9 +10,13 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
  * encoded JSON or XML, or some binary serialization protocol), and STOs and DTOs to and from type Z, where Z can e.g.
  * be byte arrays or Strings. This is separated out from the MATS communication implementation (i.e. JMS or RabbitMQ),
  * as it is a separate aspect, i.e. both the JMS and RabbitMQ implementation can utilize the same serializer.
+ * <p />
+ * There are two levels of serialization needed: For the DTOs and STOs that the Mats API expose to the "end user", and
+ * then the serialization of the MatsTrace itself. There is an implementation of MatsTrace in the impl package called
+ * <code>MatsTraceFieldImpl</code> which is meant to be serialized by fields (thus the field names are short).
  * <p>
- * The default implementation in mats-serial-json (<code>MatsSerializer_DefaultJson</code>) employs the Jackson JSON
- * library to serialize to JSON.
+ * The default implementation in 'mats-serial-json' (<code>MatsSerializerJson</code>) employs the Jackson JSON library
+ * to serialize to JSON, both for the "inner" DTO-and-STO part, and for the "outer" MatsTrace part.
  * <p>
  * It is worth pointing out that <i>all</i> the communicating parties needs to be using the same serialization
  * mechanism, as this constitute the "wire-representation" of the protocol that {@link MatsTrace} represents.
