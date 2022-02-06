@@ -5,6 +5,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import javax.jms.ConnectionFactory;
 
+import org.apache.activemq.ActiveMQPrefetchPolicy;
 import org.apache.activemq.RedeliveryPolicy;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.RoutingType;
@@ -14,21 +15,24 @@ import org.apache.activemq.artemis.core.config.CoreAddressConfiguration;
 import org.apache.activemq.artemis.core.config.impl.ConfigurationImpl;
 import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
+import org.apache.activemq.broker.BrokerPlugin;
 import org.apache.activemq.broker.BrokerService;
 import org.apache.activemq.broker.region.policy.IndividualDeadLetterStrategy;
 import org.apache.activemq.broker.region.policy.PolicyEntry;
 import org.apache.activemq.broker.region.policy.PolicyMap;
+import org.apache.activemq.plugin.StatisticsBroker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A special utility class utilized in tests and Mats test infrastructure - it starts an in-vm ActiveMQ Broker (unless a
- * special system property is set), and a corresponding {@link ConnectionFactory} to this broker.
- *
- * If the system property "{@link #SYSPROP_MATS_TEST_BROKERURL mats.test.brokerurl}" is set to any string, the in-vm
- * broker instance <i>will not</i> be created, and the supplied string will be used for the relevant ConnectionFactory
- * (i.e. the client) brokerURL. The special value "{@link #SYSPROP_MATS_TEST_BROKERURL_VALUE_LOCALHOST LOCALHOST}"
- * implies "tcp://localhost:61616", which is the default for a localhost ActiveMQ connection.
+ * A special utility class utilized in tests and Mats test infrastructure providing a ConnectionFactory for the test
+ * (Jms)MatsFactory - and if relevant also fires up an embedded ("in-VM") ActiveMQ (default) or Artemis message broker.
+ * <p/>
+ * If the system property "{@link #SYSPROP_MATS_TEST_BROKER mats.test.broker}" is set, it directs which type of broker
+ * should be connected to, and possibly instantiate embedded.
+ * <p/>
+ * If the system property "{@link #SYSPROP_MATS_TEST_BROKERURL mats.test.brokerurl}" is set, it both defines whether the
+ * embedded message broker will be created and which URL the created ConnectionFactory should use.
  *
  * @author Endre Stølsvik 2019-05-06 22:42, factored out of <code>Rule_Mats</code> from 2015 - http://stolsvik.com/,
  *         endre@stolsvik.com
@@ -40,7 +44,8 @@ public interface MatsTestBroker {
 
     /**
      * Which Broker client to use (which JMS {@link ConnectionFactory} implementation): activemq (default), artemis or
-     * rabbitmq.
+     * rabbitmq - or if a class-name like String, assumes that it is an implementation of the present interface
+     * (<code>MatsTestBroker</code>) and instantiates that.
      */
     String SYSPROP_MATS_TEST_BROKER = "mats.test.broker";
 
@@ -55,31 +60,37 @@ public interface MatsTestBroker {
     String SYSPROP_MATS_TEST_BROKER_VALUE_ARTEMIS = "artemis";
 
     /**
-     * Use RabbitMQ as broker.
+     * Use RabbitMQ as broker. This cannot be used in embedded mode, since RabbitMQ is written in Erlang.
      */
     String SYSPROP_MATS_TEST_BROKER_VALUE_RABBITMQ = "rabbitmq";
 
     /**
-     * System property ("-D" jvm argument) that if set will a. Not start in-vm ActiceMQ instance, and b. make the
-     * ConnectionFactory use the value as brokerURL - with the special case that if the value is
-     * "{@link #SYSPROP_MATS_TEST_BROKERURL_VALUE_LOCALHOST LOCALHOST}", it will be
-     * <code>"tcp://localhost:61616"</code>.
+     * System property ("-D" jvm argument) that if set to something else than
+     * {@link #SYSPROP_MATS_TEST_BROKERURL_VALUE_IN_VM}, will
+     * <ol>
+     * <li><b>Not</b> start an embedded ("in-VM") ActiveMQ instance.</li>
+     * <li>Make the ConnectionFactory use the property's value as brokerURL - with the special case that if the value is
+     * "{@link #SYSPROP_MATS_TEST_BROKERURL_VALUE_LOCALHOST LOCALHOST}", it means default localhost connection string
+     * for {@link #SYSPROP_MATS_TEST_BROKER active broker}, e.g. for ActiveMQ: <code>"tcp://localhost:61616"</code></li>
+     * </ol>
      * <p>
      * Value is {@code "mats.test.brokerurl"}
      */
     String SYSPROP_MATS_TEST_BROKERURL = "mats.test.brokerurl";
 
     /**
-     * If the value of {@link #SYSPROP_MATS_TEST_BROKERURL} is this value OR not set (it is the default), the
-     * ConnectionFactory will use "tcp://localhost:61616" as the brokerURL.
+     * DEFAULT: If the value of {@link #SYSPROP_MATS_TEST_BROKERURL} is this value OR not set (i.e. this is the
+     * default), the ConnectionFactory will use an in-VM connection method for the {@link #SYSPROP_MATS_TEST_BROKER
+     * active broker}, e.g. for ActiveMQ: <code>"vm://{brokername}"</code>. (Note that RabbitMQ does not support in-VM,
+     * since it's written in Erlang).
      * <p>
      * Value is {@code "in-vm"}
      */
     String SYSPROP_MATS_TEST_BROKERURL_VALUE_IN_VM = "in-vm";
 
     /**
-     * If the value of {@link #SYSPROP_MATS_TEST_BROKERURL} is this value, the ConnectionFactory will use
-     * "tcp://localhost:61616" as the brokerURL.
+     * If the value of {@link #SYSPROP_MATS_TEST_BROKERURL} is this value, it means default localhost connection string
+     * for {@link #SYSPROP_MATS_TEST_BROKER active broker}, e.g. for ActiveMQ: <code>"tcp://localhost:61616"</code>.
      * <p>
      * Value is {@code "localhost"}
      */
@@ -145,11 +156,11 @@ public interface MatsTestBroker {
     /**
      * This is a special factory method, which creates a unique (randomly named) in-vm ActiveMQ instance, no matter what
      * the system properties says. This is only relevant in very specific test scenarios where you specifically want
-     * more than a single broker, due to wanting multiple distinct MatsFactories utilizing these brokers. It is used by
-     * the Mats test suites to check that the SpringConfig handles multiple MatsFactories each employing a different
-     * broker with separate JMS ConnectionFactories (which is relevant if you have multiple brokers in your environment
-     * to e.g. subdivide the traffic, but some services are relevant for more than one of those subdivisions, and thus
-     * those services want "one leg in each broker").
+     * more than a single broker, due to wanting multiple distinct MatsFactories utilizing these distinct brokers, i.e.
+     * multiple separate "Mats fabrics". It is used by the Mats test suites to check that the SpringConfig handles
+     * multiple MatsFactories each employing a different broker with separate JMS ConnectionFactories (which is relevant
+     * if you have multiple brokers in your environment to e.g. subdivide the traffic, but some services are relevant
+     * for more than one of those subdivisions, and thus those services want "one leg in each broker").
      *
      * @return an in-vm ActiveMQ backed MatsTestBroker, no matter what the system properties says.
      */
@@ -205,30 +216,52 @@ public interface MatsTestBroker {
             log.info("Setting up in-vm ActiveMQ BrokerService '" + brokername + "'.");
             BrokerService brokerService = new BrokerService();
             brokerService.setBrokerName(brokername.toString());
-            // No need for JMX registry.
+            // :: Disable a bit of stuff for testing:
+            // No need for JMX registry; We won't control nor monitor it over JMX in tests
             brokerService.setUseJmx(false);
-            // No need for persistence (prevents KahaDB dirs from being created).
+            // No need for persistence; No need for persistence across reboots, and don't want KahaDB dirs and files.
             brokerService.setPersistent(false);
-            // No need for Advisory Messages.
+            // No need for Advisory Messages; We won't be needing those events in tests.
             brokerService.setAdvisorySupport(false);
-            // We'll shut it down ourselves.
+            // No need for shutdown hook; We'll shut it down ourselves in the tests.
             brokerService.setUseShutdownHook(false);
 
-            // :: Set Individual DLQ
+            // ::: Add features that we would want in prod.
+            // Note: All programmatic config here can be set via standalone broker config file 'conf/activemq.xml'.
+
+            // :: Add the statistics broker, since that is what we want people to do in production, and so that an
+            // ActiveMQ instance created with this tool can be used by 'matsbrokermonitor'.
+            brokerService.setPlugins(new BrokerPlugin[] { StatisticsBroker::new });
+
+            // :: Set Individual DLQ - which you most definitely should do in production.
             // Hear, hear: http://activemq.2283324.n4.nabble.com/PolicyMap-api-is-really-bad-td4284307.html
             // Create the individual DLQ policy, targeting all queues.
-            PolicyEntry individualDlqPolicyEntry = new PolicyEntry();
-            individualDlqPolicyEntry.setQueue(">"); // all queues
             IndividualDeadLetterStrategy individualDeadLetterStrategy = new IndividualDeadLetterStrategy();
             individualDeadLetterStrategy.setQueuePrefix("DLQ.");
-            individualDlqPolicyEntry.setDeadLetterStrategy(individualDeadLetterStrategy);
-            // .. Create the PolicyMap containing this DLQ policy.
+            // :: Throw expired messages out the window
+            individualDeadLetterStrategy.setProcessExpired(false);
+            // :; Also DLQ non-persistent messages
+            individualDeadLetterStrategy.setProcessNonPersistent(true);
+
+            // :: Create the policy entry employing this IndividualDeadLetterStrategy and any extra features going
+            // into this "all queues" policy.
+            PolicyEntry policyEntry = new PolicyEntry();
+            policyEntry.setQueue(">"); // all queues
+            policyEntry.setDeadLetterStrategy(individualDeadLetterStrategy);
+            // Optimized dispatch.. ?? "Don’t use a separate thread for dispatching from a Queue."
+            // .. didn't really see any result, so leave at default.
+            // policyEntry.setOptimizedDispatch(true);
+            // We do use prioritization, and this should ensure that priority information is persisted
+            // Store JavaDoc: "A hint to the store to try recover messages according to priority"
+            policyEntry.setPrioritizedMessages(true);
+
+            // .. Create the PolicyMap containing the policy
             PolicyMap policyMap = new PolicyMap();
-            policyMap.put(individualDlqPolicyEntry.getDestination(), individualDlqPolicyEntry);
-            // .. set this individual DLQ policy on the broker.
+            policyMap.put(policyEntry.getDestination(), policyEntry);
+            // .. set this PolicyMap containing our PolicyEntry on the broker.
             brokerService.setDestinationPolicy(policyMap);
 
-            // Start the broker.
+            // :: Start the broker.
             try {
                 brokerService.start();
             }
@@ -247,6 +280,15 @@ public interface MatsTestBroker {
             redeliveryPolicy.setInitialRedeliveryDelay(100);
             redeliveryPolicy.setUseExponentialBackOff(false);
             redeliveryPolicy.setMaximumRedeliveries(1);
+
+            /*
+             * The queue prefetch is default 1000, which is very much when used as Mats with its transactional logic of
+             * "consume a message, produce a message, commit". Lowering this considerably to instead focus on good
+             * distribution, and if one consumer by any chance gets hung, it won't allocate so many of the messages
+             * "into a void".
+             */
+            ActiveMQPrefetchPolicy prefetchPolicy = conFactory.getPrefetchPolicy();
+            prefetchPolicy.setQueuePrefetch(10);
 
             return conFactory;
         }
