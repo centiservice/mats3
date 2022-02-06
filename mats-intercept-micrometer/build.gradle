@@ -11,7 +11,7 @@ dependencies {
     // ===== TEST
 
     // Include Prometheus MeterRegistry
-    compile "io.micrometer:micrometer-registry-prometheus:$micrometerVersion"
+    testImplementation "io.micrometer:micrometer-registry-prometheus:$micrometerVersion"
 
     // We need an implementation of the MatsSerializer, the MatsSerializer_DefaultJson.
     testImplementation project(':mats-serial-json')
