@@ -52,14 +52,14 @@ import io.prometheus.client.Collector.MetricFamilySamples;
 /**
  * @author Endre Stølsvik 2021-02-17 12:57 - http://stolsvik.com/, endre@stolsvik.com
  */
-public class MatsMetricsJettyServer {
+public class MatsMetrics_TestJettyServer {
 
     private static final String CONTEXT_ATTRIBUTE_PORTNUMBER = "ServerPortNumber";
     private static final String CONTEXT_ATTRIBUTE_JAVASCRIPT_PATH = "Path to JavaScript files";
 
     private static final String WEBSOCKET_PATH = "/matssocket";
 
-    private static final Logger log = LoggerFactory.getLogger(MatsMetricsJettyServer.class);
+    private static final Logger log = LoggerFactory.getLogger(MatsMetrics_TestJettyServer.class);
 
     @WebListener
     public static class SCL_Endre implements ServletContextListener {
@@ -86,7 +86,7 @@ public class MatsMetricsJettyServer {
             MatsSerializer<String> matsSerializer = MatsSerializerJson.create();
             // Create the MatsFactory
             _matsFactory = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
-                    MatsMetricsJettyServer.class.getSimpleName(), "*testing*",
+                    MatsMetrics_TestJettyServer.class.getSimpleName(), "*testing*",
                     JmsMatsJmsSessionHandler_Pooling.create(connFactory),
                     dataSource,
                     matsSerializer);
@@ -237,7 +237,7 @@ public class MatsMetricsJettyServer {
 
         // :: Get Jetty to Scan project classes too: https://stackoverflow.com/a/26220672/39334
         // Find location for current classes
-        URL classesLocation = MatsMetricsJettyServer.class.getProtectionDomain().getCodeSource().getLocation();
+        URL classesLocation = MatsMetrics_TestJettyServer.class.getProtectionDomain().getCodeSource().getLocation();
         // Set this location to be scanned.
         webAppContext.getMetaData().setWebInfClassesDirs(Collections.singletonList(Resource.newResource(
                 classesLocation)));

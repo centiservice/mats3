@@ -51,11 +51,11 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * @author Endre Stølsvik 2021-03-25 12:29 - http://stolsvik.com/, endre@stolsvik.com
  */
-public class LocalHtmlInspectTestJettyServer {
+public class LocalHtmlInspect_TestJettyServer {
 
     private static final String CONTEXT_ATTRIBUTE_PORTNUMBER = "ServerPortNumber";
 
-    private static final Logger log = LoggerFactory.getLogger(LocalHtmlInspectTestJettyServer.class);
+    private static final Logger log = LoggerFactory.getLogger(LocalHtmlInspect_TestJettyServer.class);
 
     @WebListener
     public static class SCL_Endre implements ServletContextListener {
@@ -82,7 +82,7 @@ public class LocalHtmlInspectTestJettyServer {
             MatsSerializer<String> matsSerializer = MatsSerializerJson.create();
             // Create the MatsFactory
             _matsFactory = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
-                    LocalHtmlInspectTestJettyServer.class.getSimpleName(), "*testing*",
+                    LocalHtmlInspect_TestJettyServer.class.getSimpleName(), "*testing*",
                     JmsMatsJmsSessionHandler_Pooling.create(connFactory),
                     dataSource,
                     matsSerializer);
@@ -90,11 +90,13 @@ public class LocalHtmlInspectTestJettyServer {
             // Hold start
             _matsFactory.holdEndpointsUntilFactoryIsStarted();
 
+            // TODO: Make two different MatsFactory instances, not just two introspect interfaces around same MF.
+
             // Configure the MatsFactory for testing
             _matsFactory.getFactoryConfig().setConcurrency(SetupTestMatsEndpoints.BASE_CONCURRENCY);
             // .. Use port number of current server as postfix for name of MatsFactory, and of nodename
             Integer portNumber = (Integer) sce.getServletContext().getAttribute(CONTEXT_ATTRIBUTE_PORTNUMBER);
-            _matsFactory.getFactoryConfig().setName(LocalHtmlInspectTestJettyServer.class.getSimpleName()
+            _matsFactory.getFactoryConfig().setName(LocalHtmlInspect_TestJettyServer.class.getSimpleName()
                     + "_" + portNumber);
             _matsFactory.getFactoryConfig().setNodename("EndreBox_" + portNumber);
 
@@ -332,7 +334,7 @@ public class LocalHtmlInspectTestJettyServer {
         }
     }
 
-    public static Server createServer(int port, ConnectionFactory jmsConnectionFactory) {
+    public static Server createServer(ConnectionFactory jmsConnectionFactory, int port) {
         WebAppContext webAppContext = new WebAppContext();
         webAppContext.setContextPath("/");
         webAppContext.setBaseResource(Resource.newClassPathResource("webapp"));
@@ -356,7 +358,7 @@ public class LocalHtmlInspectTestJettyServer {
 
         // :: Get Jetty to Scan project classes too: https://stackoverflow.com/a/26220672/39334
         // Find location for current classes
-        URL classesLocation = LocalHtmlInspectTestJettyServer.class.getProtectionDomain().getCodeSource()
+        URL classesLocation = LocalHtmlInspect_TestJettyServer.class.getProtectionDomain().getCodeSource()
                 .getLocation();
         // Set this location to be scanned.
         webAppContext.getMetaData().setWebInfClassesDirs(Collections.singletonList(Resource.newResource(
@@ -397,7 +399,7 @@ public class LocalHtmlInspectTestJettyServer {
         MatsTestBroker matsTestBroker = MatsTestBroker.createUniqueInVmActiveMq();
         ConnectionFactory jmsConnectionFactory = matsTestBroker.getConnectionFactory();
 
-        Server server = createServer(8080, jmsConnectionFactory);
+        Server server = createServer(jmsConnectionFactory, 8080);
         server.start();
     }
 }
