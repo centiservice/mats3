@@ -61,8 +61,8 @@ public interface MatsTrace<Z> {
     MatsTrace<Z> withChildFlow(String parentMatsMessageId, int totalCallNumber);
 
     /**
-     * If this is a {@link #withChildFlow(String, int)} of an existing flow, this should return the MatsMessageId of the
-     * message whose processing spawned this new flow.
+     * If this is a {@link #withChildFlow(String, int) child flow} of an existing flow, this should return the
+     * MatsMessageId of the message whose processing spawned this new flow.
      *
      * @return the MatsMessageId of the message whose processing spawned this new flow.
      */
@@ -71,9 +71,11 @@ public interface MatsTrace<Z> {
     /**
      * "Stack overflow protection" mechanism.
      *
-     * @return the total call number, which for a new call flow is initially set by {@link #withChildFlow(String, int)}
-     *         (or is 0 if it wasn't set, indicating a "brand new" / "from the outside" flow), and increased by 1 for
-     *         each call in the flow.
+     * @return the total call number, which is the same as {@link #getCallNumber()} <i>unless</i> this flow was
+     *         initiated within a stage, in which case the totalCallNumber starts at the current call number at that
+     *         stage (as set with {@link #withChildFlow(String, int)}). This ensures that if we end up with e.g. a mats
+     *         flow initiating a new mats flow to itself, thus creating a loop, this number will continuously increase,
+     *         and we can thus break out at some obviously-too-large value.
      */
     int getTotalCallNumber();
 
@@ -313,14 +315,19 @@ public interface MatsTrace<Z> {
      *         {@link KeepMatsTrace#FULL FULL} or {@link KeepMatsTrace#COMPACT COMPACT}, the returned number will be the
      *         same as {@link #getCallFlow()}.size(), but with {@link KeepMatsTrace#MINIMAL MINIMAL}, that number of
      *         always 1, but this number will still return the number of calls that has been added through the flow.
+     *
+     * @see #getTotalCallNumber()
      */
     int getCallNumber();
 
     /**
+     * Returns the {@link StackState} for the {@link #getCurrentCall()}, if present.
+     * <p />
      * Searches in the {@link #getStateFlow() 'State Flow'} from the back (most recent) for the first element that is at
      * the current stack height, as defined by {@link #getCurrentCall()}.{@link Call#getReplyStackHeight()}. If a more
      * shallow stackDepth than the specified is encountered, or the list is exhausted without the Stack Height being
-     * found, the search is terminated with null. (This
+     * found, the search is terminated with null. This happens for the initial stage for an endpoint, unless the
+     * 'initialState' was set on the SEND or REQUEST.
      * <p />
      * The point of the 'State Flow' is the same as for the Call list: Monitoring and debugging, by keeping a history of
      * all calls in the processing, along with the states that was present at each call point.
@@ -342,8 +349,8 @@ public interface MatsTrace<Z> {
      * terminator, there are 0 more frames below. However, the terminator needs its state, which is at state stack
      * height 0.
      *
-     * @return the state for the {@link #getCurrentCall()} if it exists, <code>null</code> otherwise (as is typical when
-     *         entering initial stage of an endpoint).
+     * @return the {@link StackState} for the {@link #getCurrentCall()} if it exists, <code>null</code> otherwise, as is
+     *         typical when entering initial stage of an endpoint.
      */
     Optional<StackState<Z>> getCurrentState();
 

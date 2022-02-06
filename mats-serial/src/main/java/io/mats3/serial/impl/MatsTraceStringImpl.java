@@ -79,7 +79,7 @@ public final class MatsTraceStringImpl implements MatsTrace<String>, Cloneable {
     // The entire message is also signed, and the signature is kept in byte-sideloads.
 
     private int cn; // Call Number. Not final due to clone-impl.
-    private int tcn; // For future "StackOverflow" detector: "Total Call Number", does not reset when initiation within.
+    private int tcn; // For "StackOverflow" detector: "Total Call Number", does not reset when initiation within stage.
 
     private List<CallImpl> c = new ArrayList<>(); // Calls, "Call Flow". Not final due to clone-impl.
     private List<StackStateImpl> ss = new ArrayList<>(); // StackStates, "State Flow". Not final due to clone-impl.
@@ -563,10 +563,6 @@ public final class MatsTraceStringImpl implements MatsTrace<String>, Cloneable {
             newStateStack.set(stackState.getHeight(), stackState);
         }
         return newStateStack;
-
-        // Original:
-        // pruneUnnecessaryStackStates(stackStates, getCurrentCall().getStackHeight());
-        // return new ArrayList<>(stackStates);
     }
 
     /**
@@ -1161,7 +1157,6 @@ public final class MatsTraceStringImpl implements MatsTrace<String>, Cloneable {
 
         // === STATES ===
 
-        // -> Yes, FULL, so print the state flow
         buf.append(" ").append("states: (").append(getKeepTrace()).append(", thus ")
                 .append(getKeepTrace() == KeepMatsTrace.FULL ? "state flow" : "state stack")
                 .append(" - includes state (if any) for this frame, and for all reply frames below us)")

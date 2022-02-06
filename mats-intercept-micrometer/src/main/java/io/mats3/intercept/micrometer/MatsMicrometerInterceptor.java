@@ -142,7 +142,7 @@ public class MatsMicrometerInterceptor
     /**
      * A {@link MeterFilter} that applies a hopefully reasonable histogram to all timing meters. The timings are split
      * up into two sets, "large" and "small" timings, based on what a reasonable span of timings should be for the
-     * different meters. Large is 1.5 ms to 50 seconds, small is 0.15ms to 5 seconds. The buckets are spaced "circa 3x
+     * different meters: Small is 0.15ms to 5 seconds, large is 1.5 ms to 50 seconds. The buckets are spaced "circa 3x
      * exponentially", as such: [.. 5, 15, 50, 150, 500 ..]. Both sets have 10 buckets.
      */
     public static class SuggestedTimingHistogramsMeterFilter implements MeterFilter {
