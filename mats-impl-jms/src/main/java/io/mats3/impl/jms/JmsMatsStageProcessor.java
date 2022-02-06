@@ -484,7 +484,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 String msg = "Got some JMS Message where we could not deserialize the MatsTrace.";
                                 log.error(LOG_PREFIX + msg + "\n" + message);
                                 receiveDeconstructError[0] = ReceiveDeconstructError.DECONSTRUCT_ERROR;
-                                throw new MatsRefuseMessageException(msg);
+                                throw new MatsRefuseMessageException(msg, e);
                             }
                             MatsTrace<Z> matsTrace = matsTraceDeserialized.getMatsTrace();
 
