@@ -18,7 +18,7 @@ ext {
     // Still using Spring 4 as "baseline", but also fully compatible with Spring 5. 2020-11-14.
     // NOTE: Spring started supporting JUnit Jupiter with the release of Spring 5.0.0.
     springVersionForJupiter = '5.3.7'
-    jacksonVersion = '2.11.4'
+    jacksonVersion = '2.13.1'
     slf4jVersion = '1.7.30'
     micrometerVersion = '1.7.3' // 1.7 is LTS. 1.7.3 most recent as of 2021-08-12
 
