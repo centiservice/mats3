@@ -9,7 +9,6 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
-import io.mats3.serial.json.MatsSerializer_DefaultJson;
 import io.mats3.test.TestH2DataSource;
 import io.mats3.test.abstractunit.AbstractMatsTest;
 
@@ -17,7 +16,7 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  * Provides a full MATS harness for unit testing by creating {@link JmsMatsFactory MatsFactory} utilizing an in-vm
  * Active MQ broker.
  * <p>
- * By default the {@link #create() rule} will create a {@link MatsSerializer_DefaultJson} which will be the serializer
+ * By default the {@link #create() rule} will create a {@link MatsSerializerJson} which will be the serializer
  * utilized by the created {@link JmsMatsFactory MatsFactory}. Should one want to use a different serializer which
  * serializes to the type of {@link String} then this can be specified using the method {@link #create(MatsSerializer)}.
  * However should one want to specify a serializer which serializes into anything other than {@link String}, then
