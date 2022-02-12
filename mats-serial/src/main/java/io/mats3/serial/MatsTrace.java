@@ -12,14 +12,14 @@ import io.mats3.serial.MatsTrace.Call.MessagingModel;
  * API is transferred over the wire. This is one such implementation that can be used, which is employed by the default
  * JMS implementation of Mats.
  * <p>
- * The MatsTrace is designed to contain all previous {@link Call}s in a processing, thus helping the debugging for
- * any particular stage immensely: All earlier calls with data and stack frames for this processing is kept in the
- * trace, thus enabling immediate understanding of what lead up to the particular situation.
+ * The MatsTrace is designed to contain all previous {@link Call}s in a processing, thus helping the debugging for any
+ * particular stage immensely: All earlier calls with data and stack frames for this processing is kept in the trace,
+ * thus enabling immediate understanding of what lead up to the particular situation.
  * <p>
- * However, for any particular invocation (invoke, request or reply), only the current (last) {@link Call} - along
- * with the stack frames for the same and lower stack depths than the current call - is needed to execute the stage.
- * This makes it possible to use a condensed variant of MatsTrace that only includes the single current
- * {@link Call}, along with the relevant stack frames. This is defined by the {@link KeepMatsTrace} enum.
+ * However, for any particular invocation (invoke, request or reply), only the current (last) {@link Call} - along with
+ * the stack frames for the same and lower stack depths than the current call - is needed to execute the stage. This
+ * makes it possible to use a condensed variant of MatsTrace that only includes the single current {@link Call}, along
+ * with the relevant stack frames. This is defined by the {@link KeepMatsTrace} enum.
  * <p>
  * One envisions that for development and the production stabilization phase of the system, the long form is used, while
  * when the system have performed flawless for a while, one can change it to use the condensed form, thereby shaving
@@ -332,6 +332,44 @@ public interface MatsTrace<Z> {
     MatsTrace<Z> addReplyCall(String from, Z data);
 
     /**
+     * Shall be invoked after adding the outgoing call, immediately before serializing the outgoing MatsTrace.
+     * <ul>
+     * <li>Sets the outgoing Call's {@link Call#getCalledTimestamp()} to be more closely aligned to the exact sending
+     * time. (For example, the message may have been constructed, then a massive SQL query was performed, and then a new
+     * message is constructed, and then the messages are actually turned into JMS messages and committed on the wire.
+     * This means that the first message will have a much earlier timestamp than the second.) Using this method, all
+     * outgoing messages can have the Called Timestamp set <i>right</i> before it is serialized and JMS-constructed and
+     * committed.</li>
+     * <li>If the {@link #getCurrentCall()} is a REQUEST, SEND, GOTO or PUBLISH (anything else than REPLY), it also sets
+     * the same-height-called-timestamp, recorded on the stackframe below it, or on the MatsTrace itself if there is no
+     * stackframe below (initial SEND). This is to be able to calculate the "time between stages" for the e.g. time
+     * between stage1 and stage2 of a multi-stage endpoint, noting that this might entail multiple levels of Request and
+     * Replies (thus it must reside on the stack).</li>
+     * </ul>
+     */
+    void setOutgoingTimestamp(long timestamp);
+
+    /**
+     * @return the timestamp set by {@link #setOutgoingTimestamp(long)} for the preceding call on the same stack height.
+     *         Used to calculate the "time between stages" for the different stages on an endpoint. It does not make
+     *         sense to get this for the initial stage of an Endpoint if the incoming is a REQUEST.
+     */
+    long getSameHeightOutgoingTimestamp();
+
+    /**
+     * Invoke this on the initial stage of an Endpoint. Used to calculate the "total endpoint time", through all stages,
+     * when the endpoint Replies, or stops (no outgoing message).
+     */
+    void setStageEnteredTimestamo(long timestamp);
+
+    /**
+     * @return the value of {@link #setStageEnteredTimestamo(long)} for the stages of the same endpoint. Used to
+     *         calculate the "total endpoint time", through all stages, when the endpoint Replies, or stops (no outgoing
+     *         message).
+     */
+    long getSameHeightEndpointEnteredTimestamp();
+
+    /**
      * @return this MatsTrace's SpanId. If it is still on the initiator side, before having had a call added to it, or
      *         on the terminator side, when the stack again is empty, the SpanId is derived from the {@link #getFlowId()
      *         FlowId}. Otherwise, it is the topmost element of an internal stack, in the same way as
@@ -415,6 +453,8 @@ public interface MatsTrace<Z> {
          * means that the first message will have a much earlier timestamp than the second. Using this method, all
          * outgoing messages can have the Called Timestamp set <i>right</i> before it is serialized and JMS-constructed
          * and committed.
+         *
+         * SOFT DEPRECATED, use {@link MatsTrace#setOutgoingTimestamp(long)}. TODO: Remove.
          */
         Call<Z> setCalledTimestamp(long calledTimestamp);
 

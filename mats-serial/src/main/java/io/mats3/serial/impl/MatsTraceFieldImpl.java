@@ -6,6 +6,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -25,7 +26,8 @@ import io.mats3.serial.MatsTrace.Call.MessagingModel;
  * An implementation of {@link MatsTrace} which uses fields to hold all state necessary for a Mats flow, including
  * "holders" for the serialization of DTOs and STOs, with type 'Z'. It is meant to be "field-serialized", thus the field
  * names are short. The most relevant types of Z are String and byte[], using e.g. JSON or Smile for serializing the
- * DTOs and STOs payloads.
+ * DTOs and STOs payloads, but it might be relevant to use a container/holder type too. You should create an extension
+ * of this class to set the type. In 'mats-serial-json', a <code>MatsTraceStringImpl</code> variant exists.
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
@@ -47,6 +49,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     private Long sid; // For future OpenTracing support: Override SpanId for root
     private Long pid; // For future OpenTracing support: ParentId (note: "ChildOf" in spec)
     private Byte f; // For future OpenTracing support: Flags
+    private long[] sids; // Open tracing SpanId stack. Not currently used, might be a better implementation.
 
     private int d; // For future Debug options, issue #79
 
@@ -136,8 +139,8 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
             boolean interactive, long ttlMillis, boolean noAudit) {
         this.tid = traceId;
         this.id = flowId;
-        this.ts = System.currentTimeMillis();
-
+        // This should really have been provided by user, when the initiation was /started/.
+        overrideInitializationTimestamp(System.currentTimeMillis());
         this.kt = keepMatsTrace;
         this.np = nonPersistent ? Boolean.TRUE : null;
         this.ia = interactive ? Boolean.TRUE : null;
@@ -145,6 +148,17 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         this.na = noAudit ? Boolean.TRUE : null;
         this.cn = 0;
         this.tcn = 0;
+    }
+
+    /**
+     * <b>NOTICE! This is NOT meant for public usage!</b>
+     */
+    public void overrideInitializationTimestamp(long timestamp) {
+        this.ts = timestamp;
+        // Set the initialization timestamp as "endpoint entered", so that if the init is a REQUEST, you can get
+        // the "total endpoint time" on the terminator, as init-to-terminator.
+        // The 'eets' (and 'ots') uses diff-from-initialization.
+        this.eets = new long[] { 0 };
     }
 
     // == NOTICE == Serialization and deserialization is an implementation specific feature.
@@ -250,7 +264,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
             String replyTo, MessagingModel replyToMessagingModel,
             Z data, Z replyState, Z initialState) {
         // Get copy of current stack. We're going to add a stack frame to it.
-        List<ReplyChannelWithSpan> newCallReplyStack = getCopyOfCurrentStackForNewCall();
+        List<ReplyChannel> newCallReplyStack = getCopyOfCurrentStackForNewCall();
         // Clone the current MatsTrace, which is the one we're going to modify and return.
         MatsTraceFieldImpl<Z> clone = cloneForNewCall();
         // :: Add the replyState - i.e. the state that is outgoing from the current stage, destined for the REPLY.
@@ -265,7 +279,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         clone.ss.add(newState);
 
         // Add the stageId to replyTo to the stack
-        newCallReplyStack.add(ReplyChannelWithSpan.newWithRandomSpanId(replyTo, replyToMessagingModel));
+        newCallReplyStack.add(ReplyChannel.newWithRandomSpanId(replyTo, replyToMessagingModel));
         // Prune the data and stack from current call if KeepMatsTrace says so.
         clone.dropValuesOnCurrentCallIfAny();
         // Add the new Call
@@ -285,7 +299,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     public MatsTraceFieldImpl<Z> addSendCall(String from, String to, MessagingModel toMessagingModel,
             Z data, Z initialState) {
         // Get copy of current stack. NOTE: For a send/next call, the stack does not change.
-        List<ReplyChannelWithSpan> newCallReplyStack = getCopyOfCurrentStackForNewCall();
+        List<ReplyChannel> newCallReplyStack = getCopyOfCurrentStackForNewCall();
         // Clone the current MatsTrace, which is the one we're going to modify and return.
         MatsTraceFieldImpl<Z> clone = cloneForNewCall();
         // Prune the data and stack from current call if KeepMatsTrace says so.
@@ -308,7 +322,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
             throw new IllegalStateException("When adding next-call, state-data string should not be null.");
         }
         // Get copy of current stack. NOTE: For a send/next call, the stack does not change.
-        List<ReplyChannelWithSpan> newCallReplyStack = getCopyOfCurrentStackForNewCall();
+        List<ReplyChannel> newCallReplyStack = getCopyOfCurrentStackForNewCall();
         // Clone the current MatsTrace, which is the one we're going to modify and return.
         MatsTraceFieldImpl<Z> clone = cloneForNewCall();
         // Prune the data and stack from current call if KeepMatsTrace says so.
@@ -329,8 +343,8 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
 
     @Override
     public MatsTraceFieldImpl<Z> addReplyCall(String from, Z data) {
-        // Get copy of current stack. We're going to pop an stack frame of it.
-        List<ReplyChannelWithSpan> newCallReplyStack = getCopyOfCurrentStackForNewCall();
+        // Get copy of current stack. We're going to pop a stack frame of it.
+        List<ReplyChannel> newCallReplyStack = getCopyOfCurrentStackForNewCall();
         // ?: Do we actually have anything to pop?
         if (newCallReplyStack.size() == 0) {
             // -> No stack: Illegal - you shouldn't be making a REPLY call if there is nothing to reply to.
@@ -343,15 +357,142 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         // Prune the data and stack from current call if KeepMatsTrace says so.
         clone.dropValuesOnCurrentCallIfAny();
         // Pop the last element off the stack, since this is where we'll reply to, and the rest is the new stack.
-        ReplyChannelWithSpan to = newCallReplyStack.remove(newCallReplyStack.size() - 1);
+        ReplyChannel to = newCallReplyStack.remove(newCallReplyStack.size() - 1);
         // Add the new Call, adding the ReplyForSpanId.
         CallImpl<Z> replyCall = new CallImpl<Z>(CallType.REPLY, getFlowId(), getInitializedTimestamp(), getCallNumber(),
-                from,
-                to, data, newCallReplyStack).setReplyForSpanId(getCurrentSpanId());
+                from, new ToChannel(to.i, to.m), data, newCallReplyStack).setReplyForSpanId(getCurrentSpanId());
         clone.c.add(replyCall);
         // Prune the StackStates if KeepMatsTrace says so.
         clone.pruneUnnecessaryStackStates();
         return clone;
+    }
+
+    private long[] ots; // "compressed" against the initiation time
+    private long[] eets; // "compressed" against the initiation time
+
+    @Override
+    public void setOutgoingTimestamp(long timestamp) {
+        // NOTE: SENDING SIDE: Invoked when a new message/call has been constructed, about to be sent.
+        // NOTE: Shall be invoked AFTER having added a call for new outgoing message, as late as possible before send.
+
+        // :: Set on the outgoing call
+        CallImpl<Z> cc = getCurrentCall();
+        cc.setCalledTimestamp(timestamp);
+
+        // :: Handle the "outgoing timestamp stack"
+        // NOTE: This enables the "time between stages" calculation: From send, to receive /on same stack height/.
+
+        int stackHeight = cc.getReplyStackHeight();
+
+        // ?: Is this a REPLY?
+        if (cc.t == CallType.REPLY) {
+            // -> Yes, REPLY: Then we should not set a new timestamp, but crop off the existing height
+            // If we /were/ at stack height 2, then there /was/ 3 timestamps (height 0, 1, 2).
+            // The current height (due to REPLY) is now 1, so now there should be 2 timestamps (height 0, 1)
+            // Copy the current, cropping if necessary, extending if necessary. Must handle null due to old impls.
+            this.ots = this.ots == null ? new long[stackHeight + 1] : Arrays.copyOf(this.ots, stackHeight + 1);
+            return;
+        }
+
+        // Find difference between initiation and timestamp
+        long diff = (timestamp - getInitializedTimestamp());
+
+        // ?: Is this a REQUEST?
+        if (cc.t == CallType.REQUEST) {
+            // -> Yes, REQUEST. Then we should set our timestamp on the stackheight /below/ this call.
+            // If we /were/ at stack height 1, then there /was/ 2 timestamps (height 0, 1).
+            // The current height (due to REQUEST) is now 2, but we should leave our timestamp at height 1.
+            // Copy the current, cropping if necessary, extending if necessary. Must handle null due to old impls.
+            this.ots = this.ots == null ? new long[stackHeight] : Arrays.copyOf(this.ots, stackHeight);
+            this.ots[stackHeight - 1] = diff;
+            return;
+        }
+
+        // E-> This is a SEND or PUBLISH (initiations), or NEXT or GOTO (flows)
+
+        // If we /were/ at stack height 1, then there /was/ 2 timestamps (height 0, 1).
+        // The current height is still now 1, and there is still 2 timestamps (height 0, 1),
+        // and we should leave our timestamp at height 1.
+        // Copy the current, cropping if necessary, extending if necessary. Must handle null due to old impls.
+        this.ots = this.ots == null ? new long[stackHeight + 1] : Arrays.copyOf(this.ots, stackHeight + 1);
+        this.ots[stackHeight] = diff;
+    }
+
+    @Override
+    public long getSameHeightOutgoingTimestamp() {
+        // NOTE: RECEIVING SIDE: Invoked when a message has been received
+        CallImpl<Z> cc = getCurrentCall();
+        if (cc.t == CallType.REQUEST) {
+            // Should really throw, as this makes no sense. Returning -1 instead, hope caller realizes his mistake.
+            return -1;
+        }
+        // E-> Not REQUEST
+
+        // For all types (outside of the REQUEST handled above), we should use the current stack height as the index of
+        // where to find the "same height outgoing timestamp" that was set on the sender.
+
+        int stackHeight = getCurrentCall().getReplyStackHeight();
+        // Must handle null due to old impls.
+        return this.ots == null ? 0 : this.ots[stackHeight] + getInitializedTimestamp();
+    }
+
+    @Override
+    public void setStageEnteredTimestamo(long timestamp) {
+        // NOTE: RECEIVING SIDE
+        // NOTE: Shall be invoked RIGHT WHEN RECEIVING a message on a stage
+
+        // :: Calculating EndpointEntered time, thus only when being received on the INITIAL stage
+
+        CallImpl<Z> cc = getCurrentCall();
+
+        // ?: Is this a NEXT?
+        if (cc.t == CallType.NEXT) {
+            // -> Yes NEXT. This is per definition not an *initial* stage.
+            // The endpoint-entered time stays the same - thus not touching the endpoint-entered stack.
+            return;
+        }
+
+        // ?: Is this a GOTO?
+        if (cc.t == CallType.GOTO) {
+            // -> Yes GOTO. This will be a new initial stage, but since it is a GOTO, it should not reset the
+            // endpoint-entered timestamp - thus not touching the endpoint-entered stack.
+            return;
+        }
+
+        int stackHeight = cc.getReplyStackHeight();
+
+        // ?: Is this a REPLY?
+        if (cc.t == CallType.REPLY) {
+            // -> Yes, REPLY. This cannot per definition be an *initial* stage.
+            // The endpoint-entered stack was cropped when the message was sent, so not touching it.
+            return;
+        }
+
+        // E-> This is a SEND or PUBLISH (initiation), or a REQUEST (flow)
+
+        // Find difference between initiation and timestamp
+        long diff = (timestamp - getInitializedTimestamp());
+
+        // If we are at stack height 1, then there are 2 timestamps in play (height 0, 1).
+        // We're the one at stack height 1, so setting our timestamp there
+        // Copy the current, cropping if necessary, extending if necessary. Must handle null due to old impls.
+        this.eets = this.eets == null ? new long[stackHeight + 1] : Arrays.copyOf(this.eets, stackHeight + 1);
+        this.eets[stackHeight] = diff;
+    }
+
+    @Override
+    public long getSameHeightEndpointEnteredTimestamp() {
+        // NOTE: RECEIVING/PROCESSING SIDE
+        // NOTE: Shall be invoked on the stage about to either stop flow, or send REPLY.
+        // NOTE: BEFORE adding a new call! (Obvious in case of "stopping" a flow, i.e. not sending a new message)
+
+        // E-> This is a SEND or PUBLISH (initiation), or a REQUEST (flow)
+        int stackHeight = getCurrentCall().getReplyStackHeight();
+
+        // If we are at stack height 1, then there are 2 timestamps in play (height 0, 1).
+        // We want the one at stack height 1.
+        // Must handle null due to old impls.
+        return this.eets == null ? 0 : this.eets[stackHeight] + getInitializedTimestamp();
     }
 
     private void forwardExtraStateIfExist(StackStateImpl<Z> newState) {
@@ -371,7 +512,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     /**
      * @return a COPY of the current stack.
      */
-    private List<ReplyChannelWithSpan> getCopyOfCurrentStackForNewCall() {
+    private List<ReplyChannel> getCopyOfCurrentStackForNewCall() {
         if (c.isEmpty()) {
             return new ArrayList<>();
         }
@@ -402,7 +543,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
             return getRootSpanId();
         }
         // E-> Yes, we have a CurrentCall
-        List<ReplyChannelWithSpan> stack = currentCall.s;
+        List<ReplyChannel> stack = currentCall.s;
         // ?: Is there any stack?
         if (stack.isEmpty()) {
             // -> No, no stack, so we're at initiator/terminator level - again derive SpanId from FlowId
@@ -413,11 +554,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     }
 
     private long getRootSpanId() {
-        // TODO: Remove this hack when everybody is >= v.0.16.0
-        if (getFlowId() == null) {
-            return 0;
-        }
-        return fnv1a_64(getFlowId().getBytes(StandardCharsets.UTF_8));
+        return sid != null ? sid : fnv1a_64(getFlowId().getBytes(StandardCharsets.UTF_8));
     }
 
     private List<Long> getSpanIdStack() {
@@ -427,7 +564,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         // ?: Did we have a CurrentCall?
         if (currentCall != null) {
             // -> We have a CurrentCall, add the stack of SpanIds.
-            for (ReplyChannelWithSpan cws : currentCall.s) {
+            for (ReplyChannel cws : currentCall.s) {
                 spanIds.add(cws.sid);
             }
         }
@@ -480,7 +617,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
 
     @Override
     public List<Call<Z>> getCallFlow() {
-        return new ArrayList<Call<Z>>(c);
+        return new ArrayList<>(c);
     }
 
     @Override
@@ -617,7 +754,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         private String f; // from, may be nulled.
         private final ToChannel to; // to.
         private Z d; // data, may be nulled.
-        private List<ReplyChannelWithSpan> s; // stack of reply channels, may be nulled, in which case 'ss' is set.
+        private List<ReplyChannel> s; // stack of reply channels, may be nulled, in which case 'ss' is set.
         private Integer ss; // stack size if stack is nulled.
 
         private Long rid; // Reply-From-SpanId
@@ -629,7 +766,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         }
 
         CallImpl(CallType type, String flowId, long matsTraceCreationMillis, int callNo, String from, ToChannel to,
-                Z data, List<ReplyChannelWithSpan> stack) {
+                Z data, List<ReplyChannel> stack) {
             this.t = type;
             this.f = from;
             this.to = to;
@@ -765,12 +902,12 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         /**
          * @return a COPY of the stack.
          */
-        List<ReplyChannelWithSpan> getReplyStack_internal() {
+        List<ReplyChannel> getReplyStack_internal() {
             // ?: Has the stack been nulled (to conserve space) due to not being Current Call?
             if (s == null) {
                 // -> Yes, nulled, so return a list of correct size where all elements are the string "-nulled-".
                 return new ArrayList<>(Collections.nCopies(getReplyStackHeight(),
-                        new ReplyChannelWithSpan(NULLED, null, 0)));
+                        new ReplyChannel(NULLED, null, 0)));
             }
             // E-> No, not nulled (thus Current Call), so return the stack.
             return new ArrayList<>(s);
@@ -833,7 +970,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
 
     /**
      * The "standard" implementation of Channel, which is internally only used for the "To" aspect of Channel. For the
-     * replyStack, the {@link ReplyChannelWithSpan} is used.
+     * replyStack, the {@link ReplyChannel} is used.
      */
     private static class ToChannel implements Channel {
         private final String i;
@@ -878,8 +1015,8 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     }
 
     /**
-     * The "special" implementation of {@link Channel}, extending the {@link ToChannel} by adding SpanId, employed on
-     * for the {@link CallImpl#getReplyStack_internal()}.
+     * Implementation of {@link Channel} used for the reply stack, extending the {@link ToChannel} by adding SpanId,
+     * employed for the {@link CallImpl#getReplyStack_internal()}.
      * <p />
      * We're hitching the SpanIds onto the ReplyTo Stack, as they have the same stack semantics. However, do note that
      * the Channel-stack and the SpanId-stack are "offset" wrt. to what they refer to:
@@ -891,32 +1028,46 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
      * </ul>
      * However, when correlating with how OpenTracing and friends refer to SpanIds, these are always created by the
      * parent - which is also the case here: When a new REQUEST Call is made, this creates a new SpanId (which is kept
-     * with the Channel that should be replied to, i.e. in this class) - and then the Call is being sent (inside the
-     * MatsTrace). Then, when the REPLY Call is being created from the requested service, this SpanId is propagated back
-     * in the Call, accessible via the {@link Call#getReplyFromSpanId()} method. Thus, the SpanId is both created, and
-     * then processed again upon receiving the REPLY, by the parent stackframe - and viewed like this, the SpanId
-     * ('sid') thus actually resides on the correct stackframe.
+     * with the ReplyChannel that should be replied to) - and then the Call is being sent (inside the MatsTrace). Then,
+     * when the REPLY Call is being created from the requested service, this SpanId is propagated back in the Call,
+     * accessible via the {@link Call#getReplyFromSpanId()} method. Thus, the SpanId is both created, and then processed
+     * again upon receiving the REPLY, by the parent stackframe - and viewed like this, the SpanId ('sid') thus actually
+     * resides on the correct stackframe.
      */
-    private static class ReplyChannelWithSpan extends ToChannel {
+    private static class ReplyChannel implements Channel {
+        private final String i;
+        private final MessagingModel m;
         private final long sid; // SpanId
 
         // Jackson JSON-lib needs a no-args constructor, but it can re-set finals.
-        public ReplyChannelWithSpan() {
-            super();
+        public ReplyChannel() {
+            i = null;
+            m = null;
             sid = 0;
         }
 
-        public ReplyChannelWithSpan(String i, MessagingModel m, long sid) {
-            super(i, m);
+        public ReplyChannel(String i, MessagingModel m, long sid) {
+            this.i = i;
+            this.m = m;
             this.sid = sid;
         }
 
-        public static ReplyChannelWithSpan newWithRandomSpanId(String i, MessagingModel m) {
-            return new ReplyChannelWithSpan(i, m, ThreadLocalRandom.current().nextLong());
+        public static ReplyChannel newWithRandomSpanId(String i, MessagingModel m) {
+            return new ReplyChannel(i, m, ThreadLocalRandom.current().nextLong());
         }
 
         public long getSpanId() {
             return sid;
+        }
+
+        @Override
+        public String getId() {
+            return i;
+        }
+
+        @Override
+        public MessagingModel getMessagingModel() {
+            return m;
         }
     }
 

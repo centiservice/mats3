@@ -19,7 +19,11 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
  * to serialize to JSON, both for the "inner" DTO-and-STO part, and for the "outer" MatsTrace part.
  * <p>
  * It is worth pointing out that <i>all</i> the communicating parties needs to be using the same serialization
- * mechanism, as this constitute the "wire-representation" of the protocol that {@link MatsTrace} represents.
+ * mechanism, as this constitute the "wire-representation" of the protocol that {@link MatsTrace} represents. There is
+ * however a mechanism to handle different serializations, by means of a {@link #handlesMeta(String) metadata
+ * construct}: Along with the serialized bytes, a metadata String must be provided. It is thus possible to construct
+ * a MatsSerializer that holds multiple underlying MatsSerializers, choosing based on the "meta" String. This can
+ * then be used to upgrade from a format to another.
  *
  * @param <Z>
  *            The type which STOs and DTOs are serialized into. When employing JSON for the "outer" serialization of

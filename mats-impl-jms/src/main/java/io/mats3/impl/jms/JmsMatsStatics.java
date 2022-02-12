@@ -302,26 +302,9 @@ public interface JmsMatsStatics {
          * The odds of getting struck by lightning in a given year (US): https://www.weather.gov/safety/lightning-odds
          * 1/1_222_000 = 0.000082%
          *
-         * Short (but good enough) ids are better than long ids (but way overkill). This is hopefully good enough.
+         * Short (but good enough) ids are better than long (but way overkill) ids. This is hopefully good enough.
          */
         return "m_" + randomString(10) + "_T" + Long.toUnsignedString(creationTimeMillis, 36);
-    }
-
-    default String createMatsMessageId(String flowId, long matsTraceCreationMillis, long messageCreationMillis,
-            int callNumber) {
-        // Hack to fix backwards compatibility. Remove after everyone >= v0.15.0
-        flowId = flowId != null
-                ? flowId
-                : randomString(20);
-
-        // Since we can have clock skews between servers, and we do not want a "-" in the messageId (due to the
-        // double-clickableness mentioned below), we make -10 -> "n10".
-        long millisSince = messageCreationMillis - matsTraceCreationMillis;
-        String millisSinceString = millisSince >= 0 ? Long.toString(millisSince) : "n" + Math.abs(millisSince);
-        // A MatsMessageId ends up looking like this: 'm_XBExAa1iioAGFVRk6nR5_Tjzswm4ys_t49_n22'
-        // Or for negative millisSince: 'm_XBExAa1iioAGFVRk6nR5_Tjzswm4ys_tn49_n22'
-        // NOTICE FEATURE: You can double-click anywhere inside that string, and get the entire id marked! w00t!
-        return flowId + "_t" + millisSinceString + "_n" + callNumber;
     }
 
     default String id(String what, Object obj) {
