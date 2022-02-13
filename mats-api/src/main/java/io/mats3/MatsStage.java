@@ -66,7 +66,8 @@ public interface MatsStage<R, S, I> extends StartStoppable {
          * @return the index number of the stage, where 0 is the initial stage where the {@link #getStageId()} is equal
          *         to the Endpoint's {@link EndpointConfig#getEndpointId() endpointId}. Subsequent stages will have
          *         indices 1, 2, 3 etc. This will typically also be reflected in the stageId for all non-initial stages,
-         *         where their stageIds are equal to <code>{endpointId}.stage{stageIndex}"
+         *         where their stageIds are equal to <code>"{endpointId}.stage{stageIndex}"</code> (the initial stage
+         *         is just <code>"{endpointId}"</code>, of course).
          */
         int getStageIndex();
 

@@ -280,7 +280,7 @@ public interface MatsFactory extends StartStoppable {
      * however, make sure you understand the quite heavy consequence of this: If the Mats Stage throws, the
      * retry-mechanism will kick in, running the Mats Stage one more time, and you will thus potentially send that
      * message many times - one time per retry - since such an initiation with a NON-default MatsInitiator is
-     * specifically not part of the transactional demarcation.
+     * specifically then <i>not</i> part of the Stage's transactional demarcation.
      * <p />
      * <b>Just to ensure that this point comes across: The returned MatsInitiator is Thread Safe, and meant for reuse:
      * You are <em>not</em> supposed to create one instance of {@link MatsInitiator} per message you need to send, and
@@ -302,7 +302,7 @@ public interface MatsFactory extends StartStoppable {
      * <p />
      * A reason for wanting to make more than one {@link MatsInitiator} could be that each initiator might have its own
      * connection to the underlying message broker. You also might want to name the initiators based on what part of the
-     * application uses it.
+     * application uses it; The name of the initiator shows up in monitors and tooling.
      * <p />
      * <b>IMPORTANT NOTICE!!</b> Please read the JavaDoc of {@link #getDefaultInitiator()} for important information
      * wrt. transactional demarcation when employing a NON-default MatsInitiator <i>within a Mats Stage</i>.
@@ -383,7 +383,7 @@ public interface MatsFactory extends StartStoppable {
      * In a situation where you might be given a {@link MatsFactoryWrapper}, but need the actual implementation, this
      * method allows you to just always call <code>matsFactory.unwrapFully()</code> instead of first checking whether it
      * is a proxy and only then cast and unwrap.
-     * 
+     *
      * @return default <code>this</code> for implementations, overridden by wrappers.
      */
     default MatsFactory unwrapFully() {
@@ -435,13 +435,11 @@ public interface MatsFactory extends StartStoppable {
     interface FactoryConfig extends MatsConfig {
         /**
          * Sets the name of the MatsFactory, default is "" (empty string).
-         * <p />
-         * // TODO: Change return type to FactoryConfig, to allow for chaining.
          *
          * @param name
          *            the name that the MatsFactory should have.
          */
-        void setName(String name);
+        FactoryConfig setName(String name);
 
         /**
          * @return the name of the MatsFactory, as set by {@link #setName(String)}, shall return "" (empty string) if
