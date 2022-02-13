@@ -140,6 +140,31 @@ public interface MatsStageInterceptor {
         Instant getEndpointEnteredTimestamp();
 
         /**
+         * Returns the timestamp of the preceding outgoing message <i>on the same stack height</i> as this stage. Use to
+         * calculate "Time since previous Stage of same Endpoint", which includes queue times and processing times of
+         * requested endpoints happening in between the send and the receive, as well as any other latencies. For
+         * example, it is the time between when EndpointA.Stage2 performs a REQUEST to AnotherEndpointB, till the REPLY
+         * from that endpoint is received on EndpointA.Stage3 (There might be dozens of message passing and processings
+         * in between those two stages (of the same endpoint), as AnotherEndpointB might itself have a dozen stages,
+         * each performing some requests to yet other endpoints).
+         * <p/>
+         * Note: There is no previous stage for a REQUEST to the Initial Stage of an Endpoint.
+         * <p/>
+         * Note: On a Terminator whose corresponding initiation did a REQUEST, the "same stack height" ends up being the
+         * initiator (it is stack height 0). If an initiation goes directly to a Terminator (e.g. "fire-and-forget"
+         * PUBLISH or SEND), again the "same stack height" is the initiator.
+         * <p/>
+         * "Time since previous stage" technically exists for all type of calls to a stage except for REQUEST. It does,
+         * however, not make semantically sense for an initiation SEND to an Initial Stage of an Endpoint, as that
+         * timing doesn't concern the Endpoint, and it is also exactly the same as "SinceSent"
+         * (<code>System.currentTimeMillis - {@link ProcessContext#getFromTimestamp()}</code>).
+         *
+         * @return The timestamp of the outgoing message <i>on the same stack height</i> as this stage. If the current
+         *         Call is a REQUEST, there is no such message, and <code>-1</code> is returned.
+         */
+        Instant getPrecedingSameStackHeightOutgoingTimestamp();
+
+        /**
          * @return the {@link MessageType} of the incoming message.
          */
         MessageType getIncomingMessageType();

@@ -559,10 +559,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             @SuppressWarnings("unchecked")
                             ProcessContext<Object> processContextCasted = (ProcessContext<Object>) processContext[0];
 
+                            long sameHeightOutgoingTimestamp = matsTrace.getSameHeightOutgoingTimestamp();
+
                             // Create the common part of the interceptor contexts
                             stageCommonContext[0] = new StageCommonContextImpl<>(
                                     _jmsMatsStage,
-                                    startedNanos, startedInstant, endpointEnteredTimestamp,
+                                    startedNanos, startedInstant,
+                                    endpointEnteredTimestamp, sameHeightOutgoingTimestamp,
                                     matsTrace, incomingDto, currentSto,
                                     nanosTaken_DeconstructMessage,
                                     matsTraceBytes.length,
@@ -1106,6 +1109,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         private final long _startedNanos;
         private final Instant _startedInstant;
         private final long _endpointEnteredTimestampMillis;
+        private final long _precedingSameStackHeightOutgoingTimestamp;
 
         private final MatsTrace<Z> _matsTrace;
         private final Object _incomingMessage;
@@ -1121,7 +1125,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
         public StageCommonContextImpl(JmsMatsStage<?, ?, ?, Z> stage,
                 long startedNanos, Instant startedInstant, long endpointEnteredTimestampMillis,
-                MatsTrace<Z> matsTrace, Object incomingMessage, Object incomingState,
+                long precedingSameStackHeightOutgoingTimestamp, MatsTrace<Z> matsTrace, Object incomingMessage,
+                Object incomingState,
                 long incomingEnvelopeDeconstructNanos,
                 int incomingEnvelopeRawSize,
                 long incomingEnvelopeDecompressionNanos,
@@ -1134,6 +1139,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             _startedNanos = startedNanos;
             _startedInstant = startedInstant;
             _endpointEnteredTimestampMillis = endpointEnteredTimestampMillis;
+            _precedingSameStackHeightOutgoingTimestamp = precedingSameStackHeightOutgoingTimestamp;
 
             _matsTrace = matsTrace;
             _incomingMessage = incomingMessage;
@@ -1166,6 +1172,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         @Override
         public Instant getEndpointEnteredTimestamp() {
             return Instant.ofEpochMilli(_endpointEnteredTimestampMillis);
+        }
+
+        @Override
+        public Instant getPrecedingSameStackHeightOutgoingTimestamp() {
+            return Instant.ofEpochMilli(_precedingSameStackHeightOutgoingTimestamp);
         }
 
         @Override
@@ -1273,6 +1284,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         @Override
         public Instant getEndpointEnteredTimestamp() {
             return _stageCommonContext.getEndpointEnteredTimestamp();
+        }
+
+        @Override
+        public Instant getPrecedingSameStackHeightOutgoingTimestamp() {
+            return _stageCommonContext.getPrecedingSameStackHeightOutgoingTimestamp();
         }
 
         @Override

@@ -18,6 +18,7 @@ import io.mats3.api.intercept.MatsInitiateInterceptor;
 import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsLoggingInterceptor;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
+import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.ProcessResult;
 
@@ -52,10 +53,14 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * stage, both are set.</li>
  * </ul>
  *
- * <h3>MDC Properties for Initiate Complete:</h3>
+ *
+ * <h2>MDC Properties for Initiate Complete:</h2>
  * <ul>
  * <li><b>{@link #MDC_MATS_INITIATE_COMPLETED "mats.InitiateCompleted"}</b>: 'true' <i>on a single</i> logline per
- * completed initiation - <i>can be used to count initiations</i>.</li>
+ * completed initiation - <i>can be used to count initiations</i>. Assuming each initiation produces one message, and
+ * hence one flow, this count should be identical to the count of {@link #MDC_MATS_FLOW_COMPLETED}. However, an
+ * initiation can produce multiple messages, as described in {@link #MDC_MATS_COMPLETE_QUANTITY_OUT}, thus if you sum
+ * all those of lines that have this property set, the value should actually be identical to flows completed.</li>
  * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: Set for an initiation from when it is set in the user code performing the
  * initiation (reset to whatever it was upon exit of initiation lambda)</li>
  * </ul>
@@ -83,18 +88,21 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * "mats.exec.ops.time."}+{metricId}+".tag." + {labelKey} and for measurements
  * {@link #MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX "mats.exec.ops.measure."}+{metricId} + ".tag." + {labelKey}.<br/>
  * <br/>
- * <h3>MDC Properties for Message Received:</h3>
+ *
+ *
+ * <h2>MDC Properties for Message Received:</h2>
  * <ul>
  * <li><b>{@link #MDC_MATS_MESSAGE_RECEIVED "mats.MessageReceived"}</b>: 'true' on a single logline per received message
- * - <i>can be used to count received messages</i>.</li>
+ * - <i>can be used to count received messages</i>. This count should be identical to the count of
+ * {@link #MDC_MATS_STAGE_COMPLETED}.</li>
  * <li><code><b>"mats.StageId"</b></code>: Always set on the Processor threads for a stage, so any logline output inside
  * a Mats stage will have this set.</li>
  * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: The Mats flow's traceId, set from the initiation.</li>
- * <li><code><b>"mats.in.MsgSysId"</b></code>: The messageId the messaging system assigned the incoming message upon
- * production on the sender side (e.g JMSMessageID for the JMS implementation)</li>
+ * <li><code><b>"mats.in.MsgSysId"</b></code>: The messageId the messaging system assigned the message when it was
+ * produced on the sender side (e.g JMSMessageID for the JMS implementation)</li>
  * <li><b>{@link #MDC_MATS_IN_MATS_MESSAGE_ID "mats.in.MatsMsgId"}</b>: The messageId the Mats system assigned the
- * incoming message upon production on the sender side. Note that it consists of the Mats flow id + an individual part
- * per message in the flow.</li>
+ * message when it was produced on the sender side. Note that it consists of the Mats flow id + an individual part per
+ * message in the flow.</li>
  * <li><b>{@link #MDC_MATS_IN_FROM_APP_NAME "mats.in.from.App"}</b>: Which app this incoming message is from.</li>
  * <li><b>{@link #MDC_MATS_IN_FROM_ID "mats.in.from.Id"}</b>: Which initiatorId, endpointId or stageId this message is
  * from.</li>
@@ -118,7 +126,18 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * loglines):
  * <ul>
  * <li><b>{@link #MDC_MATS_IN_TIME_SINCE_SENT "mats.in.SinceSent.ms"}</b>: Time taken from message was sent to it was
- * received. <b>This is susceptible to time skews between nodes</b>.</li>
+ * received. This metric gives the queue time, plus any other latency wrt. sending and committing on the sending side
+ * and the transfer and reception on the receiving side.<b>This metric is susceptible to time skews between
+ * nodes</b>.</li>
+ * <li><b>{@link #MDC_MATS_IN_TIME_SINCE_PRECEDING_ENDPOINT_STAGE "mats.in.PrecedEpStage.ms"}</b>: Time taken from the
+ * sending of a message from the Stage immediately preceding this Stage <i>on the same Endpoint</i>, to the reception of
+ * a message on this Stage, i.e. the time between stages of a flow (but also between an Initiation REQUEST and the
+ * replyTo-reception on the Terminator). This timing includes queue times and processing times of requested endpoints
+ * happening in between the send and the receive, as well as any other latencies. For example, it is the time between
+ * when EndpointA.Stage<b>2</b> performs a REQUEST to AnotherEndpointB, till the REPLY from that endpoint is received on
+ * EndpointA.Stage<b>3</b> (There might be dozens of message passing and processings in between those two stages of the
+ * same endpoint, as AnotherEndpointB might itself have a dozen stages, each performing some requests to yet other
+ * endpoints). <b>This metric is susceptible to time skews between nodes</b>.</li>
  * <li><b>{@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.in.TotalPreprocDeserial.ms"}</b>: Total time taken
  * to preprocess and deserialize the incoming message.</li>
  * <li><b>{@link #MDC_MATS_IN_TIME_MSGSYS_DECONSTRUCT "mats.in.MsgSysDeconstruct.ms"}</b>: Part of total time taken to
@@ -135,10 +154,12 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * taken to deserialize the actual message and state objects from the Mats envelope.</li>
  * </ul>
  *
- * <h3>MDC Properties for Stage Complete:</h3>
+ *
+ * <h2>MDC Properties for Stage Complete:</h2>
  * <ul>
  * <li><b>{@link #MDC_MATS_STAGE_COMPLETED "mats.StageCompleted"}</b>: 'true' on a single logline per completed stage -
- * <i>can be used to count stage processings</i>.</li>
+ * <i>can be used to count stage processings</i>. This count should be identical to the count of
+ * {@link #MDC_MATS_MESSAGE_RECEIVED}.</li>
  * <li><code><b>"mats.StageId"</b></code>: Always set on the Processor threads for a stage, so any logline output inside
  * a Mats stage will have this set.</li>
  * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: The Mats flow's traceId, set from the initiation.</li>
@@ -161,29 +182,34 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * </ul>
  * <b>User metrics:</b> Furthermore, any metrics (measurements and timings) set from an initiation or stage will be
  * available as separate log lines - same as for initiations.<br/>
+ *
  * <br/>
- * <h3>Extra Properties for Endpoint Complete:</h3> When the final Stage of an Endpoint either REPLYs, or stops the flow
- * (neither sending a REQUEST, NEXT nor GOTO), the endpoint is completed.
+ * <h3>Extra Properties for Endpoint Complete:</h3> When any Stage of an Endpoint (typically the last) either REPLYs, or
+ * stops the flow (neither sending a REQUEST, NEXT nor GOTO), the endpoint is completed.
  * <ul>
  * <li><b>{@link #MDC_MATS_ENDPOINT_COMPLETED "mats.EndpointCompleted"}</b>: 'true' on the same line as Stage Completed
- * if this also is the endpoint completion.</li>
+ * if this also is the endpoint completion. Notice that the span from an initiation REQUEST to the replyTo-reception on
+ * a Terminator is also counted as a EndpointCompleted.</li>
  * <li><b>{@link #MDC_MATS_ENDPOINT_COMPLETE_TIME_TOTAL "mats.endpoint.Total.ms"}</b>: Time taken from entry on the
- * initial stage of an endpoint, to stage completed on the final stage. <b>This is susceptible to time skews between
- * nodes</b>.</li>
+ * initial stage of an endpoint, to stage completed on the final stage (or from Initiation REQUEST to replyTo-reception
+ * on the Terminator). <b>This metric is susceptible to time skews between nodes</b>.</li>
  * </ul>
- * <br/>
+ *
  * <h3>Extra Properties for Flow Complete:</h3> When a Stage doesn't send any REPLY, REQUEST, NEXT or GOTO, it stops the
  * flow. This is the normal situation for a Terminator, but technically a flow may stop anywhere if the stage doesn't
  * send a flow message.
  * <ul>
  * <li><b>{@link #MDC_MATS_FLOW_COMPLETED "mats.FlowCompleted"}</b>: 'true' on the same line as Stage Completed if this
- * also is flow completion.</li>
+ * also is flow completion. <i>can be used to count mats flows</i>. This count has a very tight relationship with
+ * {@link #MDC_MATS_INITIATE_COMPLETED}, read above.</li>
  * <li><b>{@link #MDC_MATS_FLOW_COMPLETE_TIME_TOTAL "mats.flow.Total.ms"}</b>: Time taken from the flow was initiated at
- * a {@link MatsInitiator}, or from within a flow, to it ends. <b>This is susceptible to time skews between
+ * a {@link MatsInitiator}, or from within a flow, to it ends. <b>This metric is susceptible to time skews between
  * nodes</b>.</li>
  * </ul>
  * <br/>
- * <h3>MDC Properties for Per created Message (both initiations and stage produced messages):</h3>
+ *
+ *
+ * <h2>MDC Properties for Per created Message (both initiations and stage produced messages):</h2>
  * <ul>
  * <li><b>{@link #MDC_MATS_MESSAGE_SENT "mats.MessageSent"}</b>: 'true' on single logline per sent message - <i>can be
  * used to count sent messages.</i></li>
@@ -307,7 +333,11 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_IN_MATS_MESSAGE_ID = "mats.in.MatsMsgId";
 
     // ... Metrics:
+    // Notice that metric this is susceptible to time skews between nodes.
     public static final String MDC_MATS_IN_TIME_SINCE_SENT = "mats.in.SinceSent.ms";
+    // Notice that metric this is susceptible to time skews between nodes.
+    public static final String MDC_MATS_IN_TIME_SINCE_PRECEDING_ENDPOINT_STAGE = "mats.in.PrecedEpStage.ms";
+
     public static final String MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL = "mats.in.TotalPreprocDeserial.ms";
     public static final String MDC_MATS_IN_TIME_MSGSYS_DECONSTRUCT = "mats.in.MsgSysDeconstruct.ms";
     public static final String MDC_MATS_IN_SIZE_ENVELOPE_WIRE = "mats.in.EnvelopeWire.bytes";
@@ -342,7 +372,7 @@ public class MatsMetricsLoggingInterceptor
     // 'true' on a single logline per completed endpoint - it will be on one of the Stage Completed log lines.
     public static final String MDC_MATS_ENDPOINT_COMPLETED = "mats.EndpointCompleted";
 
-    // ..... specific Endpoint Complete metric. Notice that this is susceptible to time skews between nodes.
+    // ..... specific Endpoint Complete metric. Notice that metric this is susceptible to time skews between nodes.
     public static final String MDC_MATS_ENDPOINT_COMPLETE_TIME_TOTAL = "mats.endpoint.Total.ms";
 
     // ============================================================================================================
@@ -353,7 +383,7 @@ public class MatsMetricsLoggingInterceptor
     // 'true' on a single logline per completed flow - it will be on one of the Stage Completed log lines.
     public static final String MDC_MATS_FLOW_COMPLETED = "mats.FlowCompleted";
 
-    // ..... specific Flow Complete metric. Notice that this is susceptible to time skews between nodes.
+    // ..... specific Flow Complete metric. Notice that this metric is susceptible to time skews between nodes.
     public static final String MDC_MATS_FLOW_COMPLETE_TIME_TOTAL = "mats.flow.Total.ms";
 
     // ============================================================================================================
@@ -451,14 +481,25 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_IN_FROM_ID, processContext.getFromStageId());
             MDC.put(MDC_MATS_IN_MATS_MESSAGE_ID, processContext.getMatsMessageId());
 
+            // ::: Metrics
+
+            long now = System.currentTimeMillis();
+
+            // :: Time since the message was sent from the sender, "time on queue" between pieces in the flow.
             MDC.put(MDC_MATS_IN_TIME_SINCE_SENT,
-                    Long.toString(System.currentTimeMillis() - processContext.getFromTimestamp().toEpochMilli()));
+                    Long.toString(now - processContext.getFromTimestamp().toEpochMilli()));
 
-            // Total:
-            MDC.put(MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL,
-                    msS(ctx.getTotalPreprocessAndDeserializeNanos()));
+            // :: Time since previous stage (or, actually, initiation) on same stack height
+            if ((ctx.getIncomingMessageType() == MessageType.REPLY)
+                    || (ctx.getIncomingMessageType() == MessageType.NEXT)
+                    || (ctx.getIncomingMessageType() == MessageType.GOTO)) {
+                MDC.put(MDC_MATS_IN_TIME_SINCE_PRECEDING_ENDPOINT_STAGE,
+                        Long.toString(now - ctx.getPrecedingSameStackHeightOutgoingTimestamp().toEpochMilli()));
+            }
 
-            // Breakdown:
+            // :: Preprocessing and Deserialization Total:
+            MDC.put(MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL, msS(ctx.getTotalPreprocessAndDeserializeNanos()));
+            // .. and breakdown of Total:
             MDC.put(MDC_MATS_IN_TIME_MSGSYS_DECONSTRUCT, msS(ctx.getMessageSystemDeconstructNanos()));
             MDC.put(MDC_MATS_IN_SIZE_ENVELOPE_WIRE, Long.toString(ctx.getEnvelopeWireSize()));
             MDC.put(MDC_MATS_IN_TIME_ENVELOPE_DECOMPRESS, msS(ctx.getEnvelopeDecompressionNanos()));
@@ -494,6 +535,7 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_IN_MATS_MESSAGE_ID);
 
             MDC.remove(MDC_MATS_IN_TIME_SINCE_SENT);
+            MDC.remove(MDC_MATS_IN_TIME_SINCE_PRECEDING_ENDPOINT_STAGE);
 
             MDC.remove(MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL);
 
@@ -862,8 +904,9 @@ public class MatsMetricsLoggingInterceptor
      * 0.0001, 1e-4, as a special value). Takes care of handling the difference between 0 and >0 nanoseconds when
      * rounding - in that 1 nanosecond will become 0.0001 (1e-4 ms, which if used to measure things that are really
      * short lived might be magnitudes wrong), while 0 will be 0.0 exactly. Note that printing of a double always
-     * include the ".0" (unless scientific notation kicks in), which can lead your interpretation astray when running
-     * this over e.g. the number 555_555_555, which will print as "556.0", and 5_555_555_555 prints "5560.0".
+     * include the ".0" (unless scientific notation kicks in), which can lead your interpretation slightly astray wrt.
+     * accuracy/significant digits when running this over e.g. the number 555_555_555, which will print as "556.0", and
+     * 5_555_555_555 prints "5560.0".
      */
     private static double ms(long nanosTaken) {
         if (nanosTaken == 0) {
