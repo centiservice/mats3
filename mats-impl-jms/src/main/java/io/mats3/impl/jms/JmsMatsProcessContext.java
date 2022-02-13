@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import io.mats3.serial.MatsSerializer.SerializedMatsTrace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -50,10 +51,6 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     private final String _systemMessageId;
     private final String _nextStageId;
 
-    private final byte[] _incomingSerializedMatsTrace;
-    private final int _mtSerOffset;
-    private final int _mtSerLength; // The reason for having this separate, is when unstashing: Length != entire thing.
-    private final String _incomingSerializedMatsTraceMeta;
     private final MatsTrace<Z> _incomingMatsTrace;
     private final LinkedHashMap<String, byte[]> _incomingBinaries;
     private final LinkedHashMap<String, String> _incomingStrings;
@@ -78,8 +75,6 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
             String stageId,
             String systemMessageId,
             String nextStageId,
-            byte[] incomingSerializedMatsTrace, int mtSerOffset, int mtSerLength,
-            String incomingSerializedMatsTraceMeta,
             MatsTrace<Z> incomingMatsTrace, S incomingAndOutgoingState,
             Supplier<MatsInitiate> initiateSupplier,
             LinkedHashMap<String, byte[]> incomingBinaries, LinkedHashMap<String, String> incomingStrings,
@@ -93,10 +88,6 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _systemMessageId = systemMessageId;
         _nextStageId = nextStageId;
 
-        _incomingSerializedMatsTrace = incomingSerializedMatsTrace;
-        _mtSerOffset = mtSerOffset;
-        _mtSerLength = mtSerLength;
-        _incomingSerializedMatsTraceMeta = incomingSerializedMatsTraceMeta;
         _incomingMatsTrace = incomingMatsTrace;
         _incomingBinaries = incomingBinaries;
         _incomingStrings = incomingStrings;
@@ -393,7 +384,13 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         // .. nextStageId, handling that it might be null.
         byte[] b_nextStageId = _nextStageId == null ? NO_NEXT_STAGE : _nextStageId.getBytes(StandardCharsets.UTF_8);
         // .. serialized MatsTrace's meta info:
-        byte[] b_meta = _incomingSerializedMatsTraceMeta.getBytes(StandardCharsets.UTF_8);
+
+        // TODO: DEBUG
+        SerializedMatsTrace serializedMatsTrace = _parentFactory.getMatsSerializer().serializeMatsTrace(_incomingMatsTrace);
+        byte[] serializedMTBytes = serializedMatsTrace.getMatsTraceBytes();
+        String serializedMTMeta = serializedMatsTrace.getMeta();
+
+        byte[] b_meta = serializedMTMeta.getBytes(StandardCharsets.UTF_8);
         // .. messageId
         byte[] b_systemMessageId = _systemMessageId.getBytes(StandardCharsets.UTF_8);
 
@@ -426,7 +423,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
                 + 1 + b_systemMessageId.length
                 // + 1 for the 0-delimiter
                 // + length of incoming serialized MatsTrace, _mtSerLength
-                + 1 + _mtSerLength;
+                + 1 + serializedMTBytes.length;
         byte[] b_fullStash = new byte[fullStashLength];
 
         // :: Fill the byte array with the stash
@@ -471,8 +468,8 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         // ZERO 6: All bytes in new initialized array is 0 already
         // Actual Serialized MatsTrace start pos:
         int startPos_MatsTrace = startPos_MessageId + b_systemMessageId.length + 1;
-        System.arraycopy(_incomingSerializedMatsTrace, _mtSerOffset,
-                b_fullStash, startPos_MatsTrace, _mtSerLength);
+        System.arraycopy(serializedMTBytes, 0,
+                b_fullStash, startPos_MatsTrace, serializedMTBytes.length);
 
         double millisSerializing = (System.nanoTime() - nanosStart) / 1_000_000d;
 

@@ -11,10 +11,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
-import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
-import io.mats3.impl.jms.JmsMatsProcessContext.Measurement;
-import io.mats3.impl.jms.JmsMatsProcessContext.TimingMeasurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -25,9 +21,13 @@ import io.mats3.MatsEndpoint.ProcessLambda;
 import io.mats3.MatsInitiator.KeepTrace;
 import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.MatsInitiator.MessageReference;
+import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
+import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
 import io.mats3.api.intercept.MatsOutgoingMessage.DispatchType;
 import io.mats3.impl.jms.JmsMatsInitiator.MessageReferenceImpl;
 import io.mats3.impl.jms.JmsMatsProcessContext.DoAfterCommitRunnableHolder;
+import io.mats3.impl.jms.JmsMatsProcessContext.Measurement;
+import io.mats3.impl.jms.JmsMatsProcessContext.TimingMeasurement;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsSerializer.DeserializedMatsTrace;
 import io.mats3.serial.MatsTrace;
@@ -293,7 +293,8 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
     }
 
     @Override
-    public MatsInitiate logTimingMeasurement(String metricId, String metricDescription, long nanos, String... labelKeyValue) {
+    public MatsInitiate logTimingMeasurement(String metricId, String metricDescription, long nanos,
+            String... labelKeyValue) {
         JmsMatsProcessContext.assertMetricArgs(metricId, metricDescription, "dummy", labelKeyValue);
         assertMetricId(metricId);
         if (_timingMeasurements.isEmpty()) {
@@ -541,8 +542,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
                     stageId,
                     messageId,
                     nextStageId,
-                    stash, zstartMatsTrace + 1, stash.length - zstartMatsTrace - 1,
-                    matsTraceMeta, matsTrace,
+                    matsTrace,
                     currentSto, initiateSupplier,
                     new LinkedHashMap<>(), new LinkedHashMap<>(),
                     _messagesToSend, _jmsMatsInternalExecutionContext,

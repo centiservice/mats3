@@ -364,7 +364,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     @SuppressWarnings({ "unchecked", "rawtypes" })
                     StageCommonContextImpl<Z>[] stageCommonContext = new StageCommonContextImpl[1];
 
-                    long millisAtStart_Received = System.currentTimeMillis();
+                    long millis_Received = System.currentTimeMillis(); // Used for setting "Endpoint Entered Timestamp"
                     long nanosAtStart_Received = System.nanoTime();
                     long[] nanosTaken_UserLambda = { 0L };
                     long[] nanosTaken_totalEnvelopeSerAndComp = { 0L };
@@ -490,7 +490,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             }
                             MatsTrace<Z> matsTrace = matsTraceDeserialized.getMatsTrace();
                             // Update the MatsTrace with stage-incoming timestamp - handles the "endpoint entered" logic
-                            matsTrace.setStageEnteredTimestamp(millisAtStart_Received);
+                            matsTrace.setStageEnteredTimestamp(millis_Received);
                             // Fetch endpoint entered (Not same as stage entered - only initial stage is "ep entered")
                             long endpointEnteredTimestamp = matsTrace.getSameHeightEndpointEnteredTimestamp();
 
@@ -543,7 +543,6 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     _jmsMatsStage.getStageId(),
                                     jmsMessageId,
                                     _jmsMatsStage.getNextStageId(),
-                                    matsTraceBytes, 0, matsTraceBytes.length, matsTraceMeta,
                                     matsTrace,
                                     currentSto,
                                     initiateSupplier,
