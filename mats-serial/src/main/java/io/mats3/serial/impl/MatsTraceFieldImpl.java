@@ -437,7 +437,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     }
 
     @Override
-    public void setStageEnteredTimestamo(long timestamp) {
+    public void setStageEnteredTimestamp(long timestamp) {
         // NOTE: RECEIVING SIDE
         // NOTE: Shall be invoked RIGHT WHEN RECEIVING a message on a stage
 

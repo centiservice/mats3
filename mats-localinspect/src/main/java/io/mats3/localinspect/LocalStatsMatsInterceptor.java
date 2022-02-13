@@ -466,7 +466,7 @@ public class LocalStatsMatsInterceptor
         stageStats.recordProcessResult(processResult);
 
         // :: TIME ENDPOINT TOTAL PROCESSING:
-        // ?: Is this an "finishing process result", i.e. either REPLY (service) or NONE (terminator/terminating flow)?
+        // ?: Is this a "finishing process result", i.e. either REPLY (service) or NONE (terminator/terminating flow)?
         if (processResult == ProcessResult.REPLY || (processResult == ProcessResult.NONE)) {
             // -> Yes, "exiting process result" - record endpoint total processing time
             // ?: Is this the initial stage?

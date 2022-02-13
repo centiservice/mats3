@@ -11,6 +11,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,7 +92,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         String existingMatsAppVersion = MDC.get(MDC_MATS_APP_VERSION);
 
         // :: For Intercepting, base intercept context.
-        InitiateContextImpl interceptContext = new InitiateContextImpl(this, startedInstant);
+        InitiateInterceptContextImpl interceptContext = new InitiateInterceptContextImpl(this, startedInstant);
         List<MatsInitiateInterceptor> interceptorsForInitiation = _parentFactory.getInterceptorsForInitiation(
                 interceptContext);
 
@@ -361,22 +362,31 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     }
 
     private void concatAllTraceIds(List<JmsMatsMessage<Z>> messagesToSend) {
-        List<String> collected = messagesToSend.stream()
-                .map(m -> m.getMatsTrace().getTraceId())
-                .distinct()
-                .collect(Collectors.toList());
+        // :: Fast-path if 0 or 1
         String collectedTraceIds;
-        int tooMany = 15;
-        // ?: Are there many?
-        if (collected.size() <= tooMany) {
-            // -> No, not too many
-            collectedTraceIds = String.join(";", collected);
+        if (messagesToSend.isEmpty()) {
+            collectedTraceIds = "";
+        }
+        else if (messagesToSend.size() == 1) {
+            collectedTraceIds = messagesToSend.get(0).getTraceId();
         }
         else {
-            // -> Yes, too many - creating a "traceId" reflecting cropping.
-            collectedTraceIds = "<cropped,numTraceIds:" + collected.size() + ">;"
-                    + String.join(";", collected.subList(0, tooMany))
-                    + ";...";
+            Stream<String> allTraceIdsStream = messagesToSend.stream()
+                    .map(m -> m.getMatsTrace().getTraceId())
+                    .distinct()
+                    .sorted();
+            int tooMany = 15;
+            // ?: Are there too many?
+            if (messagesToSend.size() <= tooMany) {
+                // -> No, not too many
+                collectedTraceIds = allTraceIdsStream.collect(Collectors.joining(";"));
+            }
+            else {
+                // -> Yes, too many - creating a "traceId" reflecting cropping.
+                collectedTraceIds = "<cropped,numTraceIds:" + messagesToSend.size() + ">;"
+                        + allTraceIdsStream.limit(tooMany).collect(Collectors.joining(";"))
+                        + ";...";
+            }
         }
         MDC.put(MDC_TRACE_ID, collectedTraceIds);
     }
@@ -388,7 +398,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     }
 
     private void invokeInitiateMessageInterceptors(List<MatsInitiateInterceptor> interceptorsForInitiation,
-            InitiateContextImpl interceptContext,
+            InitiateInterceptContextImpl interceptContext,
             JmsMatsInitiate<Z> initiate, List<JmsMatsMessage<Z>> messagesToSend) {
         // :: Find the Message interceptors. Goddamn why is there no stream.filter[InstanceOf](Clazz.class)?
         List<MatsInitiateInterceptOutgoingMessages> messageInterceptors = interceptorsForInitiation.stream()
@@ -479,11 +489,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     /**
      * Implementation of {@link InitiateInterceptContext}.
      */
-    static class InitiateContextImpl implements InitiateInterceptContext {
+    static class InitiateInterceptContextImpl implements InitiateInterceptContext {
         private final MatsInitiator _matsInitiator;
         private final Instant _startedInstant;
 
-        public InitiateContextImpl(MatsInitiator matsInitiator, Instant startedInstant) {
+        public InitiateInterceptContextImpl(MatsInitiator matsInitiator, Instant startedInstant) {
             _matsInitiator = matsInitiator;
             _startedInstant = startedInstant;
         }
@@ -500,11 +510,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     }
 
     static class InitiateStartedContextImpl implements InitiateStartedContext {
-        private final InitiateContextImpl _initiationInterceptContext;
+        private final InitiateInterceptContextImpl _initiationInterceptContext;
         private final MatsInitiate _matsInitiate;
 
         public InitiateStartedContextImpl(
-                InitiateContextImpl initiationInterceptContext, MatsInitiate matsInitiate) {
+                InitiateInterceptContextImpl initiationInterceptContext, MatsInitiate matsInitiate) {
             _initiationInterceptContext = initiationInterceptContext;
             _matsInitiate = matsInitiate;
         }
@@ -526,11 +536,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     }
 
     static class InitiateInterceptUserLambdaContextImpl implements InitiateInterceptUserLambdaContext {
-        private final InitiateContextImpl _initiationInterceptContext;
+        private final InitiateInterceptContextImpl _initiationInterceptContext;
         private final MatsInitiate _matsInitiate;
 
         public InitiateInterceptUserLambdaContextImpl(
-                InitiateContextImpl initiationInterceptContext, MatsInitiate matsInitiate) {
+                InitiateInterceptContextImpl initiationInterceptContext, MatsInitiate matsInitiate) {
             _initiationInterceptContext = initiationInterceptContext;
             _matsInitiate = matsInitiate;
         }
@@ -552,17 +562,17 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     }
 
     static class InitiateInterceptOutgoingMessagesContextImpl implements InitiateInterceptOutgoingMessagesContext {
-        private final InitiateContextImpl _initiationInterceptContext;
+        private final InitiateInterceptContextImpl _initiateInterceptContext;
         private final MatsInitiate _matsInitiate;
 
         private final List<MatsEditableOutgoingMessage> _matsMessages;
         private final Consumer<String> _cancelOutgoingMessage;
 
         public InitiateInterceptOutgoingMessagesContextImpl(
-                InitiateContextImpl initiationInterceptContext, MatsInitiate matsInitiate,
+                InitiateInterceptContextImpl initiateInterceptContext, MatsInitiate matsInitiate,
                 List<MatsEditableOutgoingMessage> matsMessages,
                 Consumer<String> cancelOutgoingMessage) {
-            _initiationInterceptContext = initiationInterceptContext;
+            _initiateInterceptContext = initiateInterceptContext;
             _matsInitiate = matsInitiate;
             _matsMessages = matsMessages;
             _cancelOutgoingMessage = cancelOutgoingMessage;
@@ -570,12 +580,12 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
         @Override
         public MatsInitiator getInitiator() {
-            return _initiationInterceptContext.getInitiator();
+            return _initiateInterceptContext.getInitiator();
         }
 
         @Override
         public Instant getStartedInstant() {
-            return _initiationInterceptContext.getStartedInstant();
+            return _initiateInterceptContext.getStartedInstant();
         }
 
         @Override
@@ -595,8 +605,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     }
 
     static class InitiateCompletedContextImpl implements InitiateCompletedContext {
-
-        private final InitiateContextImpl _initiationInterceptContext;
+        private final InitiateInterceptContextImpl _initiateInterceptContext;
 
         private final long _userLambdaNanos;
         private final List<MatsMeasurement> _measurements;
@@ -610,7 +619,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         private final List<MatsSentOutgoingMessage> _messages;
 
         public InitiateCompletedContextImpl(
-                InitiateContextImpl initiationInterceptContext,
+                InitiateInterceptContextImpl initiateInterceptContext,
 
                 long userLambdaNanos,
                 List<MatsMeasurement> measurements,
@@ -623,7 +632,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
                 Throwable throwable,
                 List<MatsSentOutgoingMessage> messages) {
-            _initiationInterceptContext = initiationInterceptContext;
+            _initiateInterceptContext = initiateInterceptContext;
 
             _userLambdaNanos = userLambdaNanos;
             _measurements = measurements;
@@ -640,12 +649,12 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
         @Override
         public MatsInitiator getInitiator() {
-            return _initiationInterceptContext.getInitiator();
+            return _initiateInterceptContext.getInitiator();
         }
 
         @Override
         public Instant getStartedInstant() {
-            return _initiationInterceptContext.getStartedInstant();
+            return _initiateInterceptContext.getStartedInstant();
         }
 
         @Override

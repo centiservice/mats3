@@ -360,10 +360,10 @@ public interface MatsTrace<Z> {
      * Invoke this on the initial stage of an Endpoint. Used to calculate the "total endpoint time", through all stages,
      * when the endpoint Replies, or stops (no outgoing message).
      */
-    void setStageEnteredTimestamo(long timestamp);
+    void setStageEnteredTimestamp(long timestamp);
 
     /**
-     * @return the value of {@link #setStageEnteredTimestamo(long)} for the stages of the same endpoint. Used to
+     * @return the value of {@link #setStageEnteredTimestamp(long)} for the stages of the same endpoint. Used to
      *         calculate the "total endpoint time", through all stages, when the endpoint Replies, or stops (no outgoing
      *         message).
      */

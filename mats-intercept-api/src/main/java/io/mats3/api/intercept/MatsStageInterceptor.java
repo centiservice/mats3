@@ -130,6 +130,16 @@ public interface MatsStageInterceptor {
      */
     interface StageCommonContext extends StageInterceptContext {
         /**
+         * @return the timestamp when the initial stage of the Endpoint which this Stage belongs to, was entered, no
+         *         matter if this Stage is a later stage of this endpoint. <b>Note that this is susceptible to time
+         *         skews between nodes: If the initial stage was run on node A, while this stage is run on node B,
+         *         calculations on the timestamp returned here vs. e.g. {@link System#currentTimeMillis()} is highly
+         *         dependent on the time synchronization between node A and node B.</b> If such a timestamp is not
+         *         possible to provide, 0 is returned.
+         */
+        Instant getEndpointEnteredTimestamp();
+
+        /**
          * @return the {@link MessageType} of the incoming message.
          */
         MessageType getIncomingMessageType();

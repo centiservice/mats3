@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import io.mats3.MatsEndpoint.ProcessContext;
+import io.mats3.MatsInitiator;
 import io.mats3.api.intercept.CommonCompletedContext;
 import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
 import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
@@ -18,6 +19,7 @@ import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsLoggingInterceptor;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
 import io.mats3.api.intercept.MatsStageInterceptor;
+import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.ProcessResult;
 
 /**
  * A logging interceptor that writes loglines to two SLF4J loggers, including multiple pieces of information on the MDC
@@ -64,8 +66,8 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Part of total time taken for the
  * actual user lambda, including e.g. any external IO like DB, but excluding all system code, in particular message
  * creation, and commits.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_OUT "mats.exec.Out.ms"}</b>: Part of total time taken for the creation
- * and serialization of Mats messages, and production <i>and sending</i> of "message system messages" (e.g. creating and
+ * <li><b>{@link #MDC_MATS_COMPLETE_TIME_OUT "mats.exec.Out.ms"}</b>: Part of total time taken for the creation and
+ * serialization of Mats messages, and production <i>and sending</i> of "message system messages" (e.g. creating and
  * populating JMS Message plus <code>jmsProducer.send(..)</code> for the JMS implementation)</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Number of messages sent</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Part of total time taken for committing
@@ -79,8 +81,8 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * {@link #MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX "mats.exec.ops.measure."}+{metricId} + {baseUnit}. If labels/tags are
  * set on a metric, the MDC-key will be {@link #MDC_MATS_COMPLETE_OPS_TIMING_PREFIX
  * "mats.exec.ops.time."}+{metricId}+".tag." + {labelKey} and for measurements
- * {@link #MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX "mats.exec.ops.measure."}+{metricId} + ".tag." + {labelKey}.<br />
- * <br />
+ * {@link #MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX "mats.exec.ops.measure."}+{metricId} + ".tag." + {labelKey}.<br/>
+ * <br/>
  * <h3>MDC Properties for Message Received:</h3>
  * <ul>
  * <li><b>{@link #MDC_MATS_MESSAGE_RECEIVED "mats.MessageReceived"}</b>: 'true' on a single logline per received message
@@ -115,6 +117,8 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * <b>Metrics for message reception</b> (note how these compare to the production of a message, on the "Per Message"
  * loglines):
  * <ul>
+ * <li><b>{@link #MDC_MATS_IN_TIME_SINCE_SENT "mats.in.SinceSent.ms"}</b>: Time taken from message was sent to it was
+ * received. <b>This is susceptible to time skews between nodes</b>.</li>
  * <li><b>{@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.in.TotalPreprocDeserial.ms"}</b>: Total time taken
  * to preprocess and deserialize the incoming message.</li>
  * <li><b>{@link #MDC_MATS_IN_TIME_MSGSYS_DECONSTRUCT "mats.in.MsgSysDeconstruct.ms"}</b>: Part of total time taken to
@@ -156,8 +160,29 @@ import io.mats3.api.intercept.MatsStageInterceptor;
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Same as for initiation</li>
  * </ul>
  * <b>User metrics:</b> Furthermore, any metrics (measurements and timings) set from an initiation or stage will be
- * available as separate log lines - same as for initiations.<br />
- * <br />
+ * available as separate log lines - same as for initiations.<br/>
+ * <br/>
+ * <h3>Extra Properties for Endpoint Complete:</h3> When the final Stage of an Endpoint either REPLYs, or stops the flow
+ * (neither sending a REQUEST, NEXT nor GOTO), the endpoint is completed.
+ * <ul>
+ * <li><b>{@link #MDC_MATS_ENDPOINT_COMPLETED "mats.EndpointCompleted"}</b>: 'true' on the same line as Stage Completed
+ * if this also is the endpoint completion.</li>
+ * <li><b>{@link #MDC_MATS_ENDPOINT_COMPLETE_TIME_TOTAL "mats.endpoint.Total.ms"}</b>: Time taken from entry on the
+ * initial stage of an endpoint, to stage completed on the final stage. <b>This is susceptible to time skews between
+ * nodes</b>.</li>
+ * </ul>
+ * <br/>
+ * <h3>Extra Properties for Flow Complete:</h3> When a Stage doesn't send any REPLY, REQUEST, NEXT or GOTO, it stops the
+ * flow. This is the normal situation for a Terminator, but technically a flow may stop anywhere if the stage doesn't
+ * send a flow message.
+ * <ul>
+ * <li><b>{@link #MDC_MATS_FLOW_COMPLETED "mats.FlowCompleted"}</b>: 'true' on the same line as Stage Completed if this
+ * also is flow completion.</li>
+ * <li><b>{@link #MDC_MATS_FLOW_COMPLETE_TIME_TOTAL "mats.flow.Total.ms"}</b>: Time taken from the flow was initiated at
+ * a {@link MatsInitiator}, or from within a flow, to it ends. <b>This is susceptible to time skews between
+ * nodes</b>.</li>
+ * </ul>
+ * <br/>
  * <h3>MDC Properties for Per created Message (both initiations and stage produced messages):</h3>
  * <ul>
  * <li><b>{@link #MDC_MATS_MESSAGE_SENT "mats.MessageSent"}</b>: 'true' on single logline per sent message - <i>can be
@@ -282,6 +307,7 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_IN_MATS_MESSAGE_ID = "mats.in.MatsMsgId";
 
     // ... Metrics:
+    public static final String MDC_MATS_IN_TIME_SINCE_SENT = "mats.in.SinceSent.ms";
     public static final String MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL = "mats.in.TotalPreprocDeserial.ms";
     public static final String MDC_MATS_IN_TIME_MSGSYS_DECONSTRUCT = "mats.in.MsgSysDeconstruct.ms";
     public static final String MDC_MATS_IN_SIZE_ENVELOPE_WIRE = "mats.in.EnvelopeWire.bytes";
@@ -293,8 +319,11 @@ public class MatsMetricsLoggingInterceptor
     // ============================================================================================================
     // ===== For Stage Completed
     // !!! Note that these MDCs are already set by JmsMats core: !!!
+    // MDC_MATS_STAGE = "mats.Stage"; // 'true' on Stage Processor threads (set fixed on the consumer thread)
     // MDC_MATS_STAGE_ID = "mats.StageId";
+    // MDC_MATS_IN_MESSAGE_SYSTEM_ID = "mats.in.MsgSysId";
     // MDC_TRACE_ID = "traceId"
+
     // 'true' on a single logline per completed stage
     public static final String MDC_MATS_STAGE_COMPLETED = "mats.StageCompleted";
     // Set on a single logline per completed
@@ -303,6 +332,29 @@ public class MatsMetricsLoggingInterceptor
     // ..... specific Stage complete metric - along with the other ".exec." from the COMMON Init/Stage Complete
     // Note that this is the same timing as the MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL
     public static final String MDC_MATS_COMPLETE_TIME_TOTAL_PREPROC_AND_DESERIAL = "mats.exec.TotalPreprocDeserial.ms";
+
+    // ============================================================================================================
+    // ===== For Endpoint Completed - i.e. a stage of ep that either REPLY or stop the flow (no REQ,NEXT,GOTO)
+    // !! NOTE: These are /in addition/ to the Stage Completed above, e.g. MDC_MATS_COMPLETE_PROCESS_RESULT
+    // !! NOTE: This will also be set on a Terminator, but that will only be for the Terminator endpoint itself, not
+    // for initiator-to-terminator timings.
+
+    // 'true' on a single logline per completed endpoint - it will be on one of the Stage Completed log lines.
+    public static final String MDC_MATS_ENDPOINT_COMPLETED = "mats.EndpointCompleted";
+
+    // ..... specific Endpoint Complete metric. Notice that this is susceptible to time skews between nodes.
+    public static final String MDC_MATS_ENDPOINT_COMPLETE_TIME_TOTAL = "mats.endpoint.Total.ms";
+
+    // ============================================================================================================
+    // ===== For Flow Completed - i.e. a stage in a flow that does not send any outgoing flow msg (REPLY,REQ,NEXT,GOTO)
+    // ===== (Typically at a Terminator, i.e. endpoint that have void as outgoing message)
+    // !! NOTE: These are /in addition/ to the Stage Completed above, e.g. MDC_MATS_COMPLETE_PROCESS_RESULT
+
+    // 'true' on a single logline per completed flow - it will be on one of the Stage Completed log lines.
+    public static final String MDC_MATS_FLOW_COMPLETED = "mats.FlowCompleted";
+
+    // ..... specific Flow Complete metric. Notice that this is susceptible to time skews between nodes.
+    public static final String MDC_MATS_FLOW_COMPLETE_TIME_TOTAL = "mats.flow.Total.ms";
 
     // ============================================================================================================
     // ===== For Sending a single message (from init, or stage) - one line per message
@@ -399,6 +451,9 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_IN_FROM_ID, processContext.getFromStageId());
             MDC.put(MDC_MATS_IN_MATS_MESSAGE_ID, processContext.getMatsMessageId());
 
+            MDC.put(MDC_MATS_IN_TIME_SINCE_SENT,
+                    Long.toString(System.currentTimeMillis() - processContext.getFromTimestamp().toEpochMilli()));
+
             // Total:
             MDC.put(MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL,
                     msS(ctx.getTotalPreprocessAndDeserializeNanos()));
@@ -438,6 +493,8 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_IN_FROM_ID);
             MDC.remove(MDC_MATS_IN_MATS_MESSAGE_ID);
 
+            MDC.remove(MDC_MATS_IN_TIME_SINCE_SENT);
+
             MDC.remove(MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL);
 
             MDC.remove(MDC_MATS_IN_TIME_MSGSYS_DECONSTRUCT);
@@ -472,6 +529,27 @@ public class MatsMetricsLoggingInterceptor
 
             MDC.put(MDC_MATS_COMPLETE_PROCESS_RESULT, ctx.getProcessResult().toString());
 
+            // ?: Has the endpoint completed with this stage?
+            if ((ctx.getProcessResult() == ProcessResult.REPLY) || (ctx.getProcessResult() == ProcessResult.NONE)) {
+                // -> Yes, either it REPLYed, or it didn't send any outgoing message (as if a Terminator)
+                // This means that the endpoint has completed.
+                MDC.put(MDC_MATS_ENDPOINT_COMPLETED, "true");
+                long endpointEnteredTimestamp = ctx.getEndpointEnteredTimestamp().toEpochMilli();
+                if (endpointEnteredTimestamp > 0) {
+                    long totalEndpointTime = System.currentTimeMillis() - endpointEnteredTimestamp;
+                    MDC.put(MDC_MATS_ENDPOINT_COMPLETE_TIME_TOTAL, Long.toString(totalEndpointTime));
+                }
+            }
+
+            // ?: Has the flow completed with this stage
+            if (ctx.getProcessResult() == ProcessResult.NONE) {
+                // -> Yes, there was no outgoing flow message (REQUEST,REPLY,NEXT,GOTO)
+                MDC.put(MDC_MATS_FLOW_COMPLETED, "true");
+                long initiationTimestamp = ctx.getProcessContext().getInitiatingTimestamp().toEpochMilli();
+                long totalFlowTime = System.currentTimeMillis() - initiationTimestamp;
+                MDC.put(MDC_MATS_FLOW_COMPLETE_TIME_TOTAL, Long.toString(totalFlowTime));
+            }
+
             commonStageAndInitiateCompleted(ctx, " with result " + ctx.getProcessResult(), log_stage,
                     outgoingMessages, messageSenderName, extraBreakdown, extraNanosBreakdown);
         }
@@ -479,6 +557,10 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_STAGE_COMPLETED);
             MDC.remove(MDC_MATS_COMPLETE_TIME_TOTAL_PREPROC_AND_DESERIAL);
             MDC.remove(MDC_MATS_COMPLETE_PROCESS_RESULT);
+            MDC.remove(MDC_MATS_ENDPOINT_COMPLETED);
+            MDC.remove(MDC_MATS_ENDPOINT_COMPLETE_TIME_TOTAL);
+            MDC.remove(MDC_MATS_FLOW_COMPLETED);
+            MDC.remove(MDC_MATS_FLOW_COMPLETE_TIME_TOTAL);
         }
     }
 

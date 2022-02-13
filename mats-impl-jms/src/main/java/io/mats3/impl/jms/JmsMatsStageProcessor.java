@@ -352,7 +352,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     JmsMatsInternalExecutionContext internalExecutionContext = JmsMatsInternalExecutionContext
                             .forStage(_jmsSessionHolder, jmsConsumer);
 
-                    StageContextImpl stageContext = new StageContextImpl(_jmsMatsStage, startedNanos, startedInstant);
+                    StageInterceptContextImpl stageContext = new StageInterceptContextImpl(_jmsMatsStage, startedNanos,
+                            startedInstant);
 
                     // Fetch relevant interceptors
                     List<MatsStageInterceptor> interceptorsForStage = _jmsMatsStage.getParentFactory()
@@ -489,7 +490,9 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             }
                             MatsTrace<Z> matsTrace = matsTraceDeserialized.getMatsTrace();
                             // Update the MatsTrace with stage-incoming timestamp - handles the "endpoint entered" logic
-                            matsTrace.setStageEnteredTimestamo(millisAtStart_Received);
+                            matsTrace.setStageEnteredTimestamp(millisAtStart_Received);
+                            // Fetch endpoint entered (Not same as stage entered - only initial stage is "ep entered")
+                            long endpointEnteredTimestamp = matsTrace.getSameHeightEndpointEnteredTimestamp();
 
                             // :: Overwriting the TraceId MDC, now from MatsTrace (in case missing from JMS Message)
                             MDC.put(MDC_TRACE_ID, matsTrace.getTraceId());
@@ -560,7 +563,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             // Create the common part of the interceptor contexts
                             stageCommonContext[0] = new StageCommonContextImpl<>(
                                     _jmsMatsStage,
-                                    startedNanos, startedInstant,
+                                    startedNanos, startedInstant, endpointEnteredTimestamp,
                                     matsTrace, incomingDto, currentSto,
                                     nanosTaken_DeconstructMessage,
                                     matsTraceBytes.length,
@@ -633,8 +636,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             // =======================================================================================
 
                             /*
-                             * Concatenate all TraceIds for the incoming messages and any initiations, to put on the
-                             * MDC. - which is good for the logging, so that they are all present on the MDC for the
+                             * Concatenate all TraceIds for the incoming message and any initiations, to put on the MDC.
+                             * - which is good for the logging, so that they are all present on the MDC for the
                              * send/commit log lines, and in particular if we get any Exceptions when committing. Notice
                              * that the typical situation is that there is just one traceId (incoming + request or
                              * reply, which have the same traceId), as stage-initiations are a more seldom situation.
@@ -871,13 +874,14 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             // Will crash the jmsSession - or exit out if we've been told to.
             catch (Throwable t) { // .. amongst which is JmsMatsJmsException, JMSException, all Error except Assert.
                 /*
-                 * NOTE: We catch all Errors /except/ AssertionError here, assuming that AssertionError only is thrown
-                 * by user code or JmsMats implementation code which DO NOT refer to bad JMS connectivity. Were this
-                 * assumption to fail - i.e. that ActiveMQ code throws AssertionError at some point which effectively
-                 * indicates that the JMS Connection is dead - then we could be screwed: That would be handled as a
-                 * "good path" (aa message processing which raised some objection), and go back to the consume-loop.
-                 * However, one would think that on the next consumer.receive() call, a JMSException would be thrown,
-                 * sending us down here and thus crash the jmsSession and go back "booting up" a new Connection.
+                 * NOTE: We catch all Errors /except/ AssertionError here (which is caught above in the inner receive
+                 * loop), assuming that AssertionError only is thrown by user code or JmsMats implementation code which
+                 * DO NOT refer to bad JMS connectivity. Were this assumption to fail - i.e. that ActiveMQ code throws
+                 * AssertionError at some point which effectively indicates that the JMS Connection is dead - then we
+                 * could be screwed: That would be handled as a "good path" (as a message processing which raised some
+                 * objection), and go back to the consume-loop. However, one would think that on the next
+                 * consumer.receive() call, a JMSException would be thrown, sending us down here and thus crash the
+                 * jmsSession and go back "booting up" a new Connection.
                  */
                 /*
                  * Annoying stuff of ActiveMQ that if you are "thrown out" due to interrupt from outside, it sets the
@@ -976,7 +980,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         if (!messagesToSend.isEmpty()) {
             // -> Yes, there are outgoing messages.
             // Handle standard-case where there is only one outgoing (i.e. a Service which requested or replied)
-            // ?: Only one message
+            // ?: Fast-path for only one message
             if (messagesToSend.size() == 1) {
                 // ?: Is the traceId different from the one we are processing?
                 // (This can happen if it is a Terminator, but which send a new message)
@@ -1003,8 +1007,21 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 for (JmsMatsMessage<Z> msg : messagesToSend) {
                     allTraceIds.add(msg.getMatsTrace().getTraceId());
                 }
+                String collectedTraceIds;
+                int tooMany = 15;
+                // ?: Are there too many?
+                if (allTraceIds.size() <= tooMany) {
+                    // -> No, not too many
+                    collectedTraceIds = String.join(";", allTraceIds);
+                }
+                else {
+                    // -> Yes, too many - creating a "traceId" reflecting cropping.
+                    collectedTraceIds = "<cropped,numTraceIds:" + allTraceIds.size() + ">;"
+                            + allTraceIds.stream().limit(tooMany).collect(Collectors.joining(";"))
+                            + ";...";
+                }
                 // Set new concat'ed traceId (will probably still just be one..!)
-                MDC.put(MDC_TRACE_ID, String.join(";", allTraceIds));
+                MDC.put(MDC_TRACE_ID, collectedTraceIds);
             }
         }
     }
@@ -1053,13 +1070,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     /**
      * Implementation of {@link StageInterceptContext}.
      */
-    private static class StageContextImpl implements StageInterceptContext {
+    private static class StageInterceptContextImpl implements StageInterceptContext {
 
         private final MatsStage<?, ?, ?> _matsStage;
         private final long _startedNanos;
         private final Instant _startedInstant;
 
-        public StageContextImpl(MatsStage<?, ?, ?> matsStage, long startedNanos, Instant startedInstant) {
+        public StageInterceptContextImpl(MatsStage<?, ?, ?> matsStage, long startedNanos, Instant startedInstant) {
             _matsStage = matsStage;
             _startedNanos = startedNanos;
             _startedInstant = startedInstant;
@@ -1089,6 +1106,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         private final JmsMatsStage<?, ?, ?, Z> _stage;
         private final long _startedNanos;
         private final Instant _startedInstant;
+        private final long _endpointEnteredTimestampMillis;
 
         private final MatsTrace<Z> _matsTrace;
         private final Object _incomingMessage;
@@ -1103,7 +1121,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         private final long _preUserLambdaNanos;
 
         public StageCommonContextImpl(JmsMatsStage<?, ?, ?, Z> stage,
-                long startedNanos, Instant startedInstant,
+                long startedNanos, Instant startedInstant, long endpointEnteredTimestampMillis,
                 MatsTrace<Z> matsTrace, Object incomingMessage, Object incomingState,
                 long incomingEnvelopeDeconstructNanos,
                 int incomingEnvelopeRawSize,
@@ -1116,6 +1134,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             _stage = stage;
             _startedNanos = startedNanos;
             _startedInstant = startedInstant;
+            _endpointEnteredTimestampMillis = endpointEnteredTimestampMillis;
 
             _matsTrace = matsTrace;
             _incomingMessage = incomingMessage;
@@ -1143,6 +1162,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         @Override
         public long getStartedNanoTime() {
             return _startedNanos;
+        }
+
+        @Override
+        public Instant getEndpointEnteredTimestamp() {
+            return Instant.ofEpochMilli(_endpointEnteredTimestampMillis);
         }
 
         @Override
@@ -1245,6 +1269,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         @Override
         public long getStartedNanoTime() {
             return _stageCommonContext.getStartedNanoTime();
+        }
+
+        @Override
+        public Instant getEndpointEnteredTimestamp() {
+            return _stageCommonContext.getEndpointEnteredTimestamp();
         }
 
         @Override

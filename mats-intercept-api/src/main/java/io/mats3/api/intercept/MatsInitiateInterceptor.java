@@ -107,9 +107,9 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * <p />
  * The concept of "outside" vs. "inside" perhaps seems subtle, but there is a distinct difference: No processing will
  * ever happen in a Mats fabric if no initiations happens "from the outside": It is always a "from the outside"
- * initiation that will set Mats flows in action. Such a process flow might then set several new Mats flows in
- * action (i.e. initiations "from the inside"), but those are dependent on the initial Mats flow that was set in
- * motion "from the outside", and would never have been initiated was it not for such initiation.
+ * initiation that will set Mats flows in action. Such a process flow might then set several new Mats flows in action
+ * (i.e. initiations "from the inside"), but those are dependent on the initial Mats flow that was set in motion "from
+ * the outside", and would never have been initiated was it not for such initiation.
  * <p />
  * To catch initiations "from the inside", you will employ a {@link MatsStageInterceptor}.
  *
@@ -155,8 +155,15 @@ public interface MatsInitiateInterceptor {
     }
 
     interface InitiateInterceptContext {
+        /**
+         * @return the {@link MatsInitiator} employed for this initiation.
+         */
         MatsInitiator getInitiator();
 
+        /**
+         * @return when the initiation was started, i.e. when {@link MatsInitiator#initiate(InitiateLambda)} was
+         *         invoked.
+         */
         Instant getStartedInstant();
     }
 
