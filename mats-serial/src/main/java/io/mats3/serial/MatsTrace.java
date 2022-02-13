@@ -352,13 +352,15 @@ public interface MatsTrace<Z> {
     /**
      * @return the timestamp set by {@link #setOutgoingTimestamp(long)} for the preceding call on the same stack height.
      *         Used to calculate the "time between stages" for the different stages on an endpoint. It does not make
-     *         sense to get this for the initial stage of an Endpoint if the incoming is a REQUEST.
+     *         sense to get this for the initial stage of an Endpoint if the incoming is a REQUEST, and the return
+     *         value will then be <code>-1</code>.
      */
     long getSameHeightOutgoingTimestamp();
 
     /**
-     * Invoke this on the initial stage of an Endpoint. Used to calculate the "total endpoint time", through all stages,
-     * when the endpoint Replies, or stops (no outgoing message).
+     * Invoke this as early as possible on the reception of a message. Used to calculate the "total endpoint time",
+     * through all stages (including intermediate request/replies): Time from entry on the Initial Stage, to when the
+     * endpoint Replies, or stops (no outgoing message).
      */
     void setStageEnteredTimestamp(long timestamp);
 
@@ -445,18 +447,6 @@ public interface MatsTrace<Z> {
      */
     interface Call<Z> {
         long getCalledTimestamp();
-
-        /**
-         * Resets the calledTimestamp set by constructor, to be more closely timed to the exact sending time. I.e. the
-         * message may have been constructed, then a massive SQL query was performed, and then a new message is
-         * constructed, and then the messages are actually turned into JMS messages and committed on the wire. This
-         * means that the first message will have a much earlier timestamp than the second. Using this method, all
-         * outgoing messages can have the Called Timestamp set <i>right</i> before it is serialized and JMS-constructed
-         * and committed.
-         *
-         * SOFT DEPRECATED, use {@link MatsTrace#setOutgoingTimestamp(long)}. TODO: Remove.
-         */
-        Call<Z> setCalledTimestamp(long calledTimestamp);
 
         /**
          * @return the Mats Message Id, a guaranteed-globally-unique id for this particular message - it SHALL be

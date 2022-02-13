@@ -422,7 +422,9 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     public long getSameHeightOutgoingTimestamp() {
         // NOTE: RECEIVING SIDE: Invoked when a message has been received
         CallImpl<Z> cc = getCurrentCall();
+        // ?: Is the current call a REQUEST?
         if (cc.t == CallType.REQUEST) {
+            // -> Yes, CC is a REQUEST. There is per definition then no "same height" in front.
             // Should really throw, as this makes no sense. Returning -1 instead, hope caller realizes his mistake.
             return -1;
         }
@@ -782,6 +784,8 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
             // A MatsMessageId ends up looking like this: 'm_XBExAa1iioAGFVRk6nR5_Tjzswm4ys_t49_n22'
             // Or for negative millisSince: 'm_XBExAa1iioAGFVRk6nR5_Tjzswm4ys_tn49_n22'
             // NOTICE FEATURE: You can double-click anywhere inside that string, and get the entire id marked! w00t!
+            // (In all of xterm, browser and IntelliJ - the only non-char that is universally accepted as "part of
+            // a string" is actually "_").
             this.id = flowId + "_t" + millisSinceString + "_n" + callNo;
         }
 
@@ -795,8 +799,15 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
             return this;
         }
 
-        @Override
-        public CallImpl<Z> setCalledTimestamp(long calledTimestamp) {
+        /**
+         * Invoked by {@link MatsTrace#setOutgoingTimestamp(long)}. Resets the calledTimestamp set by constructor, to be
+         * more closely timed to the exact sending time. I.e. the message may have been constructed, then a massive SQL
+         * query was performed, and then a new message is constructed, and then the messages are actually turned into
+         * JMS messages and committed on the wire. This means that the first message will have a much earlier timestamp
+         * than the second. Using this method, all outgoing messages can have the Called Timestamp set <i>right</i>
+         * before it is serialized and JMS-constructed and committed.
+         */
+        CallImpl<Z> setCalledTimestamp(long calledTimestamp) {
             ts = calledTimestamp;
             return this;
         }
