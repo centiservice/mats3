@@ -131,7 +131,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * nodes</b>.</li>
  * <li><b>{@link #MDC_MATS_IN_TIME_SINCE_PRECEDING_ENDPOINT_STAGE "mats.in.PrecedEpStage.ms"}</b>: Time taken from the
  * sending of a message from the Stage immediately preceding this Stage <i>on the same Endpoint</i>, to the reception of
- * a message on this Stage, i.e. the time between stages of a flow (but also between an Initiation REQUEST and the
+ * a message on this Stage, i.e. the time between stages of an Endpoint (but also between an Initiation REQUEST and the
  * replyTo-reception on the Terminator). This timing includes queue times and processing times of requested endpoints
  * happening in between the send and the receive, as well as any other latencies. For example, it is the time between
  * when EndpointA.Stage<b>2</b> performs a REQUEST to AnotherEndpointB, till the REPLY from that endpoint is received on
