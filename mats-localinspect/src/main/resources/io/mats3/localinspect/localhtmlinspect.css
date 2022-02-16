@@ -1,0 +1,251 @@
+/* Using "native font stacks" of Bootstrap 5 */
+
+.mats_report {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    font-size: 13px;  /* Main setting of font size. Summary-table has it's own. */
+    line-height: 1.5;
+    color: #212529;
+}
+
+.mats_report hr {
+    border: 1px dashed #aaa;
+    margin: 0.2em 0 0.8em 0;
+    color: inherit;
+    background-color: currentColor;
+    opacity: 0.25;
+}
+
+/* :: Fonts and headings */
+.mats_report h2, .mats_report h3, .mats_report h4 {
+    /* Have to re-set font here, otherwise Bootstrap 3 takes over. */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    display: inline;
+    line-height: 1.2;
+}
+
+.mats_report h2 {
+    font-size: 1.5em;
+    font-weight: normal;
+}
+
+.mats_report h3 {
+    font-size: 1.4em;
+    font-weight: normal;
+}
+
+.mats_report h4 {
+    font-size: 1.3em;
+    font-weight: normal;
+}
+
+.mats_heading {
+    display: block;
+    margin: 0em 0em 0.5em 0em;
+}
+
+.mats_report code {
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: .875em;
+    color: #d63384;
+    background-color: rgba(0, 0, 0, 0.07);
+    padding: 2px 4px 1px 4px;
+    border-radius: 3px;
+}
+
+.mats_creation_info {
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: .7em;
+    color: #3d3d3d;
+    padding: 0.4em 0.1em 0.4em 1em;
+}
+
+/* TABLE: Summary */
+
+.mats_table_summary {
+    /* Setting font specifically, for stand-alone rendering */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    border-collapse: collapse;
+    font-size: 12px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+}
+
+.mats_table_summary thead th {
+    position: sticky;
+    top: 0;
+    background-color: #009879;
+    color: #ffffff;
+}
+
+.mats_table_summary th, .mats_table_summary td {
+    padding: 0.5em 0.5em 0.5em 0.5em;
+}
+
+.mats_table_summary tbody tr {
+    border-bottom: thin solid #dddddd;
+}
+
+.mats_table_summary .mats_summary_initiator_row {
+    background-color: #ffffe0;
+}
+
+.mats_table_summary tbody tr:not(.mats_summary_initiator_row):nth-of-type(even) {
+    background-color: #f3f3f3;
+}
+
+.mats_table_summary tbody tr:hover {
+    background-color: #ffff99 !important;
+}
+
+.mats_table_summary tbody .mats_summary_lastline {
+    border-bottom: thick solid #009879;
+}
+
+.mats_right {
+    text-align: right;
+}
+
+.mats_summary_time {
+    font-size: 0.75em;
+    padding: 0 0.2em 0 0.2em;
+    vertical-align: 0.15em;
+    margin: 0 0.1em 0 0.1em;
+    display: inline-block;
+}
+
+.mats_stage_summary_box {
+    background: #f0f0f0;
+    display: inline-block;
+    border-radius: 3px;
+    box-shadow: 2px 2px 2px 0px rgba(0, 0, 0, 0.37);
+    border: thin solid #a0a0a0;
+    margin: 0 0.3em 0 0.15em;
+    padding: 0.1em 0.1em 0.1em 0.1em;
+}
+
+
+.mats_tooltip {
+    position: relative;
+    display: inline-block;
+    border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+}
+
+/* Tooltip text */
+.mats_tooltip .mats_tooltiptext {
+    visibility: hidden;
+    width: 55em;
+    background-color: rgba(210, 210, 210, 0.9);
+    color: black;
+    text-align: center;
+    padding: 5px 0;
+    border-radius: 6px;
+
+    /* Position the tooltip text - see examples below! */
+    position: absolute;
+    z-index: 1;
+    bottom: 200%;
+    left: 50%;
+    margin-left: -27.5em; /* Use half of the width (120/2 = 60), to center the tooltip */
+}
+
+/* Show the tooltip text when you mouse over the tooltip container */
+.mats_tooltip:hover .mats_tooltiptext {
+    visibility: visible;
+}
+
+/* tooltip arrow */
+.mats_tooltip .mats_tooltiptext::after {
+    content: " ";
+    position: absolute;
+    top: 100%; /* At the bottom of the tooltip */
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color:  rgba(210, 210, 210, 0.9) transparent transparent transparent;
+}
+
+/* .. min and max (timings) */
+.mats_min {
+    top: +0.15em;
+    position: relative;
+    font-size: 0.75em;
+}
+
+.mats_max {
+    top: -0.45em;
+    position: relative;
+    font-size: 0.75em;
+}
+
+/* .. InitiatorIds and EndpointIds */
+.mats_iid {
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: .875em;
+    color: #d63384;
+    background-color: rgba(0, 255, 0, 0.07);
+    padding: 2px 4px 1px 4px;
+    border-radius: 3px;
+}
+
+.mats_epid {
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: .875em;
+    color: #d63384;
+    background-color: rgba(0, 0, 255, 0.07);
+    padding: 2px 4px 1px 4px;
+    border-radius: 3px;
+}
+
+.mats_appname {
+    background-color: rgba(0, 255, 255, 0.07);
+    padding: 2px 4px 1px 4px;
+    border-radius: 3px;
+}
+
+/* .. integers in timings (i.e. ms >= 500)
+* NOTE! The point of this class is NOT denote "high timings", but to denote that there are no
+* decimals, to visually make it easier to compare a number '1 235' with '1.235'.
+ */
+.mats_integer {
+    color: #b02a37;
+}
+
+/* :: The different parts of the report */
+.mats_info {
+    margin: 0em 0em 0em 0.5em;
+}
+
+/* Boxes / wrappers */
+.mats_factory, .mats_initiator, .mats_endpoint, .mats_stage {
+    border-radius: 3px;
+    box-shadow: 2px 2px 2px 0px rgba(0, 0, 0, 0.37);
+    border: thin solid #a0a0a0;
+    margin: 0.5em 0.5em 0.7em 0.5em;
+    padding: 0.1em 0.5em 0.5em 0.5em;
+}
+
+.mats_initiator, .mats_endpoint {
+    margin: 0.5em 0.5em 2em 0.5em;
+}
+
+.mats_factory {
+    background: #f0f0f0;
+}
+
+.mats_initiator {
+    background: #e0f0e0;
+}
+
+.mats_endpoint {
+    background: #e0e0f0;
+}
+
+.mats_stage {
+    background: #f0f0f0;
+}
+
+.mats_hot {
+    box-shadow: #FFF 0 -1px 4px, #ff0 0 -2px 10px, #ff8000 0 -10px 20px, red 0 -18px 40px, 5px 5px 15px 5px rgba(0, 0, 0, 0);
+    border: 0.2em solid red;
+    background: #ECEFCF;
+}

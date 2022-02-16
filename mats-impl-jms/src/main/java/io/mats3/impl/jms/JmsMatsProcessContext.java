@@ -13,7 +13,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import io.mats3.serial.MatsSerializer.SerializedMatsTrace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -28,6 +27,7 @@ import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
 import io.mats3.api.intercept.MatsOutgoingMessage.DispatchType;
 import io.mats3.impl.jms.JmsMatsInitiator.MessageReferenceImpl;
 import io.mats3.serial.MatsSerializer;
+import io.mats3.serial.MatsSerializer.SerializedMatsTrace;
 import io.mats3.serial.MatsTrace;
 import io.mats3.serial.MatsTrace.Call;
 import io.mats3.serial.MatsTrace.Call.Channel;
@@ -122,12 +122,20 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     @Override
     public String getFromAppName() {
-        return _incomingMatsTrace.getCurrentCall().getCallingAppName();
+        // If first call, then there is no CallingAppName on CurrentCall (to save some space), since it would be the
+        // same as initializing.
+        return _incomingMatsTrace.getCallNumber() == 1
+                ? _incomingMatsTrace.getInitializingAppName()
+                : _incomingMatsTrace.getCurrentCall().getCallingAppName();
     }
 
     @Override
     public String getFromAppVersion() {
-        return _incomingMatsTrace.getCurrentCall().getCallingAppVersion();
+        // If first call, then there is no CallingAppVersion on CurrentCall (to save some space), since it would be the
+        // same as initializing.
+        return _incomingMatsTrace.getCallNumber() == 1
+                ? _incomingMatsTrace.getInitializingAppVersion()
+                : _incomingMatsTrace.getCurrentCall().getCallingAppVersion();
     }
 
     @Override
@@ -348,7 +356,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         if ((labelKeyValue.length & 1) == 1) {
             throw new IllegalArgumentException("The labelKeyValue vararg array has an odd number of elements, which"
                     + " doesn't make sense since it should be alternate key-value pars: " + Arrays.toString(
-                    labelKeyValue));
+                            labelKeyValue));
         }
     }
 
@@ -361,7 +369,6 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         }
         _metricsIds.add(metricId);
     }
-
 
     List<MatsMeasurement> getMeasurements() {
         return _measurements;
@@ -386,7 +393,8 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         // .. serialized MatsTrace's meta info:
 
         // TODO: DEBUG
-        SerializedMatsTrace serializedMatsTrace = _parentFactory.getMatsSerializer().serializeMatsTrace(_incomingMatsTrace);
+        SerializedMatsTrace serializedMatsTrace = _parentFactory.getMatsSerializer().serializeMatsTrace(
+                _incomingMatsTrace);
         byte[] serializedMTBytes = serializedMatsTrace.getMatsTraceBytes();
         String serializedMTMeta = serializedMatsTrace.getMeta();
 

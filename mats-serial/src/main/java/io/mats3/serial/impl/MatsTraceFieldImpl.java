@@ -744,13 +744,15 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
      * Represents an entry in the {@link MatsTrace}.
      */
     public static class CallImpl<Z> implements Call<Z>, Cloneable {
+        // These four are set by the setDebugInfo, and might be null.
         private String an; // Calling AppName
         private String av; // Calling AppVersion
         private String h; // Calling Host
+        private String x; // Debug Info (free-form)
+
         private long ts; // Calling TimeStamp
         private String id; // MatsMessageId.
 
-        private String x; // Debug Info (free-form)
 
         private final CallType t; // type.
         private String f; // from, may be nulled.
@@ -807,12 +809,11 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
          * than the second. Using this method, all outgoing messages can have the Called Timestamp set <i>right</i>
          * before it is serialized and JMS-constructed and committed.
          */
-        CallImpl<Z> setCalledTimestamp(long calledTimestamp) {
+        void setCalledTimestamp(long calledTimestamp) {
             ts = calledTimestamp;
-            return this;
         }
 
-        public CallImpl<Z> setReplyForSpanId(long replyForSpanId) {
+        CallImpl<Z> setReplyForSpanId(long replyForSpanId) {
             rid = replyForSpanId;
             return this;
         }

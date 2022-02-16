@@ -231,9 +231,10 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
 
     private class JmsStageConfig implements StageConfig<R, S, I> {
         private int _concurrency;
+        private String _creationInfo;
 
         @Override
-        public MatsConfig setConcurrency(int concurrency) {
+        public StageConfig<R, S, I> setConcurrency(int concurrency) {
             _concurrency = concurrency;
             return this;
         }
@@ -259,6 +260,20 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         @Override
         public int getRunningStageProcessors() {
             return _stageProcessors.size();
+        }
+
+        @Override
+        public StageConfig<R, S, I> setCreationInfo(String info) {
+            if (info == null) {
+                throw new NullPointerException("info");
+            }
+            _creationInfo = info;
+            return this;
+        }
+
+        @Override
+        public String getCreationInfo() {
+            return _creationInfo;
         }
 
         @Override

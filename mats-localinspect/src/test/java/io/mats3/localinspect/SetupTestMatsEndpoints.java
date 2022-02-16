@@ -1,6 +1,7 @@
 package io.mats3.localinspect;
 
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Assert;
 
@@ -9,42 +10,32 @@ import io.mats3.MatsFactory;
 
 public class SetupTestMatsEndpoints {
 
-    private static MatsFactory __matsFactory;
+    void setupMatsTestEndpoints(MatsFactory matsFactory, String baseService, int baseConcurrency) {
+        setupMainMultiStagedService(matsFactory, baseService);
+        setupMidMultiStagedService(matsFactory, baseService, baseConcurrency);
+        setupLeafService(matsFactory, baseService, baseConcurrency);
 
-    public static int BASE_CONCURRENCY = 2;
-
-    static void setupMatsTestEndpoints(MatsFactory matsFactory) {
-        __matsFactory = matsFactory;
-        setupMasterMultiStagedService();
-        setupMidMultiStagedService();
-        setupLeafService();
-
-        setupTerminator();
-        setupSubscriptionTerminator();
+        setupTerminator(matsFactory, baseService);
+        setupSubscriptionTerminator(matsFactory, baseService);
     }
 
-    public static MatsFactory getMatsFactory() {
-        return __matsFactory;
-    }
+    final static String SERVICE = ".service";
+    final static String SERVICE_MID = ".service.Mid";
+    final static String SERVICE_LEAF = ".service.Leaf";
+    final static String TERMINATOR = ".terminator";
+    final static String SUBSCRIPTION_TERMINATOR = ".subscriptionTerminator";
 
-    static final String SERVICE_PREFIX = "LocalInterfaceTest";
-    static final String SERVICE = SERVICE_PREFIX + ".service";
-    static final String SERVICE_MID = SERVICE_PREFIX + ".service.Mid";
-    static final String SERVICE_LEAF = SERVICE_PREFIX + ".service.Leaf";
-    static final String TERMINATOR = SERVICE_PREFIX + ".terminator";
-    static final String SUBSCRIPTION_TERMINATOR = SERVICE_PREFIX + ".subscriptionTerminator";
-
-    public static void setupLeafService() {
-        MatsEndpoint<DataTO, Void> single = getMatsFactory().single(SERVICE_LEAF, DataTO.class, DataTO.class,
+    public void setupLeafService(MatsFactory matsFactory, String baseService, int baseConcurrency) {
+        MatsEndpoint<DataTO, Void> single = matsFactory.single(baseService + SERVICE_LEAF, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     // Use the 'multiplier' in the request to formulate the reply.. I.e. multiply the number..!
                     return new DataTO(dto.number * dto.multiplier, dto.string + ":FromLeafService");
                 });
-        single.getEndpointConfig().setConcurrency(BASE_CONCURRENCY * 6);
+        single.getEndpointConfig().setConcurrency(baseConcurrency * 6);
     }
 
-    public static void setupMidMultiStagedService() {
-        MatsEndpoint<DataTO, StateTO> ep = getMatsFactory().staged(SERVICE_MID, DataTO.class,
+    public void setupMidMultiStagedService(MatsFactory matsFactory, String baseService, int baseConcurrency) {
+        MatsEndpoint<DataTO, StateTO> ep = matsFactory.staged(baseService + SERVICE_MID, DataTO.class,
                 StateTO.class);
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(0, 0), sto);
@@ -52,7 +43,7 @@ public class SetupTestMatsEndpoints {
             sto.number1 = dto.multiplier;
             // Add an important number to state..!
             sto.number2 = Math.PI;
-            context.request(SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall", 2));
+            context.request(baseService + SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall", 2));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             // Only assert number2, as number1 is differing between calls (it is the multiplier for MidService).
@@ -68,16 +59,16 @@ public class SetupTestMatsEndpoints {
             return new DataTO(dto.number * sto.number1, dto.string + ":FromMidService");
         });
 
-        ep.getEndpointConfig().setConcurrency(BASE_CONCURRENCY * 4);
+        ep.getEndpointConfig().setConcurrency(baseConcurrency * 4);
     }
 
-    public static void setupMasterMultiStagedService() {
-        MatsEndpoint<DataTO, StateTO> ep = getMatsFactory().staged(SERVICE, DataTO.class, StateTO.class);
+    public void setupMainMultiStagedService(MatsFactory matsFactory, String baseService) {
+        MatsEndpoint<DataTO, StateTO> ep = matsFactory.staged(baseService + SERVICE, DataTO.class, StateTO.class);
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(0, 0), sto);
             sto.number1 = Integer.MAX_VALUE;
             sto.number2 = Math.E;
-            context.request(SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall1", 3));
+            context.request(baseService + SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall1", 3));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MAX_VALUE, Math.E), sto);
@@ -89,31 +80,37 @@ public class SetupTestMatsEndpoints {
             Assert.assertEquals(new StateTO(1, 2), sto);
             sto.number1 = Integer.MIN_VALUE;
             sto.number2 = Math.E * 2;
-            context.request(SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall2", 7));
+            context.request(baseService + SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall2", 7));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE, Math.E * 2), sto);
             sto.number1 = Integer.MIN_VALUE / 2;
             sto.number2 = Math.E / 2;
-            context.request(SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall1", 4));
+            // Introduce some "either/or" here:
+            if (ThreadLocalRandom.current().nextFloat() > 0.5) {
+                context.request(baseService + SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall1", 4));
+            }
+            else {
+                context.next(new DataTO(dto.number, dto.string + ":LeafCall1", 4));
+            }
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE / 2, Math.E / 2), sto);
             sto.number1 = Integer.MIN_VALUE / 4;
             sto.number2 = Math.E / 4;
-            context.request(SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall2", 6));
+            context.request(baseService + SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall2", 6));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE / 4, Math.E / 4), sto);
             sto.number1 = Integer.MAX_VALUE / 2;
             sto.number2 = Math.PI / 2;
-            context.request(SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall3", 8));
+            context.request(baseService + SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall3", 8));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MAX_VALUE / 2, Math.PI / 2), sto);
             sto.number1 = Integer.MAX_VALUE / 4;
             sto.number2 = Math.PI / 4;
-            context.request(SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall4", 9));
+            context.request(baseService + SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall4", 9));
         });
         ep.lastStage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MAX_VALUE / 4, Math.PI / 4), sto);
@@ -121,14 +118,14 @@ public class SetupTestMatsEndpoints {
         });
     }
 
-    public static void setupTerminator() {
-        getMatsFactory().terminator(TERMINATOR, StateTO.class, DataTO.class,
+    public void setupTerminator(MatsFactory matsFactory, String baseService) {
+        matsFactory.terminator(baseService + TERMINATOR, StateTO.class, DataTO.class,
                 (context, sto, dto) -> {
                 });
     }
 
-    public static void setupSubscriptionTerminator() {
-        getMatsFactory().subscriptionTerminator(SUBSCRIPTION_TERMINATOR, StateTO.class, DataTO.class,
+    public void setupSubscriptionTerminator(MatsFactory matsFactory, String baseService) {
+        matsFactory.subscriptionTerminator(baseService + SUBSCRIPTION_TERMINATOR, StateTO.class, DataTO.class,
                 (context, sto, dto) -> {
                 });
     }

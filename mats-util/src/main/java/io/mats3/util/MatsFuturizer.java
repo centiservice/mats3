@@ -363,7 +363,7 @@ public class MatsFuturizer implements AutoCloseable {
      */
     public <T> CompletableFuture<Reply<T>> futurize(String traceId, String from, String to,
             int timeout, TimeUnit unit, Class<T> replyClass, Object request, InitiateLambda customInit) {
-        Promise<T> promise = _createPromise(traceId, from, replyClass, timeout, unit);
+        Promise<T> promise = _createPromise(traceId, from, to, replyClass, timeout, unit);
         _assertFuturizerRunning();
         _enqueuePromise(promise);
         _sendRequestToFulfillPromise(from, to, traceId, request, customInit, promise);
@@ -401,16 +401,18 @@ public class MatsFuturizer implements AutoCloseable {
         public final String _traceId;
         public final String _correlationId;
         public final String _from;
+        public final String _to;
         public final long _initiationTimestamp;
         public final long _timeoutTimestamp;
         public final Class<T> _replyClass;
         public final CompletableFuture<Reply<T>> _future;
 
-        public Promise(String traceId, String correlationId, String from, long initiationTimestamp,
+        public Promise(String traceId, String correlationId, String from, String to, long initiationTimestamp,
                 long timeoutTimestamp, Class<T> replyClass, CompletableFuture<Reply<T>> future) {
             _traceId = traceId;
             _correlationId = correlationId;
             _from = from;
+            _to = to;
             _initiationTimestamp = initiationTimestamp;
             _timeoutTimestamp = timeoutTimestamp;
             _replyClass = replyClass;
@@ -460,7 +462,7 @@ public class MatsFuturizer implements AutoCloseable {
         return threadPool;
     }
 
-    protected <T> Promise<T> _createPromise(String traceId, String from, Class<T> replyClass,
+    protected <T> Promise<T> _createPromise(String traceId, String from, String to, Class<T> replyClass,
             int timeout, TimeUnit unit) {
         long timeoutMillis = unit.toMillis(timeout);
         if (timeoutMillis <= 0) {
@@ -470,7 +472,7 @@ public class MatsFuturizer implements AutoCloseable {
         String correlationId = RandomString.randomCorrelationId();
         long timestamp = System.currentTimeMillis();
         CompletableFuture<Reply<T>> future = new CompletableFuture<>();
-        return new Promise<>(traceId, correlationId, from, timestamp, timestamp + timeoutMillis, replyClass, future);
+        return new Promise<>(traceId, correlationId, from, to, timestamp, timestamp + timeoutMillis, replyClass, future);
     }
 
     protected <T> void _enqueuePromise(Promise<T> promise) {
@@ -679,7 +681,7 @@ public class MatsFuturizer implements AutoCloseable {
                 for (Promise<?> promise : promisesToTimeout) {
                     MDC.put("traceId", promise._traceId);
                     String msg = "The Promise/Future timed out! It was initiated from:[" + promise._from
-                            + "] with traceId:[" + promise._traceId + "]."
+                            + "] with traceId:[" + promise._traceId + "], to:["+promise._to+"]"
                             + " Initiation was [" + (System.currentTimeMillis()
                                     - promise._initiationTimestamp) + " ms] ago, and its specified"
                             + " timeout was:[" + (promise._timeoutTimestamp

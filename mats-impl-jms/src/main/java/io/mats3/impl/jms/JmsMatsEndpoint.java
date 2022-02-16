@@ -92,6 +92,7 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
             _stages.get(_stages.size() - 1).setNextStageId(stageId);
         }
         _stages.add(stage);
+        stage.getStageConfig().setCreationInfo(getInvocationPoint());
         stageConfigLambda.accept(stage.getStageConfig());
         @SuppressWarnings("unchecked")
         MatsStage<R, S, I> matsStage = stage;
@@ -217,9 +218,10 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
 
     private class JmsEndpointConfig implements EndpointConfig<R, S> {
         private int _concurrency;
+        private String _creationInfo;
 
         @Override
-        public MatsConfig setConcurrency(int concurrency) {
+        public EndpointConfig<R, S> setConcurrency(int concurrency) {
             _concurrency = concurrency;
             return this;
         }
@@ -253,6 +255,20 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
         }
 
         @Override
+        public EndpointConfig<R, S> setCreationInfo(String info) {
+            if (info == null) {
+                throw new NullPointerException("info");
+            }
+            _creationInfo = info;
+            return this;
+        }
+
+        @Override
+        public String getCreationInfo() {
+            return _creationInfo;
+        }
+
+        @Override
         public String getEndpointId() {
             return _endpointId;
         }
@@ -270,13 +286,6 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
         @Override
         public Class<S> getStateClass() {
             return _stateClass;
-        }
-
-        @Override
-        @Deprecated
-        @SuppressWarnings("unchecked")
-        public List<MatsStage<R, S, ?>> getStages() {
-            return JmsMatsEndpoint.this.getStages();
         }
     }
 }

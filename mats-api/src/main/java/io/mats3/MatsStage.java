@@ -66,8 +66,8 @@ public interface MatsStage<R, S, I> extends StartStoppable {
          * @return the index number of the stage, where 0 is the initial stage where the {@link #getStageId()} is equal
          *         to the Endpoint's {@link EndpointConfig#getEndpointId() endpointId}. Subsequent stages will have
          *         indices 1, 2, 3 etc. This will typically also be reflected in the stageId for all non-initial stages,
-         *         where their stageIds are equal to <code>"{endpointId}.stage{stageIndex}"</code> (the initial stage
-         *         is just <code>"{endpointId}"</code>, of course).
+         *         where their stageIds are equal to <code>"{endpointId}.stage{stageIndex}"</code> (the initial stage is
+         *         just <code>"{endpointId}"</code>, of course).
          */
         int getStageIndex();
 
@@ -89,5 +89,27 @@ public interface MatsStage<R, S, I> extends StartStoppable {
          *         from {@link #getConcurrency} if the concurrency was set when stage was running.
          */
         int getRunningStageProcessors();
+
+        /**
+         * Sets the creation info for this Stage, i.e. where it was created. Use this to set something sane if the
+         * {@link #getCreationInfo() automatically created creation info} is useless. It should be a single line, no
+         * line feeds, but tooling might split the String into multiple lines on the character ';'. It should definitely
+         * be short, but informative.
+         *
+         * @return <code>this</code>, for chaining.
+         */
+        StageConfig<R, S, I> setCreationInfo(String info);
+
+        /**
+         * @return some human-interpretable information about where in the codebase this Stage was created. If this is
+         *         displayed in a multi-line capable situation, you should split on ';'. An attempt at some automatic
+         *         creation is performed, based on creating an exception and introspecting the result. If this doesn't
+         *         yield any good result, it might be overridden by {@link #setCreationInfo(String)}.
+         */
+        String getCreationInfo();
+
+        // Overridden to return the more specific StageConfig instead of MatsConfig
+        @Override
+        StageConfig<R, S, I> setConcurrency(int concurrency);
     }
 }

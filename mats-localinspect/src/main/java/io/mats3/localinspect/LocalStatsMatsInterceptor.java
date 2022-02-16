@@ -903,11 +903,11 @@ public class LocalStatsMatsInterceptor
         }
 
         private static final Comparator<IncomingMessageRepresentation> COMPARATOR = Comparator
-                .comparing(IncomingMessageRepresentation::getInitiatorId)
-                .thenComparing(IncomingMessageRepresentation::getInitiatingAppName)
+                .comparing(IncomingMessageRepresentation::getInitiatingAppName)
+                .thenComparing(IncomingMessageRepresentation::getInitiatorId)
                 .thenComparing(IncomingMessageRepresentation::getMessageType)
-                .thenComparing(IncomingMessageRepresentation::getFromStageId)
-                .thenComparing(IncomingMessageRepresentation::getFromAppName);
+                .thenComparing(IncomingMessageRepresentation::getFromAppName)
+                .thenComparing(IncomingMessageRepresentation::getFromStageId);
 
         @Override
         public int compareTo(IncomingMessageRepresentation o) {
@@ -974,11 +974,11 @@ public class LocalStatsMatsInterceptor
         }
 
         private static final Comparator<OutgoingMessageRepresentation> COMPARATOR = Comparator
-                .comparing(OutgoingMessageRepresentation::getInitiatorId)
-                .thenComparing(OutgoingMessageRepresentation::getInitiatingAppName)
+                .comparing(OutgoingMessageRepresentation::getInitiatingAppName)
+                .thenComparing(OutgoingMessageRepresentation::getInitiatorId)
                 .thenComparing(OutgoingMessageRepresentation::getMessageType)
-                .thenComparing(o -> o.getMessageClass() == null ? "null" : o.getMessageClass().getName())
-                .thenComparing(OutgoingMessageRepresentation::getTo);
+                .thenComparing(OutgoingMessageRepresentation::getTo)
+                .thenComparing(o -> o.getMessageClass() == null ? "null" : o.getMessageClass().getName());
 
         @Override
         public int compareTo(OutgoingMessageRepresentation o) {

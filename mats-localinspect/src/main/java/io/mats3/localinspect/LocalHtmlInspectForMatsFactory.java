@@ -1,6 +1,10 @@
 package io.mats3.localinspect;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.List;
@@ -32,11 +36,11 @@ import io.mats3.localinspect.LocalStatsMatsInterceptor.StageStats;
 import io.mats3.localinspect.LocalStatsMatsInterceptor.StatsSnapshot;
 
 /**
- * Will produce an "embeddable" HTML interface - notice that there are CSS ({@link #getStyleSheet(Appendable)}), JavaScript
- * ({@link #getJavaScript(Appendable)}) and HTML ({@link #createFactoryReport(Appendable, boolean, boolean, boolean)
- * createFactoryReport(Appendable,..)}) to include. If the {@link LocalStatsMatsInterceptor} is installed on the
- * {@link MatsFactory} implementing {@link MatsInterceptable}, it will include pretty nice "local statistics" for all
- * initiators, endpoints and stages.
+ * Will produce an "embeddable" HTML interface - notice that there are CSS ({@link #getStyleSheet(Appendable)}),
+ * JavaScript ({@link #getJavaScript(Appendable)}) and HTML
+ * ({@link #createFactoryReport(Appendable, boolean, boolean, boolean) createFactoryReport(Appendable,..)}) to include.
+ * If the {@link LocalStatsMatsInterceptor} is installed on the {@link MatsFactory} implementing
+ * {@link MatsInterceptable}, it will include pretty nice "local statistics" for all initiators, endpoints and stages.
  * <p />
  * Note: You are expected to {@link #create(MatsFactory) create} one instance of this class per MatsFactory, and keep
  * these around for the lifetime of the MatsFactories (i.e. for the JVM) - as in multiple singletons. Do not create one
@@ -79,156 +83,7 @@ public class LocalHtmlInspectForMatsFactory {
      * MatsFactories you display.
      */
     public void getStyleSheet(Appendable out) throws IOException {
-        // Regular fonts: Using the "Native font stack" of Bootstrap 5
-        String font_regular = ""
-                // Cross-platform generic font family (default user interface font)
-                // + "system-ui,"
-                // Safari for macOS and iOS (San Francisco)
-                + " -apple-system,"
-                // Chrome < 56 for macOS (San Francisco)
-                + " BlinkMacSystemFont,"
-                // Windows
-                + " \"Segoe UI\","
-                // Android
-                + " Roboto,"
-                // Basic web fallback
-                + " \"Helvetica Neue\", Arial,"
-                // Linux
-                + " \"Noto Sans\","
-                + " \"Liberation Sans\","
-                // Sans serif fallback
-                + " sans-serif,"
-                // Emoji fonts
-                + " \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"";
-
-        // Monospaced fonts: Using the "Native font stack" of Bootstrap 5
-        String font_mono = "SFMono-Regular,Menlo,Monaco,Consolas,\"Liberation Mono\",\"Courier New\",monospace;";
-
-        out.append(".mats_report {\n"
-                + "  font-family: " + font_regular + ";\n"
-                + "  font-weight: 400;\n"
-                + "  font-size: 95%;\n"
-                + "  line-height: 1.35;\n"
-                + "  color: #212529;\n"
-                + "}\n");
-
-        out.append(".mats_report hr {\n"
-                + "  border: 1px dashed #aaa;\n"
-                + "  margin: 0.2em 0 0.8em 0;\n"
-                + "  color: inherit;\n"
-                + "  background-color: currentColor;\n"
-                + "  opacity: 0.25;\n"
-                + "}\n");
-
-        // :: Fonts and headings
-        out.append(".mats_report h2, .mats_report h3, .mats_report h4 {\n"
-                // Have to re-set font here, otherwise Bootstrap 3 takes over.
-                + "  font-family: " + font_regular + ";\n"
-                + "  display: inline;\n"
-                + "  line-height: 1.2;\n"
-                + "}\n");
-        out.append(".mats_report h2 {\n"
-                + "  font-size: 1.5em;\n"
-                + "  font-weight: 400;\n"
-                + "}\n");
-        out.append(".mats_report h3 {\n"
-                + "  font-size: 1.4em;\n"
-                + "  font-weight: 400;\n"
-                + "}\n");
-        out.append(".mats_report h4 {\n"
-                + "  font-size: 1.3em;\n"
-                + "  font-weight: 400;\n"
-                + "}\n");
-        out.append(".mats_heading {\n"
-                + "  display: block;\n"
-                + "  margin: 0em 0em 0.5em 0em;\n"
-                + "}\n");
-        out.append(".mats_report code {\n"
-                + "  font-family: " + font_mono + ";\n"
-                + "  font-size: .875em;\n"
-                + "  color: #d63384;\n"
-                + "  background-color: rgba(0, 0, 0, 0.07);\n"
-                + "  padding: 2px 4px 1px 4px;\n"
-                + "  border-radius: 3px;\n"
-                + "}\n");
-        // .. min and max (timings)
-        out.append(".mats_min {\n"
-                + "  top: +0.15em;\n"
-                + "  position: relative;\n"
-                + "  font-size: 0.75em;\n"
-                + "}\n");
-        out.append(".mats_max {\n"
-                + "  top: -0.45em;\n"
-                + "  position: relative;\n"
-                + "  font-size: 0.75em;\n"
-                + "}\n");
-
-        // .. InitiatorIds and EndpointIds
-        out.append(".mats_iid {\n"
-                + "  font-family: " + font_mono + ";\n"
-                + "  font-size: .875em;\n"
-                + "  color: #d63384;\n"
-                + "  background-color: rgba(0, 255, 0, 0.07);\n"
-                + "  padding: 2px 4px 1px 4px;\n"
-                + "  border-radius: 3px;\n"
-                + "}\n");
-        out.append(".mats_epid {\n"
-                + "  font-family: " + font_mono + ";\n"
-                + "  font-size: .875em;\n"
-                + "  color: #d63384;\n"
-                + "  background-color: rgba(0, 0, 255, 0.07);\n"
-                + "  padding: 2px 4px 1px 4px;\n"
-                + "  border-radius: 3px;\n"
-                + "}\n");
-        out.append(".mats_appname {\n"
-                // + " color: #d63384;\n"
-                + "  background-color: rgba(0, 255, 255, 0.07);\n"
-                + "  padding: 2px 4px 1px 4px;\n"
-                + "  border-radius: 3px;\n"
-                + "}\n");
-
-        // .. integers in timings (i.e. ms >= 500)
-        // NOTE! The point of this class is NOT denote "high timings", but to denote that there are no
-        // decimals, to visually make it easier to compare a number '1 235' with '1.235'.
-        out.append(".mats_integer {\n"
-                + "  color: #b02a37;\n"
-                + "}\n");
-
-        // :: The different parts of the report
-        out.append(".mats_info {\n"
-                + "  margin: 0em 0em 0em 0.5em;\n"
-                + "}\n");
-
-        out.append(".mats_factory {\n"
-                + "  background: #f0f0f0;\n"
-                + "}\n");
-        out.append(".mats_initiator {\n"
-                + "  background: #e0f0e0;\n"
-                + "}\n");
-        out.append(".mats_endpoint {\n"
-                + "  background: #e0e0f0;\n"
-                + "}\n");
-        out.append(".mats_stage {\n"
-                + "  background: #f0f0f0;\n"
-                + "}\n");
-        // Boxes:
-        out.append(".mats_factory, .mats_initiator, .mats_endpoint, .mats_stage {\n"
-                + "  border-radius: 3px;\n"
-                + "  box-shadow: 2px 2px 2px 0px rgba(0,0,0,0.37);\n"
-                + "  border: thin solid #a0a0a0;\n"
-                + "  margin: 0.5em 0.5em 0.7em 0.5em;\n"
-                + "  padding: 0.1em 0.5em 0.5em 0.5em;\n"
-                + "}\n");
-
-        out.append(".mats_initiator, .mats_endpoint {\n"
-                + "  margin: 0.5em 0.5em 2em 0.5em;\n"
-                + "}\n");
-
-        out.append(".mats_hot {\n"
-                + "  box-shadow: #FFF 0 -1px 4px, #ff0 0 -2px 10px, #ff8000 0 -10px 20px, red 0 -18px 40px, 5px 5px 15px 5px rgba(0,0,0,0);\n"
-                + "  border: 0.2em solid red;\n"
-                + "  background: #ECEFCF;\n"
-                + "}\n");
+        includeFile(out, "localhtmlinspect.css");
     }
 
     /**
@@ -237,6 +92,23 @@ public class LocalHtmlInspectForMatsFactory {
      */
     public void getJavaScript(Appendable out) throws IOException {
         out.append("");
+    }
+
+    private static void includeFile(Appendable out, String file) throws IOException {
+        String filename = LocalHtmlInspectForMatsFactory.class.getPackage().getName().replace('.', '/') + '/' + file;
+        InputStream is = LocalHtmlInspectForMatsFactory.class.getClassLoader().getResourceAsStream(filename);
+        if (is == null) {
+            throw new IllegalStateException("Missing '" + file + "' from ClassLoader.");
+        }
+        InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
+        BufferedReader br = new BufferedReader(isr);
+        while (true) {
+            String line = br.readLine();
+            if (line == null) {
+                break;
+            }
+            out.append(line).append('\n');
+        }
     }
 
     public void createFactoryReport(Appendable out, boolean includeInitiators,
@@ -249,40 +121,46 @@ public class LocalHtmlInspectForMatsFactory {
         }
 
         FactoryConfig config = _matsFactory.getFactoryConfig();
-        out.append("<div class=\"mats_report mats_factory\">\n");
-        out.append("<div class=\"mats_heading\">MatsFactory <h2>" + config.getName() + "</h2>\n");
+        out.append("<div class='mats_report mats_factory'>\n");
+        out.append("<div class='mats_heading'>MatsFactory <h2>" + config.getName() + "</h2>\n");
         out.append(" - <b>Known number of CPUs:</b> " + config.getNumberOfCpus());
         out.append(" - <b>Concurrency:</b> " + formatConcurrency(config));
         out.append(" - <b>Running:</b> " + config.isRunning());
         out.append("</div>\n");
         out.append("<hr />\n");
 
-        out.append("<div class=\"mats_info\">");
+        out.append("<div class='mats_info'>");
         out.append("config: <b>Name:</b> " + config.getName());
         out.append(" - <b>App:</b> " + config.getAppName() + " v." + config.getAppVersion());
         out.append(" - <b>Nodename:</b> " + config.getNodename());
-        out.append(" - <b>Destination prefix:</b> \"" + config.getMatsDestinationPrefix() + "\"");
-        out.append(" - <b>Trace key:</b> \"" + config.getMatsTraceKey() + "\"<br />\n");
+        out.append(" - <b>Destination prefix:</b> '" + config.getMatsDestinationPrefix() + "'");
+        out.append(" - <b>Trace key:</b> '" + config.getMatsTraceKey() + "'<br/>\n");
+
+        out.append("<br/>\n");
+        createFactorySummary(out, includeInitiators, includeEndpoints);
+
+        out.append("<br>\n");
         out.append((localStats != null
                 ? "<b>Local Statistics collector present in MatsFactory!</b>"
                         + " (<code>" + LocalStatsMatsInterceptor.class.getSimpleName() + "</code> installed)"
                 : "<b>Missing Local Statistics collector in MatsFactory - <code>"
                         + LocalStatsMatsInterceptor.class.getSimpleName()
-                        + "</code> is not installed!</b>") + "</b><br />");
+                        + "</code> is not installed!</b>") + "</b><br/>");
 
         if (_matsInterceptable != null) {
-            out.append("<b>Installed InitiationInterceptors:</b><br />\n");
+            out.append("<b>Installed InitiationInterceptors:</b><br/>\n");
             List<MatsInitiateInterceptor> initiationInterceptors = _matsInterceptable.getInitiationInterceptors();
             for (MatsInitiateInterceptor initiationInterceptor : initiationInterceptors) {
                 out.append("&nbsp;&nbsp;<code>" + initiationInterceptor.getClass().getName() + "</code>: "
-                        + initiationInterceptor + "<br />\n");
+                        + initiationInterceptor + "<br/>\n");
             }
-            out.append("<b>Installed StageInterceptors:</b><br />\n");
+            out.append("<b>Installed StageInterceptors:</b><br/>\n");
             List<MatsStageInterceptor> stageInterceptors = _matsInterceptable.getStageInterceptors();
             for (MatsStageInterceptor stageInterceptor : stageInterceptors) {
                 out.append("&nbsp;&nbsp;<code>" + stageInterceptor.getClass().getName() + "</code>: "
-                        + stageInterceptor + "<br />\n");
+                        + stageInterceptor + "<br/>\n");
             }
+            out.append("<br/>\n");
         }
 
         out.append("</div>");
@@ -300,6 +178,232 @@ public class LocalHtmlInspectForMatsFactory {
         out.append("</div>\n");
     }
 
+    public void createFactorySummary(Appendable out, boolean includeInitiators, boolean includeEndpoints) throws IOException {
+        if (includeInitiators || includeEndpoints) {
+            // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
+            LocalStatsMatsInterceptor localStats = null;
+            if (_matsInterceptable != null) {
+                localStats = _matsInterceptable
+                        .getInitiationInterceptor(LocalStatsMatsInterceptor.class).orElse(null);
+            }
+            out.append("<table class='mats_table_summary'>");
+            out.append("<thead><tr>");
+            out.append("<th>Initiator Name / Endpoint Id</th>");
+            out.append("<th>type</th>");
+            out.append("<th>msgs</th>");
+            out.append("<th>samples</th>");
+            out.append("<th>avg</th>");
+            out.append("<th>median</th>");
+            out.append("<th>75%</th>");
+            out.append("<th>95%</th>");
+            out.append("<th>99.9%</th>");
+            out.append("<th>Stages</th>");
+            out.append("</tr></thead>");
+            if (includeInitiators) {
+                for (MatsInitiator matsInitiator : _matsFactory.getInitiators()) {
+
+                    out.append("<tr class='mats_summary_initiator_row'>");
+                    out.append("<td>").append("&nbsp;&nbsp;<a href='#matsInitiator_")
+                            .append(_matsFactory.getFactoryConfig().getName())
+                            .append("_")
+                            .append(matsInitiator.getName())
+                            .append("'>")
+                            .append(matsInitiator.getName()).append("</a><br/>\n")
+                            .append("</td>");
+                    out.append("<td class='mats_right'>Initiator</td>");
+                    if ((localStats != null) && localStats.getInitiatorStats(matsInitiator).isPresent()) {
+                        InitiatorStats stats = localStats.getInitiatorStats(matsInitiator).get();
+                        long sumOutMsgs = stats.getOutgoingMessageCounts().values()
+                                .stream().mapToLong(Long::longValue).sum();
+                        out.append("<td class='mats_right'>").append(Long.toString(sumOutMsgs)).append("</td>");
+
+                        StatsSnapshot execSnapshot = stats.getTotalExecutionTimeNanos();
+                        out.append("<td class='mats_right'>")
+                                .append(Integer.toString(execSnapshot.getSamples().length)).append("</td>");
+                        timingCellForAverage(out, execSnapshot);
+                        timingCell(out, execSnapshot.getMedian());
+                        timingCell(out, execSnapshot.get75thPercentile());
+                        timingCell(out, execSnapshot.get95thPercentile());
+                        timingCell(out, execSnapshot.get999thPercentile());
+                    }
+                    else {
+                        out.append("<td colspan=7></td>");
+                    }
+                    out.append("<td></td>"); // No stages for Initiator.
+                    out.append("</tr>");
+                }
+            }
+            if (includeEndpoints) {
+                List<MatsEndpoint<?, ?>> endpoints = _matsFactory.getEndpoints();
+                for (int i = 0; i < endpoints.size(); i++) {
+                    MatsEndpoint<?, ?> matsEndpoint = endpoints.get(i);
+
+                    if (i == (endpoints.size() - 1)) {
+                        out.append("<tr class='mats_summary_lastline'>");
+                    }
+                    else {
+                        out.append("<tr>");
+                    }
+                    boolean subscription = matsEndpoint.getEndpointConfig().isSubscription();
+                    out.append("<td>").append("&nbsp;&nbsp;")
+                            .append(subscription ? "<i>" : "")
+                            .append("<a href='#matsEndpoint_")
+                            .append(_matsFactory.getFactoryConfig().getName())
+                            .append("_")
+                            .append(matsEndpoint.getEndpointConfig().getEndpointId())
+                            .append("'>")
+                            .append(matsEndpoint.getEndpointConfig().getEndpointId()).append("</a><br/>\n")
+                            .append(subscription ? "</i>" : "")
+                            .append("</td>");
+                    out.append("<td class='mats_right'>")
+                            .append(subscription ? "<i>" : "")
+                            .append(deduceEndpointType(matsEndpoint))
+                            .append(subscription ? "</i>" : "")
+                            .append("</td>");
+
+                    if ((localStats != null) && localStats.getEndpointStats(matsEndpoint).isPresent()) {
+                        EndpointStats endpointStats = localStats.getEndpointStats(matsEndpoint).get();
+                        long sumOutMsgs = endpointStats.getStagesStats().get(0).getIncomingMessageCounts().values()
+                                .stream().mapToLong(Long::longValue).sum();
+                        out.append("<td class='mats_right'>").append(Long.toString(sumOutMsgs)).append("</td>");
+
+                        StatsSnapshot execSnapshot = endpointStats.getTotalEndpointProcessingTimeNanos();
+                        out.append("<td class='mats_right'>")
+                                .append(Integer.toString(execSnapshot.getSamples().length)).append("</td>");
+                        timingCellForAverage(out, execSnapshot);
+                        timingCell(out, execSnapshot.getMedian());
+                        timingCell(out, execSnapshot.get75thPercentile());
+                        timingCell(out, execSnapshot.get95thPercentile());
+                        timingCell(out, execSnapshot.get999thPercentile());
+                    }
+                    else {
+                        out.append("<td colspan=7></td>");
+                    }
+
+                    // :: STAGES
+                    out.append("<td>");
+                    for (MatsStage<?, ?, ?> matsStage : matsEndpoint.getStages()) {
+
+                        // :: Time between stages (in front of stage)
+                        if ((localStats != null) && localStats.getStageStats(matsStage).isPresent()) {
+                            StageStats stageStats = localStats.getStageStats(matsStage).get();
+                            Optional<StatsSnapshot> betweenSnapshot = stageStats
+                                    .getBetweenStagesTimeNanos();
+                            // ?: Do we have Between-stats? (Do not have for initial stage).
+                            if (betweenSnapshot.isPresent()) {
+                                summaryStageTime(out, betweenSnapshot.get());
+                            }
+                        }
+                        out.append("<div class='mats_stage_summary_box'>");
+                        // Queue time:
+                        if ((localStats != null) && localStats.getStageStats(matsStage).isPresent()) {
+                            StageStats stageStats = localStats.getStageStats(matsStage).get();
+                            StatsSnapshot queueSnapshot = stageStats.getSpentQueueTimeNanos();
+                            summaryStageTime(out, queueSnapshot);
+                        }
+
+                        out.append("<a href='#");
+                        if (matsStage.getStageConfig().getStageIndex() == 0) {
+                            out.append("matsEndpoint_")
+                                    .append(_matsFactory.getFactoryConfig().getName())
+                                    .append("_")
+                                    .append(matsEndpoint.getEndpointConfig().getEndpointId())
+                                    .append("'>");
+                        }
+                        else {
+                            out.append("matsStage_")
+                                    .append(_matsFactory.getFactoryConfig().getName())
+                                    .append("_")
+                                    .append(matsStage.getStageConfig().getStageId())
+                                    .append("'>");
+                        }
+                        out.append("S:").append(Integer.toString(matsStage.getStageConfig().getStageIndex()))
+                                .append("</a>");
+
+                        // Processing time:
+                        if ((localStats != null) && localStats.getStageStats(matsStage).isPresent()) {
+                            StageStats stageStats = localStats.getStageStats(matsStage).get();
+                            StatsSnapshot execSnapshot = stageStats.getStageTotalExecutionTimeNanos();
+                            summaryStageTime(out, execSnapshot);
+                        }
+
+                        out.append("</div>");
+                    }
+                    out.append("</td>");
+
+                    out.append("</tr>");
+                }
+                out.append("<tr><td colspan=100 class='mats_right'>");
+                out.append("Legend: <div class='mats_stage_summary_box'>");
+                out.append("<div class='mats_summary_time' style='background: " + colorForMs(150).toCss()
+                        + "'>{queue time}</div>");
+                out.append("S:1");
+                out.append("<div class='mats_summary_time' style='background: " + colorForMs(150).toCss()
+                        + "'>{process time}</div>");
+                out.append("</div>");
+                out.append("<div class='mats_summary_time' style='background: " + colorForMs(150).toCss()
+                        + "'>{time between}</div>");
+                out.append("<div class='mats_stage_summary_box'>");
+                out.append("<div class='mats_summary_time' style='background: " + colorForMs(150).toCss()
+                        + "'>...</div>");
+                out.append("S:2");
+                out.append("<div class='mats_summary_time' style='background: " + colorForMs(150).toCss()
+                        + "'>...</div>");
+                out.append("</div>... (95th pctl)");
+                out.append("<div style='width: 3em; display:inline-block'></div>");
+                out.append("Timings: ");
+                legendTimingPatch(out, 0);
+                legendTimingPatch(out, 25);
+                legendTimingPatch(out, 50);
+                legendTimingPatch(out, 75);
+                legendTimingPatch(out, 100);
+                legendTimingPatch(out, 150);
+                legendTimingPatch(out, 200);
+                legendTimingPatch(out, 250);
+                legendTimingPatch(out, 300);
+                legendTimingPatch(out, 400);
+                legendTimingPatch(out, 500);
+                legendTimingPatch(out, 750);
+                legendTimingPatch(out, 1000);
+                legendTimingPatch(out, 1250);
+                legendTimingPatch(out, 1500);
+                legendTimingPatch(out, 1750);
+                legendTimingPatch(out, 2000);
+                out.append("</td></tr>");
+            }
+            out.append("</table>");
+        }
+    }
+
+    void summaryStageTime(Appendable out, StatsSnapshot stats) throws IOException {
+        out.append("<div class='mats_tooltip'>"
+                + "<div class='mats_summary_time' style='background: " + colorForNanos(stats
+                        .get95thPercentile()).toCss() + "'>" + formatNanos0(stats.get95thPercentile()) + "</div>"
+                + "<div class='mats_tooltiptext'>" + formatStats(stats) + "</div>"
+                + "</div>");
+
+    }
+
+    void timingCell(Appendable out, double nanos) throws IOException {
+        out.append("<td class='mats_right' style='background:")
+                .append(colorForNanos(nanos).toCss()).append("'>")
+                .append(formatNanos1(nanos)).append("</td>");
+    }
+
+    void timingCellForAverage(Appendable out, StatsSnapshot snapshot) throws IOException {
+        out.append("<td class='mats_right' style='background:")
+                .append(colorForNanos(snapshot.getAverage()).toCss()).append("'>")
+                .append("<div class='mats_tooltip'>")
+                .append(formatNanos1(snapshot.getAverage()))
+                .append("<div class='mats_tooltiptext'>")
+                .append(formatStats(snapshot)).append("</div></div>")
+                .append("</td>");
+    }
+
+    void legendTimingPatch(Appendable out, double ms) throws IOException {
+        out.append("<span style='background: " + colorForMs(ms).toCss() + "'>&nbsp;" + Math.round(ms) + "&nbsp;</span> ");
+    }
+
     public void createInitiatorReport(Appendable out, MatsInitiator matsInitiator)
             throws IOException {
         // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
@@ -309,37 +413,39 @@ public class LocalHtmlInspectForMatsFactory {
                     .getInitiationInterceptor(LocalStatsMatsInterceptor.class).orElse(null);
         }
 
-        out.append("<div class=\"mats_report mats_initiator\">\n");
-        out.append("<div class=\"mats_heading\">Initiator <h3>" + matsInitiator.getName() + "</h3>\n");
+        out.append("<div class='mats_report mats_initiator' id='matsInitiator_")
+                .append(matsInitiator.getParentFactory().getFactoryConfig().getName())
+                .append("_")
+                .append(matsInitiator.getName()).append("'>\n");
+        out.append("<div class='mats_heading'>Initiator <h3>" + matsInitiator.getName() + "</h3>\n");
         out.append("</div>\n");
-        out.append("<hr />\n");
-        out.append("<div class=\"mats_info\">\n");
+        out.append("<div class='mats_info'>\n");
         if (localStats != null) {
             Optional<InitiatorStats> initiatorStats_ = localStats.getInitiatorStats(matsInitiator);
             if (initiatorStats_.isPresent()) {
                 InitiatorStats initiatorStats = initiatorStats_.get();
                 StatsSnapshot stats = initiatorStats.getTotalExecutionTimeNanos();
 
-                out.append("<b>Total initiation time:</b> " + formatStats(stats) + "<br />\n");
+                out.append("<b>Total initiation time:</b> " + formatStats(stats) + "<br/>\n");
                 SortedMap<OutgoingMessageRepresentation, Long> outgoingMessageCounts = initiatorStats
                         .getOutgoingMessageCounts();
                 long sumOutMsgs = outgoingMessageCounts.values().stream().mapToLong(Long::longValue).sum();
                 if (outgoingMessageCounts.isEmpty()) {
-                    out.append("<b>NO outgoing messages!</b><br />\n");
+                    out.append("<b>NO outgoing messages!</b><br/>\n");
                 }
                 else if (outgoingMessageCounts.size() == 1) {
                     out.append("<b>Outgoing messages:</b> \n");
 
                 }
                 else {
-                    out.append("<b>Outgoing messages (" + formatInt(sumOutMsgs) + "):</b><br />\n");
+                    out.append("<b>Outgoing messages (" + formatInt(sumOutMsgs) + "):</b><br/>\n");
                 }
 
                 for (Entry<OutgoingMessageRepresentation, Long> entry : outgoingMessageCounts.entrySet()) {
                     OutgoingMessageRepresentation msg = entry.getKey();
                     out.append("&nbsp;&nbsp;" + formatInt(entry.getValue()) + " x " + formatClass(msg.getMessageClass())
                             + " " + msg.getMessageType() + " from initiatorId " + formatIid(msg.getInitiatorId())
-                            + " to " + formatEpid(msg.getTo()) + "<br />");
+                            + " to " + formatEpid(msg.getTo()) + "<br/>");
                 }
             }
         }
@@ -358,18 +464,6 @@ public class LocalHtmlInspectForMatsFactory {
 
         EndpointConfig<?, ?> config = matsEndpoint.getEndpointConfig();
 
-        // Deduce type
-        String type = config.getReplyClass() == void.class ? "Terminator" : "Endpoint";
-        if ((matsEndpoint.getStages().size() == 1) && (config.getReplyClass() != void.class)) {
-            type = "Single " + type;
-        }
-        if (matsEndpoint.getStages().size() > 1) {
-            type = "MultiStage " + type;
-        }
-        if (matsEndpoint.getEndpointConfig().isSubscription()) {
-            type = "Subscription " + type;
-        }
-
         StatsSnapshot totExecSnapshot = null;
         EndpointStats endpointStats = null;
         if (localStats != null) {
@@ -385,21 +479,29 @@ public class LocalHtmlInspectForMatsFactory {
                 ? " mats_hot"
                 : "";
 
-        out.append("<div class=\"mats_report mats_endpoint" + hot + "\">\n");
-        out.append("<div class=\"mats_heading\">" + type + " <h3>" + config.getEndpointId() + "</h3>");
+        String type = deduceEndpointType(matsEndpoint);
+        out.append("<div class='mats_report mats_endpoint" + hot + "' id='matsEndpoint_")
+                .append(matsEndpoint.getParentFactory().getFactoryConfig().getName())
+                .append("_")
+                .append(config.getEndpointId()).append("'>\n");
+        out.append("<div class='mats_heading'>" + type + " <h3>" + config.getEndpointId() + "</h3>");
         out.append(" - " + formatIoClass("Incoming", config.getIncomingClass()));
         out.append(" - " + formatIoClass("Reply", config.getReplyClass()));
         out.append(" - " + formatIoClass("State", config.getStateClass()));
         out.append(" - <b>Running:</b> " + config.isRunning());
         out.append(" - <b>Concurrency:</b> " + formatConcurrency(config) + "\n");
+        out.append("<br/>");
+        out.append("<div class='mats_creation_info'>")
+                .append(matsEndpoint.getEndpointConfig().getCreationInfo().replace(";", " - \n"))
+                .append("</div>");
         out.append("</div>\n");
-        out.append("<hr />\n");
 
-        out.append("<div class=\"mats_info\">\n");
-        // out.append()("Creation debug info: ### <br />\n");
-        // out.append()("Worst stage duty cycle: ### <br />\n");
+        out.append("<div class='mats_info'>\n");
+        // out.append()("Worst stage duty cycle: ### <br/>\n");
         if (totExecSnapshot != null) {
-            out.append("<b>Total endpoint time:</b> " + formatStats(totExecSnapshot) + "<br /><br />\n");
+            out.append("<b>Total endpoint time:</b> " + formatStats(totExecSnapshot) + "<br/>"
+                    + "<span style='font-size: 75%'><i>(Note: From entry on Initial Stage to REPLY or NONE."
+                    + " <b>Does not include queue time for Initial Stage!</b>)</i><br/></span>\n");
         }
 
         if (endpointStats != null) {
@@ -407,7 +509,7 @@ public class LocalHtmlInspectForMatsFactory {
                     .getInitiatorToTerminatorTimeNanos();
 
             if (!initiatorToTerminatorTimeNanos.isEmpty()) {
-                out.append("<b>From Initiator to Terminator times:</b><br />\n");
+                out.append("<b>From Initiator to Terminator times:</b><br/>\n");
                 boolean first = true;
                 for (Entry<IncomingMessageRepresentation, StatsSnapshot> entry : initiatorToTerminatorTimeNanos
                         .entrySet()) {
@@ -418,14 +520,14 @@ public class LocalHtmlInspectForMatsFactory {
                         first = false;
                     }
                     else {
-                        out.append("<br />\n");
+                        out.append("<br/>\n");
                     }
                     out.append("&nbsp;&nbsp; From initiatorId " + formatIid(msg.getInitiatorId())
                             + " @ " + formatAppName(msg.getInitiatingAppName())
                             + " &mdash; (" + msg.getMessageType() + "s from: " + formatEpid(msg.getFromStageId())
-                            + " @ " + formatAppName(msg.getFromAppName()) + ")<br />\n");
+                            + " @ " + formatAppName(msg.getFromAppName()) + ")<br/>\n");
                     out.append("&nbsp;&nbsp;&nbsp;&nbsp;" + formatStats(stats));
-                    out.append("<br />\n");
+                    out.append("<br/>\n");
                 }
             }
         }
@@ -442,7 +544,7 @@ public class LocalHtmlInspectForMatsFactory {
                         Optional<StatsSnapshot> stats = stageStats.getBetweenStagesTimeNanos();
                         // ?: Do we have Between-stats? (Do not have for initial stage).
                         if (stats.isPresent()) {
-                            out.append("<div class=\"mats_info\"><b>Time between:</b> "
+                            out.append("<div class='mats_info'><b>Time between:</b> "
                                     + formatStats(stats.get()) + "</div>\n");
                         }
                     }
@@ -478,22 +580,25 @@ public class LocalHtmlInspectForMatsFactory {
         String hot = (totExecSnapshot != null) && (totExecSnapshot.get999thPercentile() > 500_000_000d)
                 ? " mats_hot"
                 : "";
-        out.append("<div class=\"mats_report mats_stage" + hot + "\">\n");
-        out.append("<div class=\"mats_heading\">Stage <h4>" + config.getStageId() + "</h4>\n");
+        out.append("<div class='mats_report mats_stage" + hot + "' id='matsStage_")
+                .append(matsStage.getParentEndpoint().getParentFactory().getFactoryConfig().getName())
+                .append("_")
+                .append(config.getStageId()).append("'>\n");
+        out.append("<div class='mats_heading'>Stage <h4>" + config.getStageId() + "</h4>\n");
         out.append(" - <b>Incoming:</b> <code>" + config.getIncomingClass().getSimpleName() + "</code>\n");
         out.append(" - <b>Running:</b> " + config.isRunning());
         out.append(" - <b>Concurrency:</b> " + formatConcurrency(config) + "\n");
         out.append(" - <b>Running stage processors:</b> " + config.getRunningStageProcessors() + "\n");
-        out.append("</div>\n");
-        out.append("<hr />\n");
+        out.append("<br/>");
+        out.append("<div class='mats_creation_info'>")
+                .append(matsStage.getStageConfig().getCreationInfo().replace(";", " - \n"))
+                .append("</div>");
+        out.append("</div>");
 
-        out.append("<div class=\"mats_info\">\n");
-        // out.append()("Creation debug info: ### <br />\n");
-        // out.append()("Duty cycle: ### <br />\n");
-        // out.append()("Oldest reported \"check-in\" for stage procs: ### seconds ago."
-        // + " <b>Stuck stage procs: ###</b><br />\n");
-        // out.append()("<b>For terminators: - total times per outgoing initiation to difference services"
-        // + " (use extra-state), should make things better for MatsFuturizer</b><br />\n");
+        out.append("<div class='mats_info'>\n");
+        // out.append()("Duty cycle: ### <br/>\n");
+        // out.append()("Oldest reported 'check-in' for stage procs: ### seconds ago."
+        // + " <b>Stuck stage procs: ###</b><br/>\n");
         if ((stageStats != null) && (totExecSnapshot != null)) {
 
             out.append("<b>Queue time</b>: " + formatStats(stageStats.getSpentQueueTimeNanos())
@@ -508,7 +613,7 @@ public class LocalHtmlInspectForMatsFactory {
             }
             else {
                 out.append("<b>Incoming messages (" + formatInt(totExecSnapshot.getNumObservations())
-                        + "):</b><br />\n");
+                        + "):</b><br/>\n");
             }
             for (Entry<IncomingMessageRepresentation, Long> entry : incomingMessageCounts.entrySet()) {
                 IncomingMessageRepresentation msg = entry.getKey();
@@ -516,27 +621,25 @@ public class LocalHtmlInspectForMatsFactory {
                         + " from " + formatEpid(msg.getFromStageId()) + " <b>@</b> "
                         + formatAppName(msg.getFromAppName())
                         + formatInit(msg)
-                        + "<br />");
+                        + "<br/>");
             }
 
-            out.append("<b>Total stage time:</b> " + formatStats(totExecSnapshot) + "<br />\n");
+            out.append("<b>Total stage time:</b> " + formatStats(totExecSnapshot) + "<br/>\n");
 
             // :: ProcessingResults
             SortedMap<ProcessResult, Long> processResultCounts = stageStats.getProcessResultCounts();
             if (processResultCounts.isEmpty()) {
-                out.append("<b>NO processing results!</b><br />\n");
+                out.append("<b>NO processing results!</b><br/>\n");
             }
             else if (processResultCounts.size() == 1) {
-                ProcessResult processResult = processResultCounts.firstKey();
-                Long count = processResultCounts.get(processResult);
                 out.append("<b>Processing results:</b>\n");
             }
             else {
-                out.append("<b>Processing results:</b><br />\n");
+                out.append("<b>Processing results:</b><br/>\n");
             }
             for (Entry<ProcessResult, Long> entry : processResultCounts.entrySet()) {
                 ProcessResult processResult = entry.getKey();
-                out.append(formatInt(entry.getValue()) + " x " + processResult + "<br />\n");
+                out.append(formatInt(entry.getValue()) + " x " + processResult + "<br/>\n");
             }
 
             // :: Outgoing messages
@@ -544,14 +647,14 @@ public class LocalHtmlInspectForMatsFactory {
                     .getOutgoingMessageCounts();
             long sumOutMsgs = outgoingMessageCounts.values().stream().mapToLong(Long::longValue).sum();
             if (outgoingMessageCounts.isEmpty()) {
-                out.append("<b>NO outgoing messages!</b><br />\n");
+                out.append("<b>NO outgoing messages!</b><br/>\n");
             }
             else if (outgoingMessageCounts.size() == 1) {
                 out.append("<b>Outgoing messages:</b> \n");
 
             }
             else {
-                out.append("<b>Outgoing messages (" + formatInt(sumOutMsgs) + "):</b><br />\n");
+                out.append("<b>Outgoing messages (" + formatInt(sumOutMsgs) + "):</b><br/>\n");
             }
 
             for (Entry<OutgoingMessageRepresentation, Long> entry : outgoingMessageCounts.entrySet()) {
@@ -560,7 +663,7 @@ public class LocalHtmlInspectForMatsFactory {
                         + " x " + formatClass(msg.getMessageClass())
                         + " " + msg.getMessageType() + " to " + formatEpid(msg.getTo())
                         + formatInit(msg)
-                        + "<br />");
+                        + "<br/>");
             }
         }
         out.append("</div>\n");
@@ -570,16 +673,129 @@ public class LocalHtmlInspectForMatsFactory {
     // Could be static, but aren't, in case anyone wants to override them.
     // NOTE: These are NOT part of any "stable API" promises!
 
+    static class RgbaColor {
+        private final int r;
+        private final int g;
+        private final int b;
+        private final double a;
+
+        public RgbaColor(int r, int g, int b, double a) {
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.a = a;
+        }
+
+        RgbaColor interpolate(RgbaColor to, double blendTo) {
+            if ((blendTo > 1.0) || (blendTo < 0.0)) {
+                throw new IllegalArgumentException("Blend must be [0, 1], not '" + blendTo + "'.");
+            }
+            double inverseBlend = 1 - blendTo;
+            final int newR = (int) Math.round((this.r * inverseBlend) + (to.r * blendTo));
+            final int newG = (int) Math.round((this.g * inverseBlend) + (to.g * blendTo));
+            final int newB = (int) Math.round((this.b * inverseBlend) + (to.b * blendTo));
+
+            final double newA = this.a * inverseBlend + to.a * blendTo;
+
+            return new RgbaColor(newR, newG, newB, newA);
+        }
+
+        RgbaColor interpolate(RgbaColor to, double rangeFrom, double rangeTo, double value) {
+            if ((value > rangeTo) || (value < rangeFrom)) {
+                throw new IllegalArgumentException("value must be in range [" + rangeFrom + "," + rangeTo + "], not '"
+                        + value + "'");
+            }
+            double rangeSpan = rangeTo - rangeFrom;
+            double valueInRange = value - rangeFrom;
+            double blend = valueInRange / rangeSpan;
+            return interpolate(to, blend);
+        }
+
+        String toCss() {
+            return "rgba(" + r + "," + g + "," + b + "," + (Math.round(a * 1000) / 1000d);
+        }
+    }
+
+    /**
+     * <pre>
+     * out.append("<tr><td colspan=100>")
+     *         .append("<div style='background: rgba(0, 255, 0, 1)'>0ms</div>")
+     *         .append("<div style='background: rgba(0, 255, 255, 1)'>100ms</div>")
+     *         .append("<div style='background: rgba(0, 0, 255, 1)'>250ms</div>")
+     *         .append("<div style='background: rgba(255, 0, 255, 1)'>500ms</div>")
+     *         .append("<div style='background: rgba(255, 0, 0, 1)'>1000ms</div>")
+     *         .append("</td></tr>");
+     *
+     * </pre>
+     */
+
+    RgbaColor ms0 = new RgbaColor(128, 255, 128, 1);
+    // 100 ms is about the threshold for perception of instantaneous.
+    // E.g. https://www.pubnub.com/blog/how-fast-is-realtime-human-perception-and-technology/
+    // As pointed out, in a continuous information setting, e.g. video, this is reduced to 13ms.
+    RgbaColor ms100 = new RgbaColor(0, 192, 0, 1);
+    RgbaColor ms250 = new RgbaColor(0, 128, 192, 1);
+    RgbaColor ms500 = new RgbaColor(0, 64, 255, 1);
+    RgbaColor ms1000 = new RgbaColor(255, 0, 192, 1);
+    RgbaColor ms2000 = new RgbaColor(255, 0, 0, 1);
+
+    RgbaColor colorForMs(double ms) {
+        RgbaColor color;
+        if (ms < 0) {
+            // -> Handle negative timings, which must be due to time skews, or 2xstd.dev. calculations.
+            color = ms0;
+        }
+        else if (ms < 100) {
+            color = ms0.interpolate(ms100, 0, 100, ms);
+        }
+        else if (ms < 250) {
+            color = ms100.interpolate(ms250, 100, 250, ms);
+        }
+        else if (ms < 500) {
+            color = ms250.interpolate(ms500, 250, 500, ms);
+        }
+        else if (ms < 1000) {
+            color = ms500.interpolate(ms1000, 500, 1000, ms);
+        }
+        else if (ms < 2000) {
+            color = ms1000.interpolate(ms2000, 1000, 2000, ms);
+        }
+        else {
+            color = ms2000;
+        }
+
+        return color.interpolate(new RgbaColor(255, 255, 255, 1), 0.5d);
+    }
+
+    RgbaColor colorForNanos(double nanos) {
+        return colorForMs(nanos / 1_000_000d);
+    }
+
+    String deduceEndpointType(MatsEndpoint<?, ?> matsEndpoint) {
+        EndpointConfig<?, ?> config = matsEndpoint.getEndpointConfig();
+        String type = config.getReplyClass() == void.class ? "Terminator" : "Endpoint";
+        if ((matsEndpoint.getStages().size() == 1) && (config.getReplyClass() != void.class)) {
+            type = "Single " + type;
+        }
+        if (matsEndpoint.getStages().size() > 1) {
+            type = matsEndpoint.getStages().size() + "-Stage " + type;
+        }
+        if (config.isSubscription()) {
+            type = "Subscription " + type;
+        }
+        return type;
+    }
+
     String formatIid(String iid) {
-        return "<span class=\"mats_iid\">" + iid + "</span>";
+        return "<span class='mats_iid'>" + iid + "</span>";
     }
 
     String formatEpid(String epid) {
-        return "<span class=\"mats_epid\">" + epid + "</span>";
+        return "<span class='mats_epid'>" + epid + "</span>";
     }
 
     String formatAppName(String appName) {
-        return "<span class=\"mats_appname\">" + appName + "</span>";
+        return "<span class='mats_appname'>" + appName + "</span>";
     }
 
     String formatInit(MessageRepresentation msg) {
@@ -609,19 +825,22 @@ public class LocalHtmlInspectForMatsFactory {
     String formatStats(StatsSnapshot snapshot) {
         double sd = snapshot.getStdDev();
         double avg = snapshot.getAverage();
-        return "<b>x\u0304:</b>" + formatNanos(avg)
-                + " <b><i>s</i>:</b>" + formatNanos(sd)
-                + " <b><i>2s</i>:</b>[" + formatNanos(avg - 2 * sd) + ", " + formatNanos(avg + 2 * sd) + "]"
-                + " - <b><span class=\"mats_min\">min:</span></b>" + formatNanos(snapshot.getMin())
-                + " <b><span class=\"mats_max\">max:</sup></b>" + formatNanos(snapshot.getMax())
-                + " &mdash; percentiles <b>50%:</b>" + formatNanos(snapshot.getMedian())
-                + ", <b>75%:</b>" + formatNanos(snapshot.get75thPercentile())
-                + ", <b>95%:</b>" + formatNanos(snapshot.get95thPercentile())
-                + ", <b>98%:</b>" + formatNanos(snapshot.get98thPercentile())
-                + ", <b>99%:</b>" + formatNanos(snapshot.get99thPercentile())
-                + ", <b>99.9%:</b>" + formatNanos(snapshot.get999thPercentile())
+        return "<b>avg:</b>" + colorAndFormatNanos(avg)
+                + " <b><i>sd</i>:</b>" + formatNanos(sd)
+                + " &mdash; <b>50%:</b>" + colorAndFormatNanos(snapshot.getMedian())
+                + ", <b>75%:</b>" + colorAndFormatNanos(snapshot.get75thPercentile())
+                + ", <b>95%:</b>" + colorAndFormatNanos(snapshot.get95thPercentile())
+                + ", <b>98%:</b>" + colorAndFormatNanos(snapshot.get98thPercentile())
+                + ", <b>99%:</b>" + colorAndFormatNanos(snapshot.get99thPercentile())
+                + ", <b>99.9%:</b>" + colorAndFormatNanos(snapshot.get999thPercentile())
+                + ", <b><span class='mats_max'>max:</sup></b>" + colorAndFormatNanos(snapshot.getMax())
+                + " - <b><span class='mats_min'>min:</span></b>" + formatNanos(snapshot.getMin())
                 + " &mdash; <i>number of samples: " + formatInt(snapshot.getSamples().length)
                 + ", out of observations:" + formatInt(snapshot.getNumObservations()) + "</i>";
+    }
+
+    String colorAndFormatNanos(double nanos) {
+        return "<span style='background: " + colorForNanos(nanos).toCss() + "'>" + formatNanos(nanos) + "</span>";
     }
 
     static final DecimalFormatSymbols NF_SYMBOLS;
@@ -640,9 +859,7 @@ public class LocalHtmlInspectForMatsFactory {
         NF_INTEGER.setMaximumFractionDigits(0);
         NF_INTEGER.setDecimalFormatSymbols(NF_SYMBOLS);
 
-        // NOTE! The point of this class is NOT denote "high timings", but to denote that there are no
-        // decimals, to visually make it easier to compare a number '1 235' with '1.235'.
-        NF_0_DECIMALS = new DecimalFormat("<span class=\"mats_integer\">#,##0</span>");
+        NF_0_DECIMALS = new DecimalFormat("#,##0");
         NF_0_DECIMALS.setMaximumFractionDigits(0);
         NF_0_DECIMALS.setDecimalFormatSymbols(NF_SYMBOLS);
 
@@ -661,6 +878,23 @@ public class LocalHtmlInspectForMatsFactory {
 
     String formatInt(long number) {
         return NF_INTEGER.format(number);
+    }
+
+    String formatNanos0(double nanos) {
+        if (Double.isNaN(nanos)) {
+            return "NaN";
+        }
+        return NF_0_DECIMALS.format(Math.round(nanos / 1_000_000d));
+    }
+
+    String formatNanos1(double nanos) {
+        if (Double.isNaN(nanos)) {
+            return "NaN";
+        }
+        if (nanos == 0d) {
+            return "0";
+        }
+        return NF_1_DECIMALS.format(Math.round(nanos / 100_000d) / 10d);
     }
 
     String formatNanos(double nanos) {

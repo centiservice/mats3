@@ -8,6 +8,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +16,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.jms.MessageConsumer;
 import javax.sql.DataSource;
@@ -123,6 +125,22 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         }
         catch (NoSuchFieldException | IllegalAccessException e) {
             throw new AssertionError("Could not access the MatsFactory.ContextLocal.callback field.", e);
+        }
+
+        if (appName == null) {
+            throw new NullPointerException("appName");
+        }
+        if (appVersion == null) {
+            throw new NullPointerException("appVersion");
+        }
+        if (jmsMatsJmsSessionHandler == null) {
+            throw new NullPointerException("jmsMatsJmsSessionHandler");
+        }
+        if (jmsMatsTransactionManager == null) {
+            throw new NullPointerException("jmsMatsTransactionManager");
+        }
+        if (matsSerializer == null) {
+            throw new NullPointerException("matsSerializer");
         }
 
         _appName = appName;
@@ -344,6 +362,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     public <R, S> JmsMatsEndpoint<R, S, Z> staged(String endpointId, Class<R> replyClass, Class<S> stateClass,
             Consumer<? super EndpointConfig<R, S>> endpointConfigLambda) {
         JmsMatsEndpoint<R, S, Z> endpoint = new JmsMatsEndpoint<>(this, endpointId, true, stateClass, replyClass);
+        endpoint.getEndpointConfig().setCreationInfo(getInvocationPoint());
         validateNewEndpoint(endpoint);
         endpointConfigLambda.accept(endpoint.getEndpointConfig());
         return endpoint;
@@ -419,6 +438,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         // Need to create the JmsMatsEndpoint ourselves, since we need to set the queue-parameter.
         JmsMatsEndpoint<Void, S, Z> endpoint = new JmsMatsEndpoint<>(this, endpointId, queue, stateClass,
                 Void.TYPE);
+        endpoint.getEndpointConfig().setCreationInfo(getInvocationPoint());
         validateNewEndpoint(endpoint);
         endpointConfigLambda.accept(endpoint.getEndpointConfig());
         // :: Wrap the ProcessTerminatorLambda in a single stage that does not return.
@@ -470,7 +490,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
      * <li>If this exists, then use
      * {@link JmsMatsInitiate#createForChildFlow(JmsMatsFactory, List, JmsMatsInternalExecutionContext, DoAfterCommitRunnableHolder, MatsTrace)}</li>
      * <li>If this does not exists, then use
-     * {@link JmsMatsInitiate#createForTrueInitiation(JmsMatsFactory, List, JmsMatsInternalExecutionContext, DoAfterCommitRunnableHolder)}</li>
+     * {@link JmsMatsInitiate#createForTrueInitiation(JmsMatsFactory, List, JmsMatsInternalExecutionContext, DoAfterCommitRunnableHolder, String)}</li>
      * </ul>
      * <b>Notice: When forking out in new thread, make sure to copy over this ThreadLocal!</b>
      */
@@ -529,13 +549,6 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
                     _jmsMatsJmsSessionHandler, _jmsMatsTransactionManager);
             addCreatedInitiator(initiator);
             return initiator;
-        }
-    }
-
-    @Override
-    public List<MatsEndpoint<?, ?>> getEndpoints() {
-        synchronized (_createdEndpoints) {
-            return new ArrayList<>(_createdEndpoints);
         }
     }
 
@@ -614,6 +627,27 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     }
 
     @Override
+    public List<MatsEndpoint<?, ?>> getEndpoints() {
+        ArrayList<MatsEndpoint<?, ?>> matsEndpoints;
+        synchronized (_createdEndpoints) {
+            matsEndpoints = new ArrayList<>(_createdEndpoints);
+        }
+        // :: Split out private endpoints
+        ArrayList<MatsEndpoint<?, ?>> privateEndpoints = new ArrayList<>();
+        for(Iterator<MatsEndpoint<?, ?>> iterator = matsEndpoints.iterator(); iterator.hasNext(); ) {
+            MatsEndpoint<?, ?> next = iterator.next();
+            if (next.getEndpointConfig().getEndpointId().contains(".private.")) {
+                privateEndpoints.add(next);
+                iterator.remove();
+            }
+        }
+        matsEndpoints.sort(Comparator.comparing(ep -> ep.getEndpointConfig().getEndpointId()));
+        privateEndpoints.sort(Comparator.comparing(ep -> ep.getEndpointConfig().getEndpointId()));
+        matsEndpoints.addAll(privateEndpoints);
+        return matsEndpoints;
+    }
+
+    @Override
     public Optional<MatsEndpoint<?, ?>> getEndpoint(String endpointId) {
         synchronized (_createdEndpoints) {
             for (MatsEndpoint<?, ?> endpoint : _createdEndpoints) {
@@ -627,9 +661,24 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
     @Override
     public List<MatsInitiator> getInitiators() {
+        ArrayList<MatsInitiator> matsInitiators;
         synchronized (_createdInitiators) {
-            return new ArrayList<>(_createdInitiators);
+            matsInitiators = new ArrayList<>(_createdInitiators);
         }
+        // :: Put "default" as first entry
+        MatsInitiator defaultInitiator = null;
+        for (Iterator<MatsInitiator> iter = matsInitiators.iterator(); iter.hasNext();) {
+            MatsInitiator matsInitiator = iter.next();
+            if ("default".equals(matsInitiator.getName())) {
+                iter.remove();
+                defaultInitiator = matsInitiator;
+            }
+        }
+        matsInitiators.sort(Comparator.comparing(MatsInitiator::getName));
+        if (defaultInitiator != null) {
+            matsInitiators.add(0, defaultInitiator);
+        }
+        return matsInitiators;
     }
 
     private void addCreatedInitiator(JmsMatsInitiator<Z> initiator) {

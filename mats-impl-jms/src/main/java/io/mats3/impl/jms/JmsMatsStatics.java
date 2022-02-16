@@ -11,7 +11,6 @@ import javax.jms.MapMessage;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 
-import io.mats3.serial.MatsTrace.Call;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
 
@@ -24,6 +23,7 @@ import io.mats3.impl.jms.JmsMatsTransactionManager.JmsMatsTxContextKey;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsSerializer.SerializedMatsTrace;
 import io.mats3.serial.MatsTrace;
+import io.mats3.serial.MatsTrace.Call;
 import io.mats3.serial.MatsTrace.Call.Channel;
 import io.mats3.serial.MatsTrace.Call.MessagingModel;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
@@ -288,16 +288,15 @@ public interface JmsMatsStatics {
          * We need a pretty much guaranteed unique id. It does not really need to be globally unique, but just unique
          * within the Mats fabric in use, i.e. within the connected JMS broker.
          *
-         * The id consists of a random part, plus the timestamp in milliseconds. The random part thus only needs to
-         * be unique within a single millisecond.
+         * The id consists of a random part, plus the timestamp in milliseconds. The random part thus only needs to be
+         * unique within a single millisecond.
          *
          * The random alphabet in use has 62 entries. If we use length = 10, we get 62^10 = 839_299_365_868_340_224.
          *
-         * Playing a bit with the birthday paradox:
-         * y=1-e^(-n(n-1)/(2*839_299_365_868_340_224))
-         * Graphing this, we see that we'd need ~13_000_000 generated flow ids in a millisecond to get above 0.01%
-         * chance of having a collision. If we produce 1 million flow ids in one millisecond, there is a chance of
-         * <.00006% of having a collision.
+         * Playing a bit with the birthday paradox: y=1-e^(-n(n-1)/(2*839_299_365_868_340_224)) Graphing this, we see
+         * that we'd need ~13_000_000 generated flow ids in a millisecond to get above 0.01% chance of having a
+         * collision. If we produce 1 million flow ids in one millisecond, there is a chance of <.00006% of having a
+         * collision.
          *
          * The odds of getting struck by lightning in a given year (US): https://www.weather.gov/safety/lightning-odds
          * 1/1_222_000 = 0.000082%
@@ -362,9 +361,10 @@ public interface JmsMatsStatics {
                 // -> Yes, only found "java.lang.Thread", which means there was no non-Mats stack frames.
                 return "<no non-mats stack frames - probably lastStage.return>";
             }
-            // E-> return a nice representation of the stackframe, looking like a stacktrace frame.
-            return ste.getClassName() + '.' + ste.getMethodName() + "(" + ste.getFileName() + ":" + ste
-                    .getLineNumber() + ")";
+            // E-> return a nice representation
+            return ste.getFileName() + ":" + ste.getLineNumber() + ";"
+                    + ste.getClassName() + ";"
+                    + ste.getMethodName()+"()";
         }
         // E-> Evidently no stackframes!?
         return "<could not determine invocation point>";

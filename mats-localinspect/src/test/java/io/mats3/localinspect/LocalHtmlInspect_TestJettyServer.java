@@ -1,18 +1,25 @@
 package io.mats3.localinspect;
 
-import ch.qos.logback.core.CoreConstants;
-import io.mats3.MatsFactory;
-import io.mats3.MatsInitiator.KeepTrace;
-import io.mats3.api.intercept.MatsInterceptableMatsFactory;
-import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
-import io.mats3.localinspect.SetupTestMatsEndpoints.DataTO;
-import io.mats3.localinspect.SetupTestMatsEndpoints.StateTO;
-import io.mats3.serial.MatsSerializer;
-import io.mats3.serial.json.MatsSerializerJson;
-import io.mats3.test.broker.MatsTestBroker;
-import io.mats3.util.MatsFuturizer;
-import io.mats3.util.MatsFuturizer.Reply;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.net.URL;
+import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+
+import javax.jms.ConnectionFactory;
+import javax.servlet.ServletContext;
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
+import javax.servlet.annotation.WebListener;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
@@ -27,23 +34,19 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.jms.ConnectionFactory;
-import javax.servlet.ServletContext;
-import javax.servlet.ServletContextEvent;
-import javax.servlet.ServletContextListener;
-import javax.servlet.annotation.WebListener;
-import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.net.URL;
-import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ThreadLocalRandom;
+import ch.qos.logback.core.CoreConstants;
+import io.mats3.MatsFactory;
+import io.mats3.MatsInitiator.KeepTrace;
+import io.mats3.api.intercept.MatsInterceptableMatsFactory;
+import io.mats3.impl.jms.JmsMatsFactory;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
+import io.mats3.localinspect.SetupTestMatsEndpoints.DataTO;
+import io.mats3.localinspect.SetupTestMatsEndpoints.StateTO;
+import io.mats3.serial.MatsSerializer;
+import io.mats3.serial.json.MatsSerializerJson;
+import io.mats3.test.broker.MatsTestBroker;
+import io.mats3.util.MatsFuturizer;
+import io.mats3.util.MatsFuturizer.Reply;
 
 /**
  * Test server for the HTML interface generation. Pulling up a bunch of endpoints, and having a traffic generator to put
@@ -57,10 +60,17 @@ public class LocalHtmlInspect_TestJettyServer {
 
     private static final Logger log = LoggerFactory.getLogger(LocalHtmlInspect_TestJettyServer.class);
 
+    private static final String APPLICATION_ORDER = "OrderApplication";
+    private static final String APPLICATION_DISPATCH = "DispatchApplication";
+    private static final String APPLICATION_DELIVERY = "DeliveryApplication";
+
     @WebListener
     public static class SCL_Endre implements ServletContextListener {
 
-        private MatsInterceptableMatsFactory _matsFactory;
+        private MatsInterceptableMatsFactory _matsFactory1;
+        private MatsInterceptableMatsFactory _matsFactory2;
+        private MatsFuturizer _matsFuturizer1;
+        private MatsFuturizer _matsFuturizer2;
 
         @Override
         public void contextInitialized(ServletContextEvent sce) {
@@ -75,59 +85,81 @@ public class LocalHtmlInspect_TestJettyServer {
             JdbcConnectionPool dataSource = JdbcConnectionPool.create(h2Ds);
             dataSource.setMaxConnections(5);
 
-            // ## Create MatsFactory
             // Get JMS ConnectionFactory from ServletContext
             ConnectionFactory connFactory = (ConnectionFactory) sc.getAttribute(ConnectionFactory.class.getName());
+
             // MatsSerializer
             MatsSerializer<String> matsSerializer = MatsSerializerJson.create();
+
+            // .. Use port number of current server as postfix for nodename
+            Integer port = (Integer) sce.getServletContext().getAttribute(CONTEXT_ATTRIBUTE_PORTNUMBER);
+
+            // ## Create MatsFactory 1
             // Create the MatsFactory
-            _matsFactory = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
-                    LocalHtmlInspect_TestJettyServer.class.getSimpleName(), "*testing*",
+            _matsFactory1 = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
+                    APPLICATION_ORDER, "*testing*",
                     JmsMatsJmsSessionHandler_Pooling.create(connFactory),
                     dataSource,
                     matsSerializer);
-
             // Hold start
-            _matsFactory.holdEndpointsUntilFactoryIsStarted();
-
-            // TODO: Make two different MatsFactory instances, not just two introspect interfaces around same MF.
-
+            _matsFactory1.holdEndpointsUntilFactoryIsStarted();
+            _matsFactory1.getFactoryConfig().setName("FactoryName1");
             // Configure the MatsFactory for testing
-            _matsFactory.getFactoryConfig().setConcurrency(SetupTestMatsEndpoints.BASE_CONCURRENCY);
-            // .. Use port number of current server as postfix for name of MatsFactory, and of nodename
-            Integer portNumber = (Integer) sce.getServletContext().getAttribute(CONTEXT_ATTRIBUTE_PORTNUMBER);
-            _matsFactory.getFactoryConfig().setName(LocalHtmlInspect_TestJettyServer.class.getSimpleName()
-                    + "_" + portNumber);
-            _matsFactory.getFactoryConfig().setNodename("EndreBox_" + portNumber);
+            _matsFactory1.getFactoryConfig().setConcurrency(3);
+            _matsFactory1.getFactoryConfig().setNodename(_matsFactory1.getFactoryConfig().getNodename() + "_" + port);
+
+            // ## Create MatsFactory 2
+            // Create the MatsFactory
+            _matsFactory2 = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
+                    APPLICATION_DELIVERY, "*testing*",
+                    JmsMatsJmsSessionHandler_Pooling.create(connFactory),
+                    dataSource,
+                    matsSerializer);
+            // Hold start
+            _matsFactory2.holdEndpointsUntilFactoryIsStarted();
+            _matsFactory2.getFactoryConfig().setName("FactoryName2");
+            // Configure the MatsFactory for testing
+            _matsFactory2.getFactoryConfig().setConcurrency(2);
+            _matsFactory2.getFactoryConfig().setNodename(_matsFactory2.getFactoryConfig().getNodename() + "_" + port);
 
             // Put it in ServletContext, for servlet to get
-            sce.getServletContext().setAttribute(JmsMatsFactory.class.getName(), _matsFactory);
+            sce.getServletContext().setAttribute("matsFactory1", _matsFactory1);
+            sce.getServletContext().setAttribute("matsFactory2", _matsFactory2);
 
             // Install the stats keeper interceptor
-            LocalStatsMatsInterceptor.install(_matsFactory);
+            LocalStatsMatsInterceptor.install(_matsFactory1);
+            LocalStatsMatsInterceptor.install(_matsFactory2);
 
             // Create the HTML interfaces, and store them in the ServletContext attributes, for the rendering Servlet.
-            LocalHtmlInspectForMatsFactory interface1 = LocalHtmlInspectForMatsFactory.create(_matsFactory);
-            LocalHtmlInspectForMatsFactory interface2 = LocalHtmlInspectForMatsFactory.create(_matsFactory);
+            LocalHtmlInspectForMatsFactory interface1 = LocalHtmlInspectForMatsFactory.create(_matsFactory1);
+            LocalHtmlInspectForMatsFactory interface2 = LocalHtmlInspectForMatsFactory.create(_matsFactory2);
             sce.getServletContext().setAttribute("interface1", interface1);
             sce.getServletContext().setAttribute("interface2", interface2);
 
             // Create MatsFuturizer, and store then in the ServletContext attributes, for sending in testServlet
-            MatsFuturizer matsFuturizer = MatsFuturizer.createMatsFuturizer(_matsFactory,
-                    SetupTestMatsEndpoints.SERVICE_PREFIX);
-            sce.getServletContext().setAttribute(MatsFuturizer.class.getName(), matsFuturizer);
+            _matsFuturizer1 = MatsFuturizer.createMatsFuturizer(_matsFactory1, APPLICATION_ORDER);
+            _matsFuturizer2 = MatsFuturizer.createMatsFuturizer(_matsFactory2, APPLICATION_DELIVERY);
+            sce.getServletContext().setAttribute("matsFuturizer1", _matsFuturizer1);
+            sce.getServletContext().setAttribute("matsFuturizer2", _matsFuturizer2);
 
             // :: Set up Mats Test Endpoints.
-            SetupTestMatsEndpoints.setupMatsTestEndpoints(_matsFactory);
+            SetupTestMatsEndpoints setup = new SetupTestMatsEndpoints();
+            setup.setupMatsTestEndpoints(_matsFactory1, APPLICATION_ORDER, 3);
+            setup.setupMatsTestEndpoints(_matsFactory1, APPLICATION_DISPATCH, 3);
+            setup.setupMatsTestEndpoints(_matsFactory2, APPLICATION_DELIVERY, 2);
 
-            _matsFactory.start();
+            _matsFactory1.start();
+            _matsFactory2.start();
         }
 
         @Override
         public void contextDestroyed(ServletContextEvent sce) {
             log.info("ServletContextListener.contextDestroyed(..): " + sce);
             log.info("  \\- ServletContext: " + sce.getServletContext());
-            _matsFactory.stop(5000);
+            _matsFactory1.stop(5000);
+            _matsFactory2.stop(5000);
+            _matsFuturizer1.close();
+            _matsFuturizer2.close();
         }
     }
 
@@ -195,12 +227,15 @@ public class LocalHtmlInspect_TestJettyServer {
             out.println(" <a href=\"sendRequest\">Send request</a> - to initialize Initiator"
                     + " and get some traffic.<br /><br />");
 
-
             // :: Bootstrap3 sets the body's font size to 14px.
             // We scale all the affected rem-using elements back up to check consistency.
             if (includeBootstrap3) {
                 out.write("<div style=\"font-size: 114.29%\">\n");
             }
+            out.println("<h2>Summary for Factory 1</h2>");
+            interface1.createFactorySummary(out, true, true);
+            out.println("<h2>Summary for Factory 2</h2>");
+            interface2.createFactorySummary(out, true, true);
             out.println("<h1>Introspection GUI 1</h1>");
             interface1.createFactoryReport(out, true, true, true);
             out.println("<h1>Introspection GUI 2</h1>");
@@ -224,36 +259,24 @@ public class LocalHtmlInspect_TestJettyServer {
             long nanosAsStart_entireProcedure = System.nanoTime();
             log.info("Sending request ..");
             PrintWriter out = resp.getWriter();
-            out.println("Sending request ..");
-            MatsFactory matsFactory = (MatsFactory) req.getServletContext().getAttribute(JmsMatsFactory.class
-                    .getName());
-
-            StateTO sto = new StateTO(420, 420.024);
-            DataTO dto = new DataTO(42, "TheAnswer");
-            matsFactory.getDefaultInitiator().initiateUnchecked(
-                    (init) -> {
-                        for (int i = 0; i < 200; i++) {
-                            init.traceId("traceId" + i)
-                                    .keepTrace(KeepTrace.MINIMAL)
-                                    .nonPersistent()
-                                    .from("LocalInterfaceTest.initiator")
-                                    .to(SetupTestMatsEndpoints.SERVICE)
-                                    .replyTo(SetupTestMatsEndpoints.TERMINATOR, sto)
-                                    .request(dto);
-                        }
-                    });
-            out.println(".. Request sent.");
+            MatsFactory matsFactory1 = (MatsFactory) req.getServletContext().getAttribute("matsFactory1");
+            MatsFactory matsFactory2 = (MatsFactory) req.getServletContext().getAttribute("matsFactory2");
+            sendSomeRequests(out, matsFactory1, APPLICATION_ORDER);
+            sendSomeRequests(out, matsFactory1, APPLICATION_DISPATCH);
+            sendSomeRequests(out, matsFactory1, APPLICATION_DELIVERY);
+            sendSomeRequests(out, matsFactory2, APPLICATION_ORDER);
+            sendSomeRequests(out, matsFactory2, APPLICATION_DISPATCH);
+            sendSomeRequests(out, matsFactory2, APPLICATION_DELIVERY);
 
             out.println("\nPerforming MatsFuturizers..");
 
-            MatsFuturizer matsFuturizer = (MatsFuturizer) req.getServletContext()
-                    .getAttribute(MatsFuturizer.class.getName());
+            MatsFuturizer matsFuturizer = (MatsFuturizer) req.getServletContext().getAttribute("matsFuturizer1");
 
-            out.println("\nTo " + SetupTestMatsEndpoints.SERVICE);
+            out.println("\nTo " + APPLICATION_ORDER + SetupTestMatsEndpoints.SERVICE);
             CompletableFuture<Reply<DataTO>> future1 = matsFuturizer.futurizeNonessential(
                     "TestTraceId" + Long.toHexString(Math.abs(ThreadLocalRandom.current().nextLong())),
-                    SetupTestMatsEndpoints.SERVICE_PREFIX + ".FuturizerTest_Main",
-                    SetupTestMatsEndpoints.SERVICE, DataTO.class, new DataTO(1, "To_SERVICE"));
+                    APPLICATION_ORDER + ".FuturizerTest_Main",
+                    APPLICATION_ORDER + SetupTestMatsEndpoints.SERVICE, DataTO.class, new DataTO(1, "To_SERVICE"));
             try {
                 Reply<DataTO> reply = future1.get();
                 out.println("-> got reply: " + reply.getReply());
@@ -262,11 +285,11 @@ public class LocalHtmlInspect_TestJettyServer {
                 out.println("Failed! " + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
 
-            out.println("\nTo " + SetupTestMatsEndpoints.SERVICE_MID);
+            out.println("\nTo " + APPLICATION_ORDER + SetupTestMatsEndpoints.SERVICE_MID);
             CompletableFuture<Reply<DataTO>> future2 = matsFuturizer.futurizeNonessential(
                     "TestTraceId" + Long.toHexString(Math.abs(ThreadLocalRandom.current().nextLong())),
-                    SetupTestMatsEndpoints.SERVICE_PREFIX + ".FuturizerTest_Mid",
-                    SetupTestMatsEndpoints.SERVICE_MID, DataTO.class, new DataTO(2, "TO_MID"));
+                    APPLICATION_ORDER + ".FuturizerTest_Mid",
+                    APPLICATION_ORDER + SetupTestMatsEndpoints.SERVICE_MID, DataTO.class, new DataTO(2, "TO_MID"));
             try {
                 Reply<DataTO> reply = future2.get();
                 out.println("-> got reply: " + reply.getReply());
@@ -275,11 +298,11 @@ public class LocalHtmlInspect_TestJettyServer {
                 out.println("Failed! " + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
 
-            out.println("\nTo " + SetupTestMatsEndpoints.SERVICE_LEAF);
+            out.println("\nTo " + APPLICATION_ORDER + SetupTestMatsEndpoints.SERVICE_LEAF);
             CompletableFuture<Reply<DataTO>> future3 = matsFuturizer.futurizeNonessential(
                     "TestTraceId" + Long.toHexString(Math.abs(ThreadLocalRandom.current().nextLong())),
-                    SetupTestMatsEndpoints.SERVICE_PREFIX + ".FuturizerTest_Leaf",
-                    SetupTestMatsEndpoints.SERVICE_LEAF, DataTO.class, new DataTO(3, "TO_LEAF"));
+                    APPLICATION_ORDER + ".FuturizerTest_Leaf",
+                    APPLICATION_ORDER + SetupTestMatsEndpoints.SERVICE_LEAF, DataTO.class, new DataTO(3, "TO_LEAF"));
             try {
                 Reply<DataTO> reply = future3.get();
                 out.println("-> got reply: " + reply.getReply());
@@ -289,34 +312,69 @@ public class LocalHtmlInspect_TestJettyServer {
             }
             out.println("\n.. Futurizations done.\n");
 
+            DataTO directDto = new DataTO(42, "TheAnswer");
+
             out.println("\n.. Send directly to Terminator.\n");
             // Perform a send directly to the Terminator
-            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.traceId("traceId_directToTerminator")
+            matsFactory1.getDefaultInitiator().initiateUnchecked(init -> init.traceId("traceId_directToTerminator")
                     .keepTrace(KeepTrace.MINIMAL)
                     .nonPersistent()
                     .from("LocalInterfaceTest.initiator_direct_to_terminator")
-                    .to(SetupTestMatsEndpoints.TERMINATOR)
-                    .send(dto));
+                    .to(APPLICATION_ORDER + SetupTestMatsEndpoints.TERMINATOR)
+                    .send(directDto));
 
             out.println("\n.. Send 'null' directly to Terminator.\n");
-            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.traceId("traceId_directToTerminator")
+            matsFactory1.getDefaultInitiator().initiateUnchecked(init -> init.traceId("traceId_directToTerminator")
                     .keepTrace(KeepTrace.MINIMAL)
                     .nonPersistent()
                     .from("LocalInterfaceTest.initiator_direct_to_terminator")
-                    .to(SetupTestMatsEndpoints.TERMINATOR)
+                    .to(APPLICATION_ORDER + SetupTestMatsEndpoints.TERMINATOR)
                     .send(null));
 
             out.println("\n.. Publish directly to SubscriptionTerminator.\n");
             // Perform a publish directly to the SubscriptionTerminator
-            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.traceId("traceId_directToTerminator")
+            matsFactory1.getDefaultInitiator().initiateUnchecked(init -> init.traceId("traceId_directToTerminator")
                     .keepTrace(KeepTrace.MINIMAL)
                     .nonPersistent()
                     .from("LocalInterfaceTest.initiator_direct_to_subscriptionTerminator")
-                    .to(SetupTestMatsEndpoints.SUBSCRIPTION_TERMINATOR)
-                    .publish(dto));
+                    .to(APPLICATION_ORDER + SetupTestMatsEndpoints.SUBSCRIPTION_TERMINATOR)
+                    .publish(directDto));
+
+            out.println("\nTo " + APPLICATION_ORDER + SetupTestMatsEndpoints.SERVICE);
+            CompletableFuture<Reply<DataTO>> futureX = matsFuturizer.futurize("TestTraceId" + Long.toHexString(Math.abs(
+                    ThreadLocalRandom.current().nextLong())), APPLICATION_ORDER + ".FuturizerTest_Main",
+                    APPLICATION_ORDER + SetupTestMatsEndpoints.SERVICE, 10, TimeUnit.SECONDS, DataTO.class, new DataTO(
+                            1, "To_SERVICE"), init -> {
+                            });
+            try {
+                Reply<DataTO> reply = futureX.get();
+                out.println("-> got reply: " + reply.getReply());
+            }
+            catch (InterruptedException | ExecutionException e) {
+                out.println("Failed! " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
 
             long nanosTaken_TotalProcess = System.nanoTime() - nanosAsStart_entireProcedure;
             out.println("\nAll done - time taken: " + (nanosTaken_TotalProcess / 1_000_000d) + " ms.\n");
+        }
+
+        private void sendSomeRequests(PrintWriter out, MatsFactory matsFactory, String applicationName) {
+            out.println("Sending request ..");
+            StateTO sto = new StateTO(420, 420.024);
+            DataTO dto = new DataTO(42, "TheAnswer");
+            matsFactory.getDefaultInitiator().initiateUnchecked(
+                    (init) -> {
+                        for (int i = 0; i < 200; i++) {
+                            init.traceId("traceId" + i)
+                                    .keepTrace(KeepTrace.MINIMAL)
+                                    .nonPersistent()
+                                    .from("init_to_"+applicationName)
+                                    .to(applicationName + SetupTestMatsEndpoints.SERVICE)
+                                    .replyTo(applicationName + SetupTestMatsEndpoints.TERMINATOR, sto)
+                                    .request(dto);
+                        }
+                    });
+            out.println(".. Request sent.");
         }
     }
 
@@ -348,7 +406,7 @@ public class LocalHtmlInspect_TestJettyServer {
         // Override the default configurations, stripping down and adding AnnotationConfiguration.
         // https://www.eclipse.org/jetty/documentation/9.4.x/configuring-webapps.html
         // Note: The default resides in WebAppContext.DEFAULT_CONFIGURATION_CLASSES
-        webAppContext.setConfigurations(new Configuration[]{
+        webAppContext.setConfigurations(new Configuration[] {
                 // new WebInfConfiguration(),
                 new WebXmlConfiguration(), // Evidently adds the DefaultServlet, as otherwise no read of "/webapp/"
                 // new MetaInfConfiguration(),
@@ -400,6 +458,13 @@ public class LocalHtmlInspect_TestJettyServer {
         ConnectionFactory jmsConnectionFactory = matsTestBroker.getConnectionFactory();
 
         Server server = createServer(jmsConnectionFactory, 8080);
-        server.start();
+        try {
+            server.start();
+        }
+        catch (Exception e) {
+            log.error("Problems starting Jetty", e);
+            server.stop();
+            matsTestBroker.close();
+        }
     }
 }
