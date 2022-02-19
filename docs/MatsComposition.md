@@ -7,18 +7,19 @@ and its message based nature. The MatsFuturizer lets you invoke a Mats Endpoint 
 a `CompletableFuture` which is completed when the Reply comes back (The MatsFuturizer uses a little hack to ensure that
 the final reply comes back to the same host, read more about that elsewhere).
 
-> Note that you also have a much more interesting option for end-user client communications by using the MatsSocket
-> system, which gives you a WebSocket-based bidirectional bridge between an end-user client and a service employing
-> Mats, pulling the asynchronous nature of Mats all the way out to the client.
+> Note that you also have a much more interesting option for end-user client communications by using the
+> [MatsSocket](https://github.com/centiservice/matssocket) system, which gives you a WebSocket-based bidirectional
+> bridge between an end-user client and a service employing Mats, pulling the asynchronous nature of Mats all the way
+> out to the client.
 
 Let's say you have a CustomerService that needs to talk to an external AccountService. When coming from a REST-based
 world, one might be tempted to write "Client wrappers" around such external data dependencies. This so that
 CustomerService's data exposing REST-endpoints can call into a nice and clean little client, for example named
 AccountClient, instead of dealing with messy HTTP right there in the method. In the REST-based world, this AccountClient
-would use a HttpClient or similar to synchronously call the AccountService's REST-endpoints to get the needed
-data, abstracting away the HTTP invocation. In a Mats-based architecture, such an AccountClient would instead need to
-employ a MatsFuturizer to talk to the backing Mats Endpoint, returning the answer directly (or possibly as a
-CompletableFuture), thus abstracting away the interaction with Mats.
+would use a HttpClient or similar to synchronously call the AccountService's REST-endpoints to get the needed data,
+abstracting away the HTTP invocation. In a Mats-based architecture, such an AccountClient would instead need to employ a
+MatsFuturizer to talk to the backing Mats Endpoint, returning the answer directly (or possibly as a CompletableFuture),
+thus abstracting away the interaction with Mats.
 
 As further improvements to this abstraction, you might then do some pre-operations inside that client, massaging some
 arguments, looking up some identifiers from a database, before invoking the MatsFuturizer, and possibly also attach a
@@ -52,7 +53,7 @@ into two completely separate flows where the first synchronously have to wait fo
 > might tempt a later reuse. All such logic should be inside the private Mats Endpoint, to enable Mats composability.
 > A relevant compromise might be to define the service-private Mats Endpoint inside such an AccountClient class, so
 > that this Mats Endpoint with its pre- and post-operations, _as well as_ the "client" method utilizing the
-> MatsFuturizer to invoke this Mats Endpoint, are contained in the same class.
+> MatsFuturizer to invoke this private Mats Endpoint, are contained in the same class.
 >
 > Another way is to just accept that the @RequestMapping REST-Endpoint does have a bit of pre- and post-processing code.
 > If your services are distinct and small enough to easily comprehend, introducing lots of abstractions just makes it
@@ -74,7 +75,8 @@ it could have been:
    up with multiple inner flows running at the same time.
 4. Another situation is that your "outer" flow's MatsFuturizer times out, while the "inner" flow actually completes,
    just very slow (due to some temporary adverse situation). You now have gotten into a situation where you have lost
-   track of which elements of a process has completed, and which have not - and must use time to establish this.
+   track of which elements of a process has completed, and which have not - and must use valuable time and resources to
+   establish this.
 5. Instead of having a single, easy to reason about Mats flow, you now have multiple disjunct Mats flows depending on
    each other - and the debugging reasoning will become much harder. If you had a single flow, the reason for the DLQ
    would have been immediately obvious, while you now have a DLQ in one flow, which just loosely correlates with that
@@ -87,8 +89,8 @@ it could have been:
 
 All in all, you end up with the same type of nightmare and brittleness that a REST-based architecture results in, where
 synchronous REST-endpoints invokes other synchronous REST-endpoints which again invokes yet other synchronous
-REST-endpoints, which may end up with spectacular cascading failures, where you do not know what has actually
-completed. _This is exactly what Mats set out to avoid_.
+REST-endpoints, which may end up with spectacular cascading failures, where you do not know which operations has
+actually completed. _This is exactly what Mats set out to avoid!_.
 
 **The MatsFuturizer shall only be used on the very outer edges, where you actually have a synchronous call that needs to
 bridge into the asynchronous Mats fabric. Do not use it as part of your service-internal API!**
