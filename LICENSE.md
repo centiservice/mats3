@@ -8,8 +8,8 @@ services to customers or clients, you or your company may not:
 * Offer any kind of Mats-as-a-Service, including by use of your own or any other
   implementation of the Mats API.
 * Using e.g. the Mats API or any implementation to offer a similar solution.
-* Using e.g. the Mats Interceptor API, or in any other way, to offer any kind of Mats
-  metrics, introspection, tracing, logging, visualization or debugging tools or solutions.
+* Using e.g. the Mats Interceptor API to offer any kind of Mats metrics, introspection, tracing, 
+  logging, visualization or debugging tools or solutions.
    
 These examples do not preclude a company-internal service provider to provide such services
 to their own systems and developers as long as the license is adhered to.
