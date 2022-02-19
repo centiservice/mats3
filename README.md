@@ -94,11 +94,11 @@ you'd have in the handling method of an ordinary HTTP-endpoint which performs sy
 
 ### Asynchronous Inter Service Communication
 
-When a Request is performed by a Stage N, that Stage's processing is typically finished, and this Stage's
-_StageProcessor_ goes back to fetching new messages waiting on its queue. Stage N+1 will also have a set of
-StageProcessors listening to the queue of Stage N+1, and eventually the Reply from the invoked Mats Endpoint will appear
-there, and any one of those StageProcessors (on any one of the instances running this service) will pick it up and
-continue the processing.
+When a Request is performed by a Stage _N_, this Stage's processing is typically finished for this Mats Flow, and the
+Stage's _StageProcessor_ goes back to fetching a new message waiting on its queue. Stage _N+1_ will also have a set of
+StageProcessors listening to the queue of this Stage, and eventually the Reply from the invoked Mats Endpoint will
+appear there, and any one of those StageProcessors (on any one of the instances running this service) will pick it up
+and continue the processing.
 
 ### Familiar feel
 
@@ -264,7 +264,9 @@ Sets up these services:
 
 A Terminator is also set up, and then the initiator sends a request to "Main", setting replyTo(Terminator).
 
-ASCII-artsy, it looks like this, the lines representing the state that goes between the Initiator and Terminator and the stages of the endpoints, but which is kept "on the wire" along with the message flow through the different requests and replies:
+ASCII-artsy, it looks like this, the lines representing the state that goes between the Initiator and Terminator and the
+stages of the endpoints, but which is kept "on the wire" along with the message flow through the different requests and
+replies:
 <pre>
 [Initiator]              {request}
  |  [Main S0 (init)]   {request}
