@@ -19,19 +19,21 @@ There's a document going into details [here](docs/WhatIsMats.md), and for the ra
 
 Trying to describe Mats in short form, from a few different angles:
 
-### A Picture is worth...
+### A picture is worth...
 
 ![Standard Example Mats Flow](docs/img/StandardExampleMatsFlow-halfsize-pagescaled.svg)
 
-The above illustration can be viewed as REST-endpoints invoking other REST-endpoints, the dotted lines representing blocking waits on the other endpoints responses. Or it can be viewed as MATS Endpoints invoking other MATS Endpoints, the dotted lines representing the State Objects which are "magically" present between the Stages of the Endpoints, but which are passed along with the message envelopes. 
+The above illustration can be viewed as REST-endpoints invoking other REST-endpoints, the dotted lines representing blocking waits on the other endpoints responses. Or it can be viewed as MATS Endpoints (light blue boxes) invoking other MATS Endpoints, the dotted lines representing the state which are "magically" present between the Stages (dark blue boxes) of the Endpoints, but which are passed along with the message envelopes.
+
+Unit test code for this setup can be found [here](mats-api-test/src/test/java/io/mats3/api_test/stdexampleflow/Test_StandardExampleMatsFlow.java).
 
 ### Multi-stage, message-based Endpoints
-A Mats Endpoint may consist of multiple _Stages_, where each Stage is an independent consumer and producer of messages, consuming from a stage-specific queue on a message broker. The queue name is a direct mapping from the StageId, prefixed with (default) `mats.`. The initial Stage's StageId is the EndpointId.
+A _Mats Endpoint_ may consist of multiple _Stages_, where each Stage is an independent consumer and producer of messages, consuming from a stage-specific queue on a message broker. The queue name is a direct mapping from the StageId, prefixed with (default) "mats.". The initial Stage's StageId is the EndpointId.
 
 ### Invokable message-based Endpoints
 One Mats Endpoint's Stage may invoke another Mats Endpoint by issuing a Request-call (`processContext.request(..)`), and then this Stage is finished, its StageProcessor going back to listen for new messages on its queue. The Reply will be received by the Endpoint's next Stage.
 
-### Messaging with a call stack
+### Messaging with a call stack!
 
 Invoked Mats Endpoints does not need to know who called them, they just return their result which is packaged up in a message called a Reply. The call stack keeps track of which queue the Reply message should go to, ensuring that Stage N+1 of the invoking Endpoint receives the result. 
 
@@ -58,9 +60,12 @@ When a Request is performed by a Stage N, that Stage's processing is typically f
 The hope is that coding a Mats Endpoint _feels like_ coding an ordinary HTTP-based, synchronous endpoint, where you code "linearly" and reason locally - only that you gain all features of an Asynchronous Message Oriented Architecture. 
 
 
+For more, read [this](docs/WhatIsMats.md), then [this](docs/RationaleForMats.md).
+
+
 # Examples
 
-Some examples taken from the [unit tests](mats-api-test). Notice the use of the JUnit Rule `Rule_Mats`, which sets up an ActiveMQ in-memory server and creates a JMS-backed MatsFactory based on that.
+Some examples taken from the [unit tests](mats-api-test/src/test/java/io/mats3/api_test). Notice the use of the JUnit Rule `Rule_Mats`, which sets up an ActiveMQ in-memory server and creates a JMS-backed MatsFactory based on that.
 
 In these examples, all the endpoints and stages are set up in one test class, and when invoked by the JUnit runner, obviously runs on the same machine - but in actual usage, you would typically have each endpoint run in a different process on different nodes. The DTO-classes, which acts as the interface between the different endpoints' requests and replies, would in real usage be copied between the projects (in this testing-scenario, one DTO class is used as all interfaces).
 
