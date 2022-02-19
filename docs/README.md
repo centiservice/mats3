@@ -1,5 +1,7 @@
 # Documentation for Mats<sup>3</sup>
 
+You should probably read the top-level [README.md](../README.md) file first!
+
 ## Introduction
 
 ### [What is Mats?](WhatIsMats.md)
