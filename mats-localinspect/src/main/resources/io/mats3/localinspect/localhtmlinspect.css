@@ -3,16 +3,16 @@
 .mats_report {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     font-size: 13px;  /* Main setting of font size. Summary-table has it's own. */
-    line-height: 1.5;
+    line-height: 1.6;
     color: #212529;
 }
 
 .mats_report hr {
-    border: 1px dashed #aaa;
-    margin: 0.2em 0 0.8em 0;
-    color: inherit;
-    background-color: currentColor;
-    opacity: 0.25;
+    margin: 1.9em 0 1.8em 0;
+    padding: 0;
+    height: 0;
+    box-shadow: 0 0 10px 5px white;
+    border: 3px solid white;
 }
 
 /* :: Fonts and headings */
@@ -54,23 +54,23 @@
 
 .mats_creation_info {
     font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-size: .7em;
+    font-size: .75em;
     color: #3d3d3d;
-    padding: 0.4em 0.1em 0.4em 1em;
+    padding: 0.1em 0.1em 0.4em 1em;
 }
 
 /* TABLE: Summary */
 
 .mats_table_summary {
-    /* Setting font specifically, for stand-alone rendering */
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-    border-collapse: collapse;
     font-size: 12px;
+    line-height: 1;
+    border-collapse: collapse;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
 }
 
 .mats_table_summary thead th {
     position: sticky;
+    z-index: 1;
     top: 0;
     background-color: #009879;
     color: #ffffff;
@@ -112,6 +112,7 @@
     display: inline-block;
 }
 
+/* The small box/"button" denoting a Stage in the Summary */
 .mats_stage_summary_box {
     background: #f0f0f0;
     display: inline-block;
@@ -122,14 +123,14 @@
     padding: 0.1em 0.1em 0.1em 0.1em;
 }
 
-
+/* Tooltip for the full StatsSnapshot, in Summary */
 .mats_tooltip {
     position: relative;
     display: inline-block;
     border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+    cursor: default;
 }
 
-/* Tooltip text */
 .mats_tooltip .mats_tooltiptext {
     visibility: hidden;
     width: 55em;
@@ -147,12 +148,10 @@
     margin-left: -27.5em; /* Use half of the width (120/2 = 60), to center the tooltip */
 }
 
-/* Show the tooltip text when you mouse over the tooltip container */
 .mats_tooltip:hover .mats_tooltiptext {
     visibility: visible;
 }
 
-/* tooltip arrow */
 .mats_tooltip .mats_tooltiptext::after {
     content: " ";
     position: absolute;
@@ -164,7 +163,50 @@
     border-color:  rgba(210, 210, 210, 0.9) transparent transparent transparent;
 }
 
-/* .. min and max (timings) */
+/* :; Inside stage: Initiator-to-Terminator timings */
+
+/* Table: Init-to-terminator */
+.mats_table_init_to_term {
+    font-size: 12px;
+    line-height: 1;
+    border-collapse: collapse;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+}
+
+.mats_table_init_to_term thead th {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    background-color: #009879;
+    color: #ffffff;
+}
+
+.mats_table_init_to_term th, .mats_table_init_to_term td {
+    padding: 0.5em 0.5em 0.5em 0.5em;
+}
+
+.mats_table_init_to_term tbody tr {
+    border-bottom: thin solid #dddddd;
+}
+
+.mats_table_init_to_term .mats_summary_initiator_row {
+    background-color: #ffffe0;
+}
+
+.mats_table_init_to_term tbody tr:not(.mats_summary_initiator_row):nth-of-type(even) {
+    background-color: #f3f3f3;
+}
+
+.mats_table_init_to_term tbody tr:hover {
+    background-color: #ffff99 !important;
+}
+
+.mats_table_init_to_term tbody .mats_summary_lastline {
+    border-bottom: thick solid #009879;
+}
+
+
+/* Timings: min and max (timings) */
 .mats_min {
     top: +0.15em;
     position: relative;
@@ -202,20 +244,50 @@
     border-radius: 3px;
 }
 
-/* .. integers in timings (i.e. ms >= 500)
-* NOTE! The point of this class is NOT denote "high timings", but to denote that there are no
-* decimals, to visually make it easier to compare a number '1 235' with '1.235'.
- */
-.mats_integer {
-    color: #b02a37;
+.mats_msgtype {
+    background-color: rgba(255, 255, 0, 0.2);
+    padding: 2px 4px 1px 4px;
+    border-radius: 3px;
 }
 
-/* :: The different parts of the report */
+/* Outgoing and incoming messages */
+.mats_msgs_details {
+    margin: 0 0 0 2em;
+}
+
+.mats_msgs_summary {
+    margin: 0 0 0 2em;
+}
+
+.mats_noshow {
+    display: none;
+}
+
+.mats_msgs_summary_btn, .mats_msgs_details_btn {
+    display: inline-block;
+    cursor: pointer;
+    background: #f0f0f0;
+    border-radius: 3px;
+    line-height: 1.1;
+    box-shadow: 0.5px 0.5px 0.5px 0px rgba(0, 0, 0, 0.2);
+    border: thin solid #e0e0e0;
+    /*margin: 0.2em 0 0.2em 0.5em;*/
+    padding: 0.05em 0.3em 0.01em 0.3em;
+    /*padding: 0;*/
+}
+
+.mats_msgs_summary_or_details_btn_active {
+    display: none;
+    /*background: #d0e0d0;*/
+}
+
+/* :: The different main parts of the report */
+
 .mats_info {
     margin: 0em 0em 0em 0.5em;
 }
 
-/* Boxes / wrappers */
+/* Boxes for each part. */
 .mats_factory, .mats_initiator, .mats_endpoint, .mats_stage {
     border-radius: 3px;
     box-shadow: 2px 2px 2px 0px rgba(0, 0, 0, 0.37);
@@ -224,9 +296,9 @@
     padding: 0.1em 0.5em 0.5em 0.5em;
 }
 
-.mats_initiator, .mats_endpoint {
-    margin: 0.5em 0.5em 2em 0.5em;
-}
+/*.mats_initiator, .mats_endpoint {*/
+/*    margin: 0.5em 0.5em 2em 0.5em;*/
+/*}*/
 
 .mats_factory {
     background: #f0f0f0;

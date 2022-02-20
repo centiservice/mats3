@@ -66,9 +66,9 @@ public class LocalStatsMatsInterceptor
      * but there is nothing hindering a user from creating a new initiatorId per initiation. Thus, if we go above a
      * certain number of such entries, we stop adding.
      * <p />
-     * Value is 100.
+     * Value is 500.
      */
-    public static final int MAX_NUMBER_OF_DYNAMIC_ENTRIES = 100;
+    public static final int MAX_NUMBER_OF_DYNAMIC_ENTRIES = 500;
 
     /**
      * Creates an instance of this interceptor and installs it on the provided {@link MatsInterceptable} (which most

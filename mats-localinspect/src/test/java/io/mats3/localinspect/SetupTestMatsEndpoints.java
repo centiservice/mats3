@@ -86,12 +86,12 @@ public class SetupTestMatsEndpoints {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE, Math.E * 2), sto);
             sto.number1 = Integer.MIN_VALUE / 2;
             sto.number2 = Math.E / 2;
-            // Introduce some "either/or" here:
+            // RANDOM: NEXT vs. REQUEST
             if (ThreadLocalRandom.current().nextFloat() > 0.5) {
-                context.request(baseService + SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall1", 4));
+                context.next(new DataTO(dto.number, dto.string + ":LeafCall1", 4));
             }
             else {
-                context.next(new DataTO(dto.number, dto.string + ":LeafCall1", 4));
+                context.request(baseService + SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall1", 4));
             }
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
@@ -104,7 +104,13 @@ public class SetupTestMatsEndpoints {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE / 4, Math.E / 4), sto);
             sto.number1 = Integer.MAX_VALUE / 2;
             sto.number2 = Math.PI / 2;
-            context.request(baseService + SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall3", 8));
+            // RANDOM: REPLY vs. REQUEST
+            if (ThreadLocalRandom.current().nextFloat() > 0.5) {
+                context.reply(new DataTO(dto.number, dto.string + ":EarlyReturn_FromMasterService", 4));
+            }
+            else {
+                context.request(baseService + SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall3", 8));
+            }
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MAX_VALUE / 2, Math.PI / 2), sto);
@@ -145,6 +151,7 @@ public class SetupTestMatsEndpoints {
         public DataTO(double number, String string) {
             this.number = number;
             this.string = string;
+            this.multiplier = 1;
         }
 
         public DataTO(double number, String string, int multiplier) {
