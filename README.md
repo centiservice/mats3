@@ -33,7 +33,7 @@ project" [MatsSocket](https://github.com/centiservice/matssocket).
 There's a document going into details [here](docs/WhatIsMats.md), and for the rationale behind
 Mats [here](docs/RationaleForMats.md).
 
-Trying to describe Mats in short form, from a few different angles:
+Trying to describe Mats in short form, from several different angles:
 
 ### A picture is worth...
 
@@ -47,6 +47,20 @@ boxes) of the Endpoints, but which are passed along with the message envelopes.
 Unit test code for this setup can be
 found [here](mats-api-test/src/test/java/io/mats3/api_test/stdexampleflow/Test_StandardExampleMatsFlow.java).
 
+### Better Inter Service Communication
+
+In a system made up of multiple services, e.g. a microservice architecture, asynchronous messaging gives many benefits
+compared to the more classical synchronous JSON-over-HTTP-based communications. Mats lets you use messaging without
+having to change your mental model of how to create inter service endpoints. For example:
+
+1. Receive a request
+2. Validate some arguments
+3. Call a collaborating service
+4. Calculate some intermediate result
+5. Call another collaborating service
+6. Calculate the return values
+7. Return the result
+
 ### Multi-stage, message-based Endpoints
 
 A _Mats Endpoint_ may consist of multiple _Stages_, where each Stage is an independent consumer and producer of
@@ -55,9 +69,9 @@ StageId, prefixed with (default) "mats.". The initial Stage's StageId is the End
 
 ### Invokable message-based Endpoints
 
-A Mats Endpoint's Stage may invoke another Mats Endpoint by issuing a Request-call (`processContext.request(..)`). The
-Stage's StageProcessor then goes back to listen for new messages on its queue. The Reply will be received by the
-Endpoint's next Stage.
+A Mats Endpoint's Stage may invoke another Mats Endpoint by issuing a Request-call (`processContext.request(..)`)
+targeting the EndpointId of the Endpoint you want to invoke. The current Stage's StageProcessor then goes back to listen
+for new messages on its queue. The Reply will be received by the Endpoint's next Stage.
 
 ### Messaging with a call stack!
 
@@ -65,7 +79,7 @@ Invoked Mats Endpoints does not need to know who called them, they just return t
 message called a Reply. The Stage that performs the invocation doesn't have to specify which StageId the Reply should go
 to, as Mats already knows this (it is the next stage of the Endpoint), and the invoked Endpoint doesn't have to look it
 up, as the message's envelope's call stack keeps track of which queue the Reply message should go to. _(An exception to
-this is the Initiation of a Mats Flow: If this is a Request, you have to specify which Endpoint should act as the
+this is the _Initiation_ of a Mats Flow: If this is a Request, you have to specify which Endpoint should act as the
 Terminator, getting the final Reply, typically terminating the Mats Flow by not producing any outgoing flow messages)_
 
 When a Stage N performs such an invocation of another Mats Endpoint, a State Object is left behind on the call stack,
@@ -80,8 +94,9 @@ mechanism which kicks in if an Endpoint for example invokes itself.
 The entire state of a _Mats Flow_ is kept in the message's envelope. No state is kept on the service instances
 (nodes / pods / hosts / servers - whatever unit carries the service instances' JVMs).
 
-This means that a service instance may be shut down without any consequence. If there are multiple instances, the other
-instances will just continue consuming from those queues as if nothing has happened (they might get a bit more load than
+This means that a service instance may be shut down without any consequences, and without the need of taking it out of
+any cluster or load balancer - it simply disconnects from the message broker. If there are multiple instances, the other
+instances will just continue consuming from those queues as if nothing has happened (they might get some more load than
 when they shared it with the now-offline instance). If there are no instances of this service left, inbound messages
 targeting this service's Endpoints' Stages will just be queued up on the broker's queues - and when a service instance
 comes back online, its Mats Endpoints will start consuming again, and the Mats Flows will continue as if nothing
@@ -92,13 +107,47 @@ happened. This makes maintenance, high availability, and deployment of new versi
 The multiple Stages of a Mats Endpoint are connected with a State Object, which are meant to emulate the local variables
 you'd have in the handling method of an ordinary HTTP-endpoint which performs synchronous HTTP calls to other services.
 
-### Asynchronous Inter Service Communication
+### Asynchronous. Very.
 
 When a Request is performed by a Stage _N_, this Stage's processing is typically finished for this Mats Flow, and the
 Stage's _StageProcessor_ goes back to fetching a new message waiting on its queue. Stage _N+1_ will also have a set of
-StageProcessors listening to the queue of this Stage, and eventually the Reply from the invoked Mats Endpoint will
-appear there, and any one of those StageProcessors (on any one of the instances running this service) will pick it up
+StageProcessors listening to the queue of its Stage, and eventually the Reply from the invoked Mats Endpoint will appear
+on that queue, and any one of those StageProcessors (on any one of the instances running this service) will pick it up
 and continue the processing.
+
+### Distributed. Much.
+
+A Mats Flow's execution will be spread out in pieces - over the Stages of the Endpoints involved in the Flow, and over
+the instances of the services that holds those Endpoints. The Mats Flow weaves a single thread through the
+_Mats Fabric_, jumping from StageProcessor to StageProcessor through the different instances of the services. However,
+this is just an emergent property of the system: When you code an Endpoint, you code and reason locally within that
+Endpoint.
+
+Each Stage's concurrency, i.e. the number of StageProcessors running, can be tuned independently to handle the total
+load of all the Mats Flows. If there is a choke point, you'll find it using metrics: There will typically be a build-up
+of messages on that Stage's queue (which also makes the head-of-queue message old). Intermittent small build-ups are
+totally fine if the overall total latency of the involved Mats Flows doesn't become a problem - but otherwise you may
+increase the concurrency for this particular Stage, or even increase the number of instances of the service holding the
+problematic Endpoint. Or, it might be external resources at this stage making the problem, e.g. the database which is
+employed: The query might be slow, or the database isn't beefy enough - this you will understand by looking at the stage
+metrics, the StageProcessing being slow.
+
+_Interactive_ Mats Flows, defined as "a human is waiting for the result", are given a "cut the line"-flag, and it
+carries this through all the stages it passes through. This means that even if a massive batch of Mats Flows is
+currently being processed with queues forming on several high-demand Endpoints, a user logging in to your system's user
+portal, or looking up a customer on the backoffice application, will still get "immediate" response, pretty much as if
+there was no load.
+
+### Centralized error handling
+
+If a Mats Flow, while weaving its line through the Mats Fabric, encounters an error, the message broker initiates
+automatic retrying. But if this doesn't pan out either, the current message will "pop out" of the Mats Fabric, ending up
+on the Dead Letter Queue. (The broker should preferably be set up to have individual DLQs per queue). This is monitored
+on the message broker.
+
+This makes the total system exceptionally distributed, but the _error handling_ is centralized. There is a separate
+project providing a Mats-specific view of the queues and DLQs on the message broker:
+[MatsBrokerMonitor](https://github.com/centiservice/matsbrokermonitor).
 
 ### Familiar feel
 
