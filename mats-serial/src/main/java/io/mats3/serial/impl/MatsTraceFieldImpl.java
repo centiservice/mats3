@@ -65,7 +65,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     // Note regarding signature: This is meant for the initial elements of the trace, kept in the trace.
     // The entire message is also signed, and the signature is kept in byte-sideloads.
 
-    private int cn; // Call Number. Not final due to clone-impl.
+    private int cn; // Call Number. Not final due to clone impl. Mutable; increases for each message passing in flow.
     private int tcn; // For "StackOverflow" detector: "Total Call Number", does not reset when initiation within stage.
     private String pmid; // If initiated within a flow (stage): Parent MatsMessageId.
 

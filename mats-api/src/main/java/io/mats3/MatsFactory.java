@@ -463,7 +463,7 @@ public interface MatsFactory extends StartStoppable {
          * out in some form of filter, placed in some ThreadLocal context, and then prepended to the TraceId that the
          * Mats flow is initiated with using the provided function. For example, if the the HTTP Request has a
          * X-Request-ID of "abc", and the Mats flow is initiated with TraceId "123", the resulting TraceId for the Mats
-         * flow would be "abc|123" (the pipe character being the preferred separator for composed TraceIds, i.e.
+         * flow would be "abc+123" (the plus character being the preferred separator for composed TraceIds, i.e.
          * TraceIds that are put together by successively more specific information).
          * <p />
          * The Function gets the entire user provided TraceId as input (as set via {@link MatsInitiate#traceId(String)},
