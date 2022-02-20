@@ -8,17 +8,17 @@ fully asynchronous messaging-based architecture, while being *almost* as simple 
 JSON-over-HTTP "REST" endpoints.
 
 *Currently, to play around with the library, the simplest option is to clone it and run `./gradlew clean check`. After
-this pans out, fire up your IDE and head over to the unit/integration tests
-of [API](mats-api-test/src/test/java/io/mats3/api_test), [Spring](mats-spring/src/test/java/io/mats3/spring)
-, [MatsFuturizer](mats-util/src/test/java/io/mats3/util/futurizer), and tests of testing
-tools [JUnit](mats-test-junit/src/test/java/io/mats3/test/junit)
-/[Jupiter](mats-test-jupiter/src/test/java/io/mats3/test/jupiter)
-/[Spring](mats-spring-test/src/test/java/io/mats3/spring/test). There's also a very rudimentary "dev area" for the
-Metrics
-Interceptor [MatsMetrics_TestJettyServer](mats-intercept-micrometer/src/test/java/io/mats3/test/metrics/MatsMetrics_TestJettyServer.java)
-, and same for Local
-Introspector [LocalHtmlInspect_TestJettyServer](mats-localinspect/src/test/java/io/mats3/localinspect/LocalHtmlInspect_TestJettyServer.java)
-, both of which you may start from your IDE.*
+this pans out, fire up your IDE and head over to the unit/integration tests of
+[API](mats-api-test/src/test/java/io/mats3/api_test), [Spring](mats-spring/src/test/java/io/mats3/spring),
+[MatsFuturizer](mats-util/src/test/java/io/mats3/util/futurizer), and tests of the testing tools for
+[JUnit](mats-test-junit/src/test/java/io/mats3/test/junit) /
+[Jupiter](mats-test-jupiter/src/test/java/io/mats3/test/jupiter) /
+[Spring](mats-spring-test/src/test/java/io/mats3/spring/test).
+There's also a very rudimentary "dev area" for the Metrics Interceptor
+[MatsMetrics_TestJettyServer](mats-intercept-micrometer/src/test/java/io/mats3/test/metrics/MatsMetrics_TestJettyServer.java), 
+and same for Local Introspector
+[LocalHtmlInspect_TestJettyServer](mats-localinspect/src/test/java/io/mats3/localinspect/LocalHtmlInspect_TestJettyServer.java),
+both of which you may start from your IDE.*
 
 To use Mats in a project, fetch [`mats-impl-jms`](https://mvnrepository.com/artifact/io.mats3/mats-impl-jms)
 from [Maven Central](https://mvnrepository.com/artifact/io.mats3).
