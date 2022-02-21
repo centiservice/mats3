@@ -20,8 +20,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling.PoolingKeyInitiator;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling.PoolingKeyStageProcessor;
 import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
@@ -35,6 +33,7 @@ import org.h2.jdbcx.JdbcConnectionPool;
 import org.h2.jdbcx.JdbcDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import ch.qos.logback.core.CoreConstants;
 import io.mats3.MatsFactory;
@@ -42,8 +41,6 @@ import io.mats3.MatsInitiator.KeepTrace;
 import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
-import io.mats3.localinspect.SetupTestMatsEndpoints.DataTO;
-import io.mats3.localinspect.SetupTestMatsEndpoints.StateTO;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.broker.MatsTestBroker;
@@ -149,6 +146,12 @@ public class LocalHtmlInspect_TestJettyServer {
             setup.setupMatsTestEndpoints(_matsFactory1, SERVICE_ORDER, 3);
             setup.setupMatsTestEndpoints(_matsFactory1, SERVICE_DISPATCH, 3);
             setup.setupMatsTestEndpoints(_matsFactory2, SERVICE_DELIVERY, 2);
+
+            // Fire up a Spring context
+            AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext();
+            ctx.register(SpringTestMatsEndpoints.class);
+            ctx.getBeanFactory().registerSingleton("matsFactory", _matsFactory1);
+            ctx.refresh();
 
             _matsFactory1.start();
             _matsFactory2.start();
@@ -272,7 +275,7 @@ public class LocalHtmlInspect_TestJettyServer {
             sendSomeRequests(out, matsFactory2, SERVICE_DISPATCH);
             double msTaken_TotalProcess = (System.nanoTime() - nanosAsStart_entireProcedure) / 1_000_000d;
 
-            out.println("REQUESTS SENT, time taken: ["+msTaken_TotalProcess+" ms]");
+            out.println("REQUESTS SENT, time taken: [" + msTaken_TotalProcess + " ms]");
             out.flush();
 
             out.println("\nPerforming MatsFuturizers..");
@@ -327,18 +330,21 @@ public class LocalHtmlInspect_TestJettyServer {
             out.println("Sending request ..");
             StateTO sto = new StateTO(420, 420.024);
             DataTO dto = new DataTO(42, "TheAnswer");
-            matsFactory.getDefaultInitiator().initiateUnchecked(
-                    (init) -> {
-                        for (int i = 0; i < 200; i++) {
-                            init.traceId("traceId" + i)
-                                    .keepTrace(KeepTrace.MINIMAL)
-                                    .nonPersistent()
-                                    .from("init_to_" + applicationName)
-                                    .to(applicationName + SetupTestMatsEndpoints.SERVICE)
-                                    .replyTo(applicationName + SetupTestMatsEndpoints.TERMINATOR, sto)
-                                    .request(dto);
-                        }
-                    });
+            for (int i = 1; i <= 10; i++) {
+                int finalI = i;
+                matsFactory.getDefaultInitiator().initiateUnchecked(
+                        (init) -> {
+                            for (int j = 1; j <= 20; j++) {
+                                init.traceId("traceId" + (finalI * j - 1))
+                                        .keepTrace(KeepTrace.MINIMAL)
+                                        .nonPersistent()
+                                        .from("init_to_" + applicationName)
+                                        .to(applicationName + SetupTestMatsEndpoints.SERVICE)
+                                        .replyTo(applicationName + SetupTestMatsEndpoints.TERMINATOR, sto)
+                                        .request(dto);
+                            }
+                        });
+            }
             out.println(".. Request sent.");
             out.flush();
         }

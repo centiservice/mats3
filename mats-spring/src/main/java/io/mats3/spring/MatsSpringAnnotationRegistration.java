@@ -61,6 +61,7 @@ import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsEndpoint.ProcessContextWrapper;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.MessageReference;
+import io.mats3.MatsStage;
 import io.mats3.spring.MatsClassMapping.Stage;
 
 /**
@@ -543,7 +544,7 @@ public class MatsSpringAnnotationRegistration implements
 
         final Class<?> replyType = method.getReturnType();
 
-        // :: Check whether it a Subscription is wanted
+        // :: Check whether a Subscription is wanted
         boolean subscription = matsMapping.subscription();
         // Currently this is only allowed for terminators, hence it shall have void return type
         if (subscription && (!replyType.getName().equals("void"))) {
@@ -565,12 +566,14 @@ public class MatsSpringAnnotationRegistration implements
         // Get an argument array for the method populated with default values for all types: Primitives cannot be null.
         Object[] templateArgsArray = defaultArgsArray(method);
 
+        String creationInfo = creationInfoForMethod(matsMapping, method);
+        MatsEndpoint<?, ?> matsEndpoint;
         // ?: Do we have a void return value?
         if (replyType.getName().equals("void")) {
             // -> Yes, void return: Setup Terminator.
             typeEndpoint = "Terminator";
             if (subscription) {
-                matsFactoryToUse.subscriptionTerminator(matsMapping.endpointId(), stoType, dtoType,
+                matsEndpoint = matsFactoryToUse.subscriptionTerminator(matsMapping.endpointId(), stoType, dtoType,
                         (processContext, state, incomingDto) -> invokeMatsLambdaMethod(
                                 matsMapping, method, bean, templateArgsArray,
                                 processContextParamF, processContext,
@@ -578,7 +581,7 @@ public class MatsSpringAnnotationRegistration implements
                                 stoParamF, state));
             }
             else {
-                matsFactoryToUse.terminator(matsMapping.endpointId(), stoType, dtoType,
+                matsEndpoint = matsFactoryToUse.terminator(matsMapping.endpointId(), stoType, dtoType,
                         (processContext, state, incomingDto) -> invokeMatsLambdaMethod(
                                 matsMapping, method, bean, templateArgsArray,
                                 processContextParamF, processContext,
@@ -592,20 +595,21 @@ public class MatsSpringAnnotationRegistration implements
             if (stoParamF != -1) {
                 // -> Yes, so then we need to hack together a "single" endpoint out of a staged with single lastStage.
                 typeEndpoint = "SingleStage w/State";
-                MatsEndpoint<?, ?> ep = matsFactoryToUse.staged(matsMapping.endpointId(), replyType, stoType);
+                matsEndpoint = matsFactoryToUse.staged(matsMapping.endpointId(), replyType, stoType);
                 // NOTE: .lastStage() invokes .finishSetup()
-                ep.lastStage(dtoType, (processContext, state, incomingDto) -> {
+                MatsStage<?, ?, ?> matsStage = matsEndpoint.lastStage(dtoType, (processContext, state, incomingDto) -> {
                     Object reply = invokeMatsLambdaMethod(matsMapping, method, bean, templateArgsArray,
                             processContextParamF, processContext,
                             dtoParamF, incomingDto,
                             stoParamF, state);
                     return helperCast(reply);
                 });
+                matsStage.getStageConfig().setCreationInfo(creationInfo);
             }
             else {
                 // -> No state parameter, so use the proper Single endpoint.
                 typeEndpoint = "SingleStage";
-                matsFactoryToUse.single(matsMapping.endpointId(), replyType, dtoType,
+                matsEndpoint = matsFactoryToUse.single(matsMapping.endpointId(), replyType, dtoType,
                         (processContext, incomingDto) -> {
                             Object reply = invokeMatsLambdaMethod(matsMapping, method, bean, templateArgsArray,
                                     processContextParamF, processContext,
@@ -613,8 +617,12 @@ public class MatsSpringAnnotationRegistration implements
                                     -1, null);
                             return helperCast(reply);
                         });
+                matsEndpoint.getStages().get(0).getStageConfig().setCreationInfo(creationInfo);
             }
         }
+        // Set creation-info on the MatsEndpoint
+        matsEndpoint.getEndpointConfig().setCreationInfo(creationInfo);
+
         if (log.isInfoEnabled()) {
             String procCtxParamDesc = processContextParam != -1 ? "param#" + processContextParam : "<not present>";
             String stoParamDesc = stoParam != -1 ? "param#" + stoParam + ":" + stoType.getSimpleName()
@@ -695,6 +703,7 @@ public class MatsSpringAnnotationRegistration implements
                 matsEndpointSetup.matsFactoryBeanName());
         MatsEndpoint<?, ?> endpoint = matsFactoryToUse
                 .staged(matsEndpointSetup.endpointId(), matsEndpointSetup.reply(), matsEndpointSetup.state());
+        endpoint.getEndpointConfig().setCreationInfo(creationInfoForMethod(matsEndpointSetup, method));
 
         // Invoke the @MatsEndpointSetup-annotated setup method
         Object[] args = new Object[paramsLength];
@@ -843,6 +852,8 @@ public class MatsSpringAnnotationRegistration implements
             throw new MatsSpringConfigException("Could not create endpoint for @MatsClassMapping endpoint at class '"
                     + classNameWithoutPackage(bean) + "'", e);
         }
+        ep.getEndpointConfig()
+                .setCreationInfo("@MatsClassMapping " + matsClass.getSimpleName() + ";" + matsClass.getName());
 
         // :: Hold on to all non-null fields of the bean - these are what Spring has injected. Make "template".
 
@@ -969,7 +980,7 @@ public class MatsSpringAnnotationRegistration implements
             // Force accessible, i.e. ignore visibility modifiers.
             method.setAccessible(true);
 
-            ep.stage(incomingClass, (originalProcessContext, state, incomingDto) -> {
+            MatsStage<?, ?, ?> stage = ep.stage(incomingClass, (originalProcessContext, state, incomingDto) -> {
                 Consumer<ProcessContext<?>> setFields = (processContext) -> {
                     // :: Set the "template fields" from original Dependency Injection of @Service.
                     for (Entry<Field, Object> entry : templateFields.entrySet()) {
@@ -1070,6 +1081,10 @@ public class MatsSpringAnnotationRegistration implements
                     originalProcessContext.reply(helperCast(o));
                 }
             });
+            Stage stageAnnotation = stages.get(method);
+            stage.getStageConfig().setCreationInfo("@Stage(" + stageAnnotation.ordinal() + ") "
+                    + method.getDeclaringClass().getSimpleName() + "." + method.getName() + "(..);"
+                    + method.getDeclaringClass().getName());
         });
         // This endpoint is finished set up.
         ep.finishSetup();
@@ -1489,6 +1504,11 @@ public class MatsSpringAnnotationRegistration implements
         public MatsSpringInvocationTargetException(String message, Throwable cause) {
             super(message, cause);
         }
+    }
+
+    private static String creationInfoForMethod(Annotation annotation, Method method) {
+        return "@" + annotation.annotationType().getSimpleName() + " " + method.getDeclaringClass().getSimpleName()
+                + "." + method.getName() + "(..);" + method.getDeclaringClass().getName();
     }
 
     private static String classNameWithoutPackage(Object object) {
