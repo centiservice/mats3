@@ -8,19 +8,27 @@ dependencies {
     // Also the few tools in there should be transitive, so want it exported as transitive dep. Using API.
     api project(':mats-test')
 
-    // Need the MatsSerializer_DefaultJson
+    // Need an implementation of the Mats API
+    implementation project(":mats-impl-jms")
+    // Need the MatsSerializerJson
     implementation project(":mats-serial-json")
-
-    // The Extension_MatsEndpoint is annotated with @Inject to hook into Spring injection if relevant.
+    // The Rule_MatsEndpoint is annotated with @Inject to hook into Spring injection if relevant.
     implementation "javax.inject:javax.inject:$javaxInjectVersion"
+
+    // H2 Database, for database tests - but we do not want to make this dependency transitive, so compileOnly.
+    compileOnly "com.h2database:h2:$h2Version"
 
     // :: TEST
 
     testImplementation project(':mats-spring-test')
     testImplementation project(':mats-util')
-    // Logging
-    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
-    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+    testImplementation project(':mats-test-broker')
+
+    // Single Spring test inside
+    testImplementation ("org.springframework:spring-test:$springVersionForJupiter") {
+        exclude group:'junit', module:'junit'
+    }
+    testImplementation "org.springframework:spring-context:$springVersionForJupiter"
 
     // The Jupiter Runtime..?
     testImplementation "org.junit.jupiter:junit-jupiter-api:$jupiterVersion"
@@ -28,10 +36,9 @@ dependencies {
     testImplementation "org.junit.platform:junit-platform-launcher:$jupiterPlatformVersion"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:$jupiterVersion"
 
-    testImplementation ("org.springframework:spring-test:$springVersionForJupiter") {
-        exclude group:'junit', module:'junit'
-    }
-    testImplementation "org.springframework:spring-context:$springVersionForJupiter"
+    // Logging
+    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
 }
 
 test {

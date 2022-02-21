@@ -1,13 +1,20 @@
 // mats-util
 
 dependencies {
-    compile project(':mats-api')
-    compile project(':mats-intercept-api')
+    implementation project(':mats-api')
+    implementation project(':mats-intercept-api')
 
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
 
     // :: TEST
+
+    // Mats SpringConfig, since we want to test the "debug info" from SpringConfig.
+    testImplementation project(":mats-spring")
+
+    // Spring
+    testImplementation "org.springframework:spring-context:$springVersion"
+    testImplementation "org.springframework:spring-tx:$springVersion"
 
     // The JUnit library
     testImplementation "junit:junit:$junitVersion"

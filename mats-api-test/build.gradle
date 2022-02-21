@@ -4,10 +4,18 @@ dependencies {
 
     // :: TEST (this is ONLY a test project! No deps for main/java)
 
-    // Need the testing tools, using JUnit - this pulls in quite a bit, including the Mats API and the JMS Impl.
+    // Need the testing tools, using JUnit
     testImplementation project(":mats-test-junit")
-    // Need the MatsSerializerJson, which is not transitively given by ':mats-test-junit'
+    // Need the Mats JMS Impl
+    testImplementation project(":mats-impl-jms")
+    // Need the MatsSerializerJson
     testImplementation project(":mats-serial-json")
+    // Some test uses the MatsTestBroker directly.
+    testImplementation project(':mats-test-broker')
+    // JMS spec 1.1-rev-1: Some tests "hack" the JMS API.
+    testImplementation "javax.jms:jms-api:$jmsApiVersion"
+    // H2 Database, for the database tests
+    testImplementation "com.h2database:h2:$h2Version"
     // Logging
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"

@@ -20,7 +20,6 @@ import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.impl.jms.JmsMatsTransactionManager;
 import io.mats3.impl.jms.JmsMatsTransactionManager_Jms;
-import io.mats3.localinspect.LocalStatsMatsInterceptor;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.spring.jms.factories.SpringJmsMatsFactoryWrapper;
 import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx;
@@ -203,9 +202,6 @@ public class TestSpringMatsFactoryProvider {
                 .createMatsFactory(appName, "#testing#", jmsSessionHandler, springSqlTxMgr, matsSerializer);
         // Set concurrency.
         matsFactory.getFactoryConfig().setConcurrency(concurrency);
-
-        // TEMPORARY? Install the LocalStatsMatsInterceptor, to get it tested.
-        LocalStatsMatsInterceptor.install(matsFactory);
 
         // Now wrap this in a wrapper that will close the LocalVM ActiveMQ broker upon matsFactory.stop().
         MatsFactoryStopLocalVmBrokerWrapper matsFactoryStopLocalVmBrokerWrapper = new MatsFactoryStopLocalVmBrokerWrapper(

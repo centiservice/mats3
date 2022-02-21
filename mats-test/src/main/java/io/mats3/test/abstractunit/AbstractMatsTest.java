@@ -15,7 +15,6 @@ import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
-import io.mats3.localinspect.LocalStatsMatsInterceptor;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.MatsTestLatch;
@@ -241,9 +240,6 @@ public abstract class AbstractMatsTest<Z> {
 
         // Set name
         matsFactory.getFactoryConfig().setName(this.getClass().getSimpleName());
-
-        // TEMPORARY? Install the LocalStatsMatsInterceptor, to get it tested.
-        LocalStatsMatsInterceptor.install(matsFactory);
 
         /*
          * For most test scenarios, it really makes little meaning to have a concurrency of more than 1 - unless

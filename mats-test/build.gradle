@@ -2,31 +2,35 @@
 
 dependencies {
     // The Mats API
-    compile project(':mats-api')
-    // We need an implementation of the Mats API (also pulls the API..)
-    compile project(':mats-impl-jms')
-    // We want the standard logging, which will be auto-installed by being on the classpath.
-    compile project(':mats-intercept-logging')
-    // TEMPORARY? Also pulling in the metrics, to get a test of it for all types of mats flows. (autoinstalls)
-    compile project(':mats-intercept-micrometer')
-    // TEMPORARY? Also pulling in the LocalStatsMatsInterceptor, to get it tested. (explicit install)
-    compile project(':mats-localinspect')
+    api project(':mats-api')
     // The MatsFuturizer is provided as a convenience in the Rule_Mats and Extension_Mats
-    compile project(':mats-util')
+    api project(':mats-util')
+
+    // We need an implementation of the Mats API
+    implementation project(':mats-impl-jms')
 
     // Backing message brokers:
     // We need a backing JMS-based Message Broker; MatsTestBroker is a tool that provides easy instantiation of such.
     // Note that this does NOT transitively depend on any broker server or client, as the MatsTestBroker also is pulled
     // in by mats-spring-jms (which is meant for prod code) in conjunction with that toolset's readiness for testing.
-    compile project(':mats-test-broker')
+    implementation project(':mats-test-broker')
     // .. therefore, also pull in ActiveMQ Broker with Client
-    compile "org.apache.activemq:activemq-broker:$activeMqVersion"
+    implementation "org.apache.activemq:activemq-broker:$activeMqVersion"
     // .. and pull in The Artemis (Apache ActiveMQ Artemis) Client and Server, since you can choose to test with it.
-    compile "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
-    compile "org.apache.activemq:artemis-server:$artemisMqVersion"
+    implementation "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
+    implementation "org.apache.activemq:artemis-server:$artemisMqVersion"
 
-    // H2 Database, for database tests
-    compile "com.h2database:h2:$h2Version"
+    // H2 Database, for database tests - but we do not want to make this dependency transitive, so compileOnly.
+    compileOnly "com.h2database:h2:$h2Version"
+
+    // ----- TESTING
+
+    // We want the standard logging, which will be auto-installed by being on the classpath.
+    testImplementation project(':mats-intercept-logging')
+    // TEMPORARY? Also pulling in the metrics, to get a test of it for all types of mats flows. (autoinstalls)
+    testImplementation project(':mats-intercept-micrometer')
+    // TEMPORARY? Also pulling in the LocalStatsMatsInterceptor, to get it tested. (explicit install)
+    testImplementation project(':mats-localinspect')
 }
 
 publishing {

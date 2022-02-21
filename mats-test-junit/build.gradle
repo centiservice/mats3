@@ -8,16 +8,26 @@ dependencies {
     // Also the few tools in there should be transitive, so want it exported as transitive dep. Using API.
     api project(':mats-test')
 
+    // Need an implementation of the Mats API
+    implementation project(":mats-impl-jms")
     // Need the MatsSerializerJson
     implementation project(":mats-serial-json")
-
     // The Rule_MatsEndpoint is annotated with @Inject to hook into Spring injection if relevant.
     implementation "javax.inject:javax.inject:$javaxInjectVersion"
+
+    // H2 Database, for database tests - but we do not want to make this dependency transitive, so compileOnly.
+    compileOnly "com.h2database:h2:$h2Version"
 
     // :: TEST
 
     testImplementation project(':mats-spring-test')
     testImplementation project(':mats-util')
+    testImplementation project(':mats-test-broker')
+
+    // Single Spring test inside
+    testImplementation "org.springframework:spring-test:$springVersion"
+    testImplementation "org.springframework:spring-context:$springVersion"
+
     // Logging
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"

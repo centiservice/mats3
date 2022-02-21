@@ -10,14 +10,17 @@ dependencies {
 
     // ===== TEST
 
-    // Include Prometheus MeterRegistry
-    testImplementation "io.micrometer:micrometer-registry-prometheus:$micrometerVersion"
-
+    // Need the Mats JMS Impl
+    testImplementation project(":mats-impl-jms")
     // We need an implementation of the MatsSerializer, the MatsSerializer_DefaultJson.
     testImplementation project(':mats-serial-json')
-
-    // Need the testing tools, using JUnit - this pulls in quite a bit, including the Mats API and the JMS Impl.
+    // Need the testing tools, using JUnit
     testImplementation project(":mats-test-junit")
+    // Using the MatsTestBroker directly
+    testImplementation project(":mats-test-broker")
+
+    // Include Prometheus MeterRegistry
+    testImplementation "io.micrometer:micrometer-registry-prometheus:$micrometerVersion"
 
     // Base Jetty Server
     testImplementation "org.eclipse.jetty:jetty-server:$jettyVersion"

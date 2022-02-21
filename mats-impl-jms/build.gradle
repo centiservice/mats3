@@ -2,16 +2,16 @@
 
 dependencies {
     // This project is the JMS implementation of the MATS API.
-    compile project(":mats-api")
+    api project(":mats-api")
 
     // It implements the "Mats Intercept API"
-    compile project(":mats-intercept-api")
+    api project(":mats-intercept-api")
 
     // The JMS implementation of MATS relies on the MatsTrace and MatsSerializer "implementation utility".
-    compile project(":mats-serial")
+    api project(":mats-serial")
 
     // JMS spec 1.1-rev-1
-    compile "javax.jms:jms-api:$jmsApiVersion"
+    api "javax.jms:jms-api:$jmsApiVersion"
 
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"

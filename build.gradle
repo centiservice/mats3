@@ -1,6 +1,6 @@
 // Customize the Gradle Wrapper generation task.
 wrapper {
-    gradleVersion = "6.2"
+    gradleVersion = "7.4"
     // Use "-all"-version of distribution, since IntelliJ works better then..
     setDistributionType(Wrapper.DistributionType.ALL)
 }

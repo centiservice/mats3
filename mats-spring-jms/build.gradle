@@ -1,50 +1,52 @@
 // mats-spring-jms
 
 dependencies {
-    compile project(":mats-spring")
-    compile project(":mats-impl-jms")
-    compile project(":mats-util")
+    api project(":mats-spring")
+    api project(":mats-impl-jms")
+    api project(":mats-util")
 
-    compile "org.springframework:spring-context:$springVersion"
-    compile "org.springframework:spring-tx:$springVersion"
-    compile "org.springframework:spring-jdbc:$springVersion"
-    compile "javax.annotation:javax.annotation-api:$javaxAnnotationVersion"
+    implementation "javax.annotation:javax.annotation-api:$javaxAnnotationVersion"
 
     // :: compileOnly
-
+    // Spring: Bring your own, so compileOnly
+    compileOnly "org.springframework:spring-context:$springVersion"
+    compileOnly "org.springframework:spring-tx:$springVersion"
+    compileOnly "org.springframework:spring-jdbc:$springVersion"
     // The ScenarioConnectionFactoryProducer employs the MatsTestBroker if in testing
     // Don't want this in any production classpath, so bring your own to the testing classpath of your project.
     compileOnly project(":mats-test-broker")
-//    // TODO: Is this true?
-//    // The ActiveMQ Client, used as default in the ScenarioConnectionFactoryProducer when in test modes
-//    // 'mats-localhost' (connect to localhost:61616) and 'mats-localvm' (connects to MatsTestBroker).
-//    // Don't want this in any production classpath, so bring your own to the testing classpath of your project.
-//    compileOnly "org.apache.activemq:activemq-client:$activeMqVersion"
-
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
 
-
     // :: TEST
 
-    testCompile project(":mats-test")
-    testCompile project(":mats-spring")
-    testCompile project(":mats-serial-json")
-    testCompile project(":mats-spring-test")
+
+    testImplementation project(":mats-test")
+    testImplementation project(":mats-spring")
+    testImplementation project(":mats-serial-json")
+    testImplementation project(":mats-spring-test")
+    testImplementation project(":mats-test-broker")
     // RandomString
-    testCompile project(":mats-util")
+    testImplementation project(":mats-util")
+
+    // Using @Inject
+    implementation "javax.inject:javax.inject:$javaxInjectVersion"
     // The JUnit library
-    testCompile "junit:junit:$junitVersion"
+    testImplementation "junit:junit:$junitVersion"
     // Using H2 for testing of database tx.
-    testCompile "com.h2database:h2:$h2Version"
+    testImplementation "com.h2database:h2:$h2Version"
+
+    // Spring: compileOnly above - we need it to run
+    // Annotation
+    testImplementation "org.springframework:spring-context:$springVersion"
     // Using @RunWith(SpringRunner.class)
-    testCompile "org.springframework:spring-test:$springVersion"
+    testImplementation "org.springframework:spring-test:$springVersion"
     // Test with HibernateTransactionManager
-    testCompile "org.springframework:spring-orm:$springVersion"
-    testCompile "org.hibernate:hibernate-core:$hibernateVersion"
+    testImplementation "org.springframework:spring-orm:$springVersion"
+    testImplementation "org.hibernate:hibernate-core:$hibernateVersion"
     // Using SLF4J and Logback
-    testCompile "org.slf4j:log4j-over-slf4j:$slf4jVersion"
-    testCompile "ch.qos.logback:logback-classic:$logbackVersion"
+    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
 }
 
 publishing {

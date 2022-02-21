@@ -1,21 +1,29 @@
 // mats-spring
 
 dependencies {
-    // :: DEPS
-    compile project(":mats-api")
+    api project(":mats-api")
 
-    compile "org.springframework:spring-context:$springVersion"
-    compile "org.springframework:spring-tx:$springVersion"
-    compile "javax.inject:javax.inject:$javaxInjectVersion"
+    implementation "javax.inject:javax.inject:$javaxInjectVersion"
+
+    compileOnly "org.springframework:spring-context:$springVersion"
+    compileOnly "org.springframework:spring-tx:$springVersion"
 
     // :: TEST-DEPS
-    testCompile project(":mats-test-junit")
-    testCompile project(":mats-serial-json")
-    testCompile project(":mats-spring-test")
+
+    testImplementation project(":mats-impl-jms")
+    testImplementation project(":mats-test-junit")
+    testImplementation project(":mats-serial-json")
+    testImplementation project(":mats-test-broker")
+    testImplementation project(":mats-spring-test")
+
+    // Spring: compileOnly above - we now need it to run.
+    testImplementation "org.springframework:spring-test:$springVersion"
+    testImplementation "org.springframework:spring-context:$springVersion"
+    testImplementation "org.springframework:spring-tx:$springVersion"
 
     // Logging.
-    testCompile "org.slf4j:log4j-over-slf4j:$slf4jVersion"
-    testCompile "ch.qos.logback:logback-classic:$logbackVersion"
+    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
 }
 
 publishing {

@@ -1,15 +1,16 @@
 // mats-util
 
 dependencies {
-    compile project(':mats-api')
+    implementation project(':mats-api')
 
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
-
     // JMS spec 1.1-rev-1. This is only relevant for the JMS ConnectionFactoryWrapper, and you must depend yourself.
     compileOnly "javax.jms:jms-api:$jmsApiVersion"
 
     // :: TEST
+
+    testImplementation "com.h2database:h2:$h2Version"
 
     // The JUnit library
     testImplementation "junit:junit:$junitVersion"
