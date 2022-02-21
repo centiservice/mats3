@@ -14,24 +14,44 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
 
 /**
  * Provides a full MATS harness for unit testing by creating {@link JmsMatsFactory MatsFactory} utilizing an in-vm
- * Active MQ broker.
- * <p>
- * By default the {@link #create() rule} will create a {@link MatsSerializerJson} which will be the serializer
+ * Active MQ broker, and optionally a {@link TestH2DataSource} for database tests.
+ * <p/>
+ * <b>Notice: If you are in a Spring-context, this is probably not what you are looking for</b>, as the MatsFactory then
+ * should reside as a bean in the Spring context. Look in the 'mats-spring-test' package for testing tools for Spring.
+ * <p/>
+ * By default the {@link #create() extension} will create a {@link MatsSerializerJson} which will be the serializer
  * utilized by the created {@link JmsMatsFactory MatsFactory}. Should one want to use a different serializer which
  * serializes to the type of {@link String} then this can be specified using the method {@link #create(MatsSerializer)}.
  * However should one want to specify a serializer which serializes into anything other than {@link String}, then
  * {@link Extension_MatsGeneric} offers this possibility.
- * <p>
- * {@link Extension_Mats} shall be annotated with {@link org.junit.jupiter.api.extension.RegisterExtension} and the
- * instance field shall be static for the Jupiter life cycle to pick up the extension at the correct time.
- * {@link Extension_Mats} can be viewed in the same manner as one would view a ClassRule in JUnit4.
- * <p>
+ * <p/>
+ * {@link Extension_Mats} shall be annotated with
+ * {@link org.junit.jupiter.api.extension.RegisterExtension @RegisterExtension} and the instance field shall be static
+ * for the Jupiter life cycle to pick up the extension at the correct time. {@link Extension_Mats} can be viewed in the
+ * same manner as one would view a ClassRule in JUnit4.
+ * <p/>
  * Example:
  *
  * <pre>
  *     public class YourTestClass {
  *         &#64;RegisterExtension
  *         public static final Extension_Mats MATS = Extension_Mats.createRule()
+ *     }
+ * </pre>
+ *
+ * To get a variant that has a {@link TestH2DataSource} contained, and the MatsFactory set up with transactional
+ * handling of that, use the {@link #createWithDb()} methods. In this case, you might want to clean the database before
+ * each test method, which can be accomplished as such:
+ *
+ * <pre>
+ *     public class YourTestClass {
+ *         &#64;RegisterExtension
+ *         public static final Extension_Mats MATS = Extension_Mats.createRule()
+ *
+ *         &#64;Before  // Will clean the database before each test - if this is what you want.
+ *         public void cleanDatabase() {
+ *             MATS.getDataSource().cleanDatabase()
+ *         }
  *     }
  * </pre>
  *

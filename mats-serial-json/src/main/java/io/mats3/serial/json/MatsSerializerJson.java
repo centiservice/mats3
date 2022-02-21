@@ -421,7 +421,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
                 outputStream.close();
             }
             catch (IOException e) {
-                // Just in case this leaves the Inflater in some strange stage, ditch it instead of reuse.
+                // Just in case this leaves the Deflater in some strange state, ditch it instead of reuse.
                 // NOT setting reuseDeflater to true.
                 throw new DecompressionException("Shall not throw IOException here.", e);
             }
@@ -459,6 +459,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         boolean reuseInflater = false;
         try {
             inflater.setInput(data, offset, length);
+            // TODO: Optimize: Decompress directly to bytearray: toByteArray() creates a new.
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream(bestGuessDecompressedSize);
             byte[] buffer = new byte[4096];
             while (!inflater.finished()) {
@@ -467,7 +468,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
                     outputStream.write(buffer, 0, count);
                 }
                 catch (DataFormatException e) {
-                    // Just in case this leaves the Inflater in some strange stage, ditch it instead of reuse.
+                    // Just in case this leaves the Inflater in some strange state, ditch it instead of reuse.
                     // NOT setting reuseInflater to true.
                     throw new DecompressionException("DataFormatException was bad here.", e);
                 }
