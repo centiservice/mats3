@@ -280,14 +280,14 @@ public class LocalStatsMatsInterceptor
             if (msg.getMessageType() == MessageType.REQUEST) {
                 // -> Yes, REQUEST.
                 // Set nanoTime and nodename in extra-state, for the final REPLY to terminator.
-                msg.setExtraStateForReplyOrNext(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS, System.nanoTime());
+                msg.setExtraStateForReplyOrNext(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS, context.getStartedNanoTime());
                 msg.setExtraStateForReplyOrNext(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NODENAME,
                         context.getInitiator().getParentFactory().getFactoryConfig().getNodename());
             }
             else {
                 // -> No, so SEND or PUBLISH
                 // Set nanoTime and nodename in sideload, for the receiving endpoint
-                msg.addString(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS, Long.toString(System.nanoTime()));
+                msg.addString(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS, Long.toString(context.getStartedNanoTime()));
                 msg.addString(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NODENAME,
                         context.getInitiator().getParentFactory().getFactoryConfig().getNodename());
             }
@@ -363,25 +363,31 @@ public class LocalStatsMatsInterceptor
         // ?: Is this the initial stage, AND is it a Terminator
         if (stageStats.isInitial() && endpointStats.isTerminatorEndpoint()) {
             // -> Yes, initial and Terminator.
+            boolean initiatedOnSameApp = stage.getParentEndpoint().getParentFactory()
+                    .getFactoryConfig().getAppName().equals(p_context.getInitiatingAppName());
             // ?: Is this a REPLY?
             if (i_context.getIncomingMessageType() == MessageType.REPLY) {
                 // -> Yes, this is a reply - thus extra-state is employed
-                String initiatorNodename = i_context.getIncomingExtraState(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NODENAME,
-                        String.class).orElse(null);
-                boolean sameNode = stage.getParentEndpoint().getParentFactory().getFactoryConfig()
-                        .getNodename().equals(initiatorNodename);
+                // ?: Is this from the same app?
+                if (initiatedOnSameApp) {
+                    // -> Yes, initiated and received on same app - then only use if same nodename
+                    String initiatorNodename = i_context.getIncomingExtraState(
+                            EXTRA_STATE_OR_SIDELOAD_INITIATOR_NODENAME, String.class).orElse(null);
+                    boolean sameNode = stage.getParentEndpoint().getParentFactory().getFactoryConfig()
+                            .getNodename().equals(initiatorNodename);
 
-                // ?: Is this the same node?
-                if (sameNode) {
-                    // -> Yes, same node, and should thus also have extra-state present
-                    Long initiatedNanoTime = i_context.getIncomingExtraState(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS,
-                            Long.class).orElse(0L);
-                    long nanosSinceInit = System.nanoTime() - initiatedNanoTime;
-                    endpointStats.recordInitiatorToTerminatorTimeNanos(incomingMessageRepresentation,
-                            nanosSinceInit, true);
+                    // ?: Is this the same node? (Only record if so, since we know that there must be such timings)
+                    if (sameNode) {
+                        // -> Yes, same node, and should thus also have extra-state present
+                        Long initiatedNanoTime = i_context.getIncomingExtraState(
+                                EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS, Long.class).orElse(0L);
+                        long nanosSinceInit = System.nanoTime() - initiatedNanoTime;
+                        endpointStats.recordInitiatorToTerminatorTimeNanos(incomingMessageRepresentation,
+                                nanosSinceInit, true);
+                    }
                 }
                 else {
-                    // -> No, not same node, so use Mats' initiatedTimestamp (which is millis-since-epoch).
+                    // -> No, not from same app, so use Mats' initiatedTimestamp (which is millis-since-epoch).
                     long millisSinceInit = System.currentTimeMillis() - p_context.getInitiatingTimestamp()
                             .toEpochMilli();
                     endpointStats.recordInitiatorToTerminatorTimeNanos(incomingMessageRepresentation,
@@ -390,21 +396,23 @@ public class LocalStatsMatsInterceptor
             }
             else {
                 // -> No, this is not a REPLY, thus it is SEND or PUBLISH - thus sideloads is employed
-                String initiatorNodename = p_context.getString(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NODENAME);
-                boolean sameNode = stage.getParentEndpoint().getParentFactory().getFactoryConfig()
-                        .getNodename().equals(initiatorNodename);
+                if (initiatedOnSameApp) {
+                    String initiatorNodename = p_context.getString(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NODENAME);
+                    boolean sameNode = stage.getParentEndpoint().getParentFactory().getFactoryConfig()
+                            .getNodename().equals(initiatorNodename);
 
-                // ?: Is this the same node?
-                if (sameNode) {
-                    // -> Yes, same node, and thus we should also have nano timing in sideload
-                    long initiatedNanoTime = Long.parseLong(p_context.getString(
-                            EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS));
-                    long nanosSinceInit = System.nanoTime() - initiatedNanoTime;
-                    endpointStats.recordInitiatorToTerminatorTimeNanos(incomingMessageRepresentation,
-                            nanosSinceInit, true);
+                    // ?: Is this the same node? (Only record if so, since we know that there must be such timings)
+                    if (sameNode) {
+                        // -> Yes, same node, and thus we should also have nano timing in sideload
+                        long initiatedNanoTime = Long.parseLong(p_context.getString(
+                                EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS));
+                        long nanosSinceInit = System.nanoTime() - initiatedNanoTime;
+                        endpointStats.recordInitiatorToTerminatorTimeNanos(incomingMessageRepresentation,
+                                nanosSinceInit, true);
+                    }
                 }
                 else {
-                    // -> No, not same node, so use Mats' initiatedTimestamp (which is millis-since-epoch).
+                    // -> No, not from same app, so use Mats' initiatedTimestamp (which is millis-since-epoch).
                     long millisSinceInit = System.currentTimeMillis() - p_context.getInitiatingTimestamp()
                             .toEpochMilli();
                     endpointStats.recordInitiatorToTerminatorTimeNanos(incomingMessageRepresentation,
@@ -688,8 +696,7 @@ public class LocalStatsMatsInterceptor
         public NavigableMap<IncomingMessageRepresentation, StatsSnapshot> getInitiatorToTerminatorTimeNanos() {
             NavigableMap<IncomingMessageRepresentation, StatsSnapshot> ret = new TreeMap<>();
             _initiatorToTerminatorTimeNanos.forEach((k, v) -> ret.put(k, new StatsSnapshotImpl(v._ringBuffer
-                    .getValuesCopy(),
-                    v._ringBuffer.getNumObservations())));
+                    .getValuesCopy(), v._ringBuffer.getNumObservations())));
             return ret;
         }
     }

@@ -161,10 +161,15 @@ public interface MatsInitiateInterceptor {
         MatsInitiator getInitiator();
 
         /**
-         * @return when the initiation was started, i.e. when {@link MatsInitiator#initiate(InitiateLambda)} was
-         *         invoked.
+         * @return when the initiation was started, as {@link Instant#now()}, i.e. when
+         *         {@link MatsInitiator#initiate(InitiateLambda)} was invoked.
          */
         Instant getStartedInstant();
+
+        /**
+         * @return when the initiation was started, as {@link System#nanoTime()}, i.e. when
+         */
+        long getStartedNanoTime();
     }
 
     interface InitiateStartedContext extends InitiateInterceptContext {

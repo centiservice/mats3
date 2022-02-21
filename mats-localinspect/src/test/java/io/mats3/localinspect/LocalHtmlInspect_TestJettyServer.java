@@ -100,7 +100,7 @@ public class LocalHtmlInspect_TestJettyServer {
             // Create the MatsFactory
             _matsFactory1 = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
                     SERVICE_ORDER, "*testing*",
-                    JmsMatsJmsSessionHandler_Pooling.create(connFactory, PoolingKeyInitiator.INITIATOR, PoolingKeyStageProcessor.STAGE_PROCESSOR),
+                    JmsMatsJmsSessionHandler_Pooling.create(connFactory),
                     dataSource,
                     matsSerializer);
             // Hold start
@@ -114,7 +114,7 @@ public class LocalHtmlInspect_TestJettyServer {
             // Create the MatsFactory
             _matsFactory2 = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
                     SERVICE_DELIVERY, "*testing*",
-                    JmsMatsJmsSessionHandler_Pooling.create(connFactory, PoolingKeyInitiator.INITIATOR, PoolingKeyStageProcessor.STAGE_PROCESSOR),
+                    JmsMatsJmsSessionHandler_Pooling.create(connFactory),
                     dataSource,
                     matsSerializer);
             // Hold start

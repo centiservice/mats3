@@ -519,24 +519,21 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
 
         out.append("<div class='matsli_info'>\n");
         // out.append()("Worst stage duty cycle: ### <br/>\n");
-        if (totExecSnapshot != null) {
-            out.append("<b>Total endpoint time:</b> " + formatStats(totExecSnapshot, false) + "<br/>"
-                    + "<span style='font-size: 75%; vertical-align: 0.5em'><i>(Note: From entry on Initial Stage to REPLY or NONE."
-                    + " <b>Does not include queue time for Initial Stage!</b>)</i><br/></span>\n");
-        }
 
         if (endpointStats != null) {
             NavigableMap<IncomingMessageRepresentation, StatsSnapshot> initiatorToTerminatorTimeNanos = endpointStats
                     .getInitiatorToTerminatorTimeNanos();
 
             if (!initiatorToTerminatorTimeNanos.isEmpty()) {
-                out.append("<b>From Initiator to Terminator times:</b><br/>\n");
+                out.append("<b>From Initiator to Terminator times:</b> <i>(From start of MatsInitiator.initiate(..),"
+                        + " to reception on initial stage of terminator. Susceptible to time skews if initiated"
+                        + " on different app.)</i><br/>\n");
 
                 out.append("<table class='matsli_table_init_to_term'>");
                 out.append("<thead><tr>");
                 out.append("<th>Initiated from</th>");
                 out.append("<th>from</th>");
-                out.append("<th>obser</th>");
+                out.append("<th>observ</th>");
                 out.append("<th>samples</th>");
                 out.append("<th>avg</th>");
                 out.append("<th>median</th>");
@@ -553,7 +550,8 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
                     out.append("<tr>");
                     out.append("<td>" + formatIid(msg.getInitiatorId())
                             + " @ " + formatAppName(msg.getInitiatingAppName()) + "</td>");
-                    out.append("<td>" + formatEpid(msg.getFromStageId())
+                    out.append("<td>" + formatMsgType(msg.getMessageType()) + " from "
+                            + formatEpid(msg.getFromStageId())
                             + " @ " + formatAppName(msg.getFromAppName()) + "</td>");
                     out.append("<td class='matsli_right'>")
                             .append(formatInt(snapshot.getNumObservations())).append("</td>");
@@ -567,8 +565,16 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
                     out.append("</tr>");
                 }
                 out.append("</tbody></table>");
+                out.append("<br/>\n");
             }
         }
+
+        if (totExecSnapshot != null) {
+            out.append("<b>Total endpoint time:</b> " + formatStats(totExecSnapshot, false) + "<br/>"
+                    + "<span style='font-size: 75%; vertical-align: 0.5em'><i>(Note: From entry on Initial Stage to REPLY or NONE."
+                    + " <b>Does not include queue time for Initial Stage!</b>)</i><br/></span>\n");
+        }
+
         out.append("</div>\n");
 
         if (includeStages) {

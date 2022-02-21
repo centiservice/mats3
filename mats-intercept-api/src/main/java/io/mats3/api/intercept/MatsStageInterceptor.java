@@ -87,10 +87,21 @@ public interface MatsStageInterceptor {
     }
 
     interface StageInterceptContext {
+        /**
+         * @return the {@link MatsStage} in question.
+         */
         MatsStage<?, ?, ?> getStage();
 
+        /**
+         * @return when the message was received, as {@link Instant#now()}, as early as possible right after the message
+         *         system returns it (before decoding it etc).
+         */
         Instant getStartedInstant();
 
+        /**
+         * @return when the message was received, as {@link System#nanoTime()}, as early as possible right after the
+         *         message system returns it (before decoding it etc).
+         */
         long getStartedNanoTime();
     }
 

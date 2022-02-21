@@ -92,7 +92,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         String existingMatsAppVersion = MDC.get(MDC_MATS_APP_VERSION);
 
         // :: For Intercepting, base intercept context.
-        InitiateInterceptContextImpl interceptContext = new InitiateInterceptContextImpl(this, startedInstant);
+        InitiateInterceptContextImpl interceptContext = new InitiateInterceptContextImpl(this, startedInstant,
+                nanosAtStart_Init);
         List<MatsInitiateInterceptor> interceptorsForInitiation = _parentFactory.getInterceptorsForInitiation(
                 interceptContext);
 
@@ -492,10 +493,12 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     static class InitiateInterceptContextImpl implements InitiateInterceptContext {
         private final MatsInitiator _matsInitiator;
         private final Instant _startedInstant;
+        private final long _startedNanos;
 
-        public InitiateInterceptContextImpl(MatsInitiator matsInitiator, Instant startedInstant) {
+        public InitiateInterceptContextImpl(MatsInitiator matsInitiator, Instant startedInstant, long startedNanos) {
             _matsInitiator = matsInitiator;
             _startedInstant = startedInstant;
+            _startedNanos = startedNanos;
         }
 
         @Override
@@ -506,6 +509,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         @Override
         public Instant getStartedInstant() {
             return _startedInstant;
+        }
+
+        @Override
+        public long getStartedNanoTime() {
+            return _startedNanos;
         }
     }
 
@@ -527,6 +535,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         @Override
         public Instant getStartedInstant() {
             return _initiationInterceptContext.getStartedInstant();
+        }
+
+        @Override
+        public long getStartedNanoTime() {
+            return _initiationInterceptContext.getStartedNanoTime();
         }
 
         @Override
@@ -553,6 +566,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         @Override
         public Instant getStartedInstant() {
             return _initiationInterceptContext.getStartedInstant();
+        }
+
+        @Override
+        public long getStartedNanoTime() {
+            return _initiationInterceptContext.getStartedNanoTime();
         }
 
         @Override
@@ -586,6 +604,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         @Override
         public Instant getStartedInstant() {
             return _initiateInterceptContext.getStartedInstant();
+        }
+
+        @Override
+        public long getStartedNanoTime() {
+            return _initiateInterceptContext.getStartedNanoTime();
         }
 
         @Override
@@ -655,6 +678,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         @Override
         public Instant getStartedInstant() {
             return _initiateInterceptContext.getStartedInstant();
+        }
+
+        @Override
+        public long getStartedNanoTime() {
+            return _initiateInterceptContext.getStartedNanoTime();
         }
 
         @Override
