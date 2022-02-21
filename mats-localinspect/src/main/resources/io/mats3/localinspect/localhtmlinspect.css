@@ -1,13 +1,13 @@
 /* Using "native font stacks" of Bootstrap 5 */
 
-.mats_report {
+.matsli_report {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     font-size: 13px;  /* Main setting of font size. Summary-table has it's own. */
     line-height: 1.6;
     color: #212529;
 }
 
-.mats_report hr {
+.matsli_report hr {
     margin: 1.9em 0 1.8em 0;
     padding: 0;
     height: 0;
@@ -16,34 +16,34 @@
 }
 
 /* :: Fonts and headings */
-.mats_report h2, .mats_report h3, .mats_report h4 {
+.matsli_report h2, .matsli_report h3, .matsli_report h4 {
     /* Have to re-set font here, otherwise Bootstrap 3 takes over. */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     display: inline;
     line-height: 1.2;
 }
 
-.mats_report h2 {
+.matsli_report h2 {
     font-size: 1.5em;
     font-weight: normal;
 }
 
-.mats_report h3 {
+.matsli_report h3 {
     font-size: 1.4em;
     font-weight: normal;
 }
 
-.mats_report h4 {
+.matsli_report h4 {
     font-size: 1.3em;
     font-weight: normal;
 }
 
-.mats_heading {
+.matsli_heading {
     display: block;
     margin: 0em 0em 0.5em 0em;
 }
 
-.mats_report code {
+.matsli_report code {
     font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: .875em;
     color: #d63384;
@@ -52,7 +52,7 @@
     border-radius: 3px;
 }
 
-.mats_creation_info {
+.matsli_creation_info {
     font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: .75em;
     color: #3d3d3d;
@@ -61,14 +61,14 @@
 
 /* TABLE: Summary */
 
-.mats_table_summary {
+.matsli_table_summary {
     font-size: 12px;
     line-height: 1;
     border-collapse: collapse;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
 }
 
-.mats_table_summary thead th {
+.matsli_table_summary thead th {
     position: sticky;
     z-index: 1;
     top: 0;
@@ -76,35 +76,35 @@
     color: #ffffff;
 }
 
-.mats_table_summary th, .mats_table_summary td {
+.matsli_table_summary th, .matsli_table_summary td {
     padding: 0.5em 0.5em 0.5em 0.5em;
 }
 
-.mats_table_summary tbody tr {
+.matsli_table_summary tbody tr {
     border-bottom: thin solid #dddddd;
 }
 
-.mats_table_summary .mats_summary_initiator_row {
+.matsli_table_summary .matsli_summary_initiator_row {
     background-color: #ffffe0;
 }
 
-.mats_table_summary tbody tr:not(.mats_summary_initiator_row):nth-of-type(even) {
+.matsli_table_summary tbody tr:not(.matsli_summary_initiator_row):nth-of-type(even) {
     background-color: #f3f3f3;
 }
 
-.mats_table_summary tbody tr:hover {
+.matsli_table_summary tbody tr:hover {
     background-color: #ffff99 !important;
 }
 
-.mats_table_summary tbody .mats_summary_lastline {
+.matsli_table_summary tbody .matsli_summary_lastline {
     border-bottom: thick solid #009879;
 }
 
-.mats_right {
+.matsli_right {
     text-align: right;
 }
 
-.mats_summary_time {
+.matsli_summary_time {
     font-size: 0.75em;
     padding: 0 0.2em 0 0.2em;
     vertical-align: 0.15em;
@@ -113,7 +113,7 @@
 }
 
 /* The small box/"button" denoting a Stage in the Summary */
-.mats_stage_summary_box {
+.matsli_stage_summary_box {
     background: #f0f0f0;
     display: inline-block;
     border-radius: 3px;
@@ -124,14 +124,14 @@
 }
 
 /* Tooltip for the full StatsSnapshot, in Summary */
-.mats_tooltip {
+.matsli_tooltip {
     position: relative;
     display: inline-block;
     border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
     cursor: default;
 }
 
-.mats_tooltip .mats_tooltiptext {
+.matsli_tooltip .matsli_tooltiptext {
     visibility: hidden;
     width: 55em;
     background-color: rgba(210, 210, 210, 0.9);
@@ -148,11 +148,11 @@
     margin-left: -27.5em; /* Use half of the width (120/2 = 60), to center the tooltip */
 }
 
-.mats_tooltip:hover .mats_tooltiptext {
+.matsli_tooltip:hover .matsli_tooltiptext {
     visibility: visible;
 }
 
-.mats_tooltip .mats_tooltiptext::after {
+.matsli_tooltip .matsli_tooltiptext::after {
     content: " ";
     position: absolute;
     top: 100%; /* At the bottom of the tooltip */
@@ -166,14 +166,14 @@
 /* :; Inside stage: Initiator-to-Terminator timings */
 
 /* Table: Init-to-terminator */
-.mats_table_init_to_term {
+.matsli_table_init_to_term {
     font-size: 12px;
     line-height: 1;
     border-collapse: collapse;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
 }
 
-.mats_table_init_to_term thead th {
+.matsli_table_init_to_term thead th {
     position: sticky;
     z-index: 1;
     top: 0;
@@ -181,46 +181,46 @@
     color: #ffffff;
 }
 
-.mats_table_init_to_term th, .mats_table_init_to_term td {
+.matsli_table_init_to_term th, .matsli_table_init_to_term td {
     padding: 0.5em 0.5em 0.5em 0.5em;
 }
 
-.mats_table_init_to_term tbody tr {
+.matsli_table_init_to_term tbody tr {
     border-bottom: thin solid #dddddd;
 }
 
-.mats_table_init_to_term .mats_summary_initiator_row {
+.matsli_table_init_to_term .matsli_summary_initiator_row {
     background-color: #ffffe0;
 }
 
-.mats_table_init_to_term tbody tr:not(.mats_summary_initiator_row):nth-of-type(even) {
+.matsli_table_init_to_term tbody tr:not(.matsli_summary_initiator_row):nth-of-type(even) {
     background-color: #f3f3f3;
 }
 
-.mats_table_init_to_term tbody tr:hover {
+.matsli_table_init_to_term tbody tr:hover {
     background-color: #ffff99 !important;
 }
 
-.mats_table_init_to_term tbody .mats_summary_lastline {
+.matsli_table_init_to_term tbody .matsli_summary_lastline {
     border-bottom: thick solid #009879;
 }
 
 
 /* Timings: min and max (timings) */
-.mats_min {
+.matsli_min {
     top: +0.15em;
     position: relative;
     font-size: 0.75em;
 }
 
-.mats_max {
+.matsli_max {
     top: -0.45em;
     position: relative;
     font-size: 0.75em;
 }
 
 /* .. InitiatorIds and EndpointIds */
-.mats_iid {
+.matsli_iid {
     font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: .875em;
     color: #d63384;
@@ -229,7 +229,7 @@
     border-radius: 3px;
 }
 
-.mats_epid {
+.matsli_epid {
     font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: .875em;
     color: #d63384;
@@ -238,32 +238,32 @@
     border-radius: 3px;
 }
 
-.mats_appname {
+.matsli_appname {
     background-color: rgba(0, 255, 255, 0.07);
     padding: 2px 4px 1px 4px;
     border-radius: 3px;
 }
 
-.mats_msgtype {
+.matsli_msgtype {
     background-color: rgba(255, 255, 0, 0.2);
     padding: 2px 4px 1px 4px;
     border-radius: 3px;
 }
 
 /* Outgoing and incoming messages */
-.mats_msgs_details {
+.matsli_msgs_details {
     margin: 0 0 0 2em;
 }
 
-.mats_msgs_summary {
+.matsli_msgs_summary {
     margin: 0 0 0 2em;
 }
 
-.mats_noshow {
+.matsli_noshow {
     display: none;
 }
 
-.mats_msgs_summary_btn, .mats_msgs_details_btn {
+.matsli_msgs_summary_btn, .matsli_msgs_details_btn {
     display: inline-block;
     cursor: pointer;
     background: #f0f0f0;
@@ -276,19 +276,19 @@
     /*padding: 0;*/
 }
 
-.mats_msgs_summary_or_details_btn_active {
+.matsli_msgs_summary_or_details_btn_active {
     display: none;
     /*background: #d0e0d0;*/
 }
 
 /* :: The different main parts of the report */
 
-.mats_info {
+.matsli_info {
     margin: 0em 0em 0em 0.5em;
 }
 
 /* Boxes for each part. */
-.mats_factory, .mats_initiator, .mats_endpoint, .mats_stage {
+.matsli_factory, .matsli_initiator, .matsli_endpoint, .matsli_stage {
     border-radius: 3px;
     box-shadow: 2px 2px 2px 0px rgba(0, 0, 0, 0.37);
     border: thin solid #a0a0a0;
@@ -296,27 +296,27 @@
     padding: 0.1em 0.5em 0.5em 0.5em;
 }
 
-/*.mats_initiator, .mats_endpoint {*/
+/*.matsli_initiator, .matsli_endpoint {*/
 /*    margin: 0.5em 0.5em 2em 0.5em;*/
 /*}*/
 
-.mats_factory {
+.matsli_factory {
     background: #f0f0f0;
 }
 
-.mats_initiator {
+.matsli_initiator {
     background: #e0f0e0;
 }
 
-.mats_endpoint {
+.matsli_endpoint {
     background: #e0e0f0;
 }
 
-.mats_stage {
+.matsli_stage {
     background: #f0f0f0;
 }
 
-.mats_hot {
+.matsli_hot {
     box-shadow: #FFF 0 -1px 4px, #ff0 0 -2px 10px, #ff8000 0 -10px 20px, red 0 -18px 40px, 5px 5px 15px 5px rgba(0, 0, 0, 0);
     border: 0.2em solid red;
     background: #ECEFCF;
