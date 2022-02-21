@@ -566,7 +566,7 @@ public class MatsSpringAnnotationRegistration implements
         // Get an argument array for the method populated with default values for all types: Primitives cannot be null.
         Object[] templateArgsArray = defaultArgsArray(method);
 
-        String creationInfo = creationInfoForMethod(matsMapping, method);
+        String origin = originForMethod(matsMapping, method);
         MatsEndpoint<?, ?> matsEndpoint;
         // ?: Do we have a void return value?
         if (replyType.getName().equals("void")) {
@@ -604,7 +604,7 @@ public class MatsSpringAnnotationRegistration implements
                             stoParamF, state);
                     return helperCast(reply);
                 });
-                matsStage.getStageConfig().setCreationInfo(creationInfo);
+                matsStage.getStageConfig().setOrigin(origin);
             }
             else {
                 // -> No state parameter, so use the proper Single endpoint.
@@ -617,11 +617,11 @@ public class MatsSpringAnnotationRegistration implements
                                     -1, null);
                             return helperCast(reply);
                         });
-                matsEndpoint.getStages().get(0).getStageConfig().setCreationInfo(creationInfo);
+                matsEndpoint.getStages().get(0).getStageConfig().setOrigin(origin);
             }
         }
         // Set creation-info on the MatsEndpoint
-        matsEndpoint.getEndpointConfig().setCreationInfo(creationInfo);
+        matsEndpoint.getEndpointConfig().setOrigin(origin);
 
         if (log.isInfoEnabled()) {
             String procCtxParamDesc = processContextParam != -1 ? "param#" + processContextParam : "<not present>";
@@ -703,7 +703,7 @@ public class MatsSpringAnnotationRegistration implements
                 matsEndpointSetup.matsFactoryBeanName());
         MatsEndpoint<?, ?> endpoint = matsFactoryToUse
                 .staged(matsEndpointSetup.endpointId(), matsEndpointSetup.reply(), matsEndpointSetup.state());
-        endpoint.getEndpointConfig().setCreationInfo(creationInfoForMethod(matsEndpointSetup, method));
+        endpoint.getEndpointConfig().setOrigin(originForMethod(matsEndpointSetup, method));
 
         // Invoke the @MatsEndpointSetup-annotated setup method
         Object[] args = new Object[paramsLength];
@@ -853,7 +853,7 @@ public class MatsSpringAnnotationRegistration implements
                     + classNameWithoutPackage(bean) + "'", e);
         }
         ep.getEndpointConfig()
-                .setCreationInfo("@MatsClassMapping " + matsClass.getSimpleName() + ";" + matsClass.getName());
+                .setOrigin("@MatsClassMapping " + matsClass.getSimpleName() + ";" + matsClass.getName());
 
         // :: Hold on to all non-null fields of the bean - these are what Spring has injected. Make "template".
 
@@ -1082,7 +1082,7 @@ public class MatsSpringAnnotationRegistration implements
                 }
             });
             Stage stageAnnotation = stages.get(method);
-            stage.getStageConfig().setCreationInfo("@Stage(" + stageAnnotation.ordinal() + ") "
+            stage.getStageConfig().setOrigin("@Stage(" + stageAnnotation.ordinal() + ") "
                     + method.getDeclaringClass().getSimpleName() + "." + method.getName() + "(..);"
                     + method.getDeclaringClass().getName());
         });
@@ -1506,7 +1506,7 @@ public class MatsSpringAnnotationRegistration implements
         }
     }
 
-    private static String creationInfoForMethod(Annotation annotation, Method method) {
+    private static String originForMethod(Annotation annotation, Method method) {
         return "@" + annotation.annotationType().getSimpleName() + " " + method.getDeclaringClass().getSimpleName()
                 + "." + method.getName() + "(..);" + method.getDeclaringClass().getName();
     }

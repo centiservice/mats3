@@ -91,22 +91,22 @@ public interface MatsStage<R, S, I> extends StartStoppable {
         int getRunningStageProcessors();
 
         /**
-         * Sets the creation info for this Stage, i.e. where it was created. Use this to set something sane if the
-         * {@link #getCreationInfo() automatically created creation info} is useless. It should be a single line, no
-         * line feeds, but tooling might split the String into multiple lines on the character ';'. It should definitely
-         * be short, but informative.
+         * Sets the origin for this Stage, i.e. where it was created. Use this to set something sane if the
+         * {@link #getOrigin() automatically created creation info} is useless. It should be a single line, no line
+         * feeds, but tooling might split the String into multiple lines on the character ';'. It should definitely be
+         * short, but informative.
          *
          * @return <code>this</code>, for chaining.
          */
-        StageConfig<R, S, I> setCreationInfo(String info);
+        StageConfig<R, S, I> setOrigin(String info);
 
         /**
          * @return some human-interpretable information about where in the codebase this Stage was created. If this is
          *         displayed in a multi-line capable situation, you should split on ';'. An attempt at some automatic
          *         creation is performed, based on creating an exception and introspecting the result. If this doesn't
-         *         yield any good result, it might be overridden by {@link #setCreationInfo(String)}.
+         *         yield any good result, it might be overridden by {@link #setOrigin(String)}.
          */
-        String getCreationInfo();
+        String getOrigin();
 
         // Overridden to return the more specific StageConfig instead of MatsConfig
         @Override

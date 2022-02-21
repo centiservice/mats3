@@ -263,16 +263,16 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         }
 
         @Override
-        public StageConfig<R, S, I> setCreationInfo(String info) {
-            if (info == null) {
-                throw new NullPointerException("info");
+        public StageConfig<R, S, I> setOrigin(String origin) {
+            if (origin == null) {
+                throw new NullPointerException("origin");
             }
-            _creationInfo = info;
+            _creationInfo = origin;
             return this;
         }
 
         @Override
-        public String getCreationInfo() {
+        public String getOrigin() {
             return _creationInfo;
         }
 

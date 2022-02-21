@@ -9,7 +9,6 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.mats3.MatsConfig;
 import io.mats3.MatsEndpoint;
 import io.mats3.MatsFactory;
 import io.mats3.MatsStage;
@@ -92,7 +91,7 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
             _stages.get(_stages.size() - 1).setNextStageId(stageId);
         }
         _stages.add(stage);
-        stage.getStageConfig().setCreationInfo(getInvocationPoint());
+        stage.getStageConfig().setOrigin(getInvocationPoint());
         stageConfigLambda.accept(stage.getStageConfig());
         @SuppressWarnings("unchecked")
         MatsStage<R, S, I> matsStage = stage;
@@ -255,16 +254,16 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
         }
 
         @Override
-        public EndpointConfig<R, S> setCreationInfo(String info) {
-            if (info == null) {
-                throw new NullPointerException("info");
+        public EndpointConfig<R, S> setOrigin(String origin) {
+            if (origin == null) {
+                throw new NullPointerException("origin");
             }
-            _creationInfo = info;
+            _creationInfo = origin;
             return this;
         }
 
         @Override
-        public String getCreationInfo() {
+        public String getOrigin() {
             return _creationInfo;
         }
 

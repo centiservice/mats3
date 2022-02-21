@@ -513,7 +513,7 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
         out.append(" - <b>Concurrency:</b> " + formatConcurrency(config) + "\n");
         out.append("<br/>");
         out.append("<div class='matsli_creation_info'>")
-                .append(matsEndpoint.getEndpointConfig().getCreationInfo().replace(";", " - \n"))
+                .append(matsEndpoint.getEndpointConfig().getOrigin().replace(";", " - \n"))
                 .append("</div>");
         out.append("</div>\n");
 
@@ -638,7 +638,7 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
         out.append(" - <b>Running stage processors:</b> " + config.getRunningStageProcessors() + "\n");
         out.append("<br/>");
         out.append("<div class='matsli_creation_info'>")
-                .append(matsStage.getStageConfig().getCreationInfo().replace(";", " - \n"))
+                .append(matsStage.getStageConfig().getOrigin().replace(";", " - \n"))
                 .append("</div>");
         out.append("</div>");
 

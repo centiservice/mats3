@@ -16,7 +16,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import javax.jms.MessageConsumer;
 import javax.sql.DataSource;
@@ -362,7 +361,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     public <R, S> JmsMatsEndpoint<R, S, Z> staged(String endpointId, Class<R> replyClass, Class<S> stateClass,
             Consumer<? super EndpointConfig<R, S>> endpointConfigLambda) {
         JmsMatsEndpoint<R, S, Z> endpoint = new JmsMatsEndpoint<>(this, endpointId, true, stateClass, replyClass);
-        endpoint.getEndpointConfig().setCreationInfo(getInvocationPoint());
+        endpoint.getEndpointConfig().setOrigin(getInvocationPoint());
         validateNewEndpoint(endpoint);
         endpointConfigLambda.accept(endpoint.getEndpointConfig());
         return endpoint;
@@ -438,7 +437,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         // Need to create the JmsMatsEndpoint ourselves, since we need to set the queue-parameter.
         JmsMatsEndpoint<Void, S, Z> endpoint = new JmsMatsEndpoint<>(this, endpointId, queue, stateClass,
                 Void.TYPE);
-        endpoint.getEndpointConfig().setCreationInfo(getInvocationPoint());
+        endpoint.getEndpointConfig().setOrigin(getInvocationPoint());
         validateNewEndpoint(endpoint);
         endpointConfigLambda.accept(endpoint.getEndpointConfig());
         // :: Wrap the ProcessTerminatorLambda in a single stage that does not return.
