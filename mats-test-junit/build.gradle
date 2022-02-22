@@ -24,20 +24,20 @@ dependencies {
     testImplementation project(':mats-util')
     testImplementation project(':mats-test-broker')
 
-    // Single Spring test inside
-    testImplementation "org.springframework:spring-test:$springVersion"
-    testImplementation "org.springframework:spring-context:$springVersion"
-
     // Logging
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+
+    // Single Spring test inside
+    testImplementation "org.springframework:spring-test:$springVersion"
+    testImplementation "org.springframework:spring-context:$springVersion"
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
             pom {
-                name = 'Mats^3 JUnit testing tools'
+                name = 'Mats^3 JUnit 4 testing tools'
                 description = 'Mats^3 testing tools for JUnit 4.'
             }
         }

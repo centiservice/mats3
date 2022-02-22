@@ -20,8 +20,8 @@ import javax.servlet.http.HttpServletResponse;
 import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
-import org.eclipse.jetty.util.component.AbstractLifeCycle.AbstractLifeCycleListener;
 import org.eclipse.jetty.util.component.LifeCycle;
+import org.eclipse.jetty.util.component.LifeCycle.Listener;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jetty.webapp.Configuration;
 import org.eclipse.jetty.webapp.WebAppContext;
@@ -187,7 +187,6 @@ public class MatsMetrics_TestJettyServer {
                         msg.logTimingMeasurement("test.inittiming3", "Test measurement 3 from initiation",
                                 1_000_000_000, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
 
-
                         msg.traceId(MatsTestHelp.traceId())
                                 .keepTrace(KeepTrace.FULL)
                                 .from("/sendRequestInitiated")
@@ -260,7 +259,7 @@ public class MatsMetrics_TestJettyServer {
         server.setHandler(stats);
 
         // Add a Jetty Lifecycle Listener to cleanly shut down the MatsSocketServer.
-        server.addLifeCycleListener(new AbstractLifeCycleListener() {
+        server.addLifeCycleListener(new Listener() {
             @Override
             public void lifeCycleStopping(LifeCycle event) {
                 log.info("===== STOP! ===========================================");
@@ -297,61 +296,14 @@ public class MatsMetrics_TestJettyServer {
 
         Metrics.globalRegistry.config().meterFilter(new SuggestedTimingHistogramsMeterFilter());
 
-        // Read in the server count as an argument, or assume 2
-        int serverCount = (args.length > 0) ? Integer.parseInt(args[0]) : 2;
-        // Read in start port to count up from, defaulting to 8080
-        int nextPort = (args.length > 1) ? Integer.parseInt(args[0]) : 8080;
-
-        // Start the desired number of servers
-        Server[] servers = new Server[serverCount];
-        for (int i = 0; i < servers.length; i++) {
-            int serverId = i + 1;
-
-            // Keep looping until we have found a free port that the server was able to start on
-            while (true) {
-                int port = nextPort;
-                servers[i] = createServer(jmsConnectionFactory, port);
-                log.info("######### Starting server [" + serverId + "] on [" + port + "]");
-
-                // Add a life cycle hook to log when the server has started
-                servers[i].addLifeCycleListener(new AbstractLifeCycleListener() {
-                    @Override
-                    public void lifeCycleStarted(LifeCycle event) {
-                        log.info("######### Started server " + serverId + " on port " + port);
-                        // Using System.out to ensure that we get this out, even if logger is ERROR or OFF
-                        System.out.println("HOOK_FOR_GRADLE_WEBSOCKET_URL: #[ws://localhost:" + port + WEBSOCKET_PATH
-                                + "]#");
-                    }
-                });
-
-                // Try and start the server on the port we set. If this fails, we will increment the port number
-                // and try again.
-                try {
-                    servers[i].start();
-                    break;
-                }
-                catch (IOException e) {
-                    // ?: Check IOException's message whether we failed to bind to the port
-                    if (e.getMessage().contains("Failed to bind")) {
-                        // Yes -> Log, and try the next port by looping again
-                        log.info("######### Failed to start server [" + serverId
-                                + "] on [" + port + "], trying next port.", e);
-                    }
-                    else {
-                        // No -> Some other IOException, re-throw to stop the server from starting.
-                        throw e;
-                    }
-                }
-                catch (Exception e) {
-                    log.error("Jetty failed to start. Need to forcefully System.exit(..) due to Jetty not"
-                            + " cleanly taking down its threads.", e);
-                    System.exit(2);
-                }
-                finally {
-                    // Always increment the port number
-                    nextPort++;
-                }
-            }
+        Server server = createServer(jmsConnectionFactory, 8080);
+        try {
+            server.start();
+        }
+        catch (Exception e) {
+            log.error("Problems starting Jetty", e);
+            server.stop();
+            matsTestBroker.close();
         }
     }
 }

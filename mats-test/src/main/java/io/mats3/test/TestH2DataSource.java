@@ -1,13 +1,21 @@
 package io.mats3.test;
 
+import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+
+import javax.sql.ConnectionPoolDataSource;
+import javax.sql.DataSource;
+import javax.sql.PooledConnection;
+import javax.sql.XAConnection;
+import javax.sql.XADataSource;
 
 import org.h2.jdbcx.JdbcDataSource;
 import org.slf4j.Logger;
@@ -18,7 +26,7 @@ import org.slf4j.LoggerFactory;
  * {@link #cleanDatabase()}, and {@link #createDataTable()} method with associated convenience methods for storing and
  * getting simple values.
  */
-public class TestH2DataSource extends JdbcDataSource {
+public class TestH2DataSource implements XADataSource, DataSource, ConnectionPoolDataSource {
     private static final Logger log = LoggerFactory.getLogger(TestH2DataSource.class);
 
     /**
@@ -107,6 +115,12 @@ public class TestH2DataSource extends JdbcDataSource {
         return dataSource;
     }
 
+    private final JdbcDataSource _wrappedH2JdbcDataSource;
+
+    private TestH2DataSource() {
+        _wrappedH2JdbcDataSource = new JdbcDataSource();
+    }
+
     /**
      * Cleans the test database: Runs SQL <code>"DROP ALL OBJECTS DELETE FILES"</code>.
      */
@@ -117,7 +131,7 @@ public class TestH2DataSource extends JdbcDataSource {
     /**
      * Cleans the test database: Runs SQL <code>"DROP ALL OBJECTS DELETE FILES"</code>, and optionally invokes
      * {@link #createDataTable()}.
-     * 
+     *
      * @param createDataTable
      *            whether to invoke {@link #createDataTable()} afterwards.
      */
@@ -248,7 +262,7 @@ public class TestH2DataSource extends JdbcDataSource {
     }
 
     /**
-     * Closes the database IF it is an random in-memory URL (as created by {@link #createInMemoryRandom()}, <b>note:</b>
+     * Closes the database IF it is a random in-memory URL (as created by {@link #createInMemoryRandom()}, <b>note:</b>
      * this method will be picked up by Spring as a destroy-method if the instance is made available as a Bean.
      */
     public void close() {
@@ -272,5 +286,201 @@ public class TestH2DataSource extends JdbcDataSource {
                 log.info("Shutdown of TestH2DataSource [" + thisUrl + "] finished (from previous tests).");
             }, "ShutdownThread of TestH2DataSource [" + thisUrl + "]").start();
         }
+    }
+
+    // =================================================================================================
+    // ======= Implementation of the non-standard methods of H2's JdbcDataSource
+    // =================================================================================================
+
+    /**
+     * Get the current URL.
+     *
+     * @return the URL
+     */
+    public String getURL() {
+        return _wrappedH2JdbcDataSource.getURL();
+    }
+
+    /**
+     * Get the current URL. This method does the same as getURL, but this methods signature conforms the JavaBean naming
+     * convention.
+     *
+     * @return the URL
+     */
+    public String getUrl() {
+        return _wrappedH2JdbcDataSource.getUrl();
+    }
+
+    /**
+     * Set the current URL.
+     *
+     * @param url
+     *            the new URL
+     */
+    public void setURL(String url) {
+        _wrappedH2JdbcDataSource.setURL(url);
+    }
+
+    /**
+     * Set the current URL. This method does the same as setURL, but this methods signature conforms the JavaBean naming
+     * convention.
+     *
+     * @param url
+     *            the new URL
+     */
+    public void setUrl(String url) {
+        _wrappedH2JdbcDataSource.setUrl(url);
+    }
+
+    /**
+     * Set the current password.
+     *
+     * @param password
+     *            the new password.
+     */
+    public void setPassword(String password) {
+        _wrappedH2JdbcDataSource.setPassword(password);
+    }
+
+    /**
+     * Set the current password in the form of a char array.
+     *
+     * @param password
+     *            the new password in the form of a char array.
+     */
+    public void setPasswordChars(char[] password) {
+        _wrappedH2JdbcDataSource.setPasswordChars(password);
+    }
+
+    /**
+     * Get the current password.
+     *
+     * @return the password
+     */
+    public String getPassword() {
+        return _wrappedH2JdbcDataSource.getPassword();
+    }
+
+    /**
+     * Get the current user name.
+     *
+     * @return the user name
+     */
+    public String getUser() {
+        return _wrappedH2JdbcDataSource.getUser();
+    }
+
+    /**
+     * Set the current user name.
+     *
+     * @param user
+     *            the new user name
+     */
+    public void setUser(String user) {
+        _wrappedH2JdbcDataSource.setUser(user);
+    }
+
+    /**
+     * Get the current description.
+     *
+     * @return the description
+     */
+    public String getDescription() {
+        return _wrappedH2JdbcDataSource.getDescription();
+    }
+
+    /**
+     * Set the description.
+     *
+     * @param description
+     *            the new description
+     */
+    public void setDescription(String description) {
+        _wrappedH2JdbcDataSource.setDescription(description);
+    }
+
+    // =================================================================================================
+    // ======= Implementation of the interfaces XADataSource, DataSource, ConnectionPoolDataSource
+    // =================================================================================================
+
+    @Override
+    public Connection getConnection() throws SQLException {
+        return _wrappedH2JdbcDataSource.getConnection();
+    }
+
+    @Override
+    public Connection getConnection(String username, String password) throws SQLException {
+        return _wrappedH2JdbcDataSource.getConnection(username, password);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T unwrap(Class<T> iface) throws SQLException {
+        if (iface == null) {
+            throw new SQLException("iface is null");
+        }
+        if (_wrappedH2JdbcDataSource.isWrapperFor(iface)) {
+            return _wrappedH2JdbcDataSource.unwrap(iface);
+        }
+        if (iface.isAssignableFrom(getClass())) {
+            return (T) this;
+        }
+        throw new SQLException("this.isWrapperFor([" + iface + "]) == false, this:[" + this + "]");
+    }
+
+    @Override
+    public boolean isWrapperFor(Class<?> iface) throws SQLException {
+        if (iface == null) {
+            return false;
+        }
+        if (iface.isAssignableFrom(getClass())) {
+            return true;
+        }
+        return _wrappedH2JdbcDataSource.isWrapperFor(iface);
+    }
+
+    @Override
+    public PooledConnection getPooledConnection() throws SQLException {
+        return _wrappedH2JdbcDataSource.getPooledConnection();
+    }
+
+    @Override
+    public PooledConnection getPooledConnection(String user, String password) throws SQLException {
+        return _wrappedH2JdbcDataSource.getPooledConnection(user, password);
+    }
+
+    @Override
+    public XAConnection getXAConnection() throws SQLException {
+        return _wrappedH2JdbcDataSource.getXAConnection();
+    }
+
+    @Override
+    public XAConnection getXAConnection(String user, String password) throws SQLException {
+        return _wrappedH2JdbcDataSource.getXAConnection(user, password);
+    }
+
+    @Override
+    public PrintWriter getLogWriter() throws SQLException {
+        return _wrappedH2JdbcDataSource.getLogWriter();
+    }
+
+    @Override
+    public void setLogWriter(PrintWriter out) throws SQLException {
+        _wrappedH2JdbcDataSource.setLogWriter(out);
+    }
+
+    @Override
+    public void setLoginTimeout(int seconds) throws SQLException {
+        _wrappedH2JdbcDataSource.setLoginTimeout(seconds);
+    }
+
+    @Override
+    public int getLoginTimeout() throws SQLException {
+        return _wrappedH2JdbcDataSource.getLoginTimeout();
+    }
+
+    @Override
+    public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
+        return _wrappedH2JdbcDataSource.getParentLogger();
     }
 }

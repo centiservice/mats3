@@ -23,8 +23,8 @@ import javax.servlet.http.HttpServletResponse;
 import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
-import org.eclipse.jetty.util.component.AbstractLifeCycle.AbstractLifeCycleListener;
 import org.eclipse.jetty.util.component.LifeCycle;
+import org.eclipse.jetty.util.component.LifeCycle.Listener;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jetty.webapp.Configuration;
 import org.eclipse.jetty.webapp.WebAppContext;
@@ -426,7 +426,7 @@ public class LocalHtmlInspect_TestJettyServer {
         server.setHandler(stats);
 
         // Add a Jetty Lifecycle Listener to cleanly shut down stuff
-        server.addLifeCycleListener(new AbstractLifeCycleListener() {
+        server.addLifeCycleListener(new Listener() {
             @Override
             public void lifeCycleStarted(LifeCycle event) {
                 log.info("######### Started server on port " + port);

@@ -24,6 +24,10 @@ dependencies {
     testImplementation project(':mats-util')
     testImplementation project(':mats-test-broker')
 
+    // Logging
+    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+
     // Single Spring test inside
     testImplementation ("org.springframework:spring-test:$springVersionForJupiter") {
         exclude group:'junit', module:'junit'
@@ -35,10 +39,6 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-params:$jupiterVersion"
     testImplementation "org.junit.platform:junit-platform-launcher:$jupiterPlatformVersion"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:$jupiterVersion"
-
-    // Logging
-    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
-    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
 }
 
 test {

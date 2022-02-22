@@ -22,15 +22,6 @@ dependencies {
 
     // H2 Database, for database tests - but we do not want to make this dependency transitive, so compileOnly.
     compileOnly "com.h2database:h2:$h2Version"
-
-    // ----- TESTING
-
-    // We want the standard logging, which will be auto-installed by being on the classpath.
-    testImplementation project(':mats-intercept-logging')
-    // TEMPORARY? Also pulling in the metrics, to get a test of it for all types of mats flows. (autoinstalls)
-    testImplementation project(':mats-intercept-micrometer')
-    // TEMPORARY? Also pulling in the LocalStatsMatsInterceptor, to get it tested. (explicit install)
-    testImplementation project(':mats-localinspect')
 }
 
 publishing {
