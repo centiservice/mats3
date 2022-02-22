@@ -129,6 +129,8 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
         out.append("<b>Name:</b> " + config.getName());
         out.append(" - <b>App:</b> " + config.getAppName() + " v." + config.getAppVersion());
         out.append(" - <b>Nodename:</b> " + config.getNodename());
+        out.append(" - <b>Mats<sup>3</sup>:</b> " + config.getMatsImplementationName()
+                + ", v."+config.getMatsImplementationVersion());
         out.append(" - <b>Destination prefix:</b> '" + config.getMatsDestinationPrefix() + "'");
         out.append(" - <b>Trace key:</b> '" + config.getMatsTraceKey() + "'<br/>\n");
         out.append("</span>\n");

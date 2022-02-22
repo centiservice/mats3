@@ -556,6 +556,16 @@ public interface MatsFactory extends StartStoppable {
         String getNodename();
 
         /**
+         * @return the Mats Implementation version.
+         */
+        String getMatsImplementationName();
+
+        /**
+         * @return the Mats Implementation version.
+         */
+        String getMatsImplementationVersion();
+
+        /**
          * This method is only relevant for tooling, and thus "hidden away" in this config class. It uses the
          * MatsFactory-configured deserializer mechanism to instantiate the specified class. The rationale for this is
          * to either test whether a STO (State Transfer Object) or a DTO (Data Transfer Object) actually can be

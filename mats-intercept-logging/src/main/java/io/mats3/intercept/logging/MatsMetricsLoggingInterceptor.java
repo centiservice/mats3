@@ -297,6 +297,9 @@ public class MatsMetricsLoggingInterceptor
 
     // ============================================================================================================
     // ===== COMMON for Initiate and Stage Completed, with timings:
+
+    public static final String MDC_MATS_VERSION = "mats.Version";
+
     // ... Metrics:
     public static final String MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION = "mats.exec.Total.ms";
     public static final String MDC_MATS_COMPLETE_TIME_USER_LAMBDA = "mats.exec.UserLambda.ms";
@@ -452,8 +455,11 @@ public class MatsMetricsLoggingInterceptor
             List<MatsSentOutgoingMessage> outgoingMessages = ctx.getOutgoingMessages();
             String messageSenderName = ctx.getInitiator().getParentFactory()
                     .getFactoryConfig().getName() + "|" + ctx.getInitiator().getName();
+            String matsVersion = ctx.getInitiator().getParentFactory()
+                    .getFactoryConfig().getMatsImplementationVersion();
 
-            commonStageAndInitiateCompleted(ctx, "", log_init, outgoingMessages, messageSenderName, "", 0L);
+            commonStageAndInitiateCompleted(ctx, matsVersion, "", log_init, outgoingMessages,
+                    messageSenderName, "", 0L);
         }
         finally {
             MDC.remove(MDC_MATS_INITIATE_COMPLETED);
@@ -561,6 +567,8 @@ public class MatsMetricsLoggingInterceptor
 
             String messageSenderName = ctx.getStage().getParentEndpoint().getParentFactory()
                     .getFactoryConfig().getName();
+            String matsVersion = ctx.getStage().getParentEndpoint().getParentFactory()
+                    .getFactoryConfig().getMatsImplementationVersion();
 
             // :: Specific metric for stage completed
             String extraBreakdown = " totPreprocAndDeserial:[" + ms(ctx.getTotalPreprocessAndDeserializeNanos())
@@ -592,7 +600,7 @@ public class MatsMetricsLoggingInterceptor
                 MDC.put(MDC_MATS_FLOW_COMPLETE_TIME_TOTAL, Long.toString(totalFlowTime));
             }
 
-            commonStageAndInitiateCompleted(ctx, " with result " + ctx.getProcessResult(), log_stage,
+            commonStageAndInitiateCompleted(ctx, matsVersion, " with result " + ctx.getProcessResult(), log_stage,
                     outgoingMessages, messageSenderName, extraBreakdown, extraNanosBreakdown);
         }
         finally {
@@ -678,8 +686,8 @@ public class MatsMetricsLoggingInterceptor
         }
     }
 
-    private void commonStageAndInitiateCompleted(CommonCompletedContext ctx, String extraResult, Logger logger,
-            List<MatsSentOutgoingMessage> outgoingMessages, String messageSenderName,
+    private void commonStageAndInitiateCompleted(CommonCompletedContext ctx, String matsVersion, String extraResult,
+            Logger logger, List<MatsSentOutgoingMessage> outgoingMessages, String messageSenderName,
             String extraBreakdown, long extraNanosBreakdown) {
 
         String what = extraBreakdown.isEmpty() ? "INIT" : "STAGE";
@@ -692,8 +700,8 @@ public class MatsMetricsLoggingInterceptor
             // error occurred), as they will NOT have been sent, and the log lines are supposed to represent
             // actual messages that have been put on the wire.
             Throwable t = ctx.getThrowable().get();
-            completedLog(ctx, LOG_PREFIX + what + " !!FAILED!!" + extraResult, extraBreakdown, extraNanosBreakdown,
-                    Collections.emptyList(), Level.ERROR, logger, t, "");
+            completedLog(ctx, matsVersion, LOG_PREFIX + what + " !!FAILED!!" + extraResult, extraBreakdown,
+                    extraNanosBreakdown, Collections.emptyList(), Level.ERROR, logger, t, "");
         }
         else if (outgoingMessages.size() != 1) {
             // -> Yes, >1 or 0 messages
@@ -705,15 +713,16 @@ public class MatsMetricsLoggingInterceptor
             }
 
             // :: Output the 'completed' line
-            completedLog(ctx, LOG_PREFIX + what + " completed" + extraResult, extraBreakdown, extraNanosBreakdown,
-                    outgoingMessages, Level.INFO, logger, null, "");
+            completedLog(ctx, matsVersion, LOG_PREFIX + what + " completed" + extraResult, extraBreakdown,
+                    extraNanosBreakdown, outgoingMessages, Level.INFO, logger, null, "");
         }
         else {
             // -> Only 1 message and no Throwable: Concat the two lines.
             msgMdcLog(outgoingMessages.get(0), () -> {
                 String msgLine = msgLogLine(messageSenderName, outgoingMessages.get(0));
-                completedLog(ctx, LOG_PREFIX + what + " completed" + extraResult, extraBreakdown, extraNanosBreakdown,
-                        outgoingMessages, Level.INFO, logger, null, "\n    " + LOG_PREFIX + msgLine);
+                completedLog(ctx, matsVersion, LOG_PREFIX + what + " completed" + extraResult, extraBreakdown,
+                        extraNanosBreakdown, outgoingMessages, Level.INFO, logger, null, "\n    " + LOG_PREFIX
+                                + msgLine);
             });
         }
     }
@@ -722,7 +731,7 @@ public class MatsMetricsLoggingInterceptor
         INFO, ERROR
     }
 
-    private void completedLog(CommonCompletedContext ctx, String logPrefix, String extraBreakdown,
+    private void completedLog(CommonCompletedContext ctx, String matsVersion, String logPrefix, String extraBreakdown,
             long extraNanosBreakdown, List<MatsSentOutgoingMessage> outgoingMessages, Level level, Logger log,
             Throwable t, String logPostfix) {
 
@@ -765,6 +774,8 @@ public class MatsMetricsLoggingInterceptor
         }
 
         try {
+            MDC.put(MDC_MATS_VERSION, matsVersion);
+
             MDC.put(MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION, msS(ctx.getTotalExecutionNanos()));
             MDC.put(MDC_MATS_COMPLETE_TIME_USER_LAMBDA, msS(nanosTaken_UserLambdaAlone));
             MDC.put(MDC_MATS_COMPLETE_TIME_OUT, msS(nanosTaken_SumMessageOutHandling));
@@ -797,6 +808,8 @@ public class MatsMetricsLoggingInterceptor
             }
         }
         finally {
+            MDC.remove(MDC_MATS_VERSION);
+
             MDC.remove(MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION);
             MDC.remove(MDC_MATS_COMPLETE_TIME_USER_LAMBDA);
             MDC.remove(MDC_MATS_COMPLETE_TIME_OUT);
