@@ -543,6 +543,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     _jmsMatsStage.getStageId(),
                                     jmsMessageId,
                                     _jmsMatsStage.getNextStageId(),
+                                    _jmsMatsStage.getStageConfig().getOrigin(),
                                     matsTrace,
                                     currentSto,
                                     initiateSupplier,

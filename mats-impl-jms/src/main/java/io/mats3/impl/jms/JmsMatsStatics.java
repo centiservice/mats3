@@ -341,10 +341,12 @@ public interface JmsMatsStatics {
         return Math.round(ms * 1000d) / 1000d;
     }
 
+    String NO_INVOCATION_POINT = "-no_info-";
+
     /**
      * Inspired from <a href="https://stackoverflow.com/a/11306854">Stackoverflow - Denys Séguret</a>.
      *
-     * @return a String showing where the Mats-code was invoked from, i.e. "com.example.Test.methodName(Test.java:123)"
+     * @return a String showing where the Mats-code was invoked from, like "Test.java.123;com.example.Test;methodName()"
      */
     default String getInvocationPoint() {
         StackTraceElement[] stElements = Thread.currentThread().getStackTrace();
@@ -359,7 +361,7 @@ public interface JmsMatsStatics {
             // ?: Handle special case which occurs with a "lastStage" style REPLY, since that happens within Mats.
             if (ste.getClassName().equals("java.lang.Thread")) {
                 // -> Yes, only found "java.lang.Thread", which means there was no non-Mats stack frames.
-                return "<no non-mats stack frames - probably lastStage.return>";
+                return NO_INVOCATION_POINT;
             }
             // E-> return a nice representation
             return ste.getFileName() + ":" + ste.getLineNumber() + ";"
@@ -367,6 +369,6 @@ public interface JmsMatsStatics {
                     + ste.getMethodName()+"()";
         }
         // E-> Evidently no stackframes!?
-        return "<could not determine invocation point>";
+        return NO_INVOCATION_POINT;
     }
 }

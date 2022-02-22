@@ -51,6 +51,8 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     private final String _systemMessageId;
     private final String _nextStageId;
 
+    private final String _stageOrigin;
+
     private final MatsTrace<Z> _incomingMatsTrace;
     private final LinkedHashMap<String, byte[]> _incomingBinaries;
     private final LinkedHashMap<String, String> _incomingStrings;
@@ -75,6 +77,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
             String stageId,
             String systemMessageId,
             String nextStageId,
+            String stageOrigin,
             MatsTrace<Z> incomingMatsTrace, S incomingAndOutgoingState,
             Supplier<MatsInitiate> initiateSupplier,
             LinkedHashMap<String, byte[]> incomingBinaries, LinkedHashMap<String, String> incomingStrings,
@@ -87,6 +90,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _stageId = stageId;
         _systemMessageId = systemMessageId;
         _nextStageId = nextStageId;
+        _stageOrigin = stageOrigin;
 
         _incomingMatsTrace = incomingMatsTrace;
         _incomingBinaries = incomingBinaries;
@@ -631,6 +635,9 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         String debugInfo = outgoingMatsTrace.getKeepTrace() != KeepMatsTrace.MINIMAL
                 ? getInvocationPoint()
                 : null;
+        // If we got empty String from getInvocationPoint(), replace with info from StageOrigin (if present).
+        debugInfo = (NO_INVOCATION_POINT.equals(debugInfo) ? _stageOrigin : debugInfo);
+
         currentCall.setDebugInfo(_parentFactory.getFactoryConfig().getAppName(),
                 _parentFactory.getFactoryConfig().getAppVersion(),
                 _parentFactory.getFactoryConfig().getNodename(), debugInfo);

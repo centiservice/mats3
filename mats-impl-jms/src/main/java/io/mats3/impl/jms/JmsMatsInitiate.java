@@ -428,6 +428,9 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         String debugInfo = _keepTrace != KeepMatsTrace.MINIMAL
                 ? getInvocationPoint()
                 : null;
+        // If we got no info, replace with a tad more specific no info!
+        debugInfo = (NO_INVOCATION_POINT.equals(debugInfo) ? "-no_info(init)-" : debugInfo);
+
         MatsTrace<Z> matsTrace = ser.createNewMatsTrace(_traceId, flowId, _keepTrace, _nonPersistent, _interactive,
                 _timeToLive, _noAudit)
                 .withDebugInfo(_parentFactory.getFactoryConfig().getAppName(),
@@ -542,6 +545,8 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
                     stageId,
                     messageId,
                     nextStageId,
+                    /* The stack should be user-based here, so getInvocationPoint() should be good. */
+                    "-no_info(unstash)-",
                     matsTrace,
                     currentSto, initiateSupplier,
                     new LinkedHashMap<>(), new LinkedHashMap<>(),

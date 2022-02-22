@@ -9,6 +9,12 @@ dependencies {
 
     // :: TEST
 
+    // The MATS JMS Impl
+    testImplementation project(':mats-impl-jms')
+    // We need an implementation of the MatsSerializer, the MatsSerializerJson
+    testImplementation project(':mats-serial-json')
+    // We use the MatsFuturizer
+    testImplementation project(':mats-util')
     // Mats SpringConfig, since we want to test the "debug info" from SpringConfig.
     testImplementation project(":mats-spring")
 
@@ -16,15 +22,11 @@ dependencies {
     testImplementation "org.springframework:spring-context:$springVersion"
     testImplementation "org.springframework:spring-tx:$springVersion"
 
+    // We're testing SpringConfig, with @Inject.
+    testImplementation "javax.inject:javax.inject:$javaxInjectVersion"
+
     // The JUnit library
     testImplementation "junit:junit:$junitVersion"
-
-    // The MATS JMS Impl
-    testImplementation project(':mats-impl-jms')
-    // We need an implementation of the MatsSerializer, the MatsSerializerJson
-    testImplementation project(':mats-serial-json')
-    // We use the MatsFuturizer
-    testImplementation project(':mats-util')
 
     // H2 Database, since we pull up a DB
     testImplementation "com.h2database:h2:$h2Version"
