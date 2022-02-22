@@ -2,6 +2,9 @@
 
 dependencies {
     // None
+
+    // === TEST
+    testImplementation "junit:junit:$junitVersion"
 }
 
 publishing {

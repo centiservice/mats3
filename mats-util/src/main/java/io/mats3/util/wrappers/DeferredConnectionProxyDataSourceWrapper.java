@@ -11,6 +11,7 @@ import java.util.Map;
 
 import javax.sql.DataSource;
 
+import io.mats3.MatsFactory.MatsWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +51,7 @@ import org.slf4j.LoggerFactory;
  * <p />
  * If in a Spring environment, the returned Connection instances furthermore implements
  * <code>org.springframework.jdbc.datasource.ConnectionProxy</code>.
- * 
+ *
  * @author Endre Stølsvik 2021-01-26 23:45 - http://stolsvik.com/, endre@stolsvik.com
  */
 public class DeferredConnectionProxyDataSourceWrapper extends DataSourceWrapper {
@@ -131,7 +132,7 @@ public class DeferredConnectionProxyDataSourceWrapper extends DataSourceWrapper 
     /**
      * Provides a method to query whether the Connection actually was gotten.
      */
-    public interface DeferredConnectionProxy extends MatsWrapperDefault<Connection>, Connection {
+    public interface DeferredConnectionProxy extends Connection, MatsWrapper<Connection> {
         boolean isActualConnectionRetrieved();
     }
 

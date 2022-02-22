@@ -380,11 +380,30 @@ public interface MatsFactory extends StartStoppable {
     }
 
     /**
+     * In a situation where you might be given a {@link MatsFactoryWrapper}, but need to find a wrappee that implements
+     * a specific interface, this method allows you to just always call <code>matsFactory.unwrapTo(iface)</code> instead
+     * of first checking whether it is a proxy and only then cast and unwrap.
+     *
+     * @return default <code>this</code> if <code>iface.isAssignableFrom(thisClass)</code>, otherwise throws
+     *         <code>IllegalArgumentException</code> (overridden by wrappers).
+     */
+    @SuppressWarnings("unchecked")
+    default <I> I unwrapTo(Class<I> iface) {
+        if (iface == null) {
+            throw new NullPointerException("iface");
+        }
+        if (iface.isAssignableFrom(getClass())) {
+            return (I) this;
+        }
+        throw new IllegalArgumentException("This [" + this + "] doesn't implement [" + iface + "].");
+    }
+
+    /**
      * In a situation where you might be given a {@link MatsFactoryWrapper}, but need the actual implementation, this
      * method allows you to just always call <code>matsFactory.unwrapFully()</code> instead of first checking whether it
      * is a proxy and only then cast and unwrap.
      *
-     * @return default <code>this</code> for implementations, overridden by wrappers.
+     * @return default <code>this</code> for implementations (overridden by wrappers).
      */
     default MatsFactory unwrapFully() {
         return this;
@@ -592,7 +611,7 @@ public interface MatsFactory extends StartStoppable {
     }
 
     /**
-     * Base Wrapper interface which Mats-specific Wrappers should implement, defining three "wrappee" methods.
+     * Base Wrapper interface which Mats-specific Wrappers implements, defining four "wrappee" methods.
      *
      * @param <T>
      *            the type of the wrapped instance.
@@ -602,7 +621,42 @@ public interface MatsFactory extends StartStoppable {
 
         T unwrap();
 
-        T unwrapFully();
+        @SuppressWarnings("unchecked")
+        default <I> I unwrapTo(Class<I> iface) {
+            if (iface == null) {
+                throw new NullPointerException("iface");
+            }
+            if (iface.isAssignableFrom(getClass())) {
+                return (I) this;
+            }
+            T unwrapped = unwrap();
+            if (iface.isAssignableFrom(unwrapped.getClass())) {
+                return (I) unwrapped;
+            }
+            if (unwrapped instanceof MatsWrapper) {
+                return ((MatsWrapper<T>) unwrapped).unwrapTo(iface);
+            }
+            throw new IllegalArgumentException("This [" + this + "] doesn't implement [" + iface
+                    + "], and neither do the wrappee [" + unwrapped + "].");
+        }
+
+        /**
+         * @return the fully unwrapped instance: If the returned instance from {@link #unwrap()} is itself a
+         *         {@link MatsWrapper MatsWrapper}, it will recurse down by invoking this method
+         *         (<code>unwrapFully()</code>) again on the returned target.
+         */
+        default T unwrapFully() {
+            T target = unwrap();
+            // ?: If further wrapped, recurse down. Otherwise return.
+            if (target instanceof MatsWrapper) {
+                // -> Yes, further wrapped, so recurse
+                @SuppressWarnings("unchecked")
+                MatsWrapper<T> wrapped = (MatsWrapper<T>) target;
+                return wrapped.unwrapFully();
+            }
+            // E-> No, not wrapped - this is the end target.
+            return target;
+        }
     }
 
     /**
@@ -667,6 +721,14 @@ public interface MatsFactory extends StartStoppable {
                         + " The '_targetMatsFactory' is not set!");
             }
             return _targetMatsFactory;
+        }
+
+        /**
+         * Resolve the "deadly diamond of death", by calling to <code>MatsWrapper.super.unwrapTo(iface)</code>;
+         */
+        @Override
+        public <I> I unwrapTo(Class<I> iface) {
+            return MatsWrapper.super.unwrapTo(iface);
         }
 
         @Override

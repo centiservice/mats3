@@ -1,5 +1,7 @@
 package io.mats3.util.wrappers;
 
+import io.mats3.MatsFactory.MatsWrapper;
+
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSException;
@@ -11,7 +13,7 @@ import javax.jms.JMSException;
  *
  * @author Endre Stølsvik 2019-06-10 11:43 - http://stolsvik.com/, endre@stolsvik.com
  */
-public class ConnectionFactoryWrapper implements MatsWrapperDefault<ConnectionFactory>, ConnectionFactory {
+public class ConnectionFactoryWrapper implements ConnectionFactory, MatsWrapper<ConnectionFactory> {
 
     /**
      * This field is private - if you in extensions need the instance, invoke {@link #unwrap()}. If you want to take

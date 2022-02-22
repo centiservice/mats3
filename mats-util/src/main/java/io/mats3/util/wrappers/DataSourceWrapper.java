@@ -1,5 +1,7 @@
 package io.mats3.util.wrappers;
 
+import io.mats3.MatsFactory.MatsWrapper;
+
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -14,7 +16,7 @@ import javax.sql.DataSource;
  *
  * @author Endre Stølsvik 2021-01-26 23:45 - http://stolsvik.com/, endre@stolsvik.com
  */
-public class DataSourceWrapper implements MatsWrapperDefault<DataSource>, DataSource {
+public class DataSourceWrapper implements DataSource, MatsWrapper<DataSource> {
     /**
      * This field is private - if you in extensions need the instance, invoke {@link #unwrap()}. If you want to take
      * control of the wrapped DataSource instance, then override {@link #unwrap()}.

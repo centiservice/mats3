@@ -11,16 +11,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.SpringVersion;
 
 import io.mats3.MatsFactory;
+import io.mats3.localinspect.LocalStatsMatsInterceptor;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.EnableMats;
-import io.mats3.spring.jms.factories.MatsScenario;
 import io.mats3.spring.jms.factories.ConnectionFactoryWithStartStopWrapper;
+import io.mats3.spring.jms.factories.MatsScenario;
 import io.mats3.spring.jms.factories.ScenarioConnectionFactoryProducer;
 import io.mats3.spring.jms.factories.SpringJmsMatsFactoryProducer;
+import io.mats3.spring.jms.factories.SpringJmsMatsFactoryWrapper;
 import io.mats3.spring.test.SpringTestDataTO;
-import io.mats3.util.MatsFuturizer;
 import io.mats3.test.broker.MatsTestBroker;
+import io.mats3.util.MatsFuturizer;
 
 /**
  * "AppTest1" - showing different ways to employ the testing harnesses supplied by Mats in a Spring application.
@@ -31,15 +33,15 @@ import io.mats3.test.broker.MatsTestBroker;
  * <code>{@literal @Bean}</code> methods and Mats SpringConfig-specified Endpoints can be tested with the Mats testing
  * tools.
  * <p>
- * PLEASE NOTE: In this "application", we set up a MatsTestBroker in-vm "LocalVM" instances to simulate a
- * production setup where there are an external Message Broker that this application wants to connect to. The reason is
- * that it should be possible to run this test-application without external resources set up. To connect to this broker,
- * you may start the application with Spring Profile "mats-regular" active, or set the system property "mats.regular"
- * (i.e. "-Dmats.regular" on the Java command line) - <b>or just run it directly, as the default scenario when nothing
- * is specified is set up to be "regular"</b>. <i>However</i>, if the Spring Profile "mats-test" is active (which you do
- * in integration tests), the JmsSpringConnectionFactoryProducer will instead of using the specified ConnectionFactory
- * to this message broker, make a new (different!) LocalVM instance and return a ConnectionFactory to those. Had this
- * been a real application, where the ConnectionFactory specified in the regular scenario of these beans pointed to the
+ * PLEASE NOTE: In this "application", we set up a MatsTestBroker in-vm "LocalVM" instances to simulate a production
+ * setup where there are an external Message Broker that this application wants to connect to. The reason is that it
+ * should be possible to run this test-application without external resources set up. To connect to this broker, you may
+ * start the application with Spring Profile "mats-regular" active, or set the system property "mats.regular" (i.e.
+ * "-Dmats.regular" on the Java command line) - <b>or just run it directly, as the default scenario when nothing is
+ * specified is set up to be "regular"</b>. <i>However</i>, if the Spring Profile "mats-test" is active (which you do in
+ * integration tests), the JmsSpringConnectionFactoryProducer will instead of using the specified ConnectionFactory to
+ * this message broker, make a new (different!) LocalVM instance and return a ConnectionFactory to those. Had this been
+ * a real application, where the ConnectionFactory specified in the regular scenario of these beans pointed to the
  * actual external production broker, this would make it possible to switch between connecting to the production setup,
  * and the integration testing setup (employing LocalVM instances).
  *
@@ -130,11 +132,12 @@ public class AppMain_MockAndTestingHarnesses {
     protected MatsFactory matsFactory(ConnectionFactory connectionFactory,
             MatsSerializer<String> matsSerializer) {
         log.info("Creating MatsFactory");
-        MatsFactory matsFactory = SpringJmsMatsFactoryProducer.createJmsTxOnlyMatsFactory(
-                AppMain_MockAndTestingHarnesses.class.getSimpleName(),
-                "#testing#", matsSerializer, connectionFactory);
-        // Chill a bit!
+        SpringJmsMatsFactoryWrapper matsFactory = SpringJmsMatsFactoryProducer.createJmsTxOnlyMatsFactory(
+                AppMain_MockAndTestingHarnesses.class.getSimpleName(), "#testing#", matsSerializer, connectionFactory);
+        // Configure for test-scenario: Enough with concurrency of 2
         matsFactory.getFactoryConfig().setConcurrency(2);
+        // Add the LocalInspect just to exercise it here in the tests.
+        LocalStatsMatsInterceptor.install(matsFactory);
         return matsFactory;
     }
 

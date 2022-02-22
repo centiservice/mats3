@@ -940,30 +940,6 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
             return unwrap().unwrapFully();
         }
 
-        /**
-         * @deprecated #setTarget()
-         */
-        @Deprecated
-        public void setTargetProcessContext(ProcessContext<R> targetProcessContext) {
-            setWrappee(targetProcessContext);
-        }
-
-        /**
-         * @deprecated #getTarget()
-         */
-        @Deprecated
-        public ProcessContext<R> getTargetProcessContext() {
-            return unwrap();
-        }
-
-        /**
-         * @deprecated #getEndTarget()
-         */
-        @Deprecated
-        public ProcessContext<R> getEndTargetProcessContext() {
-            return unwrapFully();
-        }
-
         @Override
         public String getTraceId() {
             return unwrap().getTraceId();

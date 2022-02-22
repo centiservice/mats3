@@ -24,6 +24,9 @@ dependencies {
     testImplementation project(':mats-util')
     testImplementation project(':mats-test-broker')
 
+    // ..Removed in Java 11
+    testImplementation "javax.annotation:javax.annotation-api:$javaxAnnotationVersion"
+
     // Logging
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"

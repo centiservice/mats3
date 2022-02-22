@@ -6,13 +6,14 @@ dependencies {
     // MatsFuturizer (provided in the simple test context)
     api project(":mats-util")
 
+    // @EnableMats
+    implementation project(":mats-spring")
+    // mats-spring-test employs mats-spring-jms to provide JmsMatsFactories
     implementation project(":mats-spring-jms")
     // MatsSerializerJson (default serializer, if you do not provide yourself)
     implementation project(":mats-serial-json")
-
+    // Used by TestSpringMatsFactoryProvider to provide underlying MQ for MatsFactories.
     implementation project(':mats-test-broker')
-
-    implementation "javax.inject:javax.inject:$javaxInjectVersion"
 
     // Spring. Bring your own, so compileOnly
     compileOnly "org.springframework:spring-test:$springVersion"
@@ -25,6 +26,11 @@ dependencies {
     compileOnly "com.h2database:h2:$h2Version"
 
     // :: TEST
+
+    // @Inject
+    testImplementation "javax.inject:javax.inject:$javaxInjectVersion"
+    // @PostConstruct
+    testImplementation "javax.annotation:javax.annotation-api:$javaxAnnotationVersion"
 
     // Spring: compileOnly above - now we need it to run.
     testImplementation "org.springframework:spring-test:$springVersion"

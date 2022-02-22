@@ -29,8 +29,8 @@ dependencies {
     // RandomString
     testImplementation project(":mats-util")
 
-    // Using @Inject
-    implementation "javax.inject:javax.inject:$javaxInjectVersion"
+    // @Inject
+    testImplementation "javax.inject:javax.inject:$javaxInjectVersion"
     // The JUnit library
     testImplementation "junit:junit:$junitVersion"
     // Using H2 for testing of database tx.

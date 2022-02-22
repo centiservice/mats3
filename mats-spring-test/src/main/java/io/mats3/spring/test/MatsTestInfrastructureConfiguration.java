@@ -1,9 +1,9 @@
 package io.mats3.spring.test;
 
-import javax.inject.Inject;
 import javax.sql.DataSource;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -44,15 +44,15 @@ import io.mats3.util.MatsFuturizer;
 public class MatsTestInfrastructureConfiguration  {
 
     // Optionally depend on MatsSerializer.
-    @Inject
+    @Autowired
     protected ObjectProvider<MatsSerializer<?>> _matsSerializer;
 
     // Optionally depend on DataSource
-    @Inject
+    @Autowired
     protected ObjectProvider<DataSource> _dataSource;
 
     // Optionally depend on Spring PlatformTransactionManager
-    @Inject
+    @Autowired
     protected ObjectProvider<PlatformTransactionManager> _platformTransactionManagerObjectProvider;
 
     @Bean

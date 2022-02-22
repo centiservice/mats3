@@ -35,18 +35,18 @@ import javax.jms.TopicSubscriber;
 import org.junit.Assert;
 import org.junit.Test;
 
+import io.mats3.MatsFactory.MatsWrapper;
 import io.mats3.MatsInitiator;
-import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
+import io.mats3.impl.jms.JmsMatsFactory;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
+import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.test.junit.Rule_Mats;
 import io.mats3.util.wrappers.ConnectionFactoryWrapper;
-import io.mats3.test.broker.MatsTestBroker;
-import io.mats3.util.wrappers.MatsWrapperDefault;
 
 /**
  * Checks that if we do not send any messages in an initiation, no JMS Commit will occur.
@@ -175,7 +175,7 @@ public class Test_InitiationElideJmsCommit {
         // Note, this will be a double close, as MatsFactory also has closed the pool. But just to assert that we
         // do not have any lingering JMS Connections:
         int liveConnectionsAfterClose = sessionPool.closeAllAvailableSessions();
-        Assert.assertEquals("There should be no live JMS Connections.",0, liveConnectionsAfterClose);
+        Assert.assertEquals("There should be no live JMS Connections.", 0, liveConnectionsAfterClose);
         inVmActiveMq.close();
     }
 
@@ -204,7 +204,7 @@ public class Test_InitiationElideJmsCommit {
         }
     }
 
-    private static class ConnectionWithCommitCallback implements Connection, MatsWrapperDefault<Connection> {
+    private static class ConnectionWithCommitCallback implements Connection, MatsWrapper<Connection> {
         private final Connection _connection;
         private final Runnable _commitCallback;
         private final Runnable _rollbackCallback;
@@ -285,7 +285,7 @@ public class Test_InitiationElideJmsCommit {
         }
     }
 
-    private static class SessionWithCommitCallback implements Session, MatsWrapperDefault<Session> {
+    private static class SessionWithCommitCallback implements Session, MatsWrapper<Session> {
         private final Session _session;
         private final Runnable _commitCallback;
         private final Runnable _rollbackCallback;
