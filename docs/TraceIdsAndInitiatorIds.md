@@ -30,12 +30,31 @@ the Mats flow, no matter which server is processing it currently, is simply amaz
 regret not having set a good InitiatorId and TraceId once you sit with 200 random messages on a DLQ, or wonder why
 _some_ of these extremely similar Mats Flows take an age to complete, while most other run fast.
 
+There is a clear granularity level:
+
+1. InitiatingAppName: Common for all flows originating _from a specific service_.
+2. InitiatorId: Common for all flows originating _from one specific place_ within a service.
+3. TraceId: Unique per Mats Flow, with lots of context for "human parsing".
+
 To utilize these features to their fullest, here's some guidelines:
 
-## ApplicationName + InitiatorId
+## ApplicationName
 
-These should reflect _from where_ an initiation happens: The InitiatingAppName combined with the InitiatorId should
-immediately convey which service initiated this Mats Flow, and from _where within that service_ the flow was initiated.
+The ApplicationName is set in the construction of the MatsFactory, and is as such common for any flow that originates
+from that MatsFactory, and thus normally for all flows originating in that codebase (the typical setup is a singleton
+MatsFactory per service). If there are multiple instances of the service, they shall all have the same ApplicationName.
+Inside the Flow, the "nodename" (hostname) is automatically added to distinguish between different instances.
+
+## InitiatorId
+
+The InitiatorId is a free-form String, which should be pretty short. It is set upon initiation of a flow; it is
+the `init.from(initiatorId)` parameter. It is important to understand that this _must not_ induce "cardinality
+explosions" wrt. metrics gathering: It _shall not_ include e.g. any customer-specific element like the customerId. It
+shall instead refer, effectively, to the _location in the code_ where the flow originates.
+
+Together, the ApplicationName and InitiatorId should reflect _from where_ an initiation happens: The InitiatingAppName
+combined with the InitiatorId should immediately convey which service initiated this Mats Flow, and from _where within
+that service_ the flow was initiated.
 
 For example, if the flow is initiated from a "/api/userDetails" REST endpoint, the initiatorId could well be "http:
 api/userDetails". If the flow is initiated within a batch process fulfilling orders, it could be
@@ -54,11 +73,16 @@ also a way to look at it: It is the identifier of the fictive Mats Stage represe
 
 ## TraceId
 
-A TraceId is a String. The first and foremost aspect is that it should be unique, to uniquely identify all the log lines
-of a particular Mats Flow in the system-wide logging system. A UUID definitely fulfills this requirement - but it falls
-flat in every other aspect a good TraceId could help with. _(Even for the unique-requirement, it fails. It is way too
-verbose; both is it way too unique wrt. the "universe" it lives in, and it only utilizes 16 different code points, both
-aspects resulting in the string being annoyingly long compared to the little information it holds.)_
+A TraceId is a free-form String, which should be short but still include good context. It is set upon the initiation of
+a flow; it is the `init.traceId(traceId)` parameter. As opposed to the initiatorId, each TraceId should uniquely
+identify a single initiation, and both _may_ and _should_ include relevant contextual information, like for example the
+relevant customerId.
+
+The first and foremost aspect is that it should be unique, to uniquely identify all the log lines of a particular Mats
+Flow in the system-wide logging system. A UUID definitely fulfills this requirement - but it falls flat in every other
+aspect a good TraceId could help with. _(Even for the unique-requirement, it fails. It is way too verbose; both is it
+way too unique wrt. the "universe" it lives in, and it only utilizes 16 different code points, both aspects resulting in
+the string being annoyingly long compared to the little information it holds.)_
 
 Making a good TraceId is (evidently) an art! From the TraceId _alone_, one should ideally be able to discern as much
 information as possible, while still keeping the string as short as possible!
@@ -80,10 +104,12 @@ A good traceId should contain most of:
    or accident (the user managing to place an order twice), the Mats Flows can be distinguished anyway.
 
 Points #1 and #2 are intersecting with the information in ApplicationName and InitiatorId, but experience has shown that
-TraceIds having such information are more valuable than those that don't. _(In a metrics situation, aggregating many
-Mats Flows, you do not have the TraceIds available, and thus you want the ApplicationNames and InitiatorIds to alone
-give good context, i.e. "all these slow flows originate from the Account system in the CalculateOutstanding part of the
-code - what burden is it that those flows adds?")_
+TraceIds having such information are more valuable than those that don't: In a debugging context, you typically end up
+with the single piece of information that is the TraceId, i.e. "Could you check up on this flow? {TraceId}" - and as
+such it gives very good value if it alone holds as much context as possible. _(On the other hand, in a metrics
+situation, aggregating many Mats Flows, you do not have the TraceIds available, and thus you want the ApplicationNames
+and InitiatorIds to alone give good context, i.e. "all these slow flows originate from the Account system in the
+CalculateOutstanding part of the code - what burden is it that those flows adds?".)_
 
 The TraceId should be established as close to the event triggering the Mats Flow as possible. If the action originates
 from a user interface, it should preferably be started there. _(For information about automatic prepending of an
