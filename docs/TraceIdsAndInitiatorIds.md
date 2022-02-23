@@ -7,22 +7,21 @@ These concepts are:
 1. A MatsFactory must be instantiated with an ApplicationName and ApplicationVersion. This is meant to be name of the
    containing service. E.g. if you have an "OrderService" of version "2022-02-18-build4321-e7084be" containing a
    MatsFactory, then that would be the `appName` and `appVersion`.
-2. A MatsFactory also has a `name`, which is relevant if a service has multiple MatsFactories, e.g. connecting to
-   multiple backing message brokers - the name should then reflect which broker it is connected to.
-3. Every Mats initiation, which initiates a _Mats Flow_, must create a unique `TraceId` which follows the Mats Flow till
-   it ends.
-4. .. and an initiation must also state its `InitiatorId`, which should be unique as to _where in the code_ the
-   initiation happens, but not unique per initiation.
+2. Every Mats initiation, which initiates a Mats Flow, must state its `InitiatorId`, which should be unique as to
+   _where in the code_ the initiation happens (but not unique per initiation).
+3. and finally, every initiation must create a unique `TraceId` which follows the Mats Flow till it ends.
 
 All Stages in a Mats flow, from its initiation to its end which is when a stage doesn't create an outbound flow message,
-will have the following common elements present (and this holds no matter which host it passes through).
+will have these common elements present (and this holds no matter which host it passes through).
 
 1. InitiatingTimestamp
 2. InitiatingAppName, InitiatingAppVersion
 3. InitiatorId
 4. TraceId
 
-(Each individual Stage also knows who directly called it, i.e. the FromApplicationName|Version, and FromStageId)
+(Each individual Stage also knows who the current message came from, i.e. the FromApplicationName|Version, and
+FromStageId. Note that a MatsFactory also has a `name`, which is relevant if a service has multiple MatsFactories, e.g.
+connecting to multiple backing message brokers - the name should then reflect which broker it is connected to.)
 
 Understand that Mats itself will work just fine even if you set all these to the empty string - this is _purely_ for
 human consumption, to aid in reasoning about bugs and performance. But the fact that these elements follow along with
@@ -36,14 +35,17 @@ There is a clear granularity level:
 2. InitiatorId: Common for all flows originating _from one specific place_ within a service.
 3. TraceId: Unique per Mats Flow, with lots of context for "human parsing".
 
+The two first are used when you want to aggregate multiple flows, while the latter is used when you want to look up and
+follow one specific Mats Flow, typically through the system-wide logging system.
+
 To utilize these features to their fullest, here's some guidelines:
 
 ## ApplicationName
 
 The ApplicationName is set in the construction of the MatsFactory, and is as such common for any flow that originates
-from that MatsFactory, and thus normally for all flows originating in that codebase (the typical setup is a singleton
+from that MatsFactory, and thus typically for all flows originating in that codebase (the typical setup is a singleton
 MatsFactory per service). If there are multiple instances of the service, they shall all have the same ApplicationName.
-Inside the Flow, the "nodename" (hostname) is automatically added to distinguish between different instances.
+(Inside the Flow, the "nodename" (hostname) is automatically added to distinguish between different instances.)
 
 ## InitiatorId
 
@@ -56,8 +58,8 @@ Together, the ApplicationName and InitiatorId should reflect _from where_ an ini
 combined with the InitiatorId should immediately convey which service initiated this Mats Flow, and from _where within
 that service_ the flow was initiated.
 
-For example, if the flow is initiated from a "/api/userDetails" REST endpoint, the initiatorId could well be "http:
-api/userDetails". If the flow is initiated within a batch process fulfilling orders, it could be
+For example, if the flow is initiated from a "/api/userDetails" REST endpoint, the initiatorId could well be
+"http:api/userDetails". If the flow is initiated within a batch process fulfilling orders, it could be
 'OrderFulfillmentScheduledTask' or something relevant. The point is to immediately understand from which particular part
 of the total codebase these flows are started from - and if you do not already know that service, you go to the service
 named in the InitiatingAppName, and search for the InitiatorId, and should then immediately find the location.
