@@ -73,13 +73,13 @@ public class TraceId {
 
     public static TraceId fork(String prefix, String appShort, String initShort) {
         TraceId traceId = new TraceId(appShort, initShort, null);
-        traceId.concat(prefix);
+        traceId.fork(prefix);
         return traceId;
     }
 
     public static TraceId fork(String prefix, String appShort, String initShort, String reason) {
         TraceId traceId = new TraceId(appShort, initShort, reason);
-        traceId.concat(prefix);
+        traceId.fork(prefix);
         return traceId;
     }
 
