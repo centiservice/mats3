@@ -28,8 +28,8 @@ dependencies {
     testImplementation "javax.annotation:javax.annotation-api:$javaxAnnotationVersion"
 
     // Logging
-    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
-    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+    testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
 
     // Single Spring test inside
     testImplementation "org.springframework:spring-test:$springVersion"
