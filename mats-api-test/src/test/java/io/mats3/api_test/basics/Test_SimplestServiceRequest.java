@@ -1,15 +1,17 @@
 package io.mats3.api_test.basics;
 
-import io.mats3.api_test.DataTO;
-import io.mats3.api_test.StateTO;
-import io.mats3.test.MatsTestHelp;
-import io.mats3.test.MatsTestLatch.Result;
-import io.mats3.test.junit.Rule_Mats;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.slf4j.Logger;
+
+import io.mats3.MatsFactory;
+import io.mats3.api_test.DataTO;
+import io.mats3.api_test.StateTO;
+import io.mats3.test.MatsTestHelp;
+import io.mats3.test.MatsTestLatch.Result;
+import io.mats3.test.junit.Rule_Mats;
 
 /**
  * Tests the simplest request functionality: A single-stage service is set up. A Terminator is set up. Then an initiator
@@ -36,11 +38,18 @@ public class Test_SimplestServiceRequest {
 
     @BeforeClass
     public static void setupService() {
-        // This service is very simple, where it simply returns with an alteration of what it gets input.
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
-                (context, dto) -> {
-                    return new DataTO(dto.number * 2, dto.string + ":FromService");
-                });
+        javaMatsSingleStageEndpoint(MATS.getMatsFactory());
+    }
+
+    static void javaMatsSingleStageEndpoint(MatsFactory matsFactory) {
+        // This service is very simple, where it just returns with an alteration of what it gets input.
+        matsFactory.single(SERVICE, DataTO.class, DataTO.class, (context, dto) -> {
+            // Calculate the resulting values
+            double resultNumber = dto.number * 2;
+            String resultString = dto.string + ":FromService";
+            // Return the reply DTO
+            return new DataTO(resultNumber, resultString);
+        });
     }
 
     @BeforeClass
