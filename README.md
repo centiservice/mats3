@@ -28,6 +28,8 @@ License: [Polyform Perimeter 1.0.0 with examples](LICENSE.md)
 If you find Mats interesting, you might want to check out the "companion
 project" [MatsSocket](https://github.com/centiservice/matssocket).
 
+## [Documentation](docs/)
+
 # What is Mats?
 
 There's a document going into details [here](docs/WhatIsMats.md), and for the rationale behind
@@ -491,7 +493,7 @@ decide whether the Mats flow should run using persistent ("guaranteed") or non-p
 
 **The futurizer should _only_ be employed on the "edges" of the Mats fabric**, where synchronous processes like
 REST-endpoints needs to communicate with the asynchronous Mats fabric. _Never_ use the MatsFuturizer as a part of your
-application-internal API - [read this](docs/MatsComposition.md).
+application-internal API - [read this](docs/developing/MatsComposition.md).
 
 > As an alternative to the MatsFuturizer, you should check out [MatsSocket](https://github.com/centiservice/matssocket),
 > which bridges the asynchronous nature of Mats all the way out to the end-user clients by using WebSockets.

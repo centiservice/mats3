@@ -27,7 +27,7 @@ import io.mats3.test.junit.Rule_Mats;
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
-public class Test_SimplestServiceRequest {
+public class Test_SimplestEndpointRequest {
     private static final Logger log = MatsTestHelp.getClassLogger();
 
     @ClassRule
@@ -37,7 +37,7 @@ public class Test_SimplestServiceRequest {
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
-    public static void setupService() {
+    public static void setupEndpoint() {
         javaMatsSingleStageEndpoint(MATS.getMatsFactory());
     }
 

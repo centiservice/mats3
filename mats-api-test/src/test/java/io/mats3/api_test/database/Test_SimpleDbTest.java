@@ -14,13 +14,13 @@ import io.mats3.MatsFactory.ContextLocal;
 import io.mats3.test.junit.Rule_Mats;
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
-import io.mats3.api_test.basics.Test_SimplestServiceRequest;
+import io.mats3.api_test.basics.Test_SimplestEndpointRequest;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.TestH2DataSource;
 
 /**
- * Simple test that looks quite a bit like {@link Test_SimplestServiceRequest}, only the Initiator now populate a table
+ * Simple test that looks quite a bit like {@link Test_SimplestEndpointRequest}, only the Initiator now populate a table
  * with some data, which the Mats service retrieves and replies with.
  * <p>
  * ASCII-artsy, it looks like this:

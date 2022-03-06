@@ -178,7 +178,7 @@ node(s).
 Technically, the Request and Reply, and well as the State objects, are serialized within an envelope, and this envelope
 is the actual message passed on the queues. The system uses the envelope to carry the call stack with the different
 state objects, in addition to the actual message DTO, but also gives the ability
-to [tack on information that carries through the Mats flow from start to finish](TraceIdsAndInitiatorIds.md). An
+to [tack on information that carries through the Mats flow from start to finish](developing/TraceIdsAndInitiatorIds.md). An
 immediate benefit for developers is the *TraceId* string, which is a mandatory parameter for an initiation. This ties
 together all processing throughout the flow, and with a common logging system for all your services, you immediately
 gain full insight into the processing of this Mats flow through the different parts of the distributed system.

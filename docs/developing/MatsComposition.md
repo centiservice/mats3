@@ -12,20 +12,20 @@ the final reply comes back to the same host, read more about that elsewhere).
 > bridge between an end-user client and a service employing Mats, pulling the asynchronous nature of Mats all the way
 > out to the client.
 
-Let's say you have a CustomerService that needs to talk to an external AccountService. When coming from a REST-based
-world, one might be tempted to write "Client wrappers" around such external data dependencies. This so that
-CustomerService's data exposing REST-endpoints can call into a nice and clean little client, for example named
-AccountClient, instead of dealing with messy HTTP right there in the method. In the REST-based world, this AccountClient
-would use a HttpClient or similar to synchronously call the AccountService's REST-endpoints to get the needed data,
-abstracting away the HTTP invocation. In a Mats-based architecture, such an AccountClient would instead need to employ a
-MatsFuturizer to talk to the backing Mats Endpoint, returning the answer directly (or possibly as a CompletableFuture),
-thus abstracting away the interaction with Mats.
+Let's say you have a CustomerService that needs to talk to some AccountService. When coming from a REST-based world, one
+might be tempted to write "Client wrappers" around such external data dependencies. This so that CustomerService's data
+exposing REST-endpoints can call into a nice and clean little client, for example named AccountClient, instead of
+dealing with messy HTTP right there in the REST-endpoint method. In the REST-based world, this AccountClient would use a
+HttpClient or similar to synchronously call the AccountService's REST-endpoints to get the needed data, abstracting away
+the HTTP invocation (and possibly error handling and retrying). In a Mats-based architecture, such an AccountClient
+would instead need to employ a MatsFuturizer to talk to the backing Mats Endpoint, returning the answer directly (or
+possibly as a CompletableFuture), thus abstracting away the interaction with Mats.
 
 As further improvements to this abstraction, you might then do some pre-operations inside that client, massaging some
 arguments, looking up some identifiers from a database, before invoking the MatsFuturizer, and possibly also attach a
 couple of `.thenApply(...)` as post-operations to the CompletableFuture before returning it.
 
-**Please do not do this!**
+**Please don't do this!**
 
 The problem with this is that it ruins the composability of Mats Endpoints.
 
@@ -90,7 +90,7 @@ it could have been:
 All in all, you end up with the same type of nightmare and brittleness that a REST-based architecture results in, where
 synchronous REST-endpoints invokes other synchronous REST-endpoints which again invokes yet other synchronous
 REST-endpoints, which may end up with spectacular cascading failures, where you do not know which operations has
-actually completed. _This is exactly what Mats set out to avoid!_.
+actually completed. _This is exactly what Mats set out to avoid!_
 
 **The MatsFuturizer shall only be used on the very outer edges, where you actually have a synchronous call that needs to
 bridge into the asynchronous Mats fabric. Do not use it as part of your service-internal API!**
