@@ -100,10 +100,10 @@ that up (probably on a different service, on a different host, and in different 
 puts its (intermediate) result on another queue. This action may need to happen multiple times, traversing multiple
 services. This is
 the ["Pipes and Filters"](https://www.enterpriseintegrationpatterns.com/patterns/messaging/PipesAndFilters.html)
-architectural style as defined in the EIP book. This multiple *"consume message from inbound queue - process the message
-- post new message to outbound queue"* processing flow is harder to reason about: State is now not implicit, but needs
-to be passed along with the messages. And these stages will typically be within separate code bases, as they reside in
-different services.
+architectural style as defined in the EIP book. This multiple *"Consume message from inbound queue; Process the message;
+Post new message to outbound queue"*-style processing flow is harder to reason about: State is now not implicit, but
+needs to be passed along with the messages. And these stages will typically be within separate code bases, as they
+reside in different services.
 
 You gain much: Each of these stages are independent processes. There is no longer a distributed blocking state residing
 through multiple services, as the queues acts as intermediaries, each stage processor having fully performed its part of
