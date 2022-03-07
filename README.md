@@ -13,11 +13,11 @@ this pans out, fire up your IDE and head over to the unit/integration tests of
 [MatsFuturizer](mats-util/src/test/java/io/mats3/util/futurizer), and tests of the testing tools for
 [JUnit](mats-test-junit/src/test/java/io/mats3/test/junit) /
 [Jupiter](mats-test-jupiter/src/test/java/io/mats3/test/jupiter) /
-[Spring](mats-spring-test/src/test/java/io/mats3/spring/test).
-There's also a very rudimentary "dev area" for the Metrics Interceptor
-[MatsMetrics_TestJettyServer](mats-intercept-micrometer/src/test/java/io/mats3/test/metrics/MatsMetrics_TestJettyServer.java), 
+[Spring](mats-spring-test/src/test/java/io/mats3/spring/test). There's also a very rudimentary "dev area" for the
+Metrics Interceptor
+[MatsMetrics_TestJettyServer](mats-intercept-micrometer/src/test/java/io/mats3/test/metrics/MatsMetrics_TestJettyServer.java),
 and same for Local Introspector
-[LocalHtmlInspect_TestJettyServer](mats-localinspect/src/test/java/io/mats3/localinspect/LocalHtmlInspect_TestJettyServer.java),
+[LocalHtmlInspect_TestJettyServer](mats-localinspect/src/test/java/io/mats3/localinspect/LocalHtmlInspect_TestJettyServer.java), 
 both of which you may start from your IDE.*
 
 To use Mats in a project, fetch [`mats-impl-jms`](https://mvnrepository.com/artifact/io.mats3/mats-impl-jms)
@@ -28,7 +28,8 @@ License: [Polyform Perimeter 1.0.0 with examples](LICENSE.md)
 If you find Mats interesting, you might want to check out the "companion
 project" [MatsSocket](https://github.com/centiservice/matssocket).
 
-## [Documentation](docs/)
+# Documentation
+Go to the [docs](docs/) folder.
 
 # What is Mats?
 
@@ -158,6 +159,21 @@ synchronously invoke other endpoints as part of the processing. You code "linear
 all features of an asynchronous Message Oriented Architecture.
 
 For more, read [this](docs/WhatIsMats.md), then [this](docs/RationaleForMats.md).
+
+## What Mats is not
+
+Mats is not meant for e.g. stream processing of large amounts of small events. Mats is geared more towards "weighty"
+processes and messages, and trades some performance for developer friendliness, transactionality and debugging features.
+Solutions like Kafka might be what you want if you need to receive tens-of-thousands of events per second from your
+massive fleet of IoT devices. Use Mats for the subsequent, more coarse-grained handling of the results of such
+ingestion. _(That said, the throughput of a large Mats fabric with lots of Endpoints scales very well, and is only
+limited by the throughput of your message broker setup)_
+
+Also, Mats is not meant for events which require handling in a specific order, e.g. arrival order. The intention with
+Mats is that you run multiple instances/replicas of each service. And on each instance, there are multiple
+StageProcessors for each Stage. A Mats Flow typically consist of processing on multiple Endpoints with multiple Stages,
+and there is no way to guarantee that two flows which are started in some close order, will run through those stages,
+and finish in the same order they were started.
 
 # Examples
 
