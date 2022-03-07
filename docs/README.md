@@ -13,7 +13,7 @@ You should probably read the top-level [README.md](../README.md) file first!
 ### [Basics](developing/A-DevelopingBasics.md)
 
 How to code Mats Endpoints and Stages. Single-stage and multi-stage Endpoints. Terminators. Initiation of Mats Flows.
-How to perform synchronous Mats requests.
+How to perform synchronous Mats requests using the `MatsFuturizer`.
 
 ### [Transactional Stages and Redelivery](developing/TransactionsAndRedeliveries.md)
 
@@ -32,3 +32,11 @@ aggregate metrics. The document explains a bit about these, and gives pointers t
 Do not wrap Mats Endpoints into Clients in service-internal APIs, as you might normally do when employing HTTP-style
 inter service communications. This will hinder composition of Mats endpoints. Instead make "service-private" Mats
 Endpoints.
+
+TODO:
+
+### MatsFactory
+
+### Developing with mocks for collaborating services
+
+### Testing

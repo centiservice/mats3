@@ -24,8 +24,8 @@ this stage - taking into account how many replicas of the service is run - can b
 
 To compare, in a Servlet-style world, the Servlet Container would be set up with a thread pool, e.g. 100 or 200 threads,
 and all HTTP endpoints defined in this service will share this pool of threads. If you instead had a smaller thread pool
-per HTTP endpoint, which possibly was tailored to the load and handling capacity of the operations in that endpoint, the
-result would be very similar to Mats's use of threads.
+per HTTP endpoint, which possibly was tailored to the load and handling capacity of all the operations in that endpoint,
+the result would be similar to Mats's use of threads.
 
 Here's a single endpoint set up with plain Java _(As mentioned at the top, this assumes that you have the MatsFactory
 already available):_
@@ -81,7 +81,7 @@ just a single Stage. This situation is common enough to have its own convenience
 
 ### Stage processings are transactional
 
-Mats run each Stage in a transaction, both for the message consumption and production, and for the database access. This
+Mats run each Stage in a transaction, spanning the message consumption and production, and any database access. This
 means that a stage has either consumed a message, performed its database operations, and produced a message - or done
 none of that. If any of the operations within a Stage throws a RuntimeException, the processing of both the database and
 message handling is rolled back, and the MQ will perform redelivery attempts, until it either succeeds, or deems the
@@ -328,19 +328,18 @@ invocations. However, both of these employ the concept of initiation, from "the 
 processing is meant to imply that it is some kind of system internal, non-interactive processes. For example, a new
 batch of widgets comes into the warehouse, and therefore we should run through the order tables and see which orders can
 now be processed. For each processable order, a Mats Flow is initiated. Interactive invocation is meant to imply that
-typically some agent is at the edge, wanting to interact with the Mats fabric - this will typically be a human,
-employing a GUI. This will often be a synchronous HTTP endpoint, and we need to invoke a Mats endpoint to e.g. query for
-information, or insert or modify some information - thus initiating a Mats Flow.
+some agent is at the edge, wanting to interact with the Mats fabric - this will typically be a human, employing a GUI,
+but could also be an externally exposed REST API. This will often be a synchronous HTTP endpoint, and we need to invoke
+a Mats endpoint to e.g. query for information, or insert or modify some information - thus initiating a Mats Flow.
 
 We'll come back to the synchronous situation after having explained how to initiate a Mats Flow.
 
 ### Batch, or asynchronous initiations
 
-This following is a "fire and forget"-style `send(..)` initiation, which just sends a message to a Mats Endpoint,
-thereby initiating a Mats Flow. Whether this is dozen-stage endpoint, or a single stage, is of no concern to the
-initiator.
+The following is a "fire and forget"-style `send(..)` initiation, which just sends a message to a Mats Endpoint, thereby
+initiating a Mats Flow. Whether this is dozen-stage endpoint, or a single stage, is of no concern to the initiator.
 
-We'll illustrate this with a unit test. The test sets up a single-stage Endpoint, which due to convenience is of special
+We'll illustrate this with a unit test. The test sets up a single-stage Endpoint, which due to convenience is of the
 type "Terminator", read more about that below. Then a "fire-and-forget" style `send(..)` to this Endpoint is performed:
 
 ```java
@@ -485,7 +484,7 @@ Reply.
 The first part is done by making a reply destination that includes the nodename (e.g. hostname) of the node we're
 initiating from. The second is simply a matter of using Java primitives to wait and notify. I.e. setting up a map of
 "outstanding futures" with the key being a correlationId, and then employ the state object to keep this correlationId
-through the Mats Flow, so that when the Terminator gets the Reply it knows which future to complete.
+through the Mats Flow, so that when the Terminator (on the same node) gets the Reply it knows which future to complete.
 
 All of that is neatly packaged up in a tool called the `MatsFuturizer`. It resides in the package 'mats-util', and is a
 fairly simple tool built on the Mats API.
@@ -529,7 +528,7 @@ The `futurizeNonessential(..)` variant makes a few assumptions about what you wa
 information.
 
 In a Servlet-style world, this can be used both in a synchronous way, where you perform the futurization, and
-immediately perform `.get()` on the returned `CompletableFuture` to get the result, and return it as the response from
+immediately perform `.get()` on the returned `CompletableFuture` to get the result and return it as the response from
 the HTTP endpoint. Or you can employ an asynchronous dispatch, where you hook on a `thenApply(..)` which completes the
 HTTP request.
 

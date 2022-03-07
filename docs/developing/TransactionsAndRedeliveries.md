@@ -1,6 +1,6 @@
 # Transactional demarcation and redeliveries
 
-Mats run each Stage in a transaction, both for the message consumption and production, and for the database access. This
+Mats run each Stage in a transaction, spanning the message consumption and production, and any database access. This
 means that a stage has either consumed a message, performed its database operations, and produced a message - or done
 none of that. If any of the operations within a Stage throws a RuntimeException, the processing of both the database and
 message handling is rolled back, and the MQ will perform redelivery attempts, until it either succeeds, or deems the
@@ -13,7 +13,8 @@ follows:
 
 The JMS implementation of the Mats API currently have transaction managers for JMS-only, and JMS-and-SQL, the latter
 both with "pure java" JDBC, or with Spring's `TransactionManagers` (typically `DataSourceTransactionManager`, but also
-e.g. HibernateTransactionManager) so that you can employ for example Spring's `JdbcTemplate`, or Hibernate integration.
+e.g. `HibernateTransactionManager`) so that you can employ for example Spring's `JdbcTemplate`, or Hibernate
+integration.
 
 There is only support for 1 DataSource in the transaction. This should, in a micro service setting, not really
 constitute a limitation: It makes sense from a division of responsibility perspective that one microservice "owns" one
@@ -37,7 +38,7 @@ Therefore, the Stage's transaction is set up in the following fashion:
 3. Start JDBC transaction
 4. Perform Stage processing:
     * Business logic
-    * CUD (Create, Update, Delete) database operations
+    * CRUD (Create, Read, Update, Delete) database operations
     * Send message(s)
 5. Commit database transaction
 6. Commit JMS transaction
@@ -63,7 +64,7 @@ processing, and just send the outgoing message.
 Note that this is not a problem if the Stage only performs reads: This is a "safe" idempotent method, and the second
 delivery will just be processed again, this time the JMS commit will most probably go through. The same holds for any
 other idempotent operations: Deleting an already deleted row is often not a problem (unless you verify "number of
-affected rows"!), and updating a row with new information might also not be a problem.
+affected rows"!), and updating a row with new information might also not be a problem if done multiple times.
 
 2-phase-commit transactions (XA-transactions) on the surface seems like a silver bullet. However, even XA-transactions
 cannot defy reality: If you have two resources A and B, then prepare both, and then commit the A, and then everything
@@ -74,7 +75,7 @@ coding your way around the situation.
 
 ### Outbox pattern
 
-There is actually a silver bullet, though: This is the "outbox pattern" - _but it is not yet implemented in Mats_.
+There is actually a silver bullet, though: This is the "outbox pattern" - _but this is not yet implemented in Mats_.
 
 The trick here is to store the (serialized) outgoing message inside the same database and the same transaction as the
 other database operations in the Stage. You will now be guaranteed that the commit of the database, and commit of the
@@ -95,15 +96,16 @@ So the full solution will be an "inbox-outbox pattern". The outbox to ensure sen
 to catch duplicate deliveries.
 
 Needless to say, such a solution does not improve performance! The intention is to be able to selectively enable this
-for stages that aren't idempotent.
+for stages that aren't idempotent, either by nature (reads, and possibly updates and deletes), or by explicitly having
+code to handle the above described possible problem (which mainly should be with create/insert).
 
 ## Redeliveries
 
 For ActiveMQ, the redelivery policy per default constitute 1 delivery attempt, and 5 redelivery attempts, for a total of
 6 attempts. It is worth understanding that these redelivery attempts per default is performed _on the client/consumer
 side_. The rationale for this is to uphold the message order, so that no older message will be delivered before the
-youngest/earliest message is delivered. This means that the StageProcessor (the thread) that got a poison message will "
-stutter" on that message until it either works out, or the message is DLQed. Since there is a delay between each
+youngest/earliest message is delivered. This means that the StageProcessor (the thread) that got a poison message will
+"stutter" on that message until it either works out, or the message is DLQed. Since there is a delay between each
 attempt, this will take multiple seconds. If you for some reason (typically a coding error upstream of the Mats Flows)
 end up with a whole bunch of poison messages, this entire Stage, with all its StageProcessors, on all the instances
 (replicas) of the service, might effectively "stutter" on redelivery attempts while slowly chewing its way through that
@@ -123,8 +125,6 @@ broker's delivery mechanism, or the StageProcessors, or any network effect, coul
 Therefore, this concept of client side redelivery to keep strict message order is of no value whatsoever for Mats' usage
 of the message broker - and might rather be considered detrimental to its usage. You should instead consider turning on
 broker redelivery, see links at bottom.
-
-Mats is not meant for any kind of stream processing of events which require processing in e.g. arrival order.
 
 ## Links for ActiveMQ:
 
