@@ -5,7 +5,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import javax.jms.ConnectionFactory;
 
-import org.apache.activemq.ActiveMQPrefetchPolicy;
 import org.apache.activemq.RedeliveryPolicy;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.RoutingType;
@@ -20,7 +19,11 @@ import org.apache.activemq.broker.BrokerService;
 import org.apache.activemq.broker.region.policy.IndividualDeadLetterStrategy;
 import org.apache.activemq.broker.region.policy.PolicyEntry;
 import org.apache.activemq.broker.region.policy.PolicyMap;
-import org.apache.activemq.plugin.StatisticsBroker;
+import org.apache.activemq.broker.region.policy.RedeliveryPolicyMap;
+import org.apache.activemq.broker.util.RedeliveryPlugin;
+import org.apache.activemq.command.ActiveMQQueue;
+import org.apache.activemq.command.ActiveMQTopic;
+import org.apache.activemq.plugin.StatisticsBrokerPlugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -214,24 +217,34 @@ public interface MatsTestBroker {
                 brokername.append(ALPHABET.charAt(ThreadLocalRandom.current().nextInt(ALPHABET.length())));
 
             log.info("Setting up in-vm ActiveMQ BrokerService '" + brokername + "'.");
-            BrokerService brokerService = new BrokerService();
-            brokerService.setBrokerName(brokername.toString());
+            BrokerService broker = new BrokerService();
+            broker.setBrokerName(brokername.toString());
             // :: Disable a bit of stuff for testing:
             // No need for JMX registry; We won't control nor monitor it over JMX in tests
-            brokerService.setUseJmx(false);
+            broker.setUseJmx(false);
             // No need for persistence; No need for persistence across reboots, and don't want KahaDB dirs and files.
-            brokerService.setPersistent(false);
+            broker.setPersistent(false);
             // No need for Advisory Messages; We won't be needing those events in tests.
-            brokerService.setAdvisorySupport(false);
+            broker.setAdvisorySupport(false);
             // No need for shutdown hook; We'll shut it down ourselves in the tests.
-            brokerService.setUseShutdownHook(false);
+            broker.setUseShutdownHook(false);
+            // Need scheduler support for redelivery plugin
+            broker.setSchedulerSupport(true);
 
             // ::: Add features that we would want in prod.
+
+            // If using KahaDB, then you definitely want this: org.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+            // https://access.redhat.com/documentation/en-us/red_hat_amq/6.3/html/tuning_guide/perstuning-kahadb
+
             // Note: All programmatic config here can be set via standalone broker config file 'conf/activemq.xml'.
 
-            // :: Add the statistics broker, since that is what we want people to do in production, and so that an
+            // :: Plugins
+
+            // .. Statistics, since that is what we want people to do in production, and so that an
             // ActiveMQ instance created with this tool can be used by 'matsbrokermonitor'.
-            brokerService.setPlugins(new BrokerPlugin[] { StatisticsBroker::new });
+            StatisticsBrokerPlugin statisticsBrokerPlugin = new StatisticsBrokerPlugin();
+            // .. add the plugins to the BrokerService
+            broker.setPlugins(new BrokerPlugin[] { statisticsBrokerPlugin });
 
             // :: Set Individual DLQ - which you most definitely should do in production.
             // Hear, hear: http://activemq.2283324.n4.nabble.com/PolicyMap-api-is-really-bad-td4284307.html
@@ -243,52 +256,68 @@ public interface MatsTestBroker {
             // :; Also DLQ non-persistent messages
             individualDeadLetterStrategy.setProcessNonPersistent(true);
 
-            // :: Create the policy entry employing this IndividualDeadLetterStrategy and any extra features going
-            // into this "all queues" policy.
-            PolicyEntry policyEntry = new PolicyEntry();
-            policyEntry.setQueue(">"); // all queues
-            policyEntry.setDeadLetterStrategy(individualDeadLetterStrategy);
+            // :: Create destination policy entry for Queues
+            PolicyEntry allQueuesPolicy = new PolicyEntry();
+            allQueuesPolicy.setDestination(new ActiveMQQueue(">")); // all queues
+
+            // Add the IndividualDeadLetterStrategy
+            allQueuesPolicy.setDeadLetterStrategy(individualDeadLetterStrategy);
             // Optimized dispatch.. ?? "Don’t use a separate thread for dispatching from a Queue."
             // .. didn't really see any result, so leave at default.
             // policyEntry.setOptimizedDispatch(true);
             // We do use prioritization, and this should ensure that priority information is persisted
             // Store JavaDoc: "A hint to the store to try recover messages according to priority"
-            policyEntry.setPrioritizedMessages(true);
+            allQueuesPolicy.setPrioritizedMessages(true);
 
-            // .. Create the PolicyMap containing the policy
+            // :: Create policy entry for Topics
+            PolicyEntry allTopicsPolicy = new PolicyEntry();
+            allTopicsPolicy.setDestination(new ActiveMQTopic(">")); // all topics
+
+            /*
+             * Chill the prefetch a bit, from Queue:1000 and Topic:Short.MAX_VALUE (!), which is very much when with
+             * Mats and its transactional logic of "consume a message, produce a message, commit", as well as multiple
+             * StageProcessors per Stage, on multiple instances/replicas of the services. Lowering this considerably to
+             * instead focus on lower memory usage, good distribution, and if one consumer by any chance gets hung, it
+             * won't allocate so many of the messages into a "void".
+             */
+            allQueuesPolicy.setQueuePrefetch(10);
+            allTopicsPolicy.setTopicPrefetch(100);
+
+            // :: Create the PolicyMap containing the two destination policies
             PolicyMap policyMap = new PolicyMap();
-            policyMap.put(policyEntry.getDestination(), policyEntry);
+            policyMap.put(allQueuesPolicy.getDestination(), allQueuesPolicy);
+            policyMap.put(allTopicsPolicy.getDestination(), allTopicsPolicy);
             // .. set this PolicyMap containing our PolicyEntry on the broker.
-            brokerService.setDestinationPolicy(policyMap);
+            broker.setDestinationPolicy(policyMap);
 
             // :: Start the broker.
             try {
-                brokerService.start();
+                broker.start();
             }
             catch (Exception e) {
                 throw new AssertionError("Could not start ActiveMQ BrokerService '" + brokername + "'.", e);
             }
-            return brokerService;
+            return broker;
         }
 
         protected static ConnectionFactory createActiveMQConnectionFactory(String brokerUrl) {
             log.info("Setting up ActiveMQ ConnectionFactory to brokerUrl: [" + brokerUrl + "].");
             org.apache.activemq.ActiveMQConnectionFactory conFactory = new org.apache.activemq.ActiveMQConnectionFactory(
                     brokerUrl);
-            RedeliveryPolicy redeliveryPolicy = conFactory.getRedeliveryPolicy();
-            // :: Only try redelivery once, since the unit tests does not need any more to prove that they work.
-            redeliveryPolicy.setInitialRedeliveryDelay(100);
-            redeliveryPolicy.setUseExponentialBackOff(false);
-            redeliveryPolicy.setMaximumRedeliveries(1);
 
-            /*
-             * The queue prefetch is default 1000, which is very much when used as Mats with its transactional logic of
-             * "consume a message, produce a message, commit". Lowering this considerably to instead focus on good
-             * distribution, and if one consumer by any chance gets hung, it won't allocate so many of the messages
-             * "into a void".
-             */
-            ActiveMQPrefetchPolicy prefetchPolicy = conFactory.getPrefetchPolicy();
-            prefetchPolicy.setQueuePrefetch(10);
+            // We don't need in-order, so just deliver other messages while waiting for redelivery.
+            conFactory.setNonBlockingRedelivery(true);
+
+            // :: RedeliveryPolicy
+            RedeliveryPolicy redeliveryPolicy = conFactory.getRedeliveryPolicy();
+            redeliveryPolicy.setInitialRedeliveryDelay(500);
+            redeliveryPolicy.setRedeliveryDelay(2000); // This is not in use when using exponential backoff
+            redeliveryPolicy.setUseExponentialBackOff(true);
+            redeliveryPolicy.setBackOffMultiplier(2);
+            redeliveryPolicy.setUseCollisionAvoidance(true);
+            redeliveryPolicy.setCollisionAvoidancePercent((short) 15);
+            // Only need 1 redelivery for testing, totally ignoring the above. Use 6-10 for production.
+            redeliveryPolicy.setMaximumRedeliveries(1);
 
             return conFactory;
         }

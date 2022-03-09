@@ -235,7 +235,7 @@ public interface MatsTestBrokerInterface {
                 try {
                     jmsConnection.start();
 
-                    int maxWaitMillis = 10_000;
+                    int maxWaitMillis = 30_000;
 
                     // We'll wait for threads to get into receive before we close connection, even if one of the
                     // threads get the DLQ right away, otherwise there's risk of javax.jms.IllegalStateException:
