@@ -55,11 +55,11 @@ public @interface SpringInjectRulesAndExtensions {
          * as supplied by testContext.
          */
         @Override
-        public void prepareTestInstance(TestContext testContext) throws Exception {
+        public void prepareTestInstance(TestContext testContext) {
             AutowireCapableBeanFactory beanFactory = testContext.getApplicationContext()
                     .getAutowireCapableBeanFactory();
 
-            // Get all fields in test class annotated with @RegisterExtension
+            // Get all fields in test class annotated with @Rule or @RegisterExtension
             Set<Field> testRuleFields = findFields(testContext.getTestClass(), "org.junit.Rule");
             Set<Field> testExtensionFields = findFields(testContext.getTestClass(),
                     "org.junit.jupiter.api.extension.RegisterExtension");
@@ -70,8 +70,17 @@ public @interface SpringInjectRulesAndExtensions {
 
             // Use bean factory to autowire all extensions
             for (Field testField : allFields) {
-                Object ruleObject = testField.get(testContext.getTestInstance());
-                beanFactory.autowireBean(ruleObject);
+                try {
+                    // We need to set this accessible, even for public fields, as Java 17s access controls will
+                    // prevent access otherwise.
+                    testField.setAccessible(true);
+                    Object ruleObject = testField.get(testContext.getTestInstance());
+                    beanFactory.autowireBean(ruleObject);
+                }
+                catch (Exception e) {
+                    throw new AssertionError("Failed read field [" + testField + "] in [" + testField.getClass() + "],"
+                            + " unable to autowire it as a bean in test class [" + testContext.getTestClass() + "]", e);
+                }
             }
         }
 
