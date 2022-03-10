@@ -101,14 +101,15 @@ code to handle the above described possible problem (which mainly should be with
 
 ## Redeliveries
 
-For ActiveMQ, the redelivery policy per default constitute 1 delivery attempt, and 5 redelivery attempts, for a total of
-6 attempts. It is worth understanding that these redelivery attempts per default is performed _on the client/consumer
-side_. The rationale for this is to uphold the message order, so that no older message will be delivered before the
-youngest/earliest message is delivered. This means that the StageProcessor (the thread) that got a poison message will
-"stutter" on that message until it either works out, or the message is DLQed. Since there is a delay between each
+For ActiveMQ, the redelivery policy _per default_ constitute 1 delivery attempt, and 6 redelivery attempts, for a total
+of 7 attempts. It is worth understanding that these redelivery attempts _per default_ is performed _on the
+client/consumer side_, blocking further deliveries until the message either is handled, or DLQed. The rationale for this
+is to uphold the message order, so that no later sent message may sneak past an earlier just because the earlier hit a
+transient error and needed redelivery. This means that the StageProcessor (the thread) that got a poison message will "
+stutter" on that message until it either works out, or the message is DLQed. Since there is a delay between each
 attempt, this will take multiple seconds. If you for some reason (typically a coding error upstream of the Mats Flows)
-end up with a whole bunch of poison messages, this entire Stage, with all its StageProcessors, on all the instances
-(replicas) of the service, might effectively "stutter" on redelivery attempts while slowly chewing its way through that
+end up with a whole bunch of poison messages, this entire Stage, with all its StageProcessors, on all the instances (
+replicas) of the service, might effectively "stutter" on redelivery attempts while slowly chewing its way through that
 bunch of poison messages.
 
 ### Never rely on message order!
@@ -122,9 +123,17 @@ you should have multiple instances (replicas) of each Service, and each Stage ha
 skewing in processing time, e.g. a garbage collection kicking in, or just simply the thread scheduling of either the
 broker's delivery mechanism, or the StageProcessors, or any network effect, could make message 2 overtake message 1.
 
-Therefore, this concept of client side redelivery to keep strict message order is of no value whatsoever for Mats' usage
-of the message broker - and might rather be considered detrimental to its usage. You should instead consider turning on
-broker redelivery, see links at bottom.
+Therefore, this concept of ActiveMQ's client side redelivery, blocking further deliveries till either success or DLQ, to
+keep strict message order is of no value whatsoever for Mats' usage of the message broker - and might rather be
+considered detrimental to its usage.
+
+For ActiveMQ, you may turn on non-blocking redelivery on the client
+ConnectionFactory: `ActiveMQConnectionFactory.setNonBlockingRedelivery(true)`. The redelivery is still performed on the
+client, but now new messages are delivered concurrently with the waiting period between deliveries for the message that
+initially failed.
+
+There is also an option for broker-side redelivery, but this solution is somewhat of a tack-on to the original
+client-side solution, and was found to not give the desired benefits. _YMMV._
 
 ## Links for ActiveMQ:
 
