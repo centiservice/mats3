@@ -28,9 +28,8 @@ public class Test_CallOverflow {
         MATS.cleanMatsFactories();
         String SERVICE = MatsTestHelp.endpointId("infiniteRequestRecursionToSelf");
 
-        MatsEndpoint<DataTO, DataTO> ep = MATS.getMatsFactory().staged(SERVICE, DataTO.class,
-                DataTO.class);
-        ep.stage(DataTO.class, (ctx, state, msg) -> ctx.request(SERVICE, msg));
+        MatsEndpoint<DataTO, DataTO> ep = MATS.getMatsFactory().staged(SERVICE, DataTO.class, DataTO.class);
+        ep.stage(DataTO.class, (ctx, state, msg) -> ctx.request(SERVICE, msg)); // Requesting ourselves
         ep.stage(DataTO.class, (ctx, state, msg) -> Assert.fail("Should never come here"));
         ep.finishSetup();
 
@@ -54,9 +53,7 @@ public class Test_CallOverflow {
         String SERVICE = MatsTestHelp.endpointId("infiniteSendChildFlow");
 
         MATS.getMatsFactory().terminator(SERVICE, StateTO.class, DataTO.class,
-                (ctx, state, msg) -> ctx.initiate(init -> init
-                        .to(SERVICE)
-                        .send(msg)));
+                (ctx, state, msg) -> ctx.initiate(init -> init.to(SERVICE).send(msg))); // Creating child flow
 
         // Act
         MATS.getMatsInitiator().initiate(init -> init
