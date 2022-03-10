@@ -19,8 +19,7 @@ import org.apache.activemq.broker.BrokerService;
 import org.apache.activemq.broker.region.policy.IndividualDeadLetterStrategy;
 import org.apache.activemq.broker.region.policy.PolicyEntry;
 import org.apache.activemq.broker.region.policy.PolicyMap;
-import org.apache.activemq.broker.region.policy.RedeliveryPolicyMap;
-import org.apache.activemq.broker.util.RedeliveryPlugin;
+import org.apache.activemq.broker.region.policy.TimedSubscriptionRecoveryPolicy;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.command.ActiveMQTopic;
 import org.apache.activemq.plugin.StatisticsBrokerPlugin;
@@ -247,48 +246,81 @@ public interface MatsTestBroker {
             broker.setPlugins(new BrokerPlugin[] { statisticsBrokerPlugin });
 
             // :: Set Individual DLQ - which you most definitely should do in production.
-            // Hear, hear: http://activemq.2283324.n4.nabble.com/PolicyMap-api-is-really-bad-td4284307.html
-            // Create the individual DLQ policy, targeting all queues.
+            // Hear, hear: https://users.activemq.apache.narkive.com/H7400Mn1/policymap-api-is-really-bad
+            // :: Create the individual DLQ policy, targeting all queues.
             IndividualDeadLetterStrategy individualDeadLetterStrategy = new IndividualDeadLetterStrategy();
             individualDeadLetterStrategy.setQueuePrefix("DLQ.");
-            // :: Throw expired messages out the window
+            // .. Throw expired messages out the window
             individualDeadLetterStrategy.setProcessExpired(false);
-            // :; Also DLQ non-persistent messages
+            // .. Also DLQ non-persistent messages
             individualDeadLetterStrategy.setProcessNonPersistent(true);
 
-            // :: Create destination policy entry for Queues
+            // :: Set up Time-based Topic Subscription RecoveryPolicy, if the network glitches and you miss a message.
+            TimedSubscriptionRecoveryPolicy timedSubscriptionRecoveryPolicy = new TimedSubscriptionRecoveryPolicy();
+            timedSubscriptionRecoveryPolicy.setRecoverDuration(180_000); // 3 minutes
+
+            // :: Create destination policy entry for QUEUES:
             PolicyEntry allQueuesPolicy = new PolicyEntry();
             allQueuesPolicy.setDestination(new ActiveMQQueue(">")); // all queues
-
-            // Add the IndividualDeadLetterStrategy
+            // .. add the IndividualDeadLetterStrategy
             allQueuesPolicy.setDeadLetterStrategy(individualDeadLetterStrategy);
-            // Optimized dispatch.. ?? "Don’t use a separate thread for dispatching from a Queue."
-            // .. didn't really see any result, so leave at default.
-            // policyEntry.setOptimizedDispatch(true);
-            // We do use prioritization, and this should ensure that priority information is persisted
-            // Store JavaDoc: "A hint to the store to try recover messages according to priority"
+            // .. we do use prioritization, and this should ensure that priority information is handled in queue, and
+            // persisted to store. Store JavaDoc: "A hint to the store to try recover messages according to priority"
             allQueuesPolicy.setPrioritizedMessages(true);
 
-            // :: Create policy entry for Topics
+            // :: Create policy entry for TOPICS:
             PolicyEntry allTopicsPolicy = new PolicyEntry();
             allTopicsPolicy.setDestination(new ActiveMQTopic(">")); // all topics
+            // .. add the IndividualDeadLetterStrategy
+            allTopicsPolicy.setDeadLetterStrategy(individualDeadLetterStrategy);
+            // .. and prioritization, not sure if that is ever relevant for Topics.
+            allTopicsPolicy.setPrioritizedMessages(true);
+            // .. add the time-based SubscriptionRecoveryPolicy
+            allTopicsPolicy.setSubscriptionRecoveryPolicy(timedSubscriptionRecoveryPolicy);
 
             /*
-             * Chill the prefetch a bit, from Queue:1000 and Topic:Short.MAX_VALUE (!), which is very much when with
-             * Mats and its transactional logic of "consume a message, produce a message, commit", as well as multiple
-             * StageProcessors per Stage, on multiple instances/replicas of the services. Lowering this considerably to
-             * instead focus on lower memory usage, good distribution, and if one consumer by any chance gets hung, it
-             * won't allocate so many of the messages into a "void".
+             * .. chill the prefetch a bit, from Queue:1000 and Topic:Short.MAX_VALUE (!), which is very much when used
+             * with Mats and its transactional logic of "consume a message, produce a message, commit", as well as
+             * multiple StageProcessors per Stage, on multiple instances/replicas of the services. Lowering this
+             * considerably to instead focus on lower memory usage, good distribution, and if one consumer by any chance
+             * gets hung, it won't allocate so many of the messages into a "void". This can be set on client side, but
+             * if not set there, it gets the defaults from server, AFAIU. -est
              */
-            allQueuesPolicy.setQueuePrefetch(10);
+            allQueuesPolicy.setQueuePrefetch(16);
             allTopicsPolicy.setTopicPrefetch(100);
 
-            // :: Create the PolicyMap containing the two destination policies
+            // .. create the PolicyMap containing the two destination policies
             PolicyMap policyMap = new PolicyMap();
             policyMap.put(allQueuesPolicy.getDestination(), allQueuesPolicy);
             policyMap.put(allTopicsPolicy.getDestination(), allTopicsPolicy);
             // .. set this PolicyMap containing our PolicyEntry on the broker.
             broker.setDestinationPolicy(policyMap);
+
+            // :: Memory: Override available system memory. The default is 1GB, which feels small.
+            // For production, you'd probably want to tune this, possibly using some calculation based on
+            // 'Runtime.getRuntime().maxMemory()', e.g. 'all - some fixed amount for the JVM and ActiveMQ'
+            // There's also a 'setPercentOfJvmHeap(..)' instead of 'setLimit(..)'
+            broker.getSystemUsage()
+                    .getMemoryUsage()
+                    .setLimit(12 * 1024 * 1024); // 12 MB, since this is a testing scenario.
+            /*
+             * .. default, ActiveMQ shares the memory between producers and consumers. We've encountered issues where
+             * the AMQ enters a state where the producers are unable to produce messages while consumers are also unable
+             * to consume due to the fact that there is no more memory to be had, effectively deadlocking the system
+             * (since a Mats Stage typically reads one message and produces one message). Default behaviour for ActiveMq
+             * is that both producers and consumers share the main memory pool of the application. By dividing this into
+             * two sections, and providing the producers with a large piece of the pie, it should ensure that the
+             * producers will always be able to produce messages while the consumers will always have some memory
+             * available to consume messages. Consumers do not use a lot of memory, in fact they use almost nothing.
+             * Therefore we've elected to override the default values of AMQ (60/40 P/C) and enforce a 95/5 P/C split
+             * instead.
+             *
+             * Source: ActiveMQ: Understanding Memory Usage
+             * http://blog.christianposta.com/activemq/activemq-understanding-memory-usage/
+             */
+            broker.setSplitSystemUsageForProducersConsumers(true);
+            broker.setProducerSystemUsagePortion(95);
+            broker.setConsumerSystemUsagePortion(5);
 
             // :: Start the broker.
             try {
