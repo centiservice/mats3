@@ -231,7 +231,7 @@ Setup using Mats' SpringConfig:
 @MatsClassMapping("ShippingService.calculateShipping")
 class ShippingEndpointClass {
 
-    private final ShippingService _shippingService;
+    private transient ShippingService _shippingService;
 
     @Autowired
     ShippingEndpointClass(ShippingService shippingService) {
@@ -270,17 +270,24 @@ class ShippingEndpointClass {
 ```
 
 The Spring-annotated variant of setting up a multi-stage endpoint is a bit _"magic"_: The `@MatsClassMapping`
-is _meta-annotated_ as a `@Service`, and Spring thus instantiates a single instance of it. This singleton bean acts _as
-a template_ for the injected fields - and is otherwise never used. The other fields of the class acts as state fields.
-What it internally does, is again simply invoking the relevant Mats API methods, with a tad of glue-code.
-The `@MatsClassMapping`-class itself is set as the State-class of the multi-stage endpoint, and the `@Stage`-annotated
-methods as the lambdas for each stage, gleaning the incoming message types from the method's parameter. The return type
-is gotten from the single `@Stage`-method with a non-void return type. When a Stage receives a messages, the state
-object is deserialized as normal, as an instance of the `@MatsClassMapping`-class. The injected fields from the template
-bean is set on this instance, thus just "naturally" being present as if Spring-injected. The relevant `@Stage`-annotated
-method is then invoked. Before a message is sent, those "injected" fields are nulled out, thus leaving only the state to
-be serialized. The end result is that it "feels like" the `@Stage`-methods are invoked in succession, any injected
-fields being present, and with the state fields set in Stage N also being present when Stage N+1 is invoked.
+is _meta-annotated_ as a `@Service`, and Spring thus instantiates a single instance of it, performing any injection.
+This singleton bean acts _as a template_ for the injected fields - and is otherwise never used. The other fields of the
+class acts as state fields. What Mats' SpringConfig internally does, is again simply invoking the relevant Mats API
+methods, with a tad of glue-code. The `@MatsClassMapping`-class itself is set as the State-class of the multi-stage
+endpoint, and the `@Stage`-annotated methods as the lambdas for each stage, gleaning the incoming message types from the
+method's parameter. The return type is gotten from the single `@Stage`-method with a non-void return type. When a Stage
+receives a messages, the state object is deserialized as normal, as an instance of the `@MatsClassMapping`-class. The
+injected fields from the template bean is set on this instance, thus just "naturally" being present as if
+Spring-injected. The relevant `@Stage`-annotated method is then invoked. Before a message is sent, those "injected"
+fields are nulled out, thus leaving only the state to be serialized. The end result is that it "feels like" the `@Stage`
+-methods are invoked in succession, any injected fields being present, and with the state fields set in Stage N also
+being present when Stage N+1 is invoked.
+
+Note: The injected fields should be marked `transient`. This both as a marker to point out that they aren't part of the
+state and not serialized, but because from Java 17 of, if you inject active services containing instances of JDK
+classes (e.g. Thread), you might get problems with the serializer _preparing_ to serialize those fields (even though
+they will always be nulled out when serialization actually occurs). In such cases, this will be noticed when
+SpringConfig tries to start the endpoint at boot. Marking the fields as transient makes the serializer ignore them.
 
 The shade of magic is maybe a bit too dark for some. There is also a `@MatsEndpointSetup`, which is much simpler,
 effectively falling back to plain Java config. Only the initial `matsFactory.staged(..)` call is done for you. However,
