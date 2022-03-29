@@ -1,7 +1,6 @@
 package io.mats3.util;
 
 import java.util.LinkedHashMap;
-import java.util.Map.Entry;
 
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsInitiator.InitiateLambda;
@@ -49,7 +48,7 @@ import io.mats3.MatsInitiator.InitiateLambda;
  *
  * @author Endre Stølsvik 2022-02-23 12:49 - http://stolsvik.com/, endre@stolsvik.com
  */
-public class TraceId {
+public class TraceId implements CharSequence {
 
     public static TraceId create(String appShort, String initShort) {
         return new TraceId(appShort, initShort, null);
@@ -84,7 +83,11 @@ public class TraceId {
     }
 
     public TraceId batchId(String batchId) {
-        _batchId = batchId;
+        if (batchId == null) {
+            return batchId("");
+        }
+        _batchId = batchId.length() == 0 ? "" : "[batch=" + batchId + ']';
+        _parts[2] = _batchId;
         return this;
     }
 
@@ -96,7 +99,17 @@ public class TraceId {
         if (_keyValues == null) {
             _keyValues = new LinkedHashMap<>();
         }
-        _keyValues.put(key, value);
+        String oldValue = _keyValues.put(key, value);
+        String keyValueQouted = '[' + key + '=' + value + ']';
+        if (oldValue == null) {
+            _keyValuesText.append(keyValueQouted);
+        }
+        else {
+            String oldKeyValueQuoted = '[' + key + '=' + oldValue + ']';
+            int oldStart = _keyValuesText.indexOf(oldKeyValueQuoted);
+            int oldEnd = oldKeyValueQuoted.length();
+            _keyValuesText.replace(oldStart, oldEnd, keyValueQouted);
+        }
         return this;
     }
 
@@ -106,65 +119,113 @@ public class TraceId {
 
     // =========== Implementation
 
-    private final String _fromApp;
-    private final String _fromInit;
-    private final String _reason;
+    private final String _header;
 
     private LinkedHashMap<String, String> _keyValues;
+    private final StringBuilder _keyValuesText = new StringBuilder();
 
-    private String _batchId;
+    private String _batchId = "";
+    private String _prefix = "";
 
-    private String _prefix;
+    private final String _randomPart = RandomString.partTraceId();
+
+    // All the parts of the TraceId, used to implement CharSequence methods. When _batchId or _prefix is changed, then
+    // the corresponding reference in the parts array must also be updated so that the CharSequence contract remains
+    // correct.
+    private final CharSequence[] _parts;
+
 
     protected TraceId(String fromApp, String fromInit, String reason) {
-        _fromApp = fromApp;
-        _fromInit = fromInit;
-        _reason = reason;
+        StringBuilder buf = new StringBuilder();
+        if (fromApp != null) {
+            buf.append(fromApp);
+        }
+        if ((fromApp != null) && (fromInit != null)) {
+            buf.append(".");
+        }
+        if (fromInit != null) {
+            buf.append(fromInit);
+        }
+        if (((fromApp != null) || (fromInit != null)) && (reason != null)) {
+            buf.append(":");
+        }
+        if (reason != null) {
+            buf.append(reason);
+        }
+        _header = buf.toString();
+        _parts = new CharSequence[] {_prefix, _header, _batchId, _keyValuesText, _randomPart};
     }
 
     protected TraceId concat(String prefix) {
         _prefix = prefix + "+";
+        _parts[0] = _prefix;
         return this;
     }
 
     protected TraceId fork(String prefix) {
         _prefix = prefix + "|";
+        _parts[0] = _prefix;
         return this;
     }
 
     @Override
-    public String toString() {
-        StringBuilder buf = new StringBuilder();
-        if (_prefix != null) {
-            buf.append(_prefix);
+    public int length() {
+        int length = 0;
+        for (CharSequence _part : _parts) {
+            length += _part.length();
         }
-        if (_fromApp != null) {
-            buf.append(_fromApp);
-        }
-        if ((_fromApp != null) && (_fromInit != null)) {
-            buf.append(".");
-        }
-        if (_fromInit != null) {
-            buf.append(_fromInit);
-        }
-        if (((_fromApp != null) || (_fromInit != null)) && (_reason != null)) {
-            buf.append(":");
-        }
-        if (_reason != null) {
-            buf.append(_reason);
-        }
+        return length;
+    }
 
-        if (_batchId != null) {
-            buf.append("[batch=").append(_batchId).append(']');
-        }
-
-        // ::Key-values
-        if (_keyValues != null) {
-            for (Entry<String, String> entry : _keyValues.entrySet()) {
-                buf.append('[').append(entry.getKey()).append('=').append(entry.getValue()).append(']');
+    @Override
+    public char charAt(int index) {
+        int pos = 0;
+        for (CharSequence part : _parts) {
+            if (index < part.length() + pos) {
+                return part.charAt(index - pos);
             }
+            pos += part.length();
         }
-        buf.append(RandomString.partTraceId());
+        throw new IndexOutOfBoundsException("Index out of range: " + index);
+    }
+
+    @Override
+    public CharSequence subSequence(int start, int end) {
+        if (start == end) {
+            return "";
+        }
+        int length = length();
+        if (start > end) {
+            throw new IllegalArgumentException("Start [" + start + "] must be before end [" + end + "]");
+        }
+        if (start >= length) {
+            throw new IndexOutOfBoundsException("Start out of range: " + start);
+        }
+        if (end > length) {
+            throw new IndexOutOfBoundsException("End out of range: " + end);
+        }
+        if (start == 0 && end == length) {
+            return this;
+        }
+
+        StringBuilder buf = new StringBuilder();
+        // Go through each part,
+        int partStart = 0;
+        for (CharSequence part : _parts) {
+            int partEnd = partStart + part.length();
+            int subPartStart = Math.max(start - partStart, 0);
+            int subPartEnd = Math.min(end - partStart, part.length());
+            if (subPartStart < part.length() && subPartEnd >= 0) {
+                buf.append(part, subPartStart, subPartEnd);
+            }
+            partStart = partEnd;
+        }
+
         return buf.toString();
+    }
+
+    @Override
+    public String toString() {
+        return String.join("", _parts);
     }
 }
