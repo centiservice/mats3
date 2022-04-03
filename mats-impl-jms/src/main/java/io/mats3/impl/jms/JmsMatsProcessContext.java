@@ -632,11 +632,21 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     private String produceMessage(Object incomingDto, long nanosStart, MatsTrace<Z> outgoingMatsTrace) {
         Call<Z> currentCall = outgoingMatsTrace.getCurrentCall();
-        String debugInfo = outgoingMatsTrace.getKeepTrace() != KeepMatsTrace.MINIMAL
-                ? getInvocationPoint()
-                : null;
-        // If we got empty String from getInvocationPoint(), replace with info from StageOrigin (if present).
-        debugInfo = (NO_INVOCATION_POINT.equals(debugInfo) ? _stageOrigin : debugInfo);
+
+        String debugInfo;
+        // ?: Is this MINIMAL MatsTrace
+        if (outgoingMatsTrace.getKeepTrace() == KeepMatsTrace.MINIMAL) {
+            // -> Yes, MINIMAL, so do not include rather verbose debugInfo
+            debugInfo = null;
+        }
+        else {
+            // -> No, not MINIMAL, so include debug info
+            String invocationPoint = getInvocationPoint();
+            // If we got no result from getInvocationPoint(), replace with info from '_stageOrigin'.
+            debugInfo = (NO_INVOCATION_POINT.equals(invocationPoint)
+                    ? "setup@" + _stageOrigin
+                    : "invoked@" + invocationPoint);
+        }
 
         currentCall.setDebugInfo(_parentFactory.getFactoryConfig().getAppName(),
                 _parentFactory.getFactoryConfig().getAppVersion(),
