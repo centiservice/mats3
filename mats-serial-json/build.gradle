@@ -4,7 +4,7 @@ dependencies {
     api project(':mats-serial')
 
     // Dependency on the Jackson JSON library, which is the serialization mechanism in use.
-    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}.2" // Annoying micro-version 2022-04-03
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${jacksonVersion}"
 

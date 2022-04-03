@@ -37,6 +37,8 @@ dependencies {
     testImplementation "org.springframework:spring-beans:$springVersion"
     testImplementation "org.springframework:spring-tx:$springVersion"
     testImplementation "org.springframework:spring-jdbc:$springVersion"
+    // .. and then some more
+    testImplementation "org.springframework:spring-context:$springVersion"
     // We want the standard logging, which will be auto-installed by being on the classpath.
     testImplementation project(':mats-intercept-logging')
     // Also pulling in the metrics, to get a test of it for all types of mats flows. (autoinstalls)
@@ -50,7 +52,9 @@ dependencies {
     // Rule_MatsEndpoint
     testImplementation project(":mats-test-junit")
     // Checking that it works with Remock
-    testImplementation 'no.saua.remock:remock:1.+'
+    testImplementation ("no.saua.remock:remock:$remockVersion") {
+        exclude group: 'org.springframework'
+    }
     // Need logging system in tests
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"

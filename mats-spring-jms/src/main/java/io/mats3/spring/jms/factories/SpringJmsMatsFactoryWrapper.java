@@ -108,6 +108,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
      */
     @PostConstruct
     public void postConstruct() {
+        @SuppressWarnings("deprecation") // Supporting Spring 4 still
         boolean matsTestProfileActive = _environment.acceptsProfiles(MatsProfiles.PROFILE_MATS_TEST);
         handleMatsTestBrokerInterfacePopulation(matsTestProfileActive);
         handleMatsFactoryConcurrencyForTestAndDevelopment(matsTestProfileActive);
@@ -131,6 +132,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
     public void postConstructForFactoryBean(Environment environment, ApplicationContext applicationContext) {
         _environment = environment;
         _applicationContext = applicationContext;
+        @SuppressWarnings("deprecation") // Supporting Spring 4 still
         boolean matsTestProfileActive = environment.acceptsProfiles(MatsProfiles.PROFILE_MATS_TEST);
         handleMatsTestBrokerInterfacePopulation(matsTestProfileActive);
         handleMatsFactoryConcurrencyForTestAndDevelopment(matsTestProfileActive);

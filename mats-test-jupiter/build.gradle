@@ -32,10 +32,10 @@ dependencies {
     testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
 
     // Single Spring test inside
-    testImplementation ("org.springframework:spring-test:$springVersionForJupiter") {
+    testImplementation ("org.springframework:spring-test:$springVersion") {
         exclude group:'junit', module:'junit'
     }
-    testImplementation "org.springframework:spring-context:$springVersionForJupiter"
+    testImplementation "org.springframework:spring-context:$springVersion"
 
     // The Jupiter Runtime..?
     testImplementation "org.junit.jupiter:junit-jupiter-api:$jupiterVersion"

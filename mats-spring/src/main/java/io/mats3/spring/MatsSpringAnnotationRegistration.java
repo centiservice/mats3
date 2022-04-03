@@ -259,6 +259,7 @@ public class MatsSpringAnnotationRegistration implements
                 MatsMapping.class);
         Map<Method, Set<MatsEndpointSetup>> methodsWithMatsStagedAnnotations = findRepeatableAnnotatedMethods(
                 targetClass, MatsEndpointSetup.class);
+        @SuppressWarnings("deprecation") // Supporting Spring 4 still
         Set<MatsClassMapping> matsEndpointSetupAnnotationsOnClasses = AnnotationUtils.getRepeatableAnnotations(
                 targetClass, MatsClassMapping.class);
 
@@ -334,6 +335,7 @@ public class MatsSpringAnnotationRegistration implements
     private <A extends Annotation> Map<Method, Set<A>> findRepeatableAnnotatedMethods(Class<?> targetClass,
             Class<A> repeatableAnnotationClass) {
         return MethodIntrospector.selectMethods(targetClass, (MetadataLookup<Set<A>>) method -> {
+            @SuppressWarnings("deprecation") // Supporting Spring 4 still
             Set<A> matsMappingAnnotations = AnnotationUtils.getRepeatableAnnotations(method, repeatableAnnotationClass);
             return (!matsMappingAnnotations.isEmpty() ? matsMappingAnnotations : null);
         });
@@ -1224,6 +1226,7 @@ public class MatsSpringAnnotationRegistration implements
 
         int numberOfQualifications = 0;
 
+        @SuppressWarnings("deprecation") // Supporting Spring 4 still
         Annotation[] annotations = AnnotationUtils.getAnnotations(annotatedElement);
         for (Annotation annotation : annotations) {
             // ?: Is this a @Qualifier
@@ -1234,11 +1237,16 @@ public class MatsSpringAnnotationRegistration implements
                 numberOfQualifications++;
             }
             // ?: Is this a custom qualifier annotation, meta-annotated with @Qualifier?
-            else if (AnnotationUtils.isAnnotationMetaPresent(annotation.annotationType(), Qualifier.class)) {
-                // -> Yes, @Qualifier-meta-annotated annotation - get the correct MatsFactory also annotated with this
-                specifiedMatsFactories.add(getMatsFactoryByCustomQualifier(forWhat, annotation.annotationType(),
-                        annotation));
-                numberOfQualifications++;
+            else {
+                @SuppressWarnings("deprecation") // Supporting Spring 4 still
+                boolean annotationMetaPresent = AnnotationUtils
+                        .isAnnotationMetaPresent(annotation.annotationType(), Qualifier.class);
+                if (annotationMetaPresent) {
+                    // -> Yes, @Qualifier-meta-annotated annotation - get the correct MatsFactory also annotated with this
+                    specifiedMatsFactories.add(getMatsFactoryByCustomQualifier(forWhat, annotation.annotationType(),
+                            annotation));
+                    numberOfQualifications++;
+                }
             }
         }
 

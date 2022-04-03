@@ -13,14 +13,11 @@ allprojects {
 // Versions for all libraries used throughout the subprojects
 ext {
     activeMqVersion = '5.16.4'
-    artemisMqVersion = '2.19.1'
-    springVersion = '4.3.30.RELEASE'
-    // Still using Spring 4 as "baseline", but also fully compatible with Spring 5. 2020-11-14.
-    // NOTE: Spring started supporting JUnit Jupiter with the release of Spring 5.0.0.
-    springVersionForJupiter = '5.3.16'
-    jacksonVersion = '2.13.1'
+    artemisMqVersion = '2.19.1' // 2.19 is last Java 8 version.
+    springVersion = '5.3.18'
+    jacksonVersion = '2.13.2'
     slf4jVersion = '1.7.36'
-    micrometerVersion = '1.7.9' // 1.7 is LTS. 1.7.9 most recent as of 2021-02-16
+    micrometerVersion = '1.8.4'
 
     jmsApiVersion = '1.1-rev-1'
     javaxInjectVersion = '1'
@@ -33,10 +30,11 @@ ext {
     jupiterPlatformVersion = '1.8.2'
 
     // For testing
-    logbackVersion = '1.2.10'
+    logbackVersion = '1.2.11'
     h2Version = '2.1.210'
-    jettyVersion = '9.4.45.v20220203'
+    jettyVersion = '9.4.46.v20220331'
     hibernateVersion = '5.6.5.Final'
+    remockVersion = '1.1.0'
 }
 
 // :: Note: Two different subproject-blocks, one for all common elements, and one for publishing.

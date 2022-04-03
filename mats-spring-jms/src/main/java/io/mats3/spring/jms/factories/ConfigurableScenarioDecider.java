@@ -27,7 +27,7 @@ public class ConfigurableScenarioDecider implements ScenarioDecider {
     /**
      * Configures a {@link ScenarioDecider} that implements the logic described in
      * {@link ScenarioConnectionFactoryProducer} and handles all the Spring Profiles specified in {@link MatsProfiles}.
-     * 
+     *
      * @return a configured {@link ScenarioDecider}
      */
     public static ConfigurableScenarioDecider createDefaultScenarioDecider() {
@@ -161,14 +161,14 @@ public class ConfigurableScenarioDecider implements ScenarioDecider {
      * the default Spring configuration, the Environment is populated by System Properties (Java command line
      * "-Dproperty=vale"-properties) and System Environment. However, an implementation of this interface might use
      * whatever it find relevant to do a decision.
-     * 
+     *
      * @see StandardSpecificScenarioDecider
      */
     @FunctionalInterface
     public interface SpecificScenarioDecider {
         /**
          * Decides whether a specific Scenario is active.
-         * 
+         *
          * @param env
          *            the Spring {@link Environment}, from which Spring Profiles and properties/variables can be gotten.
          *            Notice that in the default Spring configuration, the Environment is populated by System Properties
@@ -207,7 +207,9 @@ public class ConfigurableScenarioDecider implements ScenarioDecider {
                 if (env.containsProperty(profileName.replace('-', '.'))) {
                     return Optional.of("Found Spring Environment Property '" + profileName.replace('-', '.') + "'");
                 }
-                if (env.acceptsProfiles(profileName)) {
+                @SuppressWarnings("deprecation") // Supporting Spring 4 still
+                boolean acceptsProfiles = env.acceptsProfiles(profileName);
+                if (acceptsProfiles) {
                     return Optional.of("Found active Spring Profile '" + profileName + "'");
                 }
             }
