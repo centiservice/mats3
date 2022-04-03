@@ -247,11 +247,11 @@ public interface MatsTestBroker {
 
             // :: Set Individual DLQ - which you most definitely should do in production.
             // Hear, hear: https://users.activemq.apache.narkive.com/H7400Mn1/policymap-api-is-really-bad
-            // :: Create the individual DLQ policy, targeting all queues.
+            // :: Create the individual DLQ policy
             IndividualDeadLetterStrategy individualDeadLetterStrategy = new IndividualDeadLetterStrategy();
             individualDeadLetterStrategy.setQueuePrefix("DLQ.");
-            // .. Throw expired messages out the window
-            individualDeadLetterStrategy.setProcessExpired(false);
+            // .. Send expired messages to DLQ (Note: true is default)
+            individualDeadLetterStrategy.setProcessExpired(true);
             // .. Also DLQ non-persistent messages
             individualDeadLetterStrategy.setProcessNonPersistent(true);
 
