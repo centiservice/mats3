@@ -132,7 +132,8 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
 
         // :: Set defaults
         // NOTE: _traceId is set above.
-        _keepTrace = JmsMatsStatics.DEFAULT_KEEP_MATS_TRACE;
+        // Using setter-method to set the default keepTrace, due to Impl vs. API difference in enums.
+        keepTrace(_parentFactory.getDefaultKeepTrace());
         _nonPersistent = false;
         _interactive = false;
         _timeToLive = 0;

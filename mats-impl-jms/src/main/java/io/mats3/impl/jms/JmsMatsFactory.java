@@ -29,6 +29,7 @@ import io.mats3.MatsEndpoint.ProcessSingleLambda;
 import io.mats3.MatsEndpoint.ProcessTerminatorLambda;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator;
+import io.mats3.MatsInitiator.KeepTrace;
 import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.MatsStage.StageConfig;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
@@ -181,6 +182,9 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     // Set to default, which is false. Volatile since quite probably set by differing threads.
     private volatile boolean _holdEndpointsUntilFactoryIsStarted = false;
 
+    // Set to default, which is FULL
+    private KeepTrace _defaultKeepTrace = KeepTrace.FULL;
+
     Function<String, String> getInitiateTraceIdModifier() {
         return _initiateTraceIdModifier;
     }
@@ -217,6 +221,23 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
                 return "_cannot_find_hostname_";
             }
         }
+    }
+
+    /**
+     * Sets the default KeepTrace if the initiation doesn't set one itself. The default for this default is
+     * {@link KeepTrace#FULL}. Not yet moved to FactoryConfig, because I want to evaluate.
+     * <p/>
+     * Must be set before the MatsFactory is "published", memory wise.
+     *
+     * @param defaultKeepTrace
+     *            the default KeepTrace for Mats flows - the default for this default is {@link KeepTrace#FULL}.
+     */
+    public void setDefaultKeepTrace(KeepTrace defaultKeepTrace) {
+        _defaultKeepTrace = defaultKeepTrace;
+    }
+
+    KeepTrace getDefaultKeepTrace() {
+        return _defaultKeepTrace;
     }
 
     public JmsMatsJmsSessionHandler getJmsMatsJmsSessionHandler() {
@@ -636,7 +657,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         }
         // :: Split out private endpoints
         ArrayList<MatsEndpoint<?, ?>> privateEndpoints = new ArrayList<>();
-        for(Iterator<MatsEndpoint<?, ?>> iterator = matsEndpoints.iterator(); iterator.hasNext(); ) {
+        for (Iterator<MatsEndpoint<?, ?>> iterator = matsEndpoints.iterator(); iterator.hasNext();) {
             MatsEndpoint<?, ?> next = iterator.next();
             if (next.getEndpointConfig().getEndpointId().contains(".private.")) {
                 privateEndpoints.add(next);
@@ -753,7 +774,6 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
             log.warn(LOG_PREFIX + "Evidently some components of [" + idThis() + "} DIT NOT stop in ["
                     + gracefulShutdownMillis + "] millis, giving up. Now cleaning JMS Session pool.");
         }
-
 
         // :: "Closing the JMS pool"; closing all available SessionHolder, which should lead to the Connections closing.
         _jmsMatsJmsSessionHandler.closeAllAvailableSessions();
