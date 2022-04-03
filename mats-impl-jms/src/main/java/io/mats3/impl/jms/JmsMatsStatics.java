@@ -26,7 +26,6 @@ import io.mats3.serial.MatsTrace;
 import io.mats3.serial.MatsTrace.Call;
 import io.mats3.serial.MatsTrace.Call.Channel;
 import io.mats3.serial.MatsTrace.Call.MessagingModel;
-import io.mats3.serial.MatsTrace.KeepMatsTrace;
 import io.mats3.serial.MatsTrace.StackState;
 
 /**
@@ -70,11 +69,10 @@ public interface JmsMatsStatics {
     String JMS_MSG_PROP_MATS_MESSAGE_ID = "mats_MsgId"; // String
     String JMS_MSG_PROP_DISPATCH_TYPE = "mats_DispatchType"; // String
     String JMS_MSG_PROP_MESSAGE_TYPE = "mats_MsgType"; // String
-    String JMS_MSG_PROP_ENVELOPE_SIZE = "mats_EnvSize"; // Long
     String JMS_MSG_PROP_FROM = "mats_From"; // String
     String JMS_MSG_PROP_INITIALIZING_APP = "mats_InitApp"; // String
     String JMS_MSG_PROP_INITIATOR_ID = "mats_InitId"; // String
-    String JMS_MSG_PROP_TO = "mats_To"; // String
+    String JMS_MSG_PROP_TO = "mats_To"; // String (needed if a message ends up on a global/common DLQ)
     String JMS_MSG_PROP_AUDIT = "mats_Audit"; // Boolean
 
     /**
@@ -98,12 +96,6 @@ public interface JmsMatsStatics {
      * Log prefix (after {@link #LOG_PREFIX} for flows that will be illegal in a later version.
      */
     String ILLEGAL_CALL_FLOWS = "ILLEGAL CALL FLOWS! ";
-
-    /**
-     * We'll use a space-conservative default: {@link KeepMatsTrace#COMPACT}, nulling out the DTOs for calls other than
-     * the current call, while still retaining the flow meta info.
-     */
-    KeepMatsTrace DEFAULT_KEEP_MATS_TRACE = KeepMatsTrace.COMPACT;
 
     /**
      * Send a bunch of {@link JmsMatsMessage}s.
@@ -154,7 +146,6 @@ public interface JmsMatsStatics {
                         outgoingMatsTrace.getCurrentCall().getMatsMessageId());
                 mm.setStringProperty(JMS_MSG_PROP_DISPATCH_TYPE, jmsMatsMessage.getDispatchType().toString());
                 mm.setStringProperty(JMS_MSG_PROP_MESSAGE_TYPE, jmsMatsMessage.getMessageType().toString());
-                mm.setLongProperty(JMS_MSG_PROP_ENVELOPE_SIZE, serializedOutgoingMatsTrace.getSizeCompressed());
                 mm.setStringProperty(JMS_MSG_PROP_INITIALIZING_APP, outgoingMatsTrace.getInitializingAppName());
                 mm.setStringProperty(JMS_MSG_PROP_INITIATOR_ID, outgoingMatsTrace.getInitiatorId());
                 mm.setStringProperty(JMS_MSG_PROP_FROM, outgoingMatsTrace.getCurrentCall().getFrom());
@@ -355,6 +346,7 @@ public interface JmsMatsStatics {
             if ((ste.getClassName().startsWith("io.mats3.")
                     /* Handle special usage where wrapped STOW */
                     || ste.getClassName().startsWith("com.skagenfondene.spstow."))
+                    // No class of JMS Mats has "test" in its name, so break if seen.
                     && (!ste.getClassName().toLowerCase().contains("test"))) {
                 continue;
             }
@@ -363,10 +355,15 @@ public interface JmsMatsStatics {
                 // -> Yes, only found "java.lang.Thread", which means there was no non-Mats stack frames.
                 return NO_INVOCATION_POINT;
             }
-            // E-> return a nice representation
-            return ste.getFileName() + ":" + ste.getLineNumber() + ";"
+            // E-> We have an invocation point, return a nice string representation
+            // Evidently, ste.getFileName() can "randomly" return null. Handle this with a tad info.
+            String fileInfo = ste.getFileName() == null
+                    ? "-missing_file:line-"
+                    : ste.getFileName() + ":" + ste.getLineNumber();
+            // Using semicolons to separate elements; e.g. 'matsbrokermonitor' splits this into 3 lines.
+            return fileInfo + ";"
                     + ste.getClassName() + ";"
-                    + ste.getMethodName()+"()";
+                    + ste.getMethodName() + "()";
         }
         // E-> Evidently no stackframes!?
         return NO_INVOCATION_POINT;
