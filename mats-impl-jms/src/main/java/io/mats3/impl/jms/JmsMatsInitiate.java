@@ -398,7 +398,12 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
 
     private void produceMessage(Object messageDto, Object initialTargetSto, long nanosStartProducingOutgoingMessage,
             MatsTrace<Z> outgoingMatsTrace) {
-        // NOTICE: We do not set currentCall.setDebugInfo(..), as it is the same as on the initiation.
+        // We do not need to set currentCall.setDebugInfo(..), as it is the same as on the initiation.
+        // BUT, since the old versions <= 0.18.4 believe it is set, we set it still.
+        // TODO: Remove once all are >= 0.18.5
+        outgoingMatsTrace.getCurrentCall().setDebugInfo(_parentFactory.getFactoryConfig().getAppName(),
+                _parentFactory.getFactoryConfig().getAppVersion(), _parentFactory.getFactoryConfig().getNodename(),
+                "#init#");
 
         // ?: Do we have an existing MatsTrace (implying that we are being initiated within a Stage)
         if (_existingMatsTrace != null) {
