@@ -255,10 +255,6 @@ public interface MatsTestBroker {
             // .. Also DLQ non-persistent messages
             individualDeadLetterStrategy.setProcessNonPersistent(true);
 
-            // :: Set up Time-based Topic Subscription RecoveryPolicy, if the network glitches and you miss a message.
-            TimedSubscriptionRecoveryPolicy timedSubscriptionRecoveryPolicy = new TimedSubscriptionRecoveryPolicy();
-            timedSubscriptionRecoveryPolicy.setRecoverDuration(180_000); // 3 minutes
-
             // :: Create destination policy entry for QUEUES:
             PolicyEntry allQueuesPolicy = new PolicyEntry();
             allQueuesPolicy.setDestination(new ActiveMQQueue(">")); // all queues
@@ -269,9 +265,12 @@ public interface MatsTestBroker {
             allQueuesPolicy.setPrioritizedMessages(true);
 
             // :: Create policy entry for TOPICS:
+            // .. set up Time-based Topic Subscription RecoveryPolicy, if the network glitches and you miss a message.
+            TimedSubscriptionRecoveryPolicy timedSubscriptionRecoveryPolicy = new TimedSubscriptionRecoveryPolicy();
+            timedSubscriptionRecoveryPolicy.setRecoverDuration(180_000); // 3 minutes
             PolicyEntry allTopicsPolicy = new PolicyEntry();
             allTopicsPolicy.setDestination(new ActiveMQTopic(">")); // all topics
-            // .. add the IndividualDeadLetterStrategy
+            // .. add the IndividualDeadLetterStrategy, not sure if that is ever relevant for plain Topics.
             allTopicsPolicy.setDeadLetterStrategy(individualDeadLetterStrategy);
             // .. and prioritization, not sure if that is ever relevant for Topics.
             allTopicsPolicy.setPrioritizedMessages(true);
@@ -284,7 +283,7 @@ public interface MatsTestBroker {
              * multiple StageProcessors per Stage, on multiple instances/replicas of the services. Lowering this
              * considerably to instead focus on lower memory usage, good distribution, and if one consumer by any chance
              * gets hung, it won't allocate so many of the messages into a "void". This can be set on client side, but
-             * if not set there, it gets the defaults from server, AFAIU. -est
+             * if not set there, it gets the defaults from server, AFAIU.
              */
             allQueuesPolicy.setQueuePrefetch(16);
             allTopicsPolicy.setTopicPrefetch(100);
@@ -296,7 +295,7 @@ public interface MatsTestBroker {
             // .. set this PolicyMap containing our PolicyEntry on the broker.
             broker.setDestinationPolicy(policyMap);
 
-            // :: Memory: Override available system memory. The default is 1GB, which feels small.
+            // :: Memory: Override available system memory. (The default is 1GB, which feels small for prod.)
             // For production, you'd probably want to tune this, possibly using some calculation based on
             // 'Runtime.getRuntime().maxMemory()', e.g. 'all - some fixed amount for the JVM and ActiveMQ'
             // There's also a 'setPercentOfJvmHeap(..)' instead of 'setLimit(..)'
@@ -304,7 +303,7 @@ public interface MatsTestBroker {
                     .getMemoryUsage()
                     .setLimit(12 * 1024 * 1024); // 12 MB, since this is a testing scenario.
             /*
-             * .. default, ActiveMQ shares the memory between producers and consumers. We've encountered issues where
+             * .. by default, ActiveMQ shares the memory between producers and consumers. We've encountered issues where
              * the AMQ enters a state where the producers are unable to produce messages while consumers are also unable
              * to consume due to the fact that there is no more memory to be had, effectively deadlocking the system
              * (since a Mats Stage typically reads one message and produces one message). Default behaviour for ActiveMq
