@@ -2,12 +2,14 @@ package io.mats3;
 
 import java.io.Closeable;
 import java.util.Optional;
+import java.util.function.Function;
 
 import io.mats3.MatsEndpoint.DetachedProcessContext;
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsEndpoint.ProcessLambda;
 import io.mats3.MatsEndpoint.ProcessTerminatorLambda;
 import io.mats3.MatsFactory.ContextLocal;
+import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsFactory.MatsWrapper;
 
 /**
@@ -213,7 +215,7 @@ public interface MatsInitiator extends Closeable {
          * Sets (or appends with a joining "|" in case of {@link ProcessContext#initiate(InitiateLambda) initiation
          * within a stage}) the supplied <i>Trace Id</i>, which is solely used for logging and debugging purposes. It
          * should be unique, at least to a degree where it is <u>very</u> unlikely that you will have two identical
-         * traceIds within a couple of years.
+         * traceIds within a couple of years ("guaranteed globally unique through all time" is not relevant).
          * <p />
          * Since this is very important when doing distributed and asynchronous architectures, it is mandatory.
          * <p />
@@ -222,7 +224,7 @@ public interface MatsInitiator extends Closeable {
          * It should be a world-unique Id, preferably set all the way back when some actual person performed some event.
          * E.g. in a "new order" situation, the Id would best be set when the user clicked the "place order" button on
          * the web page - or maybe even derived from the event when he first initiated the shopping cart - or maybe even
-         * when he started the session. The point is that when using e.g. Kibana or Splunk to track events that led some
+         * when he started the session. The point is that when using e.g. Kibana or Splunk to track events that led to
          * some outcome, a robust, versatile and information-rich track/trace Id makes wonders.
          * <p />
          * <b>It is strongly recommended to use small, dense, <u>information rich</u> Trace Ids.</b> Sticking in an UUID
@@ -239,17 +241,32 @@ public interface MatsInitiator extends Closeable {
          * different Mats call flows.
          * <p />
          * You should consider storing the traceId as a column in any inserted rows in any databases that was affected
-         * by this call flow, i.e. along with the placed order. It also makes very good sense to tie together "sub
-         * flows" by prefixing new traceIds with the originating traceId (use a "+" to separate the sub-traceIds). In
-         * the order/shipping example, the user would first have placed an order, resulting in some entries in an order
-         * database - where the traceId was stored along. Then, when you initiated the filling process, you would pick
-         * up the order's traceId and prepend that to the new "fill order" traceId which includes the "filling batch
-         * id", the two separated by a "+" sign. If you took this all the way, you could in your logging system follow
-         * the initial click on the web page, through the order, order processing, shipment and all the way to the
+         * by this call flow, e.g. in the row for a placed order, you'd have the traceId as a column. This both to be
+         * able to tie this db row back to the logging system, but also if new Mats flows are initiated based on this
+         * row, you can include the order TraceId in the new TraceId (with either "|" or "+" as separator).
+         * <p />
+         * For situations where one Mats Flow "forks" new Mats flows, make new TraceIds for the "sub flows" by tying
+         * together the existing TraceId and a new Sub TraceId with a "|". In the order/shipping example, the user would
+         * first have placed an order, resulting in an entry in an order database table - where the traceId was stored
+         * along. Then, when some batch process Mats Flow initiated the filling process, you would pick up the order's
+         * traceId and append that to the sub Mats Flow. Sub Flow Mats TraceId = "{Filling Batch Id}|{Existing Order
+         * TraceId}". If you took this all the way, you could in your logging system follow the "total flow" from the
+         * initial click on the web page, through the order book, order processing, shipment, and all the way to the
          * delivered and signed package on the person's door - even if the entirety of the order fulfillment consists of
          * multiple "stop and go" sub-flows (the stops being where the process stays for a while as an entry in a
-         * database, here "order", then "processing", "filling", "shipping" and finally "delivery", or whatever your
-         * multiple processes flow consists of).
+         * database, here "order", then possibly "filling", "shipping" and finally "delivery", or whatever your multiple
+         * processes' flows consists of).
+         * <p />
+         * The "+" character should be used to indicate that an "initiated from the outside" TraceId is concatenated by
+         * multiple parts, which so far has been used to pick up an X-Request-ID header from a HTTP-request, and
+         * prepending this to the TraceId for a resulting Mats-flow, i.e. Mats TraceId="{X-Request-ID}+{Flow TraceID}".
+         * (Check out {@link FactoryConfig#setInitiateTraceIdModifier(Function)} for a way to automate this.)
+         * <p />
+         * The difference between "|" and "+" is meant to be that "|" indicates that there is a Mats Flow TraceId on
+         * both sides of the "|", while the "+" is used when a "from the outside"-initiated TraceId is built up by
+         * multiple pieces, e.g. X-Request-Id, or Batch Run Number, on the left side. Remember, this is all meant for
+         * human consumption, in particular when debugging. Do what you feel is meaningful - the Mats system doesn't
+         * care!
          * <p />
          * (For the default implementation "JMS Mats", the Trace Id is set on the <code>MDC</code> of the SLF4J logging
          * system, using the key "traceId". Since this implementation logs a few lines per handled message, in addition
@@ -262,6 +279,7 @@ public interface MatsInitiator extends Closeable {
          *            call, where the flow ends).
          * @return the {@link MatsInitiate} for chaining.
          */
+        // TODO: At next non-revision version bump, change to CharSequence.
         MatsInitiate traceId(String traceId);
 
         /**
