@@ -301,7 +301,7 @@ public interface MatsTestBroker {
             // There's also a 'setPercentOfJvmHeap(..)' instead of 'setLimit(..)'
             broker.getSystemUsage()
                     .getMemoryUsage()
-                    .setLimit(12 * 1024 * 1024); // 12 MB, since this is a testing scenario.
+                    .setLimit(1024L * 1024 * 1024); // 1 GB, which is the default. This is a test-broker!!
             /*
              * .. by default, ActiveMQ shares the memory between producers and consumers. We've encountered issues where
              * the AMQ enters a state where the producers are unable to produce messages while consumers are also unable
