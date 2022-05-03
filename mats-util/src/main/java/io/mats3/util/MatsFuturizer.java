@@ -252,84 +252,9 @@ public class MatsFuturizer implements AutoCloseable {
     }
 
     /**
-     * <b>NOTICE: This variant must <u>only</u> be used for "GET-style" Requests where none of the endpoints the call
-     * flow passes will add, remove or alter any state of the system!</b>.
-     * <p />
-     * The goal of this method is to be able to get hold of e.g. account holdings, order statuses etc, for presentation
-     * to a user. The thinking is that if such a flow fails where a message of the call flow disappears, this won't make
-     * for anything else than a bit annoyed user: No important state change, like the adding, deleting or change of an
-     * order, will be lost. Also, speed is of the essence. Therefore, <i>non-persistent</i>. At the same time, to make
-     * the user super happy in the ordinary circumstances, all messages in this call flow will be prioritized, and thus
-     * skip any queue backlogs that have arose on any of the call flow's endpoints, e.g. due to some massive batch of
-     * (background) processes executing at the same time. Therefore, <i>interactive</i>. Notice that with both of these
-     * features combined, you get very fast messaging, as non-persistent means that the message will not have to be
-     * stored to permanent storage at any point, while interactive means that it will skip any backlogged queues. In
-     * addition, the <i>noAudit</i> flag is set, since it is a waste of storage space to archive the actual contents of
-     * Request and Reply messages that do not alter the system.
-     * <p />
-     * Sets the following properties on the sent Mats message:
-     * <ul>
-     * <li><b>Non-persistent</b>: Since it is not vitally important that this message is not lost, non-persistent
-     * messaging can be used. The minuscule chance for this message to disappear is not worth the considerable overhead
-     * of store-and-forward multiple times to persistent storage. Also, speed is much more interesting.</li>
-     * <li><b>Interactive</b>: Since the Futurizer should only be used as a "synchronous bridge" when a human is
-     * actively waiting for the response, the interactive flag is set. <i>(For all other users, you should rather code
-     * "proper Mats" with initiations, endpoints and terminators)</i>.</li>
-     * <li><b>No audit</b>: Since this message will not change the state of the system (i.e. the "GET-style" requests),
-     * using storage on auditing requests and replies is not worthwhile.</li>
-     * </ul>
-     * This method initiates an <b>{@link MatsInitiate#nonPersistent() non-persistent}</b> (unreliable),
-     * <b>{@link MatsInitiate#interactive() interactive}</b> (prioritized), <b>{@link MatsInitiate#noAudit()
-     * non-audited}</b> (request and reply DTOs won't be archived) Request-message to the specified endpoint, returning
-     * a {@link CompletableFuture} that will be {@link CompletableFuture#complete(Object) completed} when the Reply from
-     * the requested endpoint comes back. The internal MatsFuturizer timeout will be set to <b>2 minutes</b>, meaning
-     * that if there is no reply forthcoming within that time, the {@link CompletableFuture} will be
-     * {@link CompletableFuture#completeExceptionally(Throwable) completed exceptionally} with a
-     * {@link MatsFuturizerTimeoutException MatsFuturizerTimeoutException}, and the Promise deleted from the futurizer.
-     * 2 minutes is probably too long to wait for any normal interaction with a system, so if you use the
-     * {@link CompletableFuture#get(long, TimeUnit) CompletableFuture.get(timeout, TimeUnit)} method of the returned
-     * future, you might want to put a lower timeout there - if the answer hasn't come within that time, you'll get a
-     * {@link TimeoutException}. If you instead use the non-param variant {@link CompletableFuture#get() get()}, you
-     * will get an {@link ExecutionException} when the 2 minutes have passed (that exception's
-     * {@link ExecutionException#getCause() cause} will be the {@link MatsFuturizerTimeoutException
-     * MatsFuturizerTimeoutException} mentioned above).
-     *
-     * @param traceId
-     *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(String)}
-     * @param from
-     *            the "from" of the initiation, see {@link MatsInitiate#from(String)}
-     * @param to
-     *            to which Mats endpoint the request should go, see {@link MatsInitiate#to(String)}
-     * @param replyClass
-     *            which expected reply DTO class that the requested endpoint replies with.
-     * @param request
-     *            the request DTO that should be sent to the endpoint, see {@link MatsInitiate#request(Object)}
-     * @param <T>
-     *            the type of the reply DTO.
-     * @return a {@link CompletableFuture} which will be resolved with a {@link Reply}-instance that contains both some
-     *         meta-data, and the {@link Reply#reply reply} from the requested endpoint.
-     */
-    public <T> CompletableFuture<Reply<T>> futurizeNonessential(String traceId, String from, String to,
-            Class<T> replyClass, Object request) {
-        return futurize(traceId, from, to, 2, TimeUnit.MINUTES, replyClass, request,
-                msg -> msg.nonPersistent().interactive().noAudit());
-    }
-
-    /**
-     * TODO: Delete once all are >= 0.16.0.
-     *
-     * @deprecated use {@link #futurizeNonessential(String, String, String, Class, Object)} instead.
-     */
-    @Deprecated
-    public <T> CompletableFuture<Reply<T>> futurizeInteractiveUnreliable(String traceId, String from, String to,
-            Class<T> replyClass, Object request) {
-        return futurizeNonessential(traceId, from, to, replyClass, request);
-    }
-
-    /**
      * The generic form of initiating a request-message that returns a {@link CompletableFuture}, which enables you to
      * tailor all properties. To set interactive-, nonPersistent- or noAudit-flags, or to tack on any
-     * ({@link MatsInitiate#addBytes(String, byte[]) "sideloads"} to the outgoing message, use the "customInit"
+     * {@link MatsInitiate#addBytes(String, byte[]) "sideloads"} to the outgoing message, use the "customInit"
      * parameter, which directly is the {@link InitiateLambda InitiateLambda} that the MatsFuturizer initiation is
      * using.
      * <p/>
@@ -371,12 +296,104 @@ public class MatsFuturizer implements AutoCloseable {
     }
 
     /**
-     * @deprecated use {@link #futurize(String, String, String, int, TimeUnit, Class, Object, InitiateLambda)} instead.
+     * Convenience-variant of the generic
+     * {@link #futurize(String, String, String, int, TimeUnit, Class, Object, InitiateLambda) futurize(..)} form, where
+     * the timeout is set to 2.5 minutes. To set interactive-, nonPersistent- or noAudit-flags, or to tack on any
+     * {@link MatsInitiate#addBytes(String, byte[]) "sideloads"} to the outgoing message, use the "customInit"
+     * parameter, which directly is the {@link InitiateLambda InitiateLambda} that the MatsFuturizer initiation is
+     * using.
+     * <p/>
+     * For a bit more explanation, please read JavaDoc of
+     * {@link #futurizeNonessential(String, String, String, Class, Object) futurizeInteractiveUnreliable(..)}
+     *
+     * @param traceId
+     *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(String)}
+     * @param from
+     *            the "from" of the initiation, see {@link MatsInitiate#from(String)}
+     * @param to
+     *            to which Mats endpoint the request should go, see {@link MatsInitiate#to(String)} the unit of time of
+     *            the 'timeout' parameter.
+     * @param replyClass
+     *            which expected reply DTO class that the requested endpoint replies with.
+     * @param request
+     *            the request DTO that should be sent to the endpoint, see {@link MatsInitiate#request(Object)}
+     * @param customInit
+     *            the {@link InitiateLambda} that the MatsFuturizer is employing to initiate the outgoing message, which
+     *            you can use to tailor the message, e.g. setting the {@link MatsInitiate#interactive()
+     *            interactive}-flag or tacking on {@link MatsInitiate#addBytes(String, byte[]) "sideloads"}.
+     * @param <T>
+     *            the type of the reply DTO.
+     * @return a {@link CompletableFuture} which will be resolved with a {@link Reply}-instance that contains both some
+     *         meta-data, and the {@link Reply#reply reply} from the requested endpoint.
      */
-    @Deprecated
-    public <T> CompletableFuture<Reply<T>> futurizeGeneric(String traceId, String from, String to,
-            int timeout, TimeUnit unit, Class<T> replyClass, Object request, InitiateLambda customInit) {
-        return futurize(traceId, from, to, timeout, unit, replyClass, request, customInit);
+    public <T> CompletableFuture<Reply<T>> futurize(String traceId, String from, String to, Class<T> replyClass,
+            Object request, InitiateLambda customInit) {
+        return futurize(traceId, from, to, 150, TimeUnit.SECONDS, replyClass, request, customInit);
+    }
+
+    /**
+     * <b>NOTICE: This variant must <u>only</u> be used for "GET-style" Requests where none of the endpoints the call
+     * flow passes will add, remove or alter any state of the system, and where it doesn't matter all that much if
+     * a message (and hence the Mats flow) is lost!</b>
+     * <p />
+     * The goal of this method is to be able to get hold of e.g. account holdings, order statuses etc, for presentation
+     * to a user. The thinking is that if such a flow fails where a message of the call flow disappears, this won't make
+     * for anything else than a bit annoyed user: No important state change, like the adding, deleting or change of an
+     * order, will be lost. Also, speed is of the essence. Therefore, <i>non-persistent</i>. At the same time, to make
+     * the user super happy in the ordinary circumstances, all messages in this call flow will be prioritized, and thus
+     * skip any queue backlogs that have arose on any of the call flow's endpoints, e.g. due to some massive batch of
+     * (background) processes executing at the same time. Therefore, <i>interactive</i>. Notice that with both of these
+     * features combined, you get very fast messaging, as non-persistent means that the message will not have to be
+     * stored to permanent storage at any point, while interactive means that it will skip any backlogged queues. In
+     * addition, the <i>noAudit</i> flag is set, since it is a waste of storage space to archive the actual contents of
+     * Request and Reply messages that do not alter the system.
+     * <p />
+     * Sets the following properties on the sent Mats message:
+     * <ul>
+     * <li><b>Non-persistent</b>: Since it is not vitally important that this message is not lost, non-persistent
+     * messaging can be used. The minuscule chance for this message to disappear is not worth the considerable overhead
+     * of store-and-forward multiple times to persistent storage. Also, speed is much more interesting.</li>
+     * <li><b>Interactive</b>: Since the Futurizer should only be used as a "synchronous bridge" when a human is
+     * actively waiting for the response, the interactive flag is set. <i>(For all other users, you should rather code
+     * "proper Mats" with initiations, endpoints and terminators)</i>.</li>
+     * <li><b>No audit</b>: Since this message will not change the state of the system (i.e. the "GET-style" requests),
+     * using storage on auditing requests and replies is not worthwhile.</li>
+     * </ul>
+     * This method initiates an <b>{@link MatsInitiate#nonPersistent() non-persistent}</b> (unreliable),
+     * <b>{@link MatsInitiate#interactive() interactive}</b> (prioritized), <b>{@link MatsInitiate#noAudit()
+     * non-audited}</b> (request and reply DTOs won't be archived) Request-message to the specified endpoint, returning
+     * a {@link CompletableFuture} that will be {@link CompletableFuture#complete(Object) completed} when the Reply from
+     * the requested endpoint comes back. The internal MatsFuturizer timeout will be set to <b>2.5 minutes</b>, meaning
+     * that if there is no reply forthcoming within that time, the {@link CompletableFuture} will be
+     * {@link CompletableFuture#completeExceptionally(Throwable) completed exceptionally} with a
+     * {@link MatsFuturizerTimeoutException MatsFuturizerTimeoutException}, and the Promise deleted from the futurizer.
+     * 2.5 minutes is probably too long to wait for any normal interaction with a system, so if you use the
+     * {@link CompletableFuture#get(long, TimeUnit) CompletableFuture.get(timeout, TimeUnit)} method of the returned
+     * future, you might want to put a lower timeout there - if the answer hasn't come within that time, you'll get a
+     * {@link TimeoutException}. If you instead use the non-param variant {@link CompletableFuture#get() get()}, you
+     * will get an {@link ExecutionException} when the 2.5 minutes have passed (that exception's
+     * {@link ExecutionException#getCause() cause} will be the {@link MatsFuturizerTimeoutException
+     * MatsFuturizerTimeoutException} mentioned above).
+     *
+     * @param traceId
+     *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(String)}
+     * @param from
+     *            the "from" of the initiation, see {@link MatsInitiate#from(String)}
+     * @param to
+     *            to which Mats endpoint the request should go, see {@link MatsInitiate#to(String)}
+     * @param replyClass
+     *            which expected reply DTO class that the requested endpoint replies with.
+     * @param request
+     *            the request DTO that should be sent to the endpoint, see {@link MatsInitiate#request(Object)}
+     * @param <T>
+     *            the type of the reply DTO.
+     * @return a {@link CompletableFuture} which will be resolved with a {@link Reply}-instance that contains both some
+     *         meta-data, and the {@link Reply#reply reply} from the requested endpoint.
+     */
+    public <T> CompletableFuture<Reply<T>> futurizeNonessential(String traceId, String from, String to,
+            Class<T> replyClass, Object request) {
+        return futurize(traceId, from, to, 150, TimeUnit.SECONDS, replyClass, request,
+                msg -> msg.nonPersistent().interactive().noAudit());
     }
 
     /**
@@ -472,7 +489,8 @@ public class MatsFuturizer implements AutoCloseable {
         String correlationId = RandomString.randomCorrelationId();
         long timestamp = System.currentTimeMillis();
         CompletableFuture<Reply<T>> future = new CompletableFuture<>();
-        return new Promise<>(traceId, correlationId, from, to, timestamp, timestamp + timeoutMillis, replyClass, future);
+        return new Promise<>(traceId, correlationId, from, to, timestamp, timestamp + timeoutMillis, replyClass,
+                future);
     }
 
     protected <T> void _enqueuePromise(Promise<T> promise) {
@@ -681,7 +699,7 @@ public class MatsFuturizer implements AutoCloseable {
                 for (Promise<?> promise : promisesToTimeout) {
                     MDC.put("traceId", promise._traceId);
                     String msg = "The Promise/Future timed out! It was initiated from:[" + promise._from
-                            + "] with traceId:[" + promise._traceId + "], to:["+promise._to+"]"
+                            + "] with traceId:[" + promise._traceId + "], to:[" + promise._to + "]"
                             + " Initiation was [" + (System.currentTimeMillis()
                                     - promise._initiationTimestamp) + " ms] ago, and its specified"
                             + " timeout was:[" + (promise._timeoutTimestamp
