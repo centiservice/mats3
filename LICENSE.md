@@ -1,14 +1,13 @@
-Copyright (c) 2015-2021 Endre Stølsvik, licensed under Polyform Perimeter 1.0.0 with examples
+Copyright (c) 2015-2022 Endre Stølsvik, licensed under Polyform Perimeter 1.0.0 with examples
 
 # Examples of what is NOT allowed to do with the software under this license
 
 As any type of service provider, for example cloud service providers, offering paid or free
 services to customers or clients, you or your company may not:
 
-* Offer any kind of Mats-as-a-Service, including by use of your own or any other
-  implementation of the Mats API.
-* Using e.g. the Mats API or any implementation to offer a similar solution.
-* Using e.g. the Mats Interceptor API to offer any kind of Mats metrics, introspection, tracing, 
+* Offer any kind of Mats-as-a-Service.
+* Use the software to offer a similar solution.
+* Use the software to offer any kind of Mats metrics, introspection, tracing, 
   logging, visualization or debugging tools or solutions.
    
 These examples do not preclude a company-internal service provider to provide such services
