@@ -759,15 +759,20 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
 
                 out.append("<div class='matsli_msgs_summary'>");
                 Map<String, AtomicLong> summer = new TreeMap<>();
+                // :: Outgoing Messages Summary: Calculate ..
                 for (Entry<OutgoingMessageRepresentation, Long> entry : outgoingMessageCounts.entrySet()) {
                     OutgoingMessageRepresentation msg = entry.getKey();
                     // Different handling whether REPLY or any other
                     boolean replyMsg = msg.getMessageType() == MessageType.REPLY;
-                    String key = msg.getMessageType() + "#" + msg.getMessageClass().getSimpleName() + "#" +
+                    String messageClassName = msg.getMessageClass() == null
+                            ? "null"
+                            : msg.getMessageClass().getSimpleName();
+                    String key = msg.getMessageType() + "#" + messageClassName + "#" +
                             (replyMsg ? msg.getInitiatingAppName() : msg.getTo());
                     AtomicLong count = summer.computeIfAbsent(key, s -> new AtomicLong());
                     count.addAndGet(entry.getValue());
                 }
+                // .. then output summary
                 for (Entry<String, AtomicLong> entry : summer.entrySet()) {
                     int hashIdx1 = entry.getKey().indexOf('#');
                     int hashIdx2 = entry.getKey().indexOf('#', hashIdx1 + 1);
@@ -788,6 +793,7 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
                 }
                 out.append("</div>");
 
+                // :: Outgoing Messages Details
                 out.append("<div class='matsli_msgs_details matsli_noshow'>");
                 for (Entry<OutgoingMessageRepresentation, Long> entry : outgoingMessageCounts.entrySet()) {
                     OutgoingMessageRepresentation msg = entry.getKey();
@@ -945,7 +951,7 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
     }
 
     String formatClass(String type) {
-        if (type == null) {
+        if ((type == null) || ("null".equals(type))) {
             return "<code><i>null</i></code>";
         }
         return "<code>" + type + "</code>";

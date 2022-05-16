@@ -73,9 +73,22 @@ public class SetupTestMatsEndpoints {
             Assert.assertEquals(new StateTO(Integer.MAX_VALUE, Math.E), sto);
             sto.number1 = 1;
             sto.number2 = 2;
-            context.next(dto);
+            // ?: Should we send null, or DTO?
+            if (ThreadLocalRandom.current().nextFloat() > 0.5) {
+                // -> Send null, for testing of issue #53, "LocalHtmlInspectForMatsFactory crashes with NPE if outgoing
+                // messages are null."
+                context.next(null);
+            }
+            else {
+                context.next(dto);
+            }
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
+            // ?: Is the incoming message null (see comments in above stage)?
+            if (dto == null) {
+                // -> Yes, so replace it with something non-null
+                dto = new DataTO(1, "replacing null message", 5);
+            }
             Assert.assertEquals(new StateTO(1, 2), sto);
             sto.number1 = Integer.MIN_VALUE;
             sto.number2 = Math.E * 2;
