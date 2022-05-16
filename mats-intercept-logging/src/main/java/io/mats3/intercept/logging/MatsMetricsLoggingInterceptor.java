@@ -927,19 +927,19 @@ public class MatsMetricsLoggingInterceptor
         }
         // >=500_000 ms?
         if (nanosTaken >= 1_000_000L * 500_000) {
-            // -> Yes, >500_000ms, thus chop into the integer part of the number (dropping 3 digits)
+            // -> Yes, >500_000ms, thus chop into the integer part of the number (zeroing 3 digits)
             // (note: printing of a double always include ".0"), e.g. 612000.0
             return Math.round(nanosTaken / 1_000_000_000d) * 1_000d;
         }
         // >=50_000 ms?
         if (nanosTaken >= 1_000_000L * 50_000) {
-            // -> Yes, >50_000ms, thus chop into the integer part of the number (dropping 2 digits)
+            // -> Yes, >50_000ms, thus chop into the integer part of the number (zeroing 2 digits)
             // (note: printing of a double always include ".0"), e.g. 61200.0
             return Math.round(nanosTaken / 100_000_000d) * 100d;
         }
         // >=5_000 ms?
         if (nanosTaken >= 1_000_000L * 5_000) {
-            // -> Yes, >5_000ms, thus chop into the integer part of the number (dropping 1 digit)
+            // -> Yes, >5_000ms, thus chop into the integer part of the number (zeroing 1 digit)
             // (note: printing of a double always include ".0"), e.g. 6120.0
             return Math.round(nanosTaken / 10_000_000d) * 10d;
         }
