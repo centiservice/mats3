@@ -1052,8 +1052,10 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     private void chillWait() {
-        // About 5 seconds..
-        chillWait(4500 + Math.round(Math.random() * 1000));
+        // About 30 seconds..
+        // TODO: Make exponential backoff.
+        // (This will kick inn if you /do not/ use a "failover:" protocol, and the broker goes down.)
+        chillWait(29_500 + Math.round(Math.random() * 1000));
     }
 
     private Destination createJmsDestination(Session jmsSession, FactoryConfig factoryConfig) throws JMSException {
