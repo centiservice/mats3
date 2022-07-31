@@ -29,6 +29,7 @@ If you find Mats interesting, you might want to check out the "companion
 project" [MatsSocket](https://github.com/centiservice/matssocket).
 
 # Documentation
+
 Go to the [docs](docs/) folder.
 
 # What is Mats?
@@ -36,47 +37,43 @@ Go to the [docs](docs/) folder.
 There's a document going into details [here](docs/WhatIsMats.md), and for the rationale behind
 Mats [here](docs/RationaleForMats.md).
 
-Trying to describe Mats in short form, from several different angles:
+Description of what Mats is, in multiple short forms, from several different angles:
 
 ### A picture is worth...
 
 ![Standard Example Mats Flow](docs/img/StandardExampleMatsFlow-halfsize-pagescaled.svg)
 
 The above illustration can be viewed as REST-endpoints invoking other REST-endpoints, the dotted lines representing
-blocking waits on the other endpoints responses. Or it can be viewed as MATS Endpoints (light blue boxes) invoking other
-MATS Endpoints, the dotted lines representing the state which are "magically" present between the Stages (dark blue
-boxes) of the Endpoints, but which are passed along with the message envelopes.
+blocking waits on the other endpoints responses. Or it can be viewed as Mats Endpoints (light blue boxes) invoking other
+Mats Endpoints, the dotted lines representing the state which are "magically" present between the Stages (dark blue
+boxes) of the Endpoints, but which are passed along with the message envelopes. The full execution from Initiator to
+Terminator is called a _Mats Flow_.
 
 Unit test code for this setup can be
 found [here](mats-api-test/src/test/java/io/mats3/api_test/stdexampleflow/Test_StandardExampleMatsFlow.java).
 
-### Better Inter Service Communication
+### Better Inter Service Communication with Messaging
 
 In a system made up of multiple services, e.g. a microservice architecture, asynchronous messaging gives many benefits
-compared to the more classical synchronous JSON-over-HTTP-based communications. Mats lets you use messaging without
-having to change your mental model of how to create inter service endpoints. For example:
+compared to the more classical synchronous JSON-over-HTTP-based communications.
 
-1. Receive a request
-2. Validate some arguments
-3. Call a collaborating service
-4. Calculate some intermediate result
-5. Call another collaborating service
-6. Calculate the return values
-7. Return the result
+Mats lets you use messaging without having to massively change your mental model of how to create inter service
+endpoints: You might code your Mats Endpoint to receive a request, invoke a few collaborating services, calculate the
+result based on values both from the request and the responses from the services you invoked, and then return the
+result.
 
 ### Multi-stage, message-based Endpoints
 
-A _Mats Endpoint_ may consist of multiple _Stages_, where each Stage is an independent consumer and producer of
-messages, consuming from a stage-specific queue on a message broker. The queue name is a direct mapping from the
-StageId, prefixed with (default) "mats.". The initial Stage's StageId is the EndpointId.
+A Mats Endpoint may consist of multiple _Stages_, where each Stage is an independent consumer and producer of
+messages, each stage consuming from a stage-specific queue on a message broker. The message queue name is simply a
+direct mapping from the StageId, prefixed with (default) "mats.".
 
 ### Invokable message-based Endpoints
 
 A Mats Endpoint's Stage may invoke another Mats Endpoint by issuing a Request-call (`processContext.request(..)`)
-targeting the EndpointId of the Endpoint you want to invoke. The current Stage's StageProcessor then goes back to listen
-for new messages on its queue. The Reply will be received by the Endpoint's next Stage.
+targeting the EndpointId of the Endpoint you want to invoke. The Reply from this Request will be received by next Stage.
 
-### Messaging with a call stack!
+### Messaging with a call stack
 
 Invoked Mats Endpoints does not need to know who called them, they just return their result which is packaged up in a
 message called a Reply. The Stage that performs the invocation doesn't have to specify which StageId the Reply should go
@@ -94,12 +91,12 @@ mechanism which kicks in if an Endpoint for example invokes itself.
 
 ### Stateless
 
-The entire state of a _Mats Flow_ is kept in the message's envelope. No state is kept on the service instances
+The entire state of a _Mats Flow_ is kept in the messages' envelope. No state is kept on the service instances
 (nodes / pods / hosts / servers - whatever unit carries the service instances' JVMs).
 
 This means that a service instance may be shut down without any consequences, and without the need of taking it out of
 any cluster or load balancer - it simply disconnects from the message broker. If there are multiple instances, the other
-instances will just continue consuming from those queues as if nothing has happened (they might get some more load than
+instances will just continue consuming from those queues as if nothing has happened (they will get some more load than
 when they shared it with the now-offline instance). If there are no instances of this service left, inbound messages
 targeting this service's Endpoints' Stages will just be queued up on the broker's queues - and when a service instance
 comes back online, its Mats Endpoints will start consuming again, and the Mats Flows will continue as if nothing
@@ -110,15 +107,14 @@ happened. This makes maintenance, high availability, and deployment of new versi
 The multiple Stages of a Mats Endpoint are connected with a State Object, which are meant to emulate the local variables
 you'd have in the handling method of an ordinary HTTP-endpoint which performs synchronous HTTP calls to other services.
 
-### Asynchronous. Very.
+### Asynchronous
 
-When a Request is performed by a Stage _N_, this Stage's processing is typically finished for this Mats Flow, and the
-Stage's _StageProcessor_ goes back to fetching a new message waiting on its queue. Stage _N+1_ will also have a set of
-StageProcessors listening to the queue of its Stage, and eventually the Reply from the invoked Mats Endpoint will appear
-on that queue, and any one of those StageProcessors (on any one of the instances running this service) will pick it up
-and continue the processing.
+When a Stage _N_ of some Endpoint performs a request to another Endpoint, no thread will explicitly be waiting for the
+Reply. The thread that executed Stage N for this Flow will go back to pick up new messages for Stage N. When the
+requested Endpoint eventually replies, the Reply will be put on the incoming queue for Stage _N+1_, where another
+thread, possibly on another node, will pick it up and continue the execution for this Flow.
 
-### Distributed. Much.
+### Distributed
 
 A Mats Flow's execution will be spread out in pieces - over the Stages of the Endpoints involved in the Flow, and over
 the instances of the services that holds those Endpoints. The Mats Flow weaves a single thread through the
@@ -148,15 +144,24 @@ automatic retrying. But if this doesn't pan out either, the current message will
 on the Dead Letter Queue. (The broker should preferably be set up to have individual DLQs per queue). This is monitored
 on the message broker.
 
-This makes the total system exceptionally distributed, but the _error handling_ is centralized. There is a separate
-project providing a Mats-specific view of the queues and DLQs on the message broker:
+This makes the total system exceptionally distributed, but the _error handling_ is centralized.
+
+There is a separate project providing a Mats-specific view of the queues and DLQs on the message broker:
 [MatsBrokerMonitor](https://github.com/centiservice/matsbrokermonitor).
 
 ### Familiar feel
 
 The hope is that coding a message-based Mats Endpoint _feels like_ coding an ordinary HTTP-based endpoint where you may
 synchronously invoke other endpoints as part of the processing. You code "linearly" and reason locally - but you gain
-all features of an asynchronous Message Oriented Architecture.
+all features of a fully Asynchronous Message Oriented Architecture.
+
+### Production Ready
+
+This code has for several years been running in production as the sole inter service communication layer in a quite
+large financial system consisting of >50 services and applications and several hundred Mats Endpoints. This system has
+multiple customer frontends, both web and apps, and several backend UIs for backoffice functions. Several million
+messages are produced and consumed each day. The Message Broker in use in this production setup is Apache ActiveMQ, but
+all unit and integration tests also run on Apache Artemis (formerly JBoss HornetQ, and what RedHat AMQ is built on).
 
 For more, read [this](docs/WhatIsMats.md), then [this](docs/RationaleForMats.md).
 
@@ -167,7 +172,7 @@ processes and messages, and trades some performance for developer friendliness, 
 Solutions like Kafka might be what you want if you need to receive tens-of-thousands of events per second from your
 massive fleet of IoT devices. Use Mats for the subsequent, more coarse-grained handling of the results of such
 ingestion. _(That said, the throughput of a large Mats fabric with lots of Endpoints scales very well, and is only
-limited by the throughput of your message broker setup)_
+limited by the throughput of your message broker setup as well as external resources as your services databases)_
 
 Also, Mats is not meant for events which require handling in a specific order, e.g. arrival order. The intention with
 Mats is that you run multiple instances/replicas of each service. And on each instance, there are multiple
