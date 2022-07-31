@@ -11,8 +11,13 @@ dependencies {
 
     // Backing message brokers:
     // We need a backing JMS-based Message Broker; MatsTestBroker is a tool that provides easy instantiation of such.
-    // Note that this does NOT transitively depend on any broker server or client, as the MatsTestBroker also is pulled
-    // in by mats-spring-jms (which is meant for prod code) in conjunction with that toolset's readiness for testing.
+    // (Note that the MatsTestBroker does NOT transitively depend on any broker server or client, as MatsTestBroker also
+    // is pulled in by mats-spring-jms (which is meant for prod code) in conjunction with that toolset's readiness for
+    // testing. Therefore, we are pulling in the message broker and client dependencies here: If you depend on the
+    // 'mats-test' project, you are clearly inside a test-part of the project, not production. Also therefore, it does
+    // not matter as much that we pull in a bit too much; We'll pull in both ActiveMQ and Artemis (both broker and
+    // client), even though we'll probably only be using one of them, and that is probably ActiveMQ due to the test
+    // tooling defaulting to this.)
     implementation project(':mats-test-broker')
     // .. therefore, also pull in ActiveMQ Broker with Client
     implementation "org.apache.activemq:activemq-broker:$activeMqVersion"

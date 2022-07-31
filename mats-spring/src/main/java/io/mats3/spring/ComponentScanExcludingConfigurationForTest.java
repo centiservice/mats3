@@ -23,13 +23,14 @@ import org.springframework.core.annotation.AliasFor;
  * {@link ConfigurationForTest @ConfigurationForTest} annotation instead of the standard <code>@Configuration</code>
  * annotation. This is meant as a solution for a rather common problem that arises when your application
  * uses @ComponentScan to find @Services, @Components etc, and have integration tests that reside in "src/test/java",
- * but has the same package as the application code. In the tests, you might want to include the entire application's
- * Spring configuration, thus you include the same @ComponentScan. The problem now is that since all the test classes
- * are included on the classpath when running a test, and at the same time reside in the same package structure, the
- * component scan will pick up all tests' @Configuration classes too. This is absolutely not what you wanted - in
- * particular if e.g. two different tests tries to set up two different variants of a mock collaborating Mats endpoint
- * (that is, an application-external service that this application communicates with): You'll end up trying to take up
- * both variants at the same time, and since they have the same endpointId, Mats will refuse this.
+ * but has the same package as the application code (to allow for package access). In the tests, you might want to
+ * include the entire application's Spring configuration, thus you include the same @ComponentScan. The problem now is
+ * that since all the test classes are included on the classpath when running a test, and at the same time reside in the
+ * same package structure, the component scan will pick up all tests' @Configuration classes too. This is absolutely not
+ * what you wanted - in particular if e.g. two different tests tries to set up two different variants of a mock
+ * collaborating Mats endpoint (that is, an application-external service that this application communicates with):
+ * You'll end up trying to take up both variants at the same time, and since they have the same endpointId, Mats will
+ * refuse this.
  * <p>
  * If you employ this annotation (@ComponentScanExcludingConfigurationForTest) - or set up the same "excludeFilters" as
  * this annotation does - you will <i>not</i> include any configuration classes that are annotated with

@@ -22,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A H2 DataBase DataSource which has a couple of extra methods which simplifies testing, in particular the
+ * A wrapped H2 DataBase DataSource which has a couple of extra methods which simplifies testing, in particular the
  * {@link #cleanDatabase()}, and {@link #createDataTable()} method with associated convenience methods for storing and
  * getting simple values.
  */
@@ -52,13 +52,13 @@ public class TestH2DataSource implements XADataSource, DataSource, ConnectionPoo
 
     /**
      * Creates an in-memory {@link TestH2DataSource} as specified by the URL {@link #IN_MEMORY_TEST_H2_DATABASE_URL},
-     * which is <code>"jdbc:h2:mem:matsTestH2DB"</code>, <b>unless</b> the System Property {@link #SYSPROP_MATS_TEST_H2}
-     * (<code>"mats.test.h2"</code>) is directly set to a different URL to use, with the special case that if it is
-     * {@link #SYSPROP_VALUE_FILE_BASED} (<code>"file"</code>), in which case {@link #FILE_BASED_TEST_H2_DATABASE_URL}
-     * (<code>"jdbc:h2:./matsTestH2DB;AUTO_SERVER=TRUE</code>) is used as URL.
+     * which is <code>"jdbc:h2:mem:matsTestH2DB_[randomness];DB_CLOSE_DELAY=-1"</code>, <b>unless</b> the System
+     * Property {@link #SYSPROP_MATS_TEST_H2} (<code>"mats.test.h2"</code>) is directly set to a different URL to use,
+     * with the special case that if it is {@link #SYSPROP_VALUE_FILE_BASED} (<code>"file"</code>), in which case
+     * {@link #FILE_BASED_TEST_H2_DATABASE_URL} (<code>"jdbc:h2:./matsTestH2DB;AUTO_SERVER=TRUE</code>) is used as URL.
      * <p />
-     * <b>Notice that the normal way to use the connected to database is to invoke {@link #cleanDatabase()} for each
-     * test, which implies that the database will be utterly wiped!</b>
+     * <b>Notice that the method {@link #cleanDatabase()} is invoked when creating the DataSource, which is relevant
+     * when using the file-based variant.</b>
      *
      * @return the created {@link TestH2DataSource}.
      */

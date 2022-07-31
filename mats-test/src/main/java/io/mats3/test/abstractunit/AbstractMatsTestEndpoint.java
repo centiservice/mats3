@@ -82,12 +82,12 @@ public abstract class AbstractMatsTestEndpoint<R, I> {
 
     /**
      * Blocks and waits for the endpoint to be invoked, then returns the incoming message DTO of the type
-     * (<code>I</code>). Will use a default timout value of 10 seconds.
+     * (<code>I</code>). Will use a default timout value of 30 seconds.
      *
      * @return the first incoming message it encounters after calling this method.
      */
     public I waitForRequest() {
-        return waitForRequest(10_000);
+        return waitForRequest(30_000);
     }
 
     /**
@@ -104,14 +104,14 @@ public abstract class AbstractMatsTestEndpoint<R, I> {
 
     /**
      * Blocks and waits for the endpoint to be invoked x number of times, then returns the x number of corresponding
-     * incoming message DTO's of the type (<code>I</code>). Will utilize a default timeout value of 10 seconds.
+     * incoming message DTO's of the type (<code>I</code>). Will utilize a default timeout value of 30 seconds.
      *
      * @param expectedNumberOfRequests
      *            the number of requests before unblocking and returning the received objects.
      * @return the x number of incoming message it encounters after calling this method as a List&lt;I&gt;.
      */
     public List<I> waitForRequests(int expectedNumberOfRequests) {
-        return waitForRequests(expectedNumberOfRequests, 10_000);
+        return waitForRequests(expectedNumberOfRequests, 30_000);
     }
 
     /**
@@ -130,8 +130,8 @@ public abstract class AbstractMatsTestEndpoint<R, I> {
 
     /**
      * Verifies that this endpoint has not been invoked. This can be useful in scenarios where an endpoint has multiple
-     * routes x,y and z. Given request a, the request should be processed and forwarded to y endpoint and this endpoint
-     * should not be invoked etc.
+     * routes x,y and z. For example, given request a, the request should be processed and forwarded to y endpoint and
+     * this endpoint should not be invoked.
      *
      * @throws UnexpectedMatsTestEndpointInvocationError
      *             exception thrown if the endpoint has been invoked.

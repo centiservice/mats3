@@ -397,15 +397,15 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     private static final NonblockingStack<Deflater> _deflaterPool = new NonblockingStack<>();
 
     protected byte[] compress(byte[] data) {
-        // Get a Inflater from the pool
+        // Get a Deflater from the pool
         Deflater deflater = _deflaterPool.pop();
-        // ?: Did we get an Inflater from the pool?
+        // ?: Did we get a Deflater from the pool?
         if (deflater == null) {
             // -> No, so make a new one.
             deflater = new Deflater(_compressionLevel);
         }
 
-        // Whether we should enpool the deflater at end
+        // Whether we should enpool the Deflater at end
         boolean reuseDeflater = false;
         try {
             deflater.setInput(data);
@@ -447,7 +447,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     private static final NonblockingStack<Inflater> _inflaterPool = new NonblockingStack<>();
 
     protected byte[] decompress(byte[] data, int offset, int length, int bestGuessDecompressedSize) {
-        // Get a Inflater from the pool
+        // Get an Inflater from the pool
         Inflater inflater = _inflaterPool.pop();
         // ?: Did we get an Inflater from the pool?
         if (inflater == null) {
@@ -455,7 +455,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
             inflater = new Inflater();
         }
 
-        // Whether we should enpool the inflater at end
+        // Whether we should enpool the Inflater at end
         boolean reuseInflater = false;
         try {
             inflater.setInput(data, offset, length);

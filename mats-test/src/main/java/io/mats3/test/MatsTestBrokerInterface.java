@@ -171,18 +171,16 @@ public interface MatsTestBrokerInterface {
 
         public MatsTestBrokerInterface_JmsMatsFactory _latePopulate(ConnectionFactory connectionFactory,
                 MatsFactory matsFactory) {
-            MatsFactory unwrappedMatsFactory = matsFactory.unwrapFully();
-            if (!(unwrappedMatsFactory instanceof JmsMatsFactory)) {
-                throw new IllegalArgumentException("The _latePopuplate method was invoked with a MatsFactory, which"
-                        + " when 'unwrapFully()' did not give a JmsMatsFactory. Sorry, no can do.");
-            }
             _connectionFactory = connectionFactory;
 
             _matsDestinationPrefix = matsFactory.getFactoryConfig().getMatsDestinationPrefix();
             _matsTraceKey = matsFactory.getFactoryConfig().getMatsTraceKey();
 
-            MatsInterceptable matsInterceptable = (MatsInterceptable) unwrappedMatsFactory;
-
+            MatsFactory unwrappedMatsFactory = matsFactory.unwrapFully();
+            if (!(unwrappedMatsFactory instanceof JmsMatsFactory)) {
+                throw new IllegalArgumentException("The _latePopuplate method was invoked with a MatsFactory, which"
+                        + " when 'unwrapFully()' did not give a JmsMatsFactory. Sorry, no can do.");
+            }
             JmsMatsFactory<?> jmsMatsFactory = (JmsMatsFactory<?>) unwrappedMatsFactory;
             _matsSerializer = jmsMatsFactory.getMatsSerializer();
 
@@ -440,5 +438,4 @@ public interface MatsTestBrokerInterface {
             }
         }
     }
-
 }
