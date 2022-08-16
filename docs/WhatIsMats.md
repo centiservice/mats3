@@ -178,8 +178,8 @@ node(s).
 Technically, the Request and Reply, and well as the State objects, are serialized within an envelope, and this envelope
 is the actual message passed on the queues. The system uses the envelope to carry the call stack with the different
 state objects, in addition to the actual message DTO, but also gives the ability
-to [tack on information that carries through the Mats flow from start to finish](developing/TraceIdsAndInitiatorIds.md). An
-immediate benefit for developers is the *TraceId* string, which is a mandatory parameter for an initiation. This ties
+to [tack on information that carries through the Mats flow from start to finish](developing/TraceIdsAndInitiatorIds.md).
+An immediate benefit for developers is the *TraceId* string, which is a mandatory parameter for an initiation. This ties
 together all processing throughout the flow, and with a common logging system for all your services, you immediately
 gain full insight into the processing of this Mats flow through the different parts of the distributed system.
 
@@ -203,9 +203,11 @@ interface, each stage has a set of threads that receives messages using a JMS Me
 ## Production Ready
 
 This code has for several years been running in production as the sole inter service communication layer in a quite
-large financial system consisting of >45 services and several hundred Mats Endpoints. Several million messages are
-produced and consumed each day. The Message Broker in use in this production setup is Apache ActiveMQ, but all unit and
-integration tests also run on Apache Artemis (formerly JBoss HornetQ, and what RedHat AMQ is built on). *(RabbitMQ with
-its JMS client is not yet advised, due to some differing semantics in this broker, e.g. infinite, tight-loop retries
-without DLQ)*.
+large financial system consisting of >50 services and applications and several hundred Mats Endpoints. This system has
+multiple customer frontends, both web and apps, and several backend UIs for backoffice functions. Several million
+messages are produced and consumed each day. The Message Broker in use in this production setup is Apache ActiveMQ, but
+all unit and integration tests also run on Apache Artemis (formerly JBoss HornetQ, and what RedHat AMQ is built on).
+
+*Please note: RabbitMQ with its JMS client is not yet advised, due to some differing semantics in this broker, e.g.
+infinite, tight-loop retries without DLQ*.
 

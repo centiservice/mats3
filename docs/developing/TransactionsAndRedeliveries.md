@@ -29,7 +29,7 @@ business process errors (wrong states) like duplicate key exception, but also mo
 and several other situations that might just transiently show up. On the other side, the JMS transaction is guaranteed
 to go through: You are guaranteed that this consumer is the only one that are currently processing the current message,
 and committing a JMS transaction with both received and sent messages will _always_ go through, _except_ if there are
-actual infrastructure problems.
+actual hardware infrastructure problems (or, granted, bugs in the message broker or your setup of it).
 
 Therefore, the Stage's transaction is set up in the following fashion:
 
@@ -50,13 +50,17 @@ The only situation where this fails, is if #5 goes through (database commit), an
 hinders #6 to go through (JMS commit). You will now be in a situation where the entire processing has actually happened,
 including commit to database, but the broker has rolled back.
 
-You will now get a redelivery of the same message.
+If this was in an Initiation, the initiation will throw out. You should handle such situations as if any other external
+communication error happened. Notably, if you did any "job allocation" or similar, picking work from a database table
+for execution in one or multiple Mats flows, these flows will now not start. You should thus deallocate that work.
+
+If this was in a Stage processing, you will now get a redelivery of the same message.
 
 The problem with a redelivery of an already processed message is that if you've e.g. already inserted the new order,
 you'll either insert the order once more - or if you run with "client decides ids", which you should - you'll get a
 duplicate key exception, and thus abort the processing. However, any outgoing message wasn't sent on the first delivery
 and processing, and will now not ever be sent, since the same situation will be present for each redelivery. The Mats
-Flow will thus erroneously stop. The message will be DLQed.
+Flow will thus erroneously stop. The message will eventually be DLQed.
 
 A solution to this is to pre-emptively check whether the order is already entered, and if so, "jump over" the business
 processing, and just send the outgoing message.
@@ -96,17 +100,18 @@ So the full solution will be an "inbox-outbox pattern". The outbox to ensure sen
 to catch duplicate deliveries.
 
 Needless to say, such a solution does not improve performance! The intention is to be able to selectively enable this
-for stages that aren't idempotent, either by nature (reads, and possibly updates and deletes), or by explicitly having
-code to handle the above described possible problem (which mainly should be with create/insert).
+only for stages that aren't idempotent. Again, stages are idempotent either by nature (reads, and possibly updates and
+deletes), or by explicitly having code to handle the above described possible problem (which mainly should be with
+create).
 
 ## Redeliveries
 
 For ActiveMQ, the redelivery policy _per default_ constitute 1 delivery attempt, and 6 redelivery attempts, for a total
 of 7 attempts. It is worth understanding that these redelivery attempts _per default_ is performed _on the
 client/consumer side_, blocking further deliveries until the message either is handled, or DLQed. The rationale for this
-is to uphold the message order, so that no later sent message may sneak past an earlier just because the earlier hit a
-transient error and needed redelivery. This means that the StageProcessor (the thread) that got a poison message will "
-stutter" on that message until it either works out, or the message is DLQed. Since there is a delay between each
+is to uphold the message order, so that no later sent message may sneak past an earlier message just because the earlier
+hit a transient error and needed redelivery. This means that the StageProcessor (the thread) that got a poison message
+will "stutter" on that message until it either works out, or the message is DLQed. Since there is a delay between each
 attempt, this will take multiple seconds. If you for some reason (typically a coding error upstream of the Mats Flows)
 end up with a whole bunch of poison messages, this entire Stage, with all its StageProcessors, on all the instances (
 replicas) of the service, might effectively "stutter" on redelivery attempts while slowly chewing its way through that
@@ -140,7 +145,7 @@ client-side solution, and was found to not give the desired benefits. _YMMV._
 * [Redelivery Policy](https://activemq.apache.org/redelivery-policy) How redelivery policies work,
 * [Message Redelivery and DLQ Handling](https://activemq.apache.org/message-redelivery-and-dlq-handling) - which
   includes a section at the bottom on configuring for Broker-side redelivery.
-* Relevat StackOverflow question wrt. client or broker side redelivery, with a good
+* Relevant StackOverflow question wrt. client or broker side redelivery, with a good
   answer: [ActiveMQ Redelivery Policy - How does it work?](https://stackoverflow.com/q/29689587/39334)
 
 ## Links for XA, 2-phase commits:

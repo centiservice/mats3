@@ -1,7 +1,7 @@
-# Developing with Mats - Basics - Endpoints and Stages
+# Developing with Mats - Basics - Endpoints, Stages and Initiation
 
-_Note: This document assumes you have a `MatsFactory` available - but is still a good starting point to get the gist of
-how Mats Endpoints work._
+_Note: This document assumes you have a `MatsFactory` available (read more at [MatsFactory](MatsFactory.md)) - but it is
+still a good starting point to get the gist of how Mats Endpoints and Initiations work._
 
 The intention with Mats is to make it possible to code message-based endpoints in a manner which feels like developing
 synchronous HTTP-like endpoints. You get a Request which includes a request object, and should produce a Reply object
@@ -9,6 +9,10 @@ which you return, but you might have to interact with a second service to calcul
 familiarity with developing HTTP-endpoints, if you develop with Spring, you may employ the SpringConfig tool of Mats,
 which includes the annotations `@MatsMapping` and `@MatsClassMapping`. These are meant to be analogous to
 Spring's `@RequestMapping` (+ `@ResponseBody`) annotation, to create single- and multi-stage Mats endpoints.
+
+_It should be noted that all of Mats, _except_ the Spring-specific parts, are clean, no-Spring Java. You can code Mats
+endpoints and initiate Mats flows by only having the Mats libraries, plus the JMS API and an implementation of it (e.g.
+ActiveMQ's client) on your classpath._
 
 ## Single stage Endpoint
 
@@ -28,7 +32,7 @@ per HTTP endpoint, which possibly was tailored to the load and handling capacity
 the result would be similar to Mats's use of threads.
 
 Here's a single endpoint set up with plain Java _(As mentioned at the top, this assumes that you have the MatsFactory
-already available):_
+already available)_ - this code should be run once at boot:
 
 ```java
 class EndpointSetup {
@@ -49,7 +53,7 @@ And here is the same example set up with SpringConfig _(The MatsFactory must be 
 `@Configuration` class must have the `@EnableMats` annotation to enable Mats' SpringConfig's annotation scanning)_.
 
 ```java
-// Note: Some @Configuration-class has the @EnableMats annotation set.
+// Note: MatsFactory is in Spring context, and some @Configuration-class has the @EnableMats annotation set.
 
 @Service
 class MatsEndpoints {
@@ -72,8 +76,8 @@ method itself is the handling code, being invoked when new messages arrive. This
 programmatically defining a Servlet, compared to using Spring Web MVC's `@RequestMapping` annotation on a method. Behind
 the scenes Mats' SpringConfig just does the java config for you, utilizing the bean's `@MatsMapping`-annotated method as
 the handling lambda - similarly to how there actually is a DispatcherServlet underlying the @RequestMapped methods of
-Spring Web MVC. SpringConfig is a small side-library utilizing only the Mats API, scanning beans for the relevant
-annotations and doing the equivalent java operations to define the endpoints.
+Spring Web MVC. SpringConfig is a small side-library utilizing only the Mats API and Spring, scanning beans for the
+relevant annotations and doing the equivalent java operations to define the endpoints.
 
 If an Endpoint can answer "locally", i.e. by performing some calculation or lookup, and can do that with just local
 resources, calculating some result, possibly based on some SQL queries, this will typically involve an Endpoint with
@@ -105,6 +109,7 @@ Illustrative example of such a HTTP endpoint, employing Spring and its (deprecat
 @RestController
 class ShippingControllerClass {
 
+    // Injected
     private final String _orderServiceUrl;
     private final ShippingService _shippingService;
     private final RestTemplate _restTemplate;
@@ -231,6 +236,7 @@ Setup using Mats' SpringConfig:
 @MatsClassMapping("ShippingService.calculateShipping")
 class ShippingEndpointClass {
 
+    // Injected
     private transient ShippingService _shippingService;
 
     @Autowired
@@ -315,9 +321,10 @@ pretty nice to code with.
 > services crashes (or is rebooted), the messages are rolled back, being retried on another node. You also get retrying
 > for free - so that any transient errors like a network hiccup to the database are papered over.
 >
-> You could tear down your entire service mesh, and build it up in a different cloud: As long as you carry along the
-> state of the message broker, once the broker and services comes online again, they'll effectively continue all the
-> ongoing Mats Flows as if nothing happened. The only observable effect would be some extra latency for those flows.
+> You could tear down your entire system with all its services, and build it up in a different cloud: As long as you
+> carry along the state of the message broker, once the broker and services comes online again, they'll effectively
+> continue all the ongoing Mats Flows as if nothing happened. The only observable effect would be a tad extra latency
+> for those flows.
 >
 > If a message is _poison_ - i.e. non-processable - it'll eventually end up on a Dead Letter Queue on the broker, from
 > where you can centrally inspect these messages which fails processing (and you can inspect their log traces through
@@ -514,8 +521,8 @@ public class Test_MatsFuturizer_Basics {
 
     @Test
     public void futurizeTest() {
-        // Create MatsFuturizer:
-        MatsFuturizer futurizer = MatsFuturizer.createMatsFuturizer(MATS.getMatsFactory());
+        // Get the futurizer - the Rule_Mats already have one created for us:
+        MatsFuturizer futurizer = MATS.getMatsFuturizer();
 
         TestRequest dto = new TestRequest(42, "TheAnswer");
 
