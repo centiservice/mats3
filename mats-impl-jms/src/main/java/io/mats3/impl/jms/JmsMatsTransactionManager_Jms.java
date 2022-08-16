@@ -199,7 +199,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                  * WARNING WARNING! COULD NOT COMMIT JMS! Besides indicating that we have a JMS problem, we also have a
                  * potential bad situation with potentially committed external state changes, but where the JMS Message
                  * Broker cannot record our consumption of the message, and will probably have to (wrongly) redeliver
-                 * it.
+                 * it, or throw out if this was an initiation.
                  */
                 String sqlEmployed = internalExecutionContext.isUsingSqlHandlingTransactionManager()
                         ? "(NOTICE: SQL Connection " + (internalExecutionContext.wasSqlConnectionEmployed()
@@ -207,8 +207,8 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                                 : "was NOT") + " gotten/employed!)"
                         : "(Not using a SQL-handling JmsMatsTransactionManager)";
                 log.error(LOG_PREFIX
-                        + "VERY BAD! " + sqlEmployed
-                        + " After " + stageOrInit(_txContextKey) + " finished processing correctly, and"
+                        + "VERY BAD! " + stageOrInit(_txContextKey) + " " + sqlEmployed
+                        + " After processing finished correctly, and"
                         + " any external, potentially state changing operations have committed OK, we could not"
                         + " commit the JMS Session! If this happened within a MATS message initiation, the state"
                         + " changing operations (e.g. database insert/update) have been committed, while the message"
@@ -236,8 +236,8 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
             }
 
             // -> The JMS Session nicely committed.
-            if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "JMS Session committed for " + _txContextKey + "!"
-                    + " Transaction finished.");
+            if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "JMS Session committed for " + stageOrInit(_txContextKey)
+                    + "! Transaction finished.");
         }
     }
 
