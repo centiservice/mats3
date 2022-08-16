@@ -68,7 +68,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * </ul>
  * <b>Metrics for the execution of the initiation</b> (very similar to the metrics for a stage processing):
  * <ul>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION "mats.exec.TotalExecution.ms"}</b>: Total time taken for the
+ * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"}</b>: Total time taken for the
  * initiation to complete - including both user code and all system code including commits.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Part of total time taken for the
  * actual user lambda, including e.g. any external IO like DB, but excluding all system code, in particular message
@@ -165,12 +165,12 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <li><code><b>"mats.StageId"</b></code>: Always set on the Processor threads for a stage, so any logline output inside
  * a Mats stage will have this set.</li>
  * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: The Mats flow's traceId, set from the initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_PROCESS_RESULT "mats.exec.ProcessResult"}</b>: the ProcessResult enum</li>
+ * <li><b>{@link #MDC_MATS_PROCESS_RESULT "mats.ProcessResult"}</b>: the ProcessResult enum</li>
  * </ul>
  * <b>Metrics for the processing of the stage</b> (very similar to the metrics for an initiation execution, but includes
  * the reception of a message):
  * <ul>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION "mats.exec.TotalExecution.ms"}</b>: Total time taken for the
+ * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.TotalExecution.ms"}</b>: Total time taken for the
  * stage to complete - including both user code and all system code including commits.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.exec.TotalPreprocDeserial.ms"}</b>: Part of
  * the total time taken for the preprocessing and deserialization of the incoming message, same as the message received
@@ -303,7 +303,7 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_VERSION = "mats.Version";
 
     // ... Metrics:
-    public static final String MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION = "mats.exec.Total.ms";
+    public static final String MDC_MATS_COMPLETE_TIME_TOTAL = "mats.exec.Total.ms";
     public static final String MDC_MATS_COMPLETE_TIME_USER_LAMBDA = "mats.exec.UserLambda.ms";
     public static final String MDC_MATS_COMPLETE_TIME_OUT = "mats.exec.Out.ms";
     public static final String MDC_MATS_COMPLETE_QUANTITY_OUT = "mats.exec.Out.quantity";
@@ -363,7 +363,7 @@ public class MatsMetricsLoggingInterceptor
     // 'true' on a single logline per completed stage
     public static final String MDC_MATS_STAGE_COMPLETED = "mats.StageCompleted";
     // Set on a single logline per completed
-    public static final String MDC_MATS_COMPLETE_PROCESS_RESULT = "mats.ProcessResult";
+    public static final String MDC_MATS_PROCESS_RESULT = "mats.ProcessResult";
 
     // ..... specific Stage complete metric - along with the other ".exec." from the COMMON Init/Stage Complete
     // Note that this is the same timing as the MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL
@@ -375,7 +375,7 @@ public class MatsMetricsLoggingInterceptor
     // !! NOTE: This will also be set on a Terminator, but that will only be for the Terminator endpoint itself, not
     // for initiator-to-terminator timings.
 
-    // 'true' on a single logline per completed endpoint - it will be on one of the Stage Completed log lines.
+    // 'true' on a single logline per completed endpoint - it will be on the Stage Completed log lines.
     public static final String MDC_MATS_ENDPOINT_COMPLETED = "mats.EndpointCompleted";
 
     // ..... specific Endpoint Complete metric. Notice that metric this is susceptible to time skews between nodes.
@@ -386,7 +386,7 @@ public class MatsMetricsLoggingInterceptor
     // ===== (Typically at a Terminator, i.e. endpoint that have void as outgoing message)
     // !! NOTE: These are /in addition/ to the Stage Completed above, e.g. MDC_MATS_COMPLETE_PROCESS_RESULT
 
-    // 'true' on a single logline per completed flow - it will be on one of the Stage Completed log lines.
+    // 'true' on a single logline per completed flow - it will be on the Stage Completed log lines.
     public static final String MDC_MATS_FLOW_COMPLETED = "mats.FlowCompleted";
 
     // ..... specific Flow Complete metric. Notice that this metric is susceptible to time skews between nodes.
@@ -576,7 +576,7 @@ public class MatsMetricsLoggingInterceptor
         completedMDC.put(MDC_MATS_COMPLETE_TIME_TOTAL_PREPROC_AND_DESERIAL, msS(ctx
                 .getTotalPreprocessAndDeserializeNanos()));
 
-        completedMDC.put(MDC_MATS_COMPLETE_PROCESS_RESULT, ctx.getProcessResult().toString());
+        completedMDC.put(MDC_MATS_PROCESS_RESULT, ctx.getProcessResult().toString());
 
         // ?: Has the endpoint completed with this stage?
         if ((ctx.getProcessResult() == ProcessResult.REPLY) || (ctx.getProcessResult() == ProcessResult.NONE)) {
@@ -768,7 +768,7 @@ public class MatsMetricsLoggingInterceptor
 
             MDC.put(MDC_MATS_VERSION, matsVersion);
 
-            MDC.put(MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION, msS(ctx.getTotalExecutionNanos()));
+            MDC.put(MDC_MATS_COMPLETE_TIME_TOTAL, msS(ctx.getTotalExecutionNanos()));
             MDC.put(MDC_MATS_COMPLETE_TIME_USER_LAMBDA, msS(nanosTaken_UserLambdaAlone));
             MDC.put(MDC_MATS_COMPLETE_TIME_OUT, msS(nanosTaken_SumMessageOutHandling));
             MDC.put(MDC_MATS_COMPLETE_QUANTITY_OUT, String.valueOf(outgoingMessages.size()));
@@ -804,7 +804,7 @@ public class MatsMetricsLoggingInterceptor
 
             MDC.remove(MDC_MATS_VERSION);
 
-            MDC.remove(MDC_MATS_COMPLETE_TIME_TOTAL_EXECUTION);
+            MDC.remove(MDC_MATS_COMPLETE_TIME_TOTAL);
             MDC.remove(MDC_MATS_COMPLETE_TIME_USER_LAMBDA);
             MDC.remove(MDC_MATS_COMPLETE_TIME_OUT);
             MDC.remove(MDC_MATS_COMPLETE_QUANTITY_OUT);
