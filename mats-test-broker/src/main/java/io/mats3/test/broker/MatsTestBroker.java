@@ -337,12 +337,13 @@ public interface MatsTestBroker {
                     brokerUrl);
 
             // We don't need in-order, so just deliver other messages while waiting for redelivery.
-            conFactory.setNonBlockingRedelivery(true);
+            // NOTE: This is NOT possible to use until https://issues.apache.org/jira/browse/AMQ-8617 is fixed!!
+            // conFactory.setNonBlockingRedelivery(true);
 
             // :: RedeliveryPolicy
             RedeliveryPolicy redeliveryPolicy = conFactory.getRedeliveryPolicy();
             redeliveryPolicy.setInitialRedeliveryDelay(500);
-            redeliveryPolicy.setRedeliveryDelay(2000); // This is not in use when using exponential backoff
+            redeliveryPolicy.setRedeliveryDelay(2000); // This is not in use when using exp. backoff and initial != 0
             redeliveryPolicy.setUseExponentialBackOff(true);
             redeliveryPolicy.setBackOffMultiplier(2);
             redeliveryPolicy.setUseCollisionAvoidance(true);
