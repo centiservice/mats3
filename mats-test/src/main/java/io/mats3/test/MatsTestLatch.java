@@ -19,13 +19,13 @@ public class MatsTestLatch {
     }
 
     /**
-     * Convenience method of {@link #waitForResult(long)}: Waits for 10 seconds for the test-latch to be {@link
+     * Convenience method of {@link #waitForResult(long)}: Waits for 30 seconds for the test-latch to be {@link
      * #resolve(DetachedProcessContext, Object, Object) resolved}.
      *
      * @return same as {@link #waitForResult(long)}.
      */
     public <S, I> Result<S, I> waitForResult() {
-        return waitForResult(10_000);
+        return waitForResult(30_000);
     }
 
     /**
