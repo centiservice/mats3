@@ -212,8 +212,17 @@ public interface JmsMatsStatics {
             // -> Yes, so return null (Void can only be null).
             return null;
         }
-        // ?: Is the incoming data null?
+        // ?: Is the incoming StackState null?
+        // This happens for initial stage or any endpoint unless init'ed with initialState, OR if the endpoint is
+        // invoked as a REPLY from a REQUEST initiation, i.e. init.replyTo(.., state).
         if (stackState == null) {
+            // -> Yes, so then we return a fresh new State instance
+            return matsSerializer.newInstance(stateClass);
+        }
+        // ?: Is the incoming StackState's data null?
+        // This happens if the endpoint is invoked as a REPLY from a REQUEST initiation, i.e. init.replyTo(.., state),
+        // but where the state is null, ref mats3 GitHub Issue #64.
+        if (stackState.getState() == null) {
             // -> Yes, so then we return a fresh new State instance
             return matsSerializer.newInstance(stateClass);
         }
