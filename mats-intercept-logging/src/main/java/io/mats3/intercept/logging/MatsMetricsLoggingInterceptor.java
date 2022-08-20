@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.mats3.MatsFactory.FactoryConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -68,6 +69,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * </ul>
  * <b>Metrics for the execution of the initiation</b> (very similar to the metrics for a stage processing):
  * <ul>
+ * <li><b>{@link #MDC_MATS_VERSION "mats.Version"}</b>: Mats implementation version, as gotten by
+ * {@link FactoryConfig#getMatsImplementationVersion()}.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"}</b>: Total time taken for the
  * initiation to complete - including both user code and all system code including commits.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Part of total time taken for the
@@ -170,6 +173,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <b>Metrics for the processing of the stage</b> (very similar to the metrics for an initiation execution, but includes
  * the reception of a message):
  * <ul>
+ * <li><b>{@link #MDC_MATS_VERSION "mats.Version"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.TotalExecution.ms"}</b>: Total time taken for the
  * stage to complete - including both user code and all system code including commits.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.exec.TotalPreprocDeserial.ms"}</b>: Part of
