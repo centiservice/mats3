@@ -306,9 +306,9 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
     @Override
     public void setExtraStateForReplyOrNext(String key, Object object) {
         if (getMessageType() == MessageType.REQUEST) {
-            // :: Get StackState for the REPLY to this REQUEST.
+            // :: This is a REQUEST: We want to add extra-state to the level where the subsequent REPLY will lie.
             /*
-             * Note: Check the implementation for MatsTraceStringImpl.addRequestCall(..). The StackState we need is
+             * Note: Check the implementation for MatsTraceFieldImpl.addRequestCall(..). The StackState we need is
              * /either/ the very last added, /or/ it is the next to last. The reason for this, is how the contract is:
              * You may add two distinct states: The state for the REPLY is mandatory (may be null, though, but a
              * StackState is added nevertheless). This is added to the "state flow" first. The "initial incoming state"
@@ -338,9 +338,9 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
             stateToModify.setExtraState(key, _matsSerializer.serializeObject(object));
         }
         else if (getMessageType() == MessageType.NEXT) {
-            // :: Get StackState for the NEXT call
+            // :: This is a NEXT: We want to add extra-state to the same level, as the receiver is immediate next.
             /*
-             * Note: Check the implementation for MatsTraceStringImpl.addNextCall(..). The StackState we need is
+             * Note: Check the implementation for MatsTraceFieldImpl.addNextCall(..). The StackState we need is
              * the very last added.
              */
             // :: Get the StackState to modify
@@ -354,7 +354,7 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
         }
         else {
             throw new IllegalStateException("setExtraStateForReply(..) is only applicable for MessageType.REQUEST"
-                    + " messages, this is [" + getMessageType() + "].");
+                    + " and MessageType.NEXT messages, this is [" + getMessageType() + "].");
         }
     }
 

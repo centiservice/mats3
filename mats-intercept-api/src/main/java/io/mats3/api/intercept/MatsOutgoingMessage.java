@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import io.mats3.MatsEndpoint.ProcessContext;
+import io.mats3.api.intercept.MatsStageInterceptor.StageCommonContext;
 
 /**
  * Represents an Outgoing Mats Message.
@@ -69,7 +70,7 @@ public interface MatsOutgoingMessage {
 
     Object getMessage();
 
-    // ===== Extra-state, "Sideloads" and trace props
+    // ===== "Sideloads" and trace props
 
     Set<String> getTracePropertyKeys();
 
@@ -129,22 +130,39 @@ public interface MatsOutgoingMessage {
         void setTraceProperty(String propertyName, Object object);
 
         /**
-         * Only relevant for {@link MessageType#REQUEST}s - will throw IllegalStateException otherwise. Adds extra-state
-         * to the state which will be present on the REPLY for the outgoing REQUEST: If this extra-state is added to a
-         * REQUEST-message from ServiceA.stage1, it will be present again on the subsequent REPLY-message to
-         * ServiceA.stage2.
-         * <p />
-         * To add info to the receiving stage, you may employ {@link #addBytes(String, byte[])} and
+         * An interceptor might need to add state to an outgoing message which will be present on incoming message of
+         * the next stage of a multi-stage endpoint - i.e. "extra state" in addition to the State class that the user
+         * has specified for the Endpoint.
+         * <p/>
+         * Only relevant for {@link MessageType#REQUEST} and {@link MessageType#NEXT} - will throw IllegalStateException
+         * otherwise.
+         * <p/>
+         * REQUEST: If extra-state is added to an outgoing REQUEST-message from ServiceA.stage1, it will be present
+         * again on the subsequent REPLY-message to ServiceA.stage2 (and any subsequent stages).
+         * <p/>
+         * NEXT: If extra-state is added to an outgoing NEXT-message from ServiceA.stage1, it will be present again on
+         * the subsequent incoming message to ServiceA.stage2 (and any subsequent stages).
+         * <p/>
+         * To add info to the receiving stage of a REQUEST, you may employ {@link #addBytes(String, byte[])} and
          * {@link #addString(String, String)}. Given that such extra-state would need support from the receiving
          * endpoint too to make much sense (i.e. an installed interceptor reading and understanding the incoming extra
          * state, typically the same interceptor installed there as the one adding the state), it could just pick up the
          * side load and transfer it over to the extra state if that was desired. Therefore, even though it could be
          * possible to add extra-state to the <i>targeted/receiving endpoint</i>, I've decided against it so far.
+         * <p/>
+         * The extra-state is available on the stage interception at
+         * {@link StageCommonContext#getIncomingExtraState(String, Class)}.
          */
         void setExtraStateForReplyOrNext(String key, Object object);
 
+        /**
+         * Add byte[] sideload to outgoing message.
+         */
         void addBytes(String key, byte[] payload);
 
+        /**
+         * Add String sideload to outgoing message.
+         */
         void addString(String key, String payload);
     }
 

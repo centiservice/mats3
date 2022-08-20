@@ -149,7 +149,7 @@ public class Test_ExtraState {
             // ?: Is this the next-call?
             if ((EPID_SERVICE + ".stage1").equals(context.getStage().getStageConfig().getStageId())) {
                 // -> Yes, this is the next-call
-                // There should only be one message here, as it is the REQUEST up to the Leaf.
+                // There should only be one message here, as it is the NEXT to the next stage
                 Assert.assertEquals(1, context.getOutgoingMessages().size());
                 // Fetch it
                 MatsEditableOutgoingMessage outgoing = context.getOutgoingMessages().get(0);

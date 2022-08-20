@@ -10,6 +10,7 @@ import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsEndpoint.ProcessLambda;
 import io.mats3.MatsStage;
 import io.mats3.api.intercept.MatsOutgoingMessage.DispatchType;
+import io.mats3.api.intercept.MatsOutgoingMessage.MatsEditableOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.ProcessResult;
@@ -192,7 +193,8 @@ public interface MatsStageInterceptor {
         Optional<Object> getIncomingState();
 
         /**
-         * @return the extra-state, if any, on the incoming message.
+         * @return the extra-state, if any, on the incoming REPLY or NEXT message - as set by
+         *         {@link MatsEditableOutgoingMessage#setExtraStateForReplyOrNext(String, Object)}.
          */
         <T> Optional<T> getIncomingExtraState(String key, Class<T> type);
 
