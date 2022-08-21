@@ -356,6 +356,8 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_IN_SIZE_ENVELOPE_SERIAL = "mats.in.EnvelopeSerial.bytes";
     public static final String MDC_MATS_IN_TIME_ENVELOPE_DESERIAL = "mats.in.EnvelopeDeserial.ms";
     public static final String MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL = "mats.in.DataAndStateDeserial.ms";
+    public static final String MDC_MATS_IN_SIZE_STATE_SERIAL = "mats.in.StateSerial.bytes";
+    public static final String MDC_MATS_IN_SIZE_DATA_SERIAL = "mats.in.DataSerial.bytes";
 
     // ============================================================================================================
     // ===== For Stage Completed
@@ -415,6 +417,8 @@ public class MatsMetricsLoggingInterceptor
 
     // ... Metrics:
     public static final String MDC_MATS_OUT_TIME_TOTAL = "mats.out.Total.ms";
+    public static final String MDC_MATS_OUT_SIZE_TOTAL_WIRE = "mats.out.TotalWire.bytes";
+    public static final String MDC_MATS_OUT_SIZE_DATA_SERIAL = "mats.out.DataSerial.bytes";
     public static final String MDC_MATS_OUT_TIME_ENVELOPE_PRODUCE = "mats.out.EnvelopeProduce.ms";
     public static final String MDC_MATS_OUT_TIME_ENVELOPE_SERIAL = "mats.out.EnvelopeSerial.ms";
     public static final String MDC_MATS_OUT_SIZE_ENVELOPE_SERIAL = "mats.out.EnvelopeSerial.bytes";
@@ -516,6 +520,8 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_IN_TIME_ENVELOPE_DESERIAL, msS(ctx.getEnvelopeDeserializationNanos()));
             MDC.put(MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL, msS(ctx.getDataAndStateDeserializationNanos()));
 
+            MDC.put(MDC_MATS_IN_SIZE_STATE_SERIAL, Integer.toString(ctx.getStateSerializedSize()));
+            MDC.put(MDC_MATS_IN_SIZE_DATA_SERIAL, Integer.toString(ctx.getDataSerializedSize()));
 
             log_stage.info(LOG_PREFIX + "RECEIVED [" + ctx.getIncomingMessageType()
                     + "] message from [" + processContext.getFromStageId()
@@ -555,6 +561,9 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_IN_SIZE_ENVELOPE_SERIAL);
             MDC.remove(MDC_MATS_IN_TIME_ENVELOPE_DESERIAL);
             MDC.remove(MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL);
+
+            MDC.remove(MDC_MATS_IN_SIZE_STATE_SERIAL);
+            MDC.remove(MDC_MATS_IN_SIZE_DATA_SERIAL);
         }
     }
 
@@ -853,6 +862,9 @@ public class MatsMetricsLoggingInterceptor
                     + msg.getMessageSystemProduceAndSendNanos();
             MDC.put(MDC_MATS_OUT_TIME_TOTAL, msS(nanosTaken_Total));
 
+            MDC.put(MDC_MATS_OUT_SIZE_TOTAL_WIRE, Integer.toString(msg.getTotalWireSize()));
+            MDC.put(MDC_MATS_OUT_SIZE_DATA_SERIAL, Integer.toString(msg.getDataSerializedSize()));
+
             // :: Actually run the Runnable
             runnable.run();
         }
@@ -887,6 +899,9 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_OUT_SIZE_ENVELOPE_WIRE);
             MDC.remove(MDC_MATS_OUT_TIME_MSGSYS);
             MDC.remove(MDC_MATS_OUT_TIME_TOTAL);
+
+            MDC.remove(MDC_MATS_OUT_SIZE_TOTAL_WIRE);
+            MDC.remove(MDC_MATS_OUT_SIZE_DATA_SERIAL);
         }
     }
 

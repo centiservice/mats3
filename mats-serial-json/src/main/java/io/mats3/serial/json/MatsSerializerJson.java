@@ -355,6 +355,14 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     }
 
     @Override
+    public int sizeOfSerialized(String s) {
+        if (s == null) {
+            return 0;
+        }
+        return s.length();
+    }
+
+    @Override
     public <T> T deserializeObject(String serialized, Class<T> type) {
         if (serialized == null) {
             return null;

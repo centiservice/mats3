@@ -20,6 +20,7 @@ import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.Session;
 
+import io.mats3.serial.MatsTrace.StackState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -1188,6 +1189,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
+        public int getDataSerializedSize() {
+            Z currentData = _matsTrace.getCurrentCall().getData();
+            return _stage.getParentFactory().getMatsSerializer().sizeOfSerialized(currentData);
+        }
+
+        @Override
         public MessageType getIncomingMessageType() {
             CallType callType = _matsTrace.getCurrentCall().getCallType();
             if (callType == CallType.REQUEST) {
@@ -1217,6 +1224,16 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         @Override
         public Optional<Object> getIncomingState() {
             return Optional.ofNullable(_incomingState);
+        }
+
+        @Override
+        public int getStateSerializedSize() {
+            Optional<StackState<Z>> currentStackStateO = _matsTrace.getCurrentState();
+            if (!currentStackStateO.isPresent()) {
+                return 0;
+            }
+            Z currentState = currentStackStateO.get().getState();
+            return _stage.getParentFactory().getMatsSerializer().sizeOfSerialized(currentState);
         }
 
         @Override
@@ -1308,8 +1325,18 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
+        public int getDataSerializedSize() {
+            return _stageCommonContext.getDataSerializedSize();
+        }
+
+        @Override
         public Optional<Object> getIncomingState() {
             return _stageCommonContext.getIncomingState();
+        }
+
+        @Override
+        public int getStateSerializedSize() {
+            return _stageCommonContext.getStateSerializedSize();
         }
 
         @Override

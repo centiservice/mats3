@@ -226,5 +226,34 @@ public interface MatsOutgoingMessage {
          * @return time taken (in nanoseconds) to produce, and then send (transfer) the message to the message broker.
          */
         long getMessageSystemProduceAndSendNanos();
+
+        // ===== Other metrics
+
+        /**
+         * @return the number of bytes sent on the wire (best approximation), as far as Mats knows. Any overhead from
+         *         the message system is unknown. Includes the envelope (which includes the TraceProperties), as well as
+         *         the sideloads (bytes and strings). Notice that the strings are just "length()'ed", so any "exotic"
+         *         characters are still just counted as 1 byte.
+         */
+        default int getTotalWireSize() {
+            // :: Calculate the total wiresize, as we know it.
+            // Start with the envelope wire size
+            int totalWireSize = this.getEnvelopeWireSize();
+            // .. add the byte sideloads
+            for (String bytesKey : this.getBytesKeys()) {
+                totalWireSize += this.getBytes(bytesKey).length;
+            }
+            // .. add the string sideloads
+            // Notice: This isn't exact if Strings contains "exotic" chars (non-ASCII).
+            for (String stringKey : this.getStringKeys()) {
+                totalWireSize += this.getString(stringKey).length();
+            }
+            return totalWireSize;
+        }
+
+        /**
+         * @return the number of units (bytes or characters) that the outgoing data (DTO) serialized to.
+         */
+        int getDataSerializedSize();
     }
 }

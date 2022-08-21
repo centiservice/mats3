@@ -431,6 +431,13 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
     }
 
     @Override
+    public int getDataSerializedSize() {
+        return _matsSerializer.sizeOfSerialized(_matsTrace.getCurrentCall().getData());
+    }
+
+    // :: Object: equals, hashCode
+
+    @Override
     public int hashCode() {
         // Hash the MatsMessageId.
         return _matsTrace.getCurrentCall().getMatsMessageId().hashCode();

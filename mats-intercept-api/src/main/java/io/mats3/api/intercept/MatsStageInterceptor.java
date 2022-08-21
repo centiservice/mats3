@@ -187,11 +187,22 @@ public interface MatsStageInterceptor {
          */
         Optional<Object> getIncomingState();
 
+        /**
+         * @return the number of units (bytes or characters) that the state (STO) serialized to. If
+         *         {@link #getIncomingState()} is <code>Optional.empty()</code>, then this method returns 0.
+         */
+        int getStateSerializedSize();
 
         /**
          * @return the incoming data (DTO).
          */
         Object getIncomingData();
+
+        /**
+         * @return the number of units (bytes or characters) that the data (DTO) serialized to. (<code>Null</code> data
+         *         might give 0 or 4, or really whatever else the serializer uses to represent <code>null</code>).
+         */
+        int getDataSerializedSize();
 
         /**
          * @return the extra-state, if any, on the incoming REPLY or NEXT message - as set by

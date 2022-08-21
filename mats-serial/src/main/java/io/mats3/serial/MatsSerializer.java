@@ -217,6 +217,13 @@ public interface MatsSerializer<Z> {
     Z serializeObject(Object object);
 
     /**
+     * @return the size in bytes or characters of the serialized DTO or STO, shall return 0 for <code>null</code>. This
+     *         is meant for metrics, NOT for determining an absolute byte size for a storage array or anything to this
+     *         effect.
+     */
+    int sizeOfSerialized(Z z);
+
+    /**
      * Used for deserializing type Z (typically {@link String}) to STOs and DTOs.
      * <p>
      * If <code>null</code> is provided as the 'Z serialized' parameter, then <code>null</code> shall be returned.
