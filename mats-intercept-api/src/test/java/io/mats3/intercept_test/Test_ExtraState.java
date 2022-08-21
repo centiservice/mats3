@@ -125,8 +125,8 @@ public class Test_ExtraState {
             Assert.assertEquals(MessageType.REQUEST, outgoing.getMessageType());
 
             // Add 2 x extra-state, which should be available at Terminator
-            outgoing.setExtraStateForReplyOrNext("extra1_to_terminator", new DataTO(1, "one"));
-            outgoing.setExtraStateForReplyOrNext("extra2_to_terminator", new DataTO(2, "two"));
+            outgoing.setSameStackHeightExtraState("extra1_to_terminator", new DataTO(1, "one"));
+            outgoing.setSameStackHeightExtraState("extra2_to_terminator", new DataTO(2, "two"));
         }
 
         @Override
@@ -142,8 +142,8 @@ public class Test_ExtraState {
                 Assert.assertEquals(MessageType.REQUEST, outgoing.getMessageType());
 
                 // Add 2 x extra-state, which should be available at next stage (stage1)
-                outgoing.setExtraStateForReplyOrNext("extra1_to_Service.stage1", new DataTO(3, "three"));
-                outgoing.setExtraStateForReplyOrNext("extra2_to_Service.stage1", new DataTO(4, "four"));
+                outgoing.setSameStackHeightExtraState("extra1_to_Service.stage1", new DataTO(3, "three"));
+                outgoing.setSameStackHeightExtraState("extra2_to_Service.stage1", new DataTO(4, "four"));
             }
 
             // ?: Is this the next-call?
@@ -156,7 +156,7 @@ public class Test_ExtraState {
                 // Assert that it is a NEXT
                 Assert.assertEquals(MessageType.NEXT, outgoing.getMessageType());
                 // Add 1 more extra-state
-                outgoing.setExtraStateForReplyOrNext("extra3_to_Service.nextCall", new DataTO(5, "five"));
+                outgoing.setSameStackHeightExtraState("extra3_to_Service.nextCall", new DataTO(5, "five"));
             }
         }
 

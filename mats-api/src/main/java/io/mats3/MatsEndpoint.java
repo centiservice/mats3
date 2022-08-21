@@ -773,12 +773,12 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * requests/nexts, you may change the state in between, and the next stage will get different "incoming states",
          * which may be of use in a scatter-gather scenario.
          *
-         * @param incomingDto
+         * @param nextDto
          *            the object for the next stage's incoming DTO, which must match what the next stage expects. When
          *            using this method to skip a request, it probably often makes sense to set it to <code>null</code>,
          *            which the next stage then must handle correctly.
          */
-        MessageReference next(Object incomingDto);
+        MessageReference next(Object nextDto);
 
         /**
          * Initiates a new message out to an endpoint. This is effectively the same as invoking
@@ -1078,8 +1078,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         }
 
         @Override
-        public MessageReference next(Object incomingDto) {
-            return unwrap().next(incomingDto);
+        public MessageReference next(Object nextDto) {
+            return unwrap().next(nextDto);
         }
 
         @Override

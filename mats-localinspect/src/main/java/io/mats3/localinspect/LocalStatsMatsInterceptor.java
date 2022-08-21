@@ -280,8 +280,8 @@ public class LocalStatsMatsInterceptor
             if (msg.getMessageType() == MessageType.REQUEST) {
                 // -> Yes, REQUEST.
                 // Set nanoTime and nodename in extra-state, for the final REPLY to terminator.
-                msg.setExtraStateForReplyOrNext(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS, context.getStartedNanoTime());
-                msg.setExtraStateForReplyOrNext(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NODENAME,
+                msg.setSameStackHeightExtraState(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS, context.getStartedNanoTime());
+                msg.setSameStackHeightExtraState(EXTRA_STATE_OR_SIDELOAD_INITIATOR_NODENAME,
                         context.getInitiator().getParentFactory().getFactoryConfig().getNodename());
             }
             else {
@@ -308,7 +308,7 @@ public class LocalStatsMatsInterceptor
         List<MatsSentOutgoingMessage> outgoingMessages = context.getOutgoingMessages();
         for (MatsSentOutgoingMessage msg : outgoingMessages) {
             initiatorStats.recordOutgoingMessage(msg.getMessageType(), msg.getTo(),
-                    msg.getMessage() == null ? null : msg.getMessage().getClass(),
+                    msg.getData() == null ? null : msg.getData().getClass(),
                     msg.getInitiatingAppName(), msg.getInitiatorId());
         }
     }
@@ -440,8 +440,8 @@ public class LocalStatsMatsInterceptor
                 // Need to record the REQUEST timestamp for the subsequent stage which gets the REPLY
                 // NOTE: This is /overwriting/ the state between each stage, as it is only needed between each
                 // stageN and stageN+1.
-                msg.setExtraStateForReplyOrNext(EXTRA_STATE_REQUEST_NANOS, System.nanoTime());
-                msg.setExtraStateForReplyOrNext(EXTRA_STATE_REQUEST_NODENAME,
+                msg.setSameStackHeightExtraState(EXTRA_STATE_REQUEST_NANOS, System.nanoTime());
+                msg.setSameStackHeightExtraState(EXTRA_STATE_REQUEST_NODENAME,
                         stage.getParentEndpoint().getParentFactory().getFactoryConfig().getNodename());
 
                 // :: TIME ENDPOINT TOTAL PROCESSING (Only for initial stage - to the finishing stage):
@@ -449,8 +449,8 @@ public class LocalStatsMatsInterceptor
                 // same node exiting (or stopping, in case of terminator).
                 // NOTE: This is only set on initial, and stays with the endpoint's stages - until finished.
                 if (stageStats.isInitial()) {
-                    msg.setExtraStateForReplyOrNext(EXTRA_STATE_ENDPOINT_ENTER_NANOS, context.getStartedNanoTime());
-                    msg.setExtraStateForReplyOrNext(EXTRA_STATE_ENDPOINT_ENTER_NODENAME,
+                    msg.setSameStackHeightExtraState(EXTRA_STATE_ENDPOINT_ENTER_NANOS, context.getStartedNanoTime());
+                    msg.setSameStackHeightExtraState(EXTRA_STATE_ENDPOINT_ENTER_NODENAME,
                             stage.getParentEndpoint().getParentFactory().getFactoryConfig().getNodename());
                 }
             }
@@ -501,7 +501,7 @@ public class LocalStatsMatsInterceptor
         List<MatsSentOutgoingMessage> outgoingMessages = context.getOutgoingMessages();
         for (MatsSentOutgoingMessage msg : outgoingMessages) {
             stageStats.recordOutgoingMessage(msg.getMessageType(), msg.getTo(),
-                    msg.getMessage() == null ? null : msg.getMessage().getClass(),
+                    msg.getData() == null ? null : msg.getData().getClass(),
                     msg.getInitiatingAppName(), msg.getInitiatorId());
         }
     }

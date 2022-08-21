@@ -593,7 +593,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     }
 
     @Override
-    public MessageReference next(Object incomingDto) {
+    public MessageReference next(Object nextDto) {
         long nanosStart = System.nanoTime();
         // :: Assert that we have a next-stage
         if (_nextStageId == null) {
@@ -621,18 +621,16 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         // :: Create next (heh!) MatsTrace
         MatsSerializer<Z> matsSerializer = _parentFactory.getMatsSerializer();
         // Note that serialization must be performed at invocation time, to preserve contract with API.
-        Z nextZ = matsSerializer.serializeObject(incomingDto);
+        Z nextZ = matsSerializer.serializeObject(nextDto);
         Z stateZ = matsSerializer.serializeObject(_incomingAndOutgoingState);
         MatsTrace<Z> nextMatsTrace = _incomingMatsTrace.addNextCall(_stageId, _nextStageId, nextZ, stateZ);
 
-        String matsMessageId = produceMessage(incomingDto, nanosStart, nextMatsTrace);
+        String matsMessageId = produceMessage(nextDto, nanosStart, nextMatsTrace);
 
         return new MessageReferenceImpl(matsMessageId);
     }
 
     private String produceMessage(Object incomingDto, long nanosStart, MatsTrace<Z> outgoingMatsTrace) {
-        Call<Z> currentCall = outgoingMatsTrace.getCurrentCall();
-
         String debugInfo;
         // ?: Is this MINIMAL MatsTrace
         if (outgoingMatsTrace.getKeepTrace() == KeepMatsTrace.MINIMAL) {
@@ -648,6 +646,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
                     : "invoked@" + invocationPoint);
         }
 
+        Call<Z> currentCall = outgoingMatsTrace.getCurrentCall();
         currentCall.setDebugInfo(_parentFactory.getFactoryConfig().getAppName(),
                 _parentFactory.getFactoryConfig().getAppVersion(),
                 _parentFactory.getFactoryConfig().getNodename(), debugInfo);

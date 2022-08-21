@@ -171,7 +171,7 @@ public interface JmsMatsStatics {
                 // :: Send the message (but since transactional, won't be committed until TransactionContext does).
                 messageProducer.send(destination, mm, deliveryMode, priority, timeToLive);
 
-                // Log it.
+                // Time taken for produce and send
                 long nanosTaken_ProduceAndSendSingleJmsMessage = System.nanoTime()
                         - nanosStart_ProduceAndSendSingleJmsMessage;
 

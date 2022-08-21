@@ -1058,9 +1058,9 @@ public class MatsSpringAnnotationRegistration implements
                     }
 
                     @Override
-                    public MessageReference next(Object incomingDto) {
+                    public MessageReference next(Object nextDto) {
                         clearFields.run();
-                        MessageReference ref = super.next(incomingDto);
+                        MessageReference ref = super.next(nextDto);
                         setFields.accept(this);
                         return ref;
                     }

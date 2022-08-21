@@ -82,7 +82,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Number of messages sent</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Part of total time taken for committing
  * DB.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Part of total time taken for
+ * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Part of total time taken for
  * committing the message system (e.g. <code>jmsSession.commit()</code> for the JMS implementation)</li>
  * </ul>
  * <b>User metrics:</b> Furthermore, any metrics (measurements and timings) set from an initiation or stage will be
@@ -155,8 +155,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * envelope ("MatsTrace") is in its serialized form, after decompression.</li>
  * <li><b>{@link #MDC_MATS_IN_TIME_ENVELOPE_DESERIAL "mats.in.EnvelopeDeserial.ms"}</b>: Part of total time taken to
  * deserialize the incoming serialized Mats envelope.</li>
- * <li><b>{@link #MDC_MATS_IN_TIME_MSG_AND_STATE_DESERIAL "mats.in.MsgAndStateDeserial.ms"}</b>: Part of total time
- * taken to deserialize the actual message and state objects from the Mats envelope.</li>
+ * <li><b>{@link #MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL "mats.in.DataAndStateDeserial.ms"}</b>: Part of total time
+ * taken to deserialize the data and state objects (DTO and STO) from the Mats envelope.</li>
  * </ul>
  *
  *
@@ -184,7 +184,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_OUT "mats.exec.Out.ms"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Same as for initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Same as for initiation</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Same as for initiation</li>
  * </ul>
  * <b>User metrics:</b> Furthermore, any metrics (measurements and timings) set from an initiation or stage will be
  * available as separate log lines - same as for initiations.<br/>
@@ -247,7 +247,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * Received" loglines):
  * <ul>
  * <li><b>{@link #MDC_MATS_OUT_TIME_TOTAL "mats.out.Total.ms"}</b>: Total time taken to produce the message, all of the
- * Mats envelope ("MatsTrace"), serializing, compressing and producing the message system message.</li>
+ * Mats envelope ("MatsTrace"), serializing, compressing and producing the message system message (sum of the below
+ * parts).</li>
  * <li><b>{@link #MDC_MATS_OUT_TIME_ENVELOPE_PRODUCE "mats.out.EnvelopeProduce.ms"}</b>: Part of the total time taken to
  * produce the Mats envelope ("MatsTrace"), including serialization of all constituents: DTO, STO and any Trace
  * Properties.</li>
@@ -259,8 +260,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * to compress the serialized Mats envelope</li>
  * <li><b>{@link #MDC_MATS_OUT_SIZE_ENVELOPE_WIRE "mats.out.EnvelopeWire.bytes"}</b>: Size of the compressed serialized
  * Mats envelope.</li>
- * <li><b>{@link #MDC_MATS_OUT_TIME_MSGSYS "mats.out.MsgSys.ms"}</b>: Part of the total time taken to produce the
- * message system message.</li>
+ * <li><b>{@link #MDC_MATS_OUT_TIME_MSGSYS "mats.out.MsgSys.ms"}</b>: Part of the total time taken to produce and
+ * send the message system message.</li>
  * </ul>
  *
  * <b>Note:</b> Both Initiation and Stage completed can produce messages. For the very common case where this is just a
@@ -312,7 +313,7 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_COMPLETE_TIME_OUT = "mats.exec.Out.ms";
     public static final String MDC_MATS_COMPLETE_QUANTITY_OUT = "mats.exec.Out.quantity";
     public static final String MDC_MATS_COMPLETE_TIME_DB_COMMIT = "mats.exec.DbCommit.ms";
-    public static final String MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT = "mats.exec.MsgSysCommit.ms";
+    public static final String MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT = "mats.exec.MsgSysCommit.ms";
 
     public static final String MDC_MATS_COMPLETE_OPS_TIMING_PREFIX = "mats.exec.ops.time.";
     public static final String MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX = "mats.exec.ops.measure.";
@@ -354,7 +355,7 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_IN_TIME_ENVELOPE_DECOMPRESS = "mats.in.EnvelopeDecompress.ms";
     public static final String MDC_MATS_IN_SIZE_ENVELOPE_SERIAL = "mats.in.EnvelopeSerial.bytes";
     public static final String MDC_MATS_IN_TIME_ENVELOPE_DESERIAL = "mats.in.EnvelopeDeserial.ms";
-    public static final String MDC_MATS_IN_TIME_MSG_AND_STATE_DESERIAL = "mats.in.MsgAndStateDeserial.ms";
+    public static final String MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL = "mats.in.DataAndStateDeserial.ms";
 
     // ============================================================================================================
     // ===== For Stage Completed
@@ -477,7 +478,7 @@ public class MatsMetricsLoggingInterceptor
             long sumNanosPieces = ctx.getMessageSystemDeconstructNanos()
                     + ctx.getEnvelopeDecompressionNanos()
                     + ctx.getEnvelopeDeserializationNanos()
-                    + ctx.getMessageAndStateDeserializationNanos();
+                    + ctx.getDataAndStateDeserializationNanos();
 
             MDC.put(MDC_MATS_INIT_APP, processContext.getInitiatingAppName());
             MDC.put(MDC_MATS_INIT_ID, processContext.getInitiatorId());
@@ -509,11 +510,12 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL, msS(ctx.getTotalPreprocessAndDeserializeNanos()));
             // .. and breakdown of Total:
             MDC.put(MDC_MATS_IN_TIME_MSGSYS_DECONSTRUCT, msS(ctx.getMessageSystemDeconstructNanos()));
-            MDC.put(MDC_MATS_IN_SIZE_ENVELOPE_WIRE, Long.toString(ctx.getEnvelopeWireSize()));
+            MDC.put(MDC_MATS_IN_SIZE_ENVELOPE_WIRE, Integer.toString(ctx.getEnvelopeWireSize()));
             MDC.put(MDC_MATS_IN_TIME_ENVELOPE_DECOMPRESS, msS(ctx.getEnvelopeDecompressionNanos()));
-            MDC.put(MDC_MATS_IN_SIZE_ENVELOPE_SERIAL, Long.toString(ctx.getEnvelopeSerializedSize()));
+            MDC.put(MDC_MATS_IN_SIZE_ENVELOPE_SERIAL, Integer.toString(ctx.getEnvelopeSerializedSize()));
             MDC.put(MDC_MATS_IN_TIME_ENVELOPE_DESERIAL, msS(ctx.getEnvelopeDeserializationNanos()));
-            MDC.put(MDC_MATS_IN_TIME_MSG_AND_STATE_DESERIAL, msS(ctx.getMessageAndStateDeserializationNanos()));
+            MDC.put(MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL, msS(ctx.getDataAndStateDeserializationNanos()));
+
 
             log_stage.info(LOG_PREFIX + "RECEIVED [" + ctx.getIncomingMessageType()
                     + "] message from [" + processContext.getFromStageId()
@@ -524,7 +526,7 @@ public class MatsMetricsLoggingInterceptor
                     + " B]->decomp:[" + ms(ctx.getEnvelopeDecompressionNanos())
                     + " ms]->serialSize:[" + ctx.getEnvelopeSerializedSize()
                     + " B]->deserial:[" + ms(ctx.getEnvelopeDeserializationNanos())
-                    + " ms]->(envelope)->dto&stoDeserial:[" + ms(ctx.getMessageAndStateDeserializationNanos())
+                    + " ms]->(envelope)->dto&stoDeserial:[" + ms(ctx.getDataAndStateDeserializationNanos())
                     + " ms] - sum pieces:[" + ms(sumNanosPieces)
                     + " ms], diff:[" + ms(ctx.getTotalPreprocessAndDeserializeNanos() - sumNanosPieces)
                     + " ms]");
@@ -552,7 +554,7 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_IN_TIME_ENVELOPE_DECOMPRESS);
             MDC.remove(MDC_MATS_IN_SIZE_ENVELOPE_SERIAL);
             MDC.remove(MDC_MATS_IN_TIME_ENVELOPE_DESERIAL);
-            MDC.remove(MDC_MATS_IN_TIME_MSG_AND_STATE_DESERIAL);
+            MDC.remove(MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL);
         }
     }
 
@@ -777,7 +779,7 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_COMPLETE_TIME_OUT, msS(nanosTaken_SumMessageOutHandling));
             MDC.put(MDC_MATS_COMPLETE_QUANTITY_OUT, String.valueOf(outgoingMessages.size()));
             MDC.put(MDC_MATS_COMPLETE_TIME_DB_COMMIT, msS(ctx.getDbCommitNanos()));
-            MDC.put(MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT, msS(ctx.getMessageSystemCommitNanos()));
+            MDC.put(MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT, msS(ctx.getMessageSystemCommitNanos()));
 
             String msg = logPrefix
                     + ", " + numMessagesText
@@ -813,7 +815,7 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_COMPLETE_TIME_OUT);
             MDC.remove(MDC_MATS_COMPLETE_QUANTITY_OUT);
             MDC.remove(MDC_MATS_COMPLETE_TIME_DB_COMMIT);
-            MDC.remove(MDC_MATS_COMPLETE_TIME_MSG_SYS_COMMIT);
+            MDC.remove(MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT);
         }
     }
 
@@ -839,10 +841,12 @@ public class MatsMetricsLoggingInterceptor
             // Metrics:
             MDC.put(MDC_MATS_OUT_TIME_ENVELOPE_PRODUCE, msS(msg.getEnvelopeProduceNanos()));
             MDC.put(MDC_MATS_OUT_TIME_ENVELOPE_SERIAL, msS(msg.getEnvelopeSerializationNanos()));
-            MDC.put(MDC_MATS_OUT_SIZE_ENVELOPE_SERIAL, Long.toString(msg.getEnvelopeSerializedSize()));
+            MDC.put(MDC_MATS_OUT_SIZE_ENVELOPE_SERIAL, Integer.toString(msg.getEnvelopeSerializedSize()));
             MDC.put(MDC_MATS_OUT_TIME_ENVELOPE_COMPRESS, msS(msg.getEnvelopeCompressionNanos()));
-            MDC.put(MDC_MATS_OUT_SIZE_ENVELOPE_WIRE, Long.toString(msg.getEnvelopeWireSize()));
+            MDC.put(MDC_MATS_OUT_SIZE_ENVELOPE_WIRE, Integer.toString(msg.getEnvelopeWireSize()));
             MDC.put(MDC_MATS_OUT_TIME_MSGSYS, msS(msg.getMessageSystemProduceAndSendNanos()));
+
+            // :: Calculate the total time taken
             long nanosTaken_Total = msg.getEnvelopeProduceNanos()
                     + msg.getEnvelopeSerializationNanos()
                     + msg.getEnvelopeCompressionNanos()

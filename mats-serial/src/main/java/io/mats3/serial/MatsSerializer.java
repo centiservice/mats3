@@ -48,7 +48,7 @@ public interface MatsSerializer<Z> {
     }
 
     /**
-     * NOTE: DELETE after users are at > 0.15.0. (Evaluate whether extensions @Override).
+     * TODO: DELETE after users are at > 0.15.0. (Evaluate whether extensions @Override).
      */
     @Deprecated
     default MatsTrace<Z> createNewMatsTrace(String traceId, KeepMatsTrace keepMatsTrace, boolean nonPersistent,

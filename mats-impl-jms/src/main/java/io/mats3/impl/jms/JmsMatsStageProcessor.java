@@ -1183,7 +1183,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
-        public Object getIncomingMessage() {
+        public Object getIncomingData() {
             return _incomingMessage;
         }
 
@@ -1198,6 +1198,9 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             }
             else if (callType == CallType.NEXT) {
                 return MessageType.NEXT;
+            }
+            else if (callType == CallType.GOTO) {
+                return MessageType.GOTO;
             }
             else if (callType == CallType.SEND) {
                 // -> SEND, so must evaluate SEND or PUBLISH
@@ -1248,7 +1251,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
-        public long getMessageAndStateDeserializationNanos() {
+        public long getDataAndStateDeserializationNanos() {
             return _incomingMessageAndStateDeserializationNanos;
         }
 
@@ -1300,8 +1303,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
-        public Object getIncomingMessage() {
-            return _stageCommonContext.getIncomingMessage();
+        public Object getIncomingData() {
+            return _stageCommonContext.getIncomingData();
         }
 
         @Override
@@ -1340,8 +1343,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
-        public long getMessageAndStateDeserializationNanos() {
-            return _stageCommonContext.getMessageAndStateDeserializationNanos();
+        public long getDataAndStateDeserializationNanos() {
+            return _stageCommonContext.getDataAndStateDeserializationNanos();
         }
 
         @Override

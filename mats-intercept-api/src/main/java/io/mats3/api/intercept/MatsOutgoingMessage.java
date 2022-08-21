@@ -33,7 +33,7 @@ public interface MatsOutgoingMessage {
 
     /**
      * Note: For messages out of an initiator, this method and {@link #getFrom()} returns the same value, i.e. it is
-     * initiated from, and from, the same source.
+     * "initiated from", and "from", the same source.
      *
      * @return the value supplied to {@link io.mats3.MatsInitiator.MatsInitiate#from(String)} at the time of the Mats
      *         flow initiation.
@@ -52,7 +52,7 @@ public interface MatsOutgoingMessage {
 
     /**
      * Note: For messages out of an initiator, this method and {@link #getInitiatorId()} returns the same value, i.e. it
-     * is initiated from, and from, the same source.
+     * is "initiated from", and "from", the same source.
      *
      * @return which stage the message is from, or for initiations, the same value as {@link #getInitiatorId()}.
      */
@@ -66,9 +66,16 @@ public interface MatsOutgoingMessage {
 
     Optional<Boolean> isReplyToSubscription();
 
+    /**
+     * TODO: EVALUATE THIS METHOD: Should probably rather be getSameStackHeightState()
+     * TODO: Should also probably have getSameStackHeightExtraState() or somesuch.
+     */
     Optional<Object> getReplyToState();
 
-    Object getMessage();
+    /**
+     * @return the outgoing data (DTO)
+     */
+    Object getData();
 
     // ===== "Sideloads" and trace props
 
@@ -127,6 +134,9 @@ public interface MatsOutgoingMessage {
     }
 
     interface MatsEditableOutgoingMessage extends MatsOutgoingMessage {
+        /**
+         * Set trace property.
+         */
         void setTraceProperty(String propertyName, Object object);
 
         /**
@@ -134,8 +144,8 @@ public interface MatsOutgoingMessage {
          * the next stage of a multi-stage endpoint - i.e. "extra state" in addition to the State class that the user
          * has specified for the Endpoint.
          * <p/>
-         * Only relevant for {@link MessageType#REQUEST} and {@link MessageType#NEXT} - will throw IllegalStateException
-         * otherwise.
+         * Only relevant for {@link MessageType#REQUEST}, {@link MessageType#NEXT} and {@link MessageType#GOTO} - will
+         * throw {@link IllegalStateException} otherwise.
          * <p/>
          * REQUEST: If extra-state is added to an outgoing REQUEST-message from ServiceA.stage1, it will be present
          * again on the subsequent REPLY-message to ServiceA.stage2 (and any subsequent stages).
@@ -153,7 +163,7 @@ public interface MatsOutgoingMessage {
          * The extra-state is available on the stage interception at
          * {@link StageCommonContext#getIncomingExtraState(String, Class)}.
          */
-        void setExtraStateForReplyOrNext(String key, Object object);
+        void setSameStackHeightExtraState(String key, Object object);
 
         /**
          * Add byte[] sideload to outgoing message.
@@ -171,7 +181,10 @@ public interface MatsOutgoingMessage {
 
         String getSystemMessageId();
 
-        // ===== Serialization stats
+        // NOTE: Technically, currently EnvelopeProduceNanos and DataSerializedSize is available before
+        // the "sent" point, and could be present on the MatsOutgoingMessage interface.
+
+        // ===== Serialization metrics
 
         /**
          * @return time taken (in nanoseconds) to create the Mats envelope, including serialization of all relevant

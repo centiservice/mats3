@@ -86,26 +86,21 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
                 bytesCopied, stringsCopied, nanosAtStart_ProducingOutgoingMessage);
     }
 
-    public JmsMatsMessage(DispatchType dispatchType, MatsSerializer<Z> matsSerializer, MatsTrace<Z> matsTrace,
+    private JmsMatsMessage(DispatchType dispatchType, MatsSerializer<Z> matsSerializer, MatsTrace<Z> matsTrace,
             Object outgoingMessage, Object initialTargetState, Object replyToState,
             Map<String, byte[]> bytes, Map<String, String> strings, long nanosAtStart_ProducingOutgoingMessage) {
         _dispatchType = dispatchType;
         _matsSerializer = matsSerializer;
         _matsTrace = matsTrace;
+
         _outgoingMessage = outgoingMessage;
         _initialTargetState = initialTargetState;
         _replyToState = replyToState;
+
         _bytes = bytes;
         _strings = strings;
+
         _nanosTakenProduceOutgoingMessage = System.nanoTime() - nanosAtStart_ProducingOutgoingMessage;
-    }
-
-    public String getWhat() {
-        return getDispatchType() + ":" + getMessageType();
-    }
-
-    public MatsTrace<Z> getMatsTrace() {
-        return _matsTrace;
     }
 
     private SerializedMatsTrace _serialized;
@@ -121,6 +116,14 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
         _serialized = null;
     }
 
+    public String getWhat() {
+        return getDispatchType() + ":" + getMessageType();
+    }
+
+    public MatsTrace<Z> getMatsTrace() {
+        return _matsTrace;
+    }
+
     SerializedMatsTrace getCachedSerializedMatsTrace() {
         if (_serialized == null) {
             throw new IllegalStateException("This " + this.getClass().getSimpleName()
@@ -129,11 +132,11 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
         return _serialized;
     }
 
-    public Map<String, byte[]> getBytes() {
+    Map<String, byte[]> getBytes() {
         return _bytes;
     }
 
-    public Map<String, String> getStrings() {
+    Map<String, String> getStrings() {
         return _strings;
     }
 
@@ -286,7 +289,7 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
     }
 
     @Override
-    public Object getMessage() {
+    public Object getData() {
         return _outgoingMessage;
     }
 
@@ -304,7 +307,7 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
     }
 
     @Override
-    public void setExtraStateForReplyOrNext(String key, Object object) {
+    public void setSameStackHeightExtraState(String key, Object object) {
         if (getMessageType() == MessageType.REQUEST) {
             // :: This is a REQUEST: We want to add extra-state to the level where the subsequent REPLY will lie.
             /*
@@ -337,8 +340,8 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
             // :: Add the extra-state
             stateToModify.setExtraState(key, _matsSerializer.serializeObject(object));
         }
-        else if (getMessageType() == MessageType.NEXT) {
-            // :: This is a NEXT: We want to add extra-state to the same level, as the receiver is immediate next.
+        else if ((getMessageType() == MessageType.NEXT) || (getMessageType() == MessageType.GOTO)) {
+            // :: This is a NEXT or GOTO: We want to add extra-state to the same level, as receiver is immediate next.
             /*
              * Note: Check the implementation for MatsTraceFieldImpl.addNextCall(..). The StackState we need is
              * the very last added.
@@ -353,8 +356,8 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
             stateToModify.setExtraState(key, _matsSerializer.serializeObject(object));
         }
         else {
-            throw new IllegalStateException("setExtraStateForReply(..) is only applicable for MessageType.REQUEST"
-                    + " and MessageType.NEXT messages, this is [" + getMessageType() + "].");
+            throw new IllegalStateException("setExtraStateForReply(..) is only applicable for MessageType.REQUEST,"
+                    + " MessageType.NEXT and MessageType.GOTO messages, this is [" + getMessageType() + "].");
         }
     }
 
@@ -442,8 +445,7 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
         @SuppressWarnings("rawtypes")
         JmsMatsMessage other = (JmsMatsMessage) obj;
         // Compare the MatsMessageId.
-        return this.getMatsTrace().getCurrentCall().getMatsMessageId()
-                .equals(other.getMatsTrace().getCurrentCall().getMatsMessageId());
+        return this.getMatsMessageId().equals(other.getMatsMessageId());
 
     }
 }

@@ -73,34 +73,8 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     private List<StackStateImpl<Z>> ss = new ArrayList<>(); // StackStates, "State Flow". Not final due to clone-impl.
     private Map<String, Z> tp = new LinkedHashMap<>(); // TraceProps. Not final due to clone-impl.
 
-    /**
-     * Creates a new {@link MatsTrace}. Must add a {@link Call} before sending.
-     *
-     * @param traceId
-     *            the user-defined hopefully-unique id for this call flow.
-     * @param flowId
-     *            the system-defined pretty-much-(for <i>all</i> purposes)-guaranteed-unique id for this call flow.
-     * @param keepMatsTrace
-     *            the level of "trace keeping".
-     * @param nonPersistent
-     *            if the messages in this flow should be non-persistent
-     * @param interactive
-     *            if the messages in this flow is of "interactive" priority.
-     * @param ttlMillis
-     *            the number of milliseconds the message should live before being time out. 0 means "forever", and is
-     *            the default.
-     * @param noAudit
-     *            hint to the underlying implementation, or to any monitoring/auditing tooling on the Message Broker,
-     *            that it does not make much value in auditing this message flow, typically because it is just a
-     *            "getter" of information to show to some user, or a health-check validating that some service is up and
-     *            answers in a timely fashion.
-     * @return the newly created {@link MatsTrace}.
-     */
-    public static <Z> MatsTrace<Z> createNew(String traceId, String flowId,
-            KeepMatsTrace keepMatsTrace, boolean nonPersistent, boolean interactive, long ttlMillis, boolean noAudit) {
-        return new MatsTraceFieldImpl<Z>(traceId, flowId, keepMatsTrace, nonPersistent, interactive, ttlMillis,
-                noAudit);
-    }
+    private long[] ots; // Outgoing timestamp ("same height"): "compressed" against the initiation time
+    private long[] eets; // Endpoint Entered timestamp: "compressed" against the initiation time
 
     @Override
     public MatsTrace<Z> withDebugInfo(String initializingAppName, String initializingAppVersion,
@@ -367,9 +341,6 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         return clone;
     }
 
-    private long[] ots; // "compressed" against the initiation time
-    private long[] eets; // "compressed" against the initiation time
-
     @Override
     public void setOutgoingTimestamp(long timestamp) {
         // NOTE: SENDING SIDE: Invoked when a new message/call has been constructed, about to be sent.
@@ -461,8 +432,6 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
             return;
         }
 
-        int stackHeight = cc.getReplyStackHeight();
-
         // ?: Is this a REPLY?
         if (cc.t == CallType.REPLY) {
             // -> Yes, REPLY. This cannot per definition be an *initial* stage.
@@ -471,6 +440,8 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         }
 
         // E-> This is a SEND or PUBLISH (initiation), or a REQUEST (flow)
+
+        int stackHeight = cc.getReplyStackHeight();
 
         // Find difference between initiation and timestamp
         long diff = (timestamp - getInitializedTimestamp());
@@ -488,7 +459,6 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         // NOTE: Shall be invoked on the stage about to either stop flow, or send REPLY.
         // NOTE: BEFORE adding a new call! (Obvious in case of "stopping" a flow, i.e. not sending a new message)
 
-        // E-> This is a SEND or PUBLISH (initiation), or a REQUEST (flow)
         int stackHeight = getCurrentCall().getReplyStackHeight();
 
         // If we are at stack height 1, then there are 2 timestamps in play (height 0, 1).

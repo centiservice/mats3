@@ -145,9 +145,9 @@ public interface MatsStageInterceptor {
          * @return the timestamp when the initial stage of the Endpoint which this Stage belongs to, was entered, no
          *         matter if this Stage is a later stage of this endpoint. <b>Note that this is susceptible to time
          *         skews between nodes: If the initial stage was run on node A, while this stage is run on node B,
-         *         calculations on the timestamp returned here vs. e.g. {@link System#currentTimeMillis()} is highly
-         *         dependent on the time synchronization between node A and node B.</b> If such a timestamp is not
-         *         possible to provide, 0 is returned.
+         *         calculations on the timestamp returned from this method (from node A) vs. this node B's
+         *         {@link System#currentTimeMillis()} is highly dependent on the time synchronization between node A and
+         *         node B.</b> If such a timestamp is not possible to provide, 0 is returned.
          */
         Instant getEndpointEnteredTimestamp();
 
@@ -182,19 +182,20 @@ public interface MatsStageInterceptor {
         MessageType getIncomingMessageType();
 
         /**
-         * @return the incoming message.
-         */
-        Object getIncomingMessage();
-
-        /**
-         * @return the incoming state, if present (which it typically is for all stages except initial - albeit it is
-         *         also possible to send state to the initial stage).
+         * @return the incoming state (STO), if present (which it typically is for all stages except initial - albeit it
+         *         is also possible to send state to the initial stage).
          */
         Optional<Object> getIncomingState();
 
+
+        /**
+         * @return the incoming data (DTO).
+         */
+        Object getIncomingData();
+
         /**
          * @return the extra-state, if any, on the incoming REPLY or NEXT message - as set by
-         *         {@link MatsEditableOutgoingMessage#setExtraStateForReplyOrNext(String, Object)}.
+         *         {@link MatsEditableOutgoingMessage#setSameStackHeightExtraState(String, Object)}.
          */
         <T> Optional<T> getIncomingExtraState(String key, Class<T> type);
 
@@ -240,10 +241,10 @@ public interface MatsStageInterceptor {
         long getEnvelopeDeserializationNanos();
 
         /**
-         * @return time taken (in nanoseconds) to deserialize the message (DTO) and state (STO) from the envelope,
+         * @return time taken (in nanoseconds) to deserialize the data (DTO) and state (STO) from the envelope,
          *         before invoking the user lambda with them.
          */
-        long getMessageAndStateDeserializationNanos();
+        long getDataAndStateDeserializationNanos();
     }
 
     interface StageReceivedContext extends StageCommonContext {
