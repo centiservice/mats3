@@ -44,7 +44,11 @@ public interface MatsInitiator extends Closeable {
 
     /**
      * Initiates a new message ("request" or "send") out to an endpoint: You provide a lambda which is supplied the
-     * {@link MatsInitiate} instance on which you invoke methods to construct and dispatch messages.
+     * {@link MatsInitiate} instance on which you invoke methods to construct and dispatch messages. The
+     * {@link InitiateLambda#initiate(MatsInitiate)} will be invoked in a transactional context, which will also
+     * include database operations that are invoked inside the lambda if the transaction manager for the MatsFactory
+     * is also used for database operations. This also implies that either all messages produced in the lambda will
+     * be sent, or none will.
      *
      * @param lambda
      *            provides the {@link MatsInitiate} instance on which to create the message to be sent.
