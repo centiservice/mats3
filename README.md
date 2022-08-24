@@ -73,16 +73,14 @@ direct mapping from the StageId, prefixed with (default) "mats.".
 A Mats Endpoint's Stage may invoke another Mats Endpoint by issuing a Request-call (`processContext.request(..)`)
 targeting the EndpointId of the Endpoint you want to invoke. The Reply from this Request will be received by next Stage.
 
-### Messaging with a call stack
+### Messaging with a Call Stack!
 
 Invoked Mats Endpoints does not need to know who called them, they just return their result which is packaged up in a
 message called a Reply. The Stage that performs the invocation doesn't have to specify which StageId the Reply should go
-to, as Mats already knows this (it is the next stage of the Endpoint), and the invoked Endpoint doesn't have to look it
-up, as the message's envelope's call stack keeps track of which queue the Reply message should go to. _(An exception to
-this is the _Initiation_ of a Mats Flow: If this is a Request, you have to specify which Endpoint should act as the
-Terminator, getting the final Reply, typically terminating the Mats Flow by not producing any outgoing flow messages)_
+to, as Mats already knows this: It is the next stage of the Endpoint. The invoked Endpoint doesn't have to look up
+the Reply queue address, as it is automatically fetched from the message's envelope's call stack.
 
-When a Stage N performs such an invocation of another Mats Endpoint, a State Object is left behind on the call stack,
+When a Stage N performs such a Request to another Mats Endpoint, a State Object is left behind on the call stack,
 which carries the information that is needed from Stage N to Stage N+1. When Stage N+1 receives the Reply from the
 invoked Endpoint, the state object which was present on Stage N will "magically" be provided.
 
@@ -172,7 +170,7 @@ processes and messages, and trades some performance for developer friendliness, 
 Solutions like Kafka might be what you want if you need to receive tens-of-thousands of events per second from your
 massive fleet of IoT devices. Use Mats for the subsequent, more coarse-grained handling of the results of such
 ingestion. _(That said, the throughput of a large Mats fabric with lots of Endpoints scales very well, and is only
-limited by the throughput of your message broker setup as well as external resources as your services databases)_
+limited by the throughput of your message broker setup as well as external resources as your services' databases)_
 
 Also, Mats is not meant for events which require handling in a specific order, e.g. arrival order. The intention with
 Mats is that you run multiple instances/replicas of each service. And on each instance, there are multiple
@@ -191,10 +189,10 @@ process on different nodes. The DTO-classes, which acts as the interface between
 replies, would in real usage be copied between the projects (in this testing-scenario, one DTO class is used as all
 interfaces).
 
-It is important to realize that each of the stages - also each stage in multi-stage endpoints - are handled by separate
-threads, and the state, request and reply objects are not shared references within a JVM - they are marshalled with the
-message that are passed between each stage of the services. *All information for a process resides as contents of the
-Mats envelope and data ("MatsTrace") which is being passed with the message.* In particular, if you have a process
+It is important to appreciate that each of the stages - also each stage in multi-stage endpoints - are handled by
+separate threads. The state, request and reply objects are not shared references within a JVM, as they are marshalled
+with the message that are passed between each stage of the endpoints. *All information for a process (a Mats Flow)
+resides as contents of the Mats envelope which is being passed with the message.* In particular, if you have a process
 running a three-stage Mats endpoint which is deployed on two nodes A and B, for a particular request, the first stage
 might execute on node A, while the next stage on node B, and the last stage on node A again.
 
