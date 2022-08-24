@@ -3,6 +3,7 @@ package io.mats3;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import io.mats3.MatsConfig.StartStoppable;
@@ -394,10 +395,18 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         boolean isNoAudit();
 
         /**
+         * @return the keys on which {@link #getBytes(String) bytes} lives.
+         */
+        Set<String> getBytesKeys();
+
+        /**
+         * Get binary "sideloads" from the incoming message.
+         *
          * @param key
          *            the key for which to retrieve a binary payload from the incoming message.
          * @return the requested byte array.
          *
+         * @see #getBytesKeys()
          * @see ProcessContext#addBytes(String, byte[])
          * @see #getString(String)
          * @see #getTraceProperty(String, Class)
@@ -405,10 +414,18 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         byte[] getBytes(String key);
 
         /**
+         * @return the keys on which {@link #getString(String) strings} lives.
+         */
+        Set<String> getStringKeys();
+
+        /**
+         * Get <code>String</code> "sideloads" from the incoming message.
+         *
          * @param key
          *            the key for which to retrieve a String payload from the incoming message.
          * @return the requested String.
          *
+         * @see #getStringKeys()
          * @see ProcessContext#addString(String, String)
          * @see #getBytes(String)
          * @see #getTraceProperty(String, Class)
@@ -442,8 +459,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
      */
     interface ProcessContext<R> extends DetachedProcessContext {
         /**
-         * Attaches a binary payload to the next outgoing message, being it a request or a reply. Note that for
-         * initiations, you have the same method on the {@link MatsInitiate} instance.
+         * Attaches a binary payload ("sideload") to the next outgoing message, being it a request or a reply. Note that
+         * for initiations, you have the same method on the {@link MatsInitiate} instance.
          * <p />
          * The rationale for having this is to not have to encode a largish byte array inside the JSON structure that
          * carries the Request or Reply DTO - byte arrays represent very badly in JSON.
@@ -472,8 +489,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         void addBytes(String key, byte[] payload);
 
         /**
-         * Attaches a String payload to the next outgoing message, being it a request or a reply. Note that for
-         * initiations, you have the same method on the {@link MatsInitiate} instance.
+         * Attaches a <code>String</code> payload ("sideload") to the next outgoing message, being it a request or a
+         * reply. Note that for initiations, you have the same method on the {@link MatsInitiate} instance.
          * <p />
          * The rationale for having this is to not have to encode a largish string document inside the JSON structure
          * that carries the Request or Reply DTO.
@@ -1021,8 +1038,18 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         }
 
         @Override
+        public Set<String> getBytesKeys() {
+            return unwrap().getBytesKeys();
+        }
+
+        @Override
         public byte[] getBytes(String key) {
             return unwrap().getBytes(key);
+        }
+
+        @Override
+        public Set<String> getStringKeys() {
+            return unwrap().getStringKeys();
         }
 
         @Override

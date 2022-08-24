@@ -198,6 +198,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     }
 
     @Override
+    public Set<String> getBytesKeys() {
+        return _incomingBinaries.keySet();
+    }
+
+    @Override
     public String toString() {
         return _incomingMatsTrace.toString();
     }
@@ -215,6 +220,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     @Override
     public byte[] getBytes(String key) {
         return _incomingBinaries.get(key);
+    }
+
+    @Override
+    public Set<String> getStringKeys() {
+        return _incomingStrings.keySet();
     }
 
     @Override

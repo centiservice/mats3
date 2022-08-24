@@ -67,8 +67,8 @@ public interface MatsOutgoingMessage {
     Optional<Boolean> isReplyToSubscription();
 
     /**
-     * TODO: EVALUATE THIS METHOD: Should probably rather be getSameStackHeightState()
-     * TODO: Should also probably have getSameStackHeightExtraState() or somesuch.
+     * TODO: EVALUATE THIS METHOD: Should probably rather be getSameStackHeightState() TODO: Should also probably have
+     * getSameStackHeightExtraState() or somesuch.
      */
     Optional<Object> getReplyToState();
 
@@ -161,7 +161,7 @@ public interface MatsOutgoingMessage {
          * possible to add extra-state to the <i>targeted/receiving endpoint</i>, I've decided against it so far.
          * <p/>
          * The extra-state is available on the stage interception at
-         * {@link StageCommonContext#getIncomingExtraState(String, Class)}.
+         * {@link StageCommonContext#getIncomingSameStackHeightExtraState(String, Class)}.
          */
         void setSameStackHeightExtraState(String key, Object object);
 
@@ -232,11 +232,11 @@ public interface MatsOutgoingMessage {
         /**
          * @return the number of bytes sent on the wire (best approximation), as far as Mats knows. Any overhead from
          *         the message system is unknown. Includes the envelope (which includes the TraceProperties), as well as
-         *         the sideloads (bytes and strings). Notice that the strings are just "length()'ed", so any "exotic"
-         *         characters are still just counted as 1 byte.
+         *         the sideloads (bytes and strings). Implementation might add some more size for metadata. Notice that
+         *         the strings are just "length()'ed", so any "exotic" characters are still just counted as 1 byte.
          */
-        default int getTotalWireSize() {
-            // :: Calculate the total wiresize, as we know it.
+        default int getMessageSystemTotalWireSize() {
+            // :: Calculate the total wiresize, as far as we can figure out with info we have here.
             // Start with the envelope wire size
             int totalWireSize = this.getEnvelopeWireSize();
             // .. add the byte sideloads

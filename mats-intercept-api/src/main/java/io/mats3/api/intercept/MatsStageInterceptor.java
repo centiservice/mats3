@@ -142,12 +142,25 @@ public interface MatsStageInterceptor {
      */
     interface StageCommonContext extends StageInterceptContext {
         /**
-         * @return the timestamp when the initial stage of the Endpoint which this Stage belongs to, was entered, no
-         *         matter if this Stage is a later stage of this endpoint. <b>Note that this is susceptible to time
-         *         skews between nodes: If the initial stage was run on node A, while this stage is run on node B,
-         *         calculations on the timestamp returned from this method (from node A) vs. this node B's
-         *         {@link System#currentTimeMillis()} is highly dependent on the time synchronization between node A and
-         *         node B.</b> If such a timestamp is not possible to provide, 0 is returned.
+         * @return the {@link DetachedProcessContext} for the executing stage - this is overridden in several sub
+         *         interfaces to return the actual "live" {@link ProcessContext}.
+         */
+        DetachedProcessContext getProcessContext();
+
+        /**
+         * Returns the timestamp when the initial stage of the Endpoint which this Stage belongs to, was entered. Use to
+         * calculate <i>total endpoint time</i>: If the result of a stage is {@link ProcessResult#REPLY} or
+         * {@link ProcessResult#NONE}, then the endpoint is finished, and the current time vs. endpoint entered
+         * timestamp (this method) is the total time this endpoint used.
+         * <p/>
+         * <b>Note that this is susceptible to time skews between nodes: If the initial stage was run on node A, while
+         * this stage is run on node B, calculations on the timestamp returned from this method (from node A) vs. this
+         * node (B's) {@link System#currentTimeMillis()} is highly dependent on the time synchronization between node A
+         * and node B.</b>
+         *
+         * @see #getPrecedingSameStackHeightOutgoingTimestamp()
+         * @see ProcessContext#getFromTimestamp()
+         * @return the timestamp when the initial stage of the Endpoint which this Stage belongs to, was entered.
          */
         Instant getEndpointEnteredTimestamp();
 
@@ -156,21 +169,23 @@ public interface MatsStageInterceptor {
          * calculate "Time since previous Stage of same Endpoint", which includes queue times and processing times of
          * requested endpoints happening in between the send and the receive, as well as any other latencies. For
          * example, it is the time between when EndpointA.Stage2 performs a REQUEST to AnotherEndpointB, till the REPLY
-         * from that endpoint is received on EndpointA.Stage3 (There might be dozens of message passing and processings
-         * in between those two stages (of the same endpoint), as AnotherEndpointB might itself have a dozen stages,
-         * each performing some requests to yet other endpoints).
+         * from that endpoint is received on EndpointA.Stage3 (There can potentially be dozens of message passing and
+         * processings in between those two stages (of the same endpoint), as AnotherEndpointB might itself have a dozen
+         * stages, each performing requests to yet other endpoints).
          * <p/>
-         * Note: There is no previous stage for a REQUEST to the Initial Stage of an Endpoint.
+         * <b>Note that this is susceptible to time skews between nodes: If the preceding stage was run on node A, while
+         * this stage is run on node B, calculations on the timestamp returned from this method (from node A) vs. this
+         * node (B's) {@link System#currentTimeMillis()} is highly dependent on the time synchronization between node A
+         * and node B.</b>
+         * <p/>
+         * Note: There is no preceding stage for a REQUEST to the Initial Stage of an Endpoint.
          * <p/>
          * Note: On a Terminator whose corresponding initiation did a REQUEST, the "same stack height" ends up being the
          * initiator (it is stack height 0). If an initiation goes directly to a Terminator (e.g. "fire-and-forget"
          * PUBLISH or SEND), again the "same stack height" is the initiator.
-         * <p/>
-         * "Time since previous stage" technically exists for all type of calls to a stage except for REQUEST. It does,
-         * however, not make semantically sense for an initiation SEND to an Initial Stage of an Endpoint, as that
-         * timing doesn't concern the Endpoint, and it is also exactly the same as "SinceSent"
-         * (<code>System.currentTimeMillis - {@link ProcessContext#getFromTimestamp()}</code>).
          *
+         * @see #getEndpointEnteredTimestamp()
+         * @see ProcessContext#getFromTimestamp()
          * @return The timestamp of the outgoing message <i>on the same stack height</i> as this stage. If the current
          *         Call is a REQUEST, there is no such message, and <code>-1</code> is returned.
          */
@@ -205,10 +220,10 @@ public interface MatsStageInterceptor {
         int getDataSerializedSize();
 
         /**
-         * @return the extra-state, if any, on the incoming REPLY or NEXT message - as set by
+         * @return the extra-state, if any, on the incoming REPLY, NEXT or GOTO message - as set by
          *         {@link MatsEditableOutgoingMessage#setSameStackHeightExtraState(String, Object)}.
          */
-        <T> Optional<T> getIncomingExtraState(String key, Class<T> type);
+        <T> Optional<T> getIncomingSameStackHeightExtraState(String key, Class<T> type);
 
         /**
          * @return the total time taken (in nanoseconds) from the reception of a message system message, via
@@ -252,27 +267,56 @@ public interface MatsStageInterceptor {
         long getEnvelopeDeserializationNanos();
 
         /**
-         * @return time taken (in nanoseconds) to deserialize the data (DTO) and state (STO) from the envelope,
-         *         before invoking the user lambda with them.
+         * @return time taken (in nanoseconds) to deserialize the data (DTO) and state (STO) from the envelope, before
+         *         invoking the user lambda with them.
          */
         long getDataAndStateDeserializationNanos();
+
+        /**
+         * @return the number of bytes sent on the wire (best approximation), as far as Mats knows. Any overhead from
+         *         the message system is unknown. Includes the envelope (which includes the TraceProperties), as well as
+         *         the sideloads (bytes and strings). Implementation might add some more size for metadata. Notice that
+         *         the strings are just "length()'ed", so any "exotic" characters are still just counted as 1 byte.
+         */
+        default int getMessageSystemTotalWireSize() {
+            // :: Calculate the total wiresize, as far as we can figure out with info we have here.
+            // Start with the envelope wire size
+            int totalWireSize = this.getEnvelopeWireSize();
+            // .. add the byte sideloads
+            for (String bytesKey : this.getProcessContext().getBytesKeys()) {
+                totalWireSize += this.getProcessContext().getBytes(bytesKey).length;
+            }
+            // .. add the string sideloads
+            // Notice: This isn't exact if Strings contains "exotic" chars (non-ASCII).
+            for (String stringKey : this.getProcessContext().getStringKeys()) {
+                totalWireSize += this.getProcessContext().getString(stringKey).length();
+            }
+            return totalWireSize;
+        }
     }
 
     interface StageReceivedContext extends StageCommonContext {
+        /**
+         * @return the live {@link ProcessContext} for the executing stage.
+         */
         ProcessContext<Object> getProcessContext();
     }
 
     interface StageInterceptUserLambdaContext extends StageCommonContext {
+        /**
+         * @return the live {@link ProcessContext} for the executing stage.
+         */
         ProcessContext<Object> getProcessContext();
     }
 
     interface StageInterceptOutgoingMessageContext extends StageCommonContext, CommonInterceptOutgoingMessagesContext {
+        /**
+         * @return the live {@link ProcessContext} for the executing stage.
+         */
         ProcessContext<Object> getProcessContext();
     }
 
     interface StageCompletedContext extends StageCommonContext, CommonCompletedContext {
-        DetachedProcessContext getProcessContext();
-
         /**
          * @return The type of the main result of the Stage Processing - <b>which do not include any stage-initiations,
          *         look at {@link #getStageInitiatedMessages()} for that.</b>
@@ -331,7 +375,7 @@ public interface MatsStageInterceptor {
         List<MatsSentOutgoingMessage> getStageRequestMessages();
 
         /**
-         * @return all stage-initiated messages, which is of {@link DispatchType#STAGE_INIT ProcessType.STAGE_INIT}.
+         * @return all stage-initiated messages, which are of {@link DispatchType#STAGE_INIT ProcessType.STAGE_INIT}.
          */
         List<MatsSentOutgoingMessage> getStageInitiatedMessages();
     }

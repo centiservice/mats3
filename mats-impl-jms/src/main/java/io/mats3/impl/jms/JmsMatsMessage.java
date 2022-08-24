@@ -435,6 +435,24 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
         return _matsSerializer.sizeOfSerialized(_matsTrace.getCurrentCall().getData());
     }
 
+    @Override
+    public int getMessageSystemTotalWireSize() {
+        // Calculate extra sizes we know as implementation
+        // (Sizes of all the JMS properties we stick on the messages, and their values).
+        int jmsImplSizes = JmsMatsStatics.TOTAL_JMS_MSG_PROPS_SIZE
+                + getTraceId().length()
+                + getMatsMessageId().length()
+                + getDispatchType().toString().length()
+                + getMessageType().toString().length()
+                + getFrom().length()
+                + getInitiatingAppName().length()
+                + getInitiatorId().length()
+                + getTo().length()
+                + Boolean.valueOf(!isNoAudit()).toString().length();
+
+        return MatsSentOutgoingMessage.super.getMessageSystemTotalWireSize() + jmsImplSizes;
+    }
+
     // :: Object: equals, hashCode
 
     @Override

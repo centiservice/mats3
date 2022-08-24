@@ -20,7 +20,6 @@ import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.Session;
 
-import io.mats3.serial.MatsTrace.StackState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -65,6 +64,7 @@ import io.mats3.serial.MatsTrace;
 import io.mats3.serial.MatsTrace.Call;
 import io.mats3.serial.MatsTrace.Call.CallType;
 import io.mats3.serial.MatsTrace.Call.MessagingModel;
+import io.mats3.serial.MatsTrace.StackState;
 
 /**
  * MessageConsumer-class for the {@link JmsMatsStage} which is instantiated {@link StageConfig#getConcurrency()} number
@@ -401,8 +401,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             byte[] matsTraceBytes;
                             String matsTraceMeta;
                             String jmsMessageId;
+                            String matsTraceKey = getFactory().getFactoryConfig().getMatsTraceKey();
                             try {
-                                String matsTraceKey = getFactory().getFactoryConfig().getMatsTraceKey();
                                 matsTraceBytes = mapMessage.getBytes(matsTraceKey);
                                 matsTraceMeta = mapMessage.getString(matsTraceKey
                                         + MatsSerializer.META_KEY_POSTFIX);
@@ -450,6 +450,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 Enumeration<String> mapNames = (Enumeration<String>) mapMessage.getMapNames();
                                 while (mapNames.hasMoreElements()) {
                                     String name = mapNames.nextElement();
+                                    // ?: Is this the MatsTrace itself?
+                                    if (matsTraceKey.equals(name)) {
+                                        // Yes, this is the MatsTrace: Do not expose this as "binary sideload".
+                                        continue;
+                                    }
                                     Object object = mapMessage.getObject(name);
                                     if (object instanceof byte[]) {
                                         incomingBinaries.put(name, (byte[]) object);
@@ -565,6 +570,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                             // Create the common part of the interceptor contexts
                             stageCommonContext[0] = new StageCommonContextImpl<>(
+                                    processContextCasted,
                                     _jmsMatsStage,
                                     startedNanos, startedInstant,
                                     endpointEnteredTimestamp, sameHeightOutgoingTimestamp,
@@ -594,7 +600,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             // === Invoke any interceptors, stage "Intercept"
                             // Create the InitiateInterceptContext instance (one for all interceptors)
                             StageInterceptUserLambdaContextImpl stageInterceptContext = new StageInterceptUserLambdaContextImpl(
-                                    stageCommonContext[0], processContextCasted);
+                                    stageCommonContext[0]);
                             // :: Create a "lambda stack" of the interceptors
                             // This is the resulting lambda we will actually invoke
                             // .. if there are no interceptors, it will directly be the user lambda
@@ -633,8 +639,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             }
 
                             // === Invoke any interceptors, stage "Message"
-                            invokeStageMessageInterceptors(interceptorsForStage, stageCommonContext[0],
-                                    processContextCasted, messagesToSend);
+                            invokeStageMessageInterceptors(interceptorsForStage, stageCommonContext[0], messagesToSend);
 
                             // :: Send messages on target queues/topics
                             // =======================================================================================
@@ -839,7 +844,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 }
 
                                 StageCompletedContextImpl stageCompletedContext = new StageCompletedContextImpl(
-                                        stageCommonContext[0], processContext[0],
+                                        stageCommonContext[0],
                                         processResult,
                                         nanosTaken_UserLambda[0],
                                         processContext[0].getMeasurements(),
@@ -951,8 +956,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     private void invokeStageMessageInterceptors(List<MatsStageInterceptor> interceptorsForStage,
-            StageCommonContextImpl<Z> stageCommonContext, ProcessContext<Object> processContextCasted,
-            List<JmsMatsMessage<Z>> messagesToSend) {
+            StageCommonContextImpl<Z> stageCommonContext, List<JmsMatsMessage<Z>> messagesToSend) {
         // :: Find the Message interceptors. Goddamn why is there no stream.filter[InstanceOf](Clazz.class)?
         List<MatsStageInterceptOutgoingMessages> messageInterceptors = interceptorsForStage.stream()
                 .filter(MatsStageInterceptOutgoingMessages.class::isInstance)
@@ -965,7 +969,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             ArrayList<JmsMatsMessage<Z>> copiedMessages = new ArrayList<>();
             List<MatsEditableOutgoingMessage> unmodifiableMessages = Collections.unmodifiableList(copiedMessages);
             StageInterceptOutgoingMessageContextImpl context = new StageInterceptOutgoingMessageContextImpl(
-                    stageCommonContext, processContextCasted, unmodifiableMessages, cancelOutgoingMessage);
+                    stageCommonContext, unmodifiableMessages, cancelOutgoingMessage);
             // Iterate through the interceptors, "showing" the matsMessages.
             for (MatsStageInterceptOutgoingMessages messageInterceptor : messageInterceptors) {
                 // Filling with the /current/ set of messagesToSend.
@@ -1109,6 +1113,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
      * interface implementations.
      */
     private static class StageCommonContextImpl<Z> implements StageCommonContext {
+        private final ProcessContext<Object> _processContext;
+
         private final JmsMatsStage<?, ?, ?, Z> _stage;
         private final long _startedNanos;
         private final Instant _startedInstant;
@@ -1127,7 +1133,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         private final long _incomingMessageAndStateDeserializationNanos;
         private final long _preUserLambdaNanos;
 
-        public StageCommonContextImpl(JmsMatsStage<?, ?, ?, Z> stage,
+        public StageCommonContextImpl(ProcessContext<Object> processContext,
+                JmsMatsStage<?, ?, ?, Z> stage,
                 long startedNanos, Instant startedInstant, long endpointEnteredTimestampMillis,
                 long precedingSameStackHeightOutgoingTimestamp, MatsTrace<Z> matsTrace, Object incomingMessage,
                 Object incomingState,
@@ -1138,6 +1145,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 long incomingEnvelopeDeserializationNanos,
                 long incomingMessageAndStateDeserializationNanos,
                 long preUserLambdaNanos) {
+            _processContext = processContext;
 
             _stage = stage;
             _startedNanos = startedNanos;
@@ -1237,7 +1245,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
-        public <T> Optional<T> getIncomingExtraState(String key, Class<T> type) {
+        public <T> Optional<T> getIncomingSameStackHeightExtraState(String key, Class<T> type) {
             MatsSerializer<Z> matsSerializer = _stage.getParentFactory().getMatsSerializer();
             return _matsTrace.getCurrentState().map(s -> matsSerializer.deserializeObject(s.getExtraState(key), type));
         }
@@ -1273,8 +1281,33 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
+        public DetachedProcessContext getProcessContext() {
+            return _processContext;
+        }
+
+        @Override
         public long getTotalPreprocessAndDeserializeNanos() {
             return _preUserLambdaNanos;
+        }
+
+        @Override
+        public int getMessageSystemTotalWireSize() {
+            DetachedProcessContext processContext = getProcessContext();
+
+            // Calculate extra sizes we know as implementation
+            // (Sizes of all the JMS properties we stick on the messages, and their values).
+            int jmsImplSizes = TOTAL_JMS_MSG_PROPS_SIZE
+                    + processContext.getTraceId().length()
+                    + processContext.getMatsMessageId().length()
+                    // missing DISPATCH_TYPE
+                    + getIncomingMessageType().toString().length()
+                    + processContext.getFromStageId().length()
+                    + processContext.getInitiatingAppName().length()
+                    + processContext.getInitiatorId().length()
+                    + processContext.getStageId().length() // To
+                    + Boolean.valueOf(!processContext.isNoAudit()).toString().length();
+
+            return StageCommonContext.super.getMessageSystemTotalWireSize() + jmsImplSizes;
         }
     }
 
@@ -1340,8 +1373,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
-        public <T> Optional<T> getIncomingExtraState(String key, Class<T> type) {
-            return _stageCommonContext.getIncomingExtraState(key, type);
+        public <T> Optional<T> getIncomingSameStackHeightExtraState(String key, Class<T> type) {
+            return _stageCommonContext.getIncomingSameStackHeightExtraState(key, type);
         }
 
         @Override
@@ -1375,6 +1408,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
+        public DetachedProcessContext getProcessContext() {
+            return _stageCommonContext.getProcessContext();
+        }
+
+        @Override
         public long getTotalPreprocessAndDeserializeNanos() {
             return _stageCommonContext.getTotalPreprocessAndDeserializeNanos();
         }
@@ -1384,17 +1422,15 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
      * Implementation of {@link StageReceivedContext}.
      */
     private static class StageReceivedContextImpl extends StageBaseContextImpl implements StageReceivedContext {
-        private final ProcessContext<Object> _processContext;
-
         public StageReceivedContextImpl(StageCommonContext stageCommonContext,
                 ProcessContext<Object> processContext) {
             super(stageCommonContext);
-            _processContext = processContext;
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public ProcessContext<Object> getProcessContext() {
-            return _processContext;
+            return (ProcessContext<Object>) super.getProcessContext();
         }
     }
 
@@ -1403,17 +1439,14 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
      */
     private static class StageInterceptUserLambdaContextImpl extends StageBaseContextImpl implements
             StageInterceptUserLambdaContext {
-        private final ProcessContext<Object> _processContext;
-
-        public StageInterceptUserLambdaContextImpl(StageCommonContext stageCommonContext,
-                ProcessContext<Object> processContext) {
+        public StageInterceptUserLambdaContextImpl(StageCommonContext stageCommonContext) {
             super(stageCommonContext);
-            _processContext = processContext;
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public ProcessContext<Object> getProcessContext() {
-            return _processContext;
+            return (ProcessContext<Object>) super.getProcessContext();
         }
     }
 
@@ -1422,25 +1455,22 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
      */
     private static class StageInterceptOutgoingMessageContextImpl extends StageBaseContextImpl implements
             StageInterceptOutgoingMessageContext {
-        private final ProcessContext<Object> _processContext;
-
         private final List<MatsEditableOutgoingMessage> _matsMessages;
         private final Consumer<String> _cancelOutgoingMessage;
 
         public StageInterceptOutgoingMessageContextImpl(
                 StageCommonContext stageCommonContext,
-                ProcessContext<Object> processContext,
                 List<MatsEditableOutgoingMessage> matsMessages,
                 Consumer<String> cancelOutgoingMessage) {
             super(stageCommonContext);
-            _processContext = processContext;
             _matsMessages = matsMessages;
             _cancelOutgoingMessage = cancelOutgoingMessage;
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public ProcessContext<Object> getProcessContext() {
-            return _processContext;
+            return (ProcessContext<Object>) super.getProcessContext();
         }
 
         @Override
@@ -1450,7 +1480,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
         @Override
         public void initiate(InitiateLambda lambda) {
-            _processContext.initiate(lambda);
+            getProcessContext().initiate(lambda);
         }
 
         @Override
@@ -1463,7 +1493,6 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
      * Implementation of {@link StageCompletedContext}.
      */
     private static class StageCompletedContextImpl extends StageBaseContextImpl implements StageCompletedContext {
-        private final DetachedProcessContext _detachedProcessContext;
         private final ProcessResult _processResult;
 
         private final long _userLambdaNanos;
@@ -1483,7 +1512,6 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
         public StageCompletedContextImpl(
                 StageCommonContext stageCommonContext,
-                DetachedProcessContext detachedProcessContext,
                 ProcessResult processResult,
 
                 long userLambdaNanos,
@@ -1501,7 +1529,6 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 List<MatsSentOutgoingMessage> requests,
                 List<MatsSentOutgoingMessage> initiations) {
             super(stageCommonContext);
-            _detachedProcessContext = detachedProcessContext;
             _processResult = processResult;
 
             _userLambdaNanos = userLambdaNanos;
@@ -1518,11 +1545,6 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             _reply = reply;
             _requests = requests;
             _initiations = initiations;
-        }
-
-        @Override
-        public DetachedProcessContext getProcessContext() {
-            return _detachedProcessContext;
         }
 
         @Override

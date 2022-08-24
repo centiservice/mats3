@@ -312,6 +312,7 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_COMPLETE_TIME_USER_LAMBDA = "mats.exec.UserLambda.ms";
     public static final String MDC_MATS_COMPLETE_TIME_OUT = "mats.exec.Out.ms";
     public static final String MDC_MATS_COMPLETE_QUANTITY_OUT = "mats.exec.Out.quantity";
+    public static final String MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE = "mats.exec.Out.TotalWire.bytes";
     public static final String MDC_MATS_COMPLETE_TIME_DB_COMMIT = "mats.exec.DbCommit.ms";
     public static final String MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT = "mats.exec.MsgSysCommit.ms";
 
@@ -356,6 +357,8 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_IN_SIZE_ENVELOPE_SERIAL = "mats.in.EnvelopeSerial.bytes";
     public static final String MDC_MATS_IN_TIME_ENVELOPE_DESERIAL = "mats.in.EnvelopeDeserial.ms";
     public static final String MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL = "mats.in.DataAndStateDeserial.ms";
+
+    public static final String MDC_MATS_IN_SIZE_TOTAL_WIRE = "mats.in.TotalWire.bytes";
     public static final String MDC_MATS_IN_SIZE_STATE_SERIAL = "mats.in.StateSerial.bytes";
     public static final String MDC_MATS_IN_SIZE_DATA_SERIAL = "mats.in.DataSerial.bytes";
 
@@ -522,6 +525,7 @@ public class MatsMetricsLoggingInterceptor
 
             MDC.put(MDC_MATS_IN_SIZE_STATE_SERIAL, Integer.toString(ctx.getStateSerializedSize()));
             MDC.put(MDC_MATS_IN_SIZE_DATA_SERIAL, Integer.toString(ctx.getDataSerializedSize()));
+            MDC.put(MDC_MATS_IN_SIZE_TOTAL_WIRE, Integer.toString(ctx.getMessageSystemTotalWireSize()));
 
             log_stage.info(LOG_PREFIX + "RECEIVED [" + ctx.getIncomingMessageType()
                     + "] message from [" + processContext.getFromStageId()
@@ -564,6 +568,7 @@ public class MatsMetricsLoggingInterceptor
 
             MDC.remove(MDC_MATS_IN_SIZE_STATE_SERIAL);
             MDC.remove(MDC_MATS_IN_SIZE_DATA_SERIAL);
+            MDC.remove(MDC_MATS_IN_SIZE_TOTAL_WIRE);
         }
     }
 
@@ -628,7 +633,7 @@ public class MatsMetricsLoggingInterceptor
             String measure = msS(measurement.getNanos());
             String baseUnit = "ms";
 
-            outputMeasureLogline(logger, "TIMING ", MDC_MATS_COMPLETE_OPS_TIMING_PREFIX, metricId,
+            outputMeasurementLogline(logger, "TIMING ", MDC_MATS_COMPLETE_OPS_TIMING_PREFIX, metricId,
                     baseUnit, measure, metricDescription, labelKeyValue);
         }
         // :: Measurements
@@ -640,12 +645,12 @@ public class MatsMetricsLoggingInterceptor
             String measure = Double.toString(measurement.getMeasure());
             String baseUnit = measurement.getBaseUnit();
 
-            outputMeasureLogline(logger, "MEASURE ", MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX, metricId,
+            outputMeasurementLogline(logger, "MEASURE ", MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX, metricId,
                     baseUnit, measure, metricDescription, labelKeyValue);
         }
     }
 
-    private void outputMeasureLogline(Logger logger, String what, String mdcPrefix, String metricId,
+    private void outputMeasurementLogline(Logger logger, String what, String mdcPrefix, String metricId,
             String baseUnit, String measure, String metricDescription, String[] labelKeyValue) {
         Collection<String> mdcKeysToClear = labelKeyValue.length > 0
                 ? new ArrayList<>()
@@ -750,7 +755,7 @@ public class MatsMetricsLoggingInterceptor
             nanosTaken_SumDtoAndStoSerialNanos += msg.getEnvelopeProduceNanos();
         }
 
-        // :: Subtract the total DtoAndSto Serialization from the user lambda time.
+        // :: Subtract the DtoAndSto Serialization sum from the user lambda time.
         long nanosTaken_UserLambdaAlone = ctx.getUserLambdaNanos() - nanosTaken_SumDtoAndStoSerialNanos;
 
         // :: Sum up the total "message handling": Dto&Sto + envelope serial + msg.sys. handling.
@@ -781,12 +786,18 @@ public class MatsMetricsLoggingInterceptor
             // Add the [init, stage, endpoint, flow]-completed specific MDCs
             completedMDC.forEach(MDC::put);
 
+            int totalWireSize = 0;
+            for (MatsSentOutgoingMessage outgoingMessage : outgoingMessages) {
+                totalWireSize += outgoingMessage.getMessageSystemTotalWireSize();
+            }
+
             MDC.put(MDC_MATS_VERSION, matsVersion);
 
             MDC.put(MDC_MATS_COMPLETE_TIME_TOTAL, msS(ctx.getTotalExecutionNanos()));
             MDC.put(MDC_MATS_COMPLETE_TIME_USER_LAMBDA, msS(nanosTaken_UserLambdaAlone));
             MDC.put(MDC_MATS_COMPLETE_TIME_OUT, msS(nanosTaken_SumMessageOutHandling));
             MDC.put(MDC_MATS_COMPLETE_QUANTITY_OUT, String.valueOf(outgoingMessages.size()));
+            MDC.put(MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE, String.valueOf(totalWireSize));
             MDC.put(MDC_MATS_COMPLETE_TIME_DB_COMMIT, msS(ctx.getDbCommitNanos()));
             MDC.put(MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT, msS(ctx.getMessageSystemCommitNanos()));
 
@@ -862,7 +873,7 @@ public class MatsMetricsLoggingInterceptor
                     + msg.getMessageSystemProduceAndSendNanos();
             MDC.put(MDC_MATS_OUT_TIME_TOTAL, msS(nanosTaken_Total));
 
-            MDC.put(MDC_MATS_OUT_SIZE_TOTAL_WIRE, Integer.toString(msg.getTotalWireSize()));
+            MDC.put(MDC_MATS_OUT_SIZE_TOTAL_WIRE, Integer.toString(msg.getMessageSystemTotalWireSize()));
             MDC.put(MDC_MATS_OUT_SIZE_DATA_SERIAL, Integer.toString(msg.getDataSerializedSize()));
 
             // :: Actually run the Runnable

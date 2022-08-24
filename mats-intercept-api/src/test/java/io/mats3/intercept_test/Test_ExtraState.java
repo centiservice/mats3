@@ -164,35 +164,35 @@ public class Test_ExtraState {
         public void stageReceived(StageReceivedContext context) {
             // If this is Terminator, read extra-state
             if (EPID_TERMINATOR.equals(context.getStage().getStageConfig().getStageId())) {
-                __data1ForTerminator = context.getIncomingExtraState("extra1_to_terminator", DataTO.class).orElse(null);
-                __data2ForTerminator = context.getIncomingExtraState("extra2_to_terminator", DataTO.class).orElse(null);
+                __data1ForTerminator = context.getIncomingSameStackHeightExtraState("extra1_to_terminator", DataTO.class).orElse(null);
+                __data2ForTerminator = context.getIncomingSameStackHeightExtraState("extra2_to_terminator", DataTO.class).orElse(null);
             }
 
             // If FROM Leaf1 (i.e. this is stage1 of Service), read extra-state
             if (EPID_LEAF1.equals(context.getProcessContext().getFromStageId())) {
-                __data1ForServiceStage1 = context.getIncomingExtraState("extra1_to_Service.stage1", DataTO.class)
+                __data1ForServiceStage1 = context.getIncomingSameStackHeightExtraState("extra1_to_Service.stage1", DataTO.class)
                         .orElse(null);
-                __data2ForServiceStage1 = context.getIncomingExtraState("extra2_to_Service.stage1", DataTO.class)
+                __data2ForServiceStage1 = context.getIncomingSameStackHeightExtraState("extra2_to_Service.stage1", DataTO.class)
                         .orElse(null);
             }
 
             // If the incoming next-call to stage 2 (from stage 1), read extra-state
             if (MessageType.NEXT == context.getIncomingMessageType()) {
-                __data1ForServiceStage2 = context.getIncomingExtraState("extra1_to_Service.stage1", DataTO.class)
+                __data1ForServiceStage2 = context.getIncomingSameStackHeightExtraState("extra1_to_Service.stage1", DataTO.class)
                         .orElse(null);
-                __data2ForServiceStage2 = context.getIncomingExtraState("extra2_to_Service.stage1", DataTO.class)
+                __data2ForServiceStage2 = context.getIncomingSameStackHeightExtraState("extra2_to_Service.stage1", DataTO.class)
                         .orElse(null);
-                __data3ForServiceStage2 = context.getIncomingExtraState("extra3_to_Service.nextCall", DataTO.class)
+                __data3ForServiceStage2 = context.getIncomingSameStackHeightExtraState("extra3_to_Service.nextCall", DataTO.class)
                         .orElse(null);
             }
 
             // If FROM Leaf2 (i.e. this is stage3 of Service), read extra-state
             if (EPID_LEAF2.equals(context.getProcessContext().getFromStageId())) {
-                __data1ForServiceStage3 = context.getIncomingExtraState("extra1_to_Service.stage1", DataTO.class)
+                __data1ForServiceStage3 = context.getIncomingSameStackHeightExtraState("extra1_to_Service.stage1", DataTO.class)
                         .orElse(null);
-                __data2ForServiceStage3 = context.getIncomingExtraState("extra2_to_Service.stage1", DataTO.class)
+                __data2ForServiceStage3 = context.getIncomingSameStackHeightExtraState("extra2_to_Service.stage1", DataTO.class)
                         .orElse(null);
-                __data3ForServiceStage3 = context.getIncomingExtraState("extra3_to_Service.nextCall", DataTO.class)
+                __data3ForServiceStage3 = context.getIncomingSameStackHeightExtraState("extra3_to_Service.nextCall", DataTO.class)
                         .orElse(null);
             }
         }

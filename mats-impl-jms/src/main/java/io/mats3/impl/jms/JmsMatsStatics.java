@@ -74,6 +74,15 @@ public interface JmsMatsStatics {
     String JMS_MSG_PROP_INITIATOR_ID = "mats_InitId"; // String
     String JMS_MSG_PROP_TO = "mats_To"; // String (needed if a message ends up on a global/common DLQ)
     String JMS_MSG_PROP_AUDIT = "mats_Audit"; // Boolean
+    int TOTAL_JMS_MSG_PROPS_SIZE = JMS_MSG_PROP_TRACE_ID.length()
+            + JMS_MSG_PROP_MATS_MESSAGE_ID.length()
+            + JMS_MSG_PROP_DISPATCH_TYPE.length()
+            + JMS_MSG_PROP_MESSAGE_TYPE.length()
+            + JMS_MSG_PROP_FROM.length()
+            + JMS_MSG_PROP_INITIALIZING_APP.length()
+            + JMS_MSG_PROP_INITIATOR_ID.length()
+            + JMS_MSG_PROP_TO.length()
+            + JMS_MSG_PROP_AUDIT.length();
 
     /**
      * Number of milliseconds to "extra wait" after timeoutMillis or gracefulShutdownMillis is gone.

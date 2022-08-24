@@ -347,13 +347,13 @@ public class LocalStatsMatsInterceptor
         if ((!stageStats.isInitial()) &&
                 ((incomingMessageType == MessageType.REPLY) || (incomingMessageType == MessageType.NEXT))) {
             // -> Yes, so then we should have extra-state for the time the previous stage's request/send happened
-            String requestNodename = i_context.getIncomingExtraState(EXTRA_STATE_REQUEST_NODENAME, String.class)
+            String requestNodename = i_context.getIncomingSameStackHeightExtraState(EXTRA_STATE_REQUEST_NODENAME, String.class)
                     .orElse(null);
             boolean sameNode = stage.getParentEndpoint().getParentFactory().getFactoryConfig().getNodename()
                     .equals(requestNodename);
             // ?: Is this the same node? (Only record if so, since we know that there must be such timings)
             if (sameNode) {
-                long requestNanoTime = i_context.getIncomingExtraState(EXTRA_STATE_REQUEST_NANOS, Long.class)
+                long requestNanoTime = i_context.getIncomingSameStackHeightExtraState(EXTRA_STATE_REQUEST_NANOS, Long.class)
                         .orElse(0L);
                 stageStats.recordBetweenStagesTimeNanos(System.nanoTime() - requestNanoTime);
             }
@@ -371,7 +371,7 @@ public class LocalStatsMatsInterceptor
                 // ?: Is this from the same app?
                 if (initiatedOnSameApp) {
                     // -> Yes, initiated and received on same app - then only use if same nodename
-                    String initiatorNodename = i_context.getIncomingExtraState(
+                    String initiatorNodename = i_context.getIncomingSameStackHeightExtraState(
                             EXTRA_STATE_OR_SIDELOAD_INITIATOR_NODENAME, String.class).orElse(null);
                     boolean sameNode = stage.getParentEndpoint().getParentFactory().getFactoryConfig()
                             .getNodename().equals(initiatorNodename);
@@ -379,7 +379,7 @@ public class LocalStatsMatsInterceptor
                     // ?: Is this the same node? (Only record if so, since we know that there must be such timings)
                     if (sameNode) {
                         // -> Yes, same node, and should thus also have extra-state present
-                        Long initiatedNanoTime = i_context.getIncomingExtraState(
+                        Long initiatedNanoTime = i_context.getIncomingSameStackHeightExtraState(
                                 EXTRA_STATE_OR_SIDELOAD_INITIATOR_NANOS, Long.class).orElse(0L);
                         long nanosSinceInit = System.nanoTime() - initiatedNanoTime;
                         endpointStats.recordInitiatorToTerminatorTimeNanos(incomingMessageRepresentation,
@@ -484,13 +484,13 @@ public class LocalStatsMatsInterceptor
             }
             else {
                 // -> No, not initial stage, been through one or more request/reply calls
-                String enterNodename = context.getIncomingExtraState(EXTRA_STATE_ENDPOINT_ENTER_NODENAME, String.class)
+                String enterNodename = context.getIncomingSameStackHeightExtraState(EXTRA_STATE_ENDPOINT_ENTER_NODENAME, String.class)
                         .orElse(null);
                 // ?: Was the initial message on the same node as this processing?
                 if (stage.getParentEndpoint().getParentFactory().getFactoryConfig().getNodename().equals(
                         enterNodename)) {
                     // -> Yes, same node - so then the System.nanoTime() is relevant to compare
-                    Long enterNanoTime = context.getIncomingExtraState(EXTRA_STATE_ENDPOINT_ENTER_NANOS, Long.class)
+                    Long enterNanoTime = context.getIncomingSameStackHeightExtraState(EXTRA_STATE_ENDPOINT_ENTER_NANOS, Long.class)
                             .orElse(0L);
                     endpointStats.recordTotalEndpointProcessingTimeNanos(System.nanoTime() - enterNanoTime);
                 }
