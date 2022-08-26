@@ -18,10 +18,10 @@ import io.mats3.MatsStage.StageConfig;
 /**
  * Represents a MATS Endpoint - you create instances from the {@link MatsFactory} (or use the Spring integration).
  * <p />
- * Note: It should be possible to use instances of <code>MatsEndpoint</code> as keys in a <code>HashMap</code>, i.e.
- * their equals and hashCode should remain stable throughout the life of the MatsFactory - and similar instances but
- * with different MatsFactory are <i>not</i> equals. Depending on the implementation, instance equality may be
- * sufficient.
+ * <i>Implementation Note: It shall be possible to use instances of <code>MatsEndpoint</code> as keys in a
+ * <code>HashMap</code>, i.e. their equals and hashCode should remain stable throughout the life of the MatsFactory -
+ * and similar instances but with different MatsFactory are <i>not</i> equals. Depending on the implementation, instance
+ * equality may be sufficient.</i>
  *
  * @author Endre Stølsvik - 2015-07-11 - http://endre.stolsvik.com
  */
@@ -829,10 +829,11 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * more than once, only the last Runnable will be run. If you set it to <code>null</code>, you "cancel" any
          * previously set Runnable.
          * <p />
-         * Note: If any Exception is raised from the code after the Runnable has been set, or any Exception is raised by
-         * the processing or committing, the Runnable will not be run.
+         * Note: If any Exception is raised from the stage lambda code after the Runnable has been set, or any Exception
+         * is raised by the processing or committing, the Runnable will not be run.
          * <p />
-         * Note: If the Runnable throws a {@link RuntimeException}, it will be logged on ERROR level, then ignored.
+         * Note: If the <code>doAfterCommit</code> Runnable throws a {@link RuntimeException}, it will be logged on
+         * ERROR level, then ignored.
          *
          * @param runnable
          *            the code to run right after the transaction of both external resources and messaging has been

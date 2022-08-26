@@ -16,18 +16,18 @@ import io.mats3.MatsFactory.MatsWrapper;
  * Provides the means to get hold of a {@link MatsInitiate} instance for initiating Mats message flows: You fetch an
  * instance implementing this interface using typically {@link MatsFactory#getDefaultInitiator()}, and then invoke
  * {@link #initiate(InitiateLambda)}, where the lambda will provide you with the necessary {@link MatsInitiate} instance
- * on which you have methods to construct and dispatch "send" and "request" Messages.
- * <p />
+ * on which you have methods to construct and dispatch e.g. "send" and "request" Messages.
+ * <p/>
  * <b>Notice: This class is Thread Safe</b> - you are not supposed to make one instance per message initiation, but
  * rather make one (or a few) for the entire application, and use it/them for all your initiation needs. The mentioned
  * {@link MatsFactory#getDefaultInitiator()} is what you typically want to use, get the instance, and keep it to perform
- * all your Mats initiations. E.g. in a Spring system, you'd typically put it in the Spring context, and inject it where
- * ever there is a need to perform Mats initiations.
- * <p />
- * Note: It should be possible to use instances of <code>MatsInitiator</code> as keys in a <code>HashMap</code>, i.e.
- * their equals and hashCode should remain stable throughout the life of the MatsFactory - and similar instances but
- * with different MatsFactory are <i>not</i> equals. Depending on the implementation, instance equality may be
- * sufficient.
+ * all your Mats initiations. For example, in a Spring-based service, you'd typically put it in the Spring context, and
+ * inject it where ever there is a need to perform Mats initiations.
+ * <p/>
+ * <i>Implementation Note: It shall be possible to use instances of <code>MatsInitiator</code> as keys in a
+ * <code>HashMap</code>, i.e. their equals and hashCode should remain stable throughout the life of the MatsFactory -
+ * and similar instances but with different MatsFactory are <i>not</i> equals. Depending on the implementation, instance
+ * equality may be sufficient.</i>
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
@@ -201,16 +201,20 @@ public interface MatsInitiator extends Closeable {
     void close();
 
     /**
-     * You must have access to an instance of this interface to initiate a MATS process.
-     * <p />
-     * To initiate a message "from the outside", i.e. from synchronous application code, get it by invoking
-     * {@link MatsFactory#getDefaultInitiator()}, and then {@link MatsInitiator#initiate(InitiateLambda)} on that.
-     * <p />
+     * An implementation of this interface is given to you when you want to initiate a new Mats Flow. It is the argument
+     * given to the {@link InitiateLambda#initiate(MatsInitiate) InitiateLambda.initiate(..)} lambda you implement.
+     * <p/>
+     * To initiate a message "from the outside", i.e. from synchronous application code, you must get a
+     * {@link MatsInitiator}, e.g. by invoking {@link MatsFactory#getDefaultInitiator()}, and then invoke
+     * {@link MatsInitiator#initiate(InitiateLambda) matsInitiator.initiate(..)} on that.
+     * <p/>
      * To initiate a new message "from the inside", i.e. while already inside a {@link MatsStage processing stage} of an
-     * endpoint, get it by invoking {@link ProcessContext#initiate(InitiateLambda)}. (Notice that initiating a
-     * <i>new</i> message flow from within a processing stage is a much less common operation than performing a
-     * {@link ProcessContext#request(String, Object) request} and other "call flow" operations. Initiating a new message
-     * from within a processing stage is effectively a "fork" from the flow you are in.)
+     * endpoint, you use the initiate method on the stage lambda's ProcessContext:
+     * {@link ProcessContext#initiate(InitiateLambda) processContext.initiate(..)}. (Notice that initiating a <i>new</i>
+     * Mats Flow from within a processing stage is a much less common operation than performing a
+     * {@link ProcessContext#request(String, Object) request}, {@link ProcessContext#reply(Object) reply}, and other
+     * calls on the existing Mats Flow. Initiating a new message from within a processing stage is effectively a fork of
+     * the Mats Flow you are in.)
      *
      * @author Endre Stølsvik - 2015-07-11 - http://endre.stolsvik.com
      */
