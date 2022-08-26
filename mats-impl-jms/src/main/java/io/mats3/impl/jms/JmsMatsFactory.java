@@ -36,8 +36,6 @@ import io.mats3.api.intercept.MatsInitiateInterceptor;
 import io.mats3.api.intercept.MatsInitiateInterceptor.InitiateInterceptContext;
 import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsInterceptableMatsFactory;
-import io.mats3.api.intercept.MatsLoggingInterceptor;
-import io.mats3.api.intercept.MatsMetricsInterceptor;
 import io.mats3.api.intercept.MatsStageInterceptor;
 import io.mats3.api.intercept.MatsStageInterceptor.StageInterceptContext;
 import io.mats3.impl.jms.JmsMatsInitiator.MatsInitiator_TxRequired;

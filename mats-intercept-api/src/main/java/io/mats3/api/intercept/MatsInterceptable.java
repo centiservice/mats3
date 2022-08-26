@@ -6,7 +6,7 @@ import java.util.Optional;
 /**
  * Specifies methods that an interceptable MatsFactory must provide.
  *
- * @author Endre Stølsvik - 2021-02-07 - http://endre.stolsvik.com
+ * @author Endre Stølsvik - 2021-02-07 & 2021-02-19 13:18 - http://endre.stolsvik.com
  */
 public interface MatsInterceptable {
     // ===== Initiation
@@ -28,4 +28,18 @@ public interface MatsInterceptable {
     <T extends MatsStageInterceptor> Optional<T> getStageInterceptor(Class<T> interceptorClass);
 
     void removeStageInterceptor(MatsStageInterceptor stageInterceptor);
+
+    /**
+     * Marker interface to denote a logging interceptor. The MatsFactory will only allow one such singleton interceptor,
+     * and remove any previously installed when installing another.
+     */
+    interface MatsLoggingInterceptor {
+    }
+
+    /**
+     * Marker interface to denote a metrics interceptor. The MatsFactory will only allow one such singleton interceptor,
+     * and remove any previously installed when installing another.
+     */
+    interface MatsMetricsInterceptor {
+    }
 }

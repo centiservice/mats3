@@ -23,7 +23,7 @@ import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
 import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsInterceptableMatsFactory;
-import io.mats3.api.intercept.MatsMetricsInterceptor;
+import io.mats3.api.intercept.MatsInterceptable.MatsMetricsInterceptor;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor;
