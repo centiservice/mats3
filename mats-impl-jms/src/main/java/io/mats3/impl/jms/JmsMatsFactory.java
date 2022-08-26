@@ -758,7 +758,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     @Override
     public boolean stop(int gracefulShutdownMillis) {
         log.info(LOG_PREFIX + "Stopping [" + idThis()
-                + "], thus stopping/closing all created endpoints and initiators.");
+                + "], thus stopping/closing all created endpoints and initiators."
+                + " Graceful shutdown millis: ["+gracefulShutdownMillis+"].");
         boolean stopped = JmsMatsStartStoppable.super.stop(gracefulShutdownMillis);
 
         for (MatsInitiator initiator : getInitiators()) {
@@ -774,8 +775,13 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         }
 
         // :: "Closing the JMS pool"; closing all available SessionHolder, which should lead to the Connections closing.
-        _jmsMatsJmsSessionHandler.closeAllAvailableSessions();
-        return stopped;
+        int liveConnectionsAfter = _jmsMatsJmsSessionHandler.closeAllAvailableSessions();
+        if (liveConnectionsAfter > 0) {
+            log.warn(LOG_PREFIX + "We evidently didn't manage to close all JMS Sessions, and there are still ["
+                    + liveConnectionsAfter + "] live JMS Connections present. This isn't ideal,"
+                    + " and you should figure out why.");
+        }
+        return stopped && (liveConnectionsAfter == 0);
     }
 
     @Override
@@ -806,7 +812,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
             }
             String idBefore = idThis();
             _name = name;
-            log.info(LOG_PREFIX + "Set name to [" + name + "] for [" + idBefore + "], new id: [" + idThis() + "].");
+            log.info(LOG_PREFIX + "Set MatsFactory name to [" + name + "], previously [" + idBefore + "]"
+                    + " - new id: [" + idThis() + "].");
             return this;
         }
 

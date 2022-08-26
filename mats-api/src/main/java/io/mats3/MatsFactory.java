@@ -367,6 +367,9 @@ public interface MatsFactory extends StartStoppable {
      * individually, or all at once by invoking {@link #start()}
      * <p/>
      * Should be invoked at application shutdown.
+     *
+     * @return <code>true</code> if all Endpoints (incl. e.g. threads) and resources (e.g. JMS Connections) closed
+     *         successfully.
      */
     @Override
     boolean stop(int gracefulShutdownMillis);
