@@ -7,12 +7,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.mats3.MatsFactory.FactoryConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import io.mats3.MatsEndpoint.ProcessContext;
+import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsInitiator;
 import io.mats3.api.intercept.CommonCompletedContext;
 import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
@@ -71,15 +71,18 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <ul>
  * <li><b>{@link #MDC_MATS_VERSION "mats.Version"}</b>: Mats implementation version, as gotten by
  * {@link FactoryConfig#getMatsImplementationVersion()}.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"}</b>: Total time taken for the
- * initiation to complete - including both user code and all system code including commits.</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"}</b>: Total time taken for the initiation to
+ * complete - including both user code and all system code including commits.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Part of total time taken for the
  * actual user lambda, including e.g. any external IO like DB, but excluding all system code, in particular message
  * creation, and commits.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_OUT "mats.exec.Out.ms"}</b>: Part of total time taken for the creation and
  * serialization of Mats messages, and production <i>and sending</i> of "message system messages" (e.g. creating and
- * populating JMS Message plus <code>jmsProducer.send(..)</code> for the JMS implementation)</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Number of messages sent</li>
+ * populating JMS Message plus <code>jmsProducer.send(..)</code> for the JMS implementation).</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Number of messages sent in this
+ * initiation.</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE "mats.exec.Out.TotalWire.bytes"}</b>: The sum of
+ * {@link #MDC_MATS_OUT_SIZE_TOTAL_WIRE} for all messages sent in this initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Part of total time taken for committing
  * DB.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Part of total time taken for
@@ -157,6 +160,17 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * deserialize the incoming serialized Mats envelope.</li>
  * <li><b>{@link #MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL "mats.in.DataAndStateDeserial.ms"}</b>: Part of total time
  * taken to deserialize the data and state objects (DTO and STO) from the Mats envelope.</li>
+ * <li><b>{@link #MDC_MATS_IN_SIZE_TOTAL_WIRE "mats.in.TotalWire.bytes"}</b>: Best approximation of the total message
+ * system wire size (envelope + sideloads + any meta info set on the message). The overhead of the message system itself
+ * will probably not be included.</li>
+ * <li><b>{@link #MDC_MATS_IN_SIZE_STATE_SERIAL "mats.in.StateSerial.bytes"}</b>: The serialized size of the incoming
+ * state object (STO). If there is no incoming state, <code>0</code> is returned - this is normal for initial stage of
+ * an endpoint, unless an initiation sets initialState. If the serializer employs Strings, the returned value is
+ * <code>String.length()</code>, which might not exactly be the number of bytes depending on the String contents.</li>
+ * <li><b>{@link #MDC_MATS_IN_SIZE_DATA_SERIAL "mats.in.DataSerial.bytes"}</b>: The serialized size of the incoming data
+ * object (DTO). Note that <code>null</code> might not return <code>0</code> bytes, depending on how the serializer
+ * works. If the serializer employs Strings, the returned value is <code>String.length()</code>, which might not exactly
+ * be the number of bytes depending on the String contents.</li>
  * </ul>
  *
  *
@@ -174,8 +188,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * the reception of a message):
  * <ul>
  * <li><b>{@link #MDC_MATS_VERSION "mats.Version"}</b>: Same as for initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.TotalExecution.ms"}</b>: Total time taken for the
- * stage to complete - including both user code and all system code including commits.</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.TotalExecution.ms"}</b>: Total time taken for the stage to
+ * complete - including both user code and all system code including commits.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.exec.TotalPreprocDeserial.ms"}</b>: Part of
  * the total time taken for the preprocessing and deserialization of the incoming message, same as the message received
  * logline's {@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.in.TotalPreprocDeserial.ms"}, as that piece is
@@ -183,6 +197,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_OUT "mats.exec.Out.ms"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Same as for initiation.</li>
+ * <li><b>{@link #MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE "mats.exec.Out.TotalWire.bytes"}</b>: Same as for
+ * initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Same as for initiation</li>
  * </ul>
@@ -260,8 +276,19 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * to compress the serialized Mats envelope</li>
  * <li><b>{@link #MDC_MATS_OUT_SIZE_ENVELOPE_WIRE "mats.out.EnvelopeWire.bytes"}</b>: Size of the compressed serialized
  * Mats envelope.</li>
- * <li><b>{@link #MDC_MATS_OUT_TIME_MSGSYS "mats.out.MsgSys.ms"}</b>: Part of the total time taken to produce and
- * send the message system message.</li>
+ * <li><b>{@link #MDC_MATS_OUT_TIME_MSGSYS "mats.out.MsgSys.ms"}</b>: Part of the total time taken to produce and send
+ * the message system message.</li>
+ * <li><b>{@link #MDC_MATS_OUT_SIZE_TOTAL_WIRE "mats.out.TotalWire.bytes"}</b>: Best approximation of the total message
+ * system wire size (envelope + sideloads + any meta info set on the message). The overhead of the message system itself
+ * will probably not be included.</li>
+ * <li><b>{@link #MDC_MATS_OUT_SIZE_DATA_SERIAL "mats.out.DataSerial.bytes"}</b>: The serialized size of the outgoing
+ * data object (DTO). Note that <code>null</code> might not return <code>0</code> bytes, depending on how the serializer
+ * works. If the serializer employs Strings, the returned value is <code>String.length()</code>, which might not exactly
+ * be the number of bytes depending on the String contents.</li></li>
+ * <li><i>NOTICE: NOT using <code>"mats.out.DataSerial.bytes"</code>, as it felt confusing what any outgoing state
+ * relates to: It is not the target/receiving stage, as specified in {@link #MDC_MATS_OUT_TO_ID}. The outgoing state (if
+ * any) is a part of the stack, and relates to the next stage of the current endpoint. However, this metric is available
+ * on the incoming side, via {@link #MDC_MATS_IN_SIZE_STATE_SERIAL}.</i></li>
  * </ul>
  *
  * <b>Note:</b> Both Initiation and Stage completed can produce messages. For the very common case where this is just a
