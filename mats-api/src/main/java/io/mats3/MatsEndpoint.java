@@ -524,7 +524,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * have the same method on the {@link MatsInitiate} instance. The functionality effectively acts like a
          * {@link ThreadLocal} when compared to normal java method invocations: If the Initiator adds it, all subsequent
          * stages will see it, on any stack level, including the terminator. If a stage in a service nested some levels
-         * down in the stack adds it, it will be present in all subsequent stages including all the way up to the
+         * down in the stack adds it, it will be present in all subsequent stages including all the way to the
          * Terminator. Note that any initiations within a Stage will also inherit trace properties present on the
          * Stage's incoming message.
          * <p />

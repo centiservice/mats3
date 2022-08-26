@@ -575,7 +575,7 @@ public interface MatsFactory extends StartStoppable {
         String getNodename();
 
         /**
-         * @return the Mats Implementation version.
+         * @return the Mats Implementation name.
          */
         String getMatsImplementationName();
 

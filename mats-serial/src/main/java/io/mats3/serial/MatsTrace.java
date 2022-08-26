@@ -490,7 +490,7 @@ public interface MatsTrace<Z> {
         enum CallType {
             REQUEST,
 
-            SEND,
+            SEND, // Also used for Publish as it is technically the same, just sent over a topic
 
             NEXT,
 
