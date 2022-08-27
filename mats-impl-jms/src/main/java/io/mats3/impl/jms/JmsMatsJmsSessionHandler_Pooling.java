@@ -195,7 +195,8 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
                 + "] with total Employed Sessions:[" + employedSessions + "], and total Available Sessions:["
                 + availableSessionsNowClosed + "] -> After: All Available Sessions closed, resulting in Live"
                 + " ConnectionWithPools:[" + liveConnectionsWithPoolAfter + "]. NOTE: Employed Sessions hinders their"
-                + " ConnectionWithPool and thus the pool's JMS Connection from being closed.");
+                + " ConnectionWithPool from being cleaned fully, and thus hinders the pool's JMS Connection from being"
+                + " closed.");
 
         return liveConnectionsWithPoolAfter;
     }

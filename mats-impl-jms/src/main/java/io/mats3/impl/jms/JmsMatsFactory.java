@@ -722,6 +722,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         for (MatsEndpoint<?, ?> endpoint : getEndpoints()) {
             endpoint.waitForReceiving(10_000);
         }
+        log.info(LOG_PREFIX + "Done. Started [" + idThis() + "], and all endpoints' all stages have entered their"
+                + " receive-loop.");
     }
 
     @Override
@@ -760,7 +762,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     public boolean stop(int gracefulShutdownMillis) {
         log.info(LOG_PREFIX + "Stopping [" + idThis()
                 + "], thus stopping/closing all created endpoints and initiators."
-                + " Graceful shutdown millis: ["+gracefulShutdownMillis+"].");
+                + " Graceful shutdown millis: [" + gracefulShutdownMillis + "].");
         boolean stopped = JmsMatsStartStoppable.super.stop(gracefulShutdownMillis);
 
         for (MatsInitiator initiator : getInitiators()) {

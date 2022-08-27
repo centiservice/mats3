@@ -160,7 +160,7 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
                             .getOrCreateInitiator_internal(JmsMatsFactory.DEFAULT_INITIATOR_NAME));
             Session session = sessionHolder.getSession();
             // We should start the interactive stage processors UNLESS the underlying JMS Client is RabbitMQ.
-            shouldStartInteractiveStageProcessors = ! session.getClass().getName().contains(".rabbitmq.");
+            shouldStartInteractiveStageProcessors = !session.getClass().getName().contains(".rabbitmq.");
             sessionHolder.release();
         }
         catch (JmsMatsJmsException e) {

@@ -301,7 +301,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * are in the "combined" form (e.g. initiation producing a single message), and for log lines for individual messages
  * (i.e. where an initiation produced two messages, which results in three log lines: 1 for the initiation, and 2 for
  * the messages).
- * <p />
+ * <p/>
  * <b>Note: This interceptor (SLF4J Logger with Metrics on MDC) has special support in <code>JmsMatsFactory</code>: If
  * present on the classpath, it is automatically installed using the {@link #install(MatsInterceptable)} install
  * method.</b> This interceptor implements the special marker-interface {@link MatsLoggingInterceptor} of which there
@@ -353,6 +353,7 @@ public class MatsMetricsLoggingInterceptor
 
     // !!! Note that these MDCs are already set by JmsMats core: !!!
     // MDC_MATS_INIT = "mats.Init"; // 'true' on any loglines involving Initialization (also within Stages)
+    // MDC_TRACE_ID = "traceId" // Set as soon as the user code sets it on the initialization.
 
     // ============================================================================================================
     // ===== For Receiving a message
@@ -377,6 +378,7 @@ public class MatsMetricsLoggingInterceptor
     // Notice that metric this is susceptible to time skews between nodes.
     public static final String MDC_MATS_IN_TIME_SINCE_PRECEDING_ENDPOINT_STAGE = "mats.in.PrecedEpStage.ms";
 
+    public static final String MDC_MATS_IN_SIZE_TOTAL_WIRE = "mats.in.TotalWire.bytes";
     public static final String MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL = "mats.in.TotalPreprocDeserial.ms";
     public static final String MDC_MATS_IN_TIME_MSGSYS_DECONSTRUCT = "mats.in.MsgSysDeconstruct.ms";
     public static final String MDC_MATS_IN_SIZE_ENVELOPE_WIRE = "mats.in.EnvelopeWire.bytes";
@@ -384,8 +386,6 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_IN_SIZE_ENVELOPE_SERIAL = "mats.in.EnvelopeSerial.bytes";
     public static final String MDC_MATS_IN_TIME_ENVELOPE_DESERIAL = "mats.in.EnvelopeDeserial.ms";
     public static final String MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL = "mats.in.DataAndStateDeserial.ms";
-
-    public static final String MDC_MATS_IN_SIZE_TOTAL_WIRE = "mats.in.TotalWire.bytes";
     public static final String MDC_MATS_IN_SIZE_STATE_SERIAL = "mats.in.StateSerial.bytes";
     public static final String MDC_MATS_IN_SIZE_DATA_SERIAL = "mats.in.DataSerial.bytes";
 
@@ -447,13 +447,13 @@ public class MatsMetricsLoggingInterceptor
 
     // ... Metrics:
     public static final String MDC_MATS_OUT_TIME_TOTAL = "mats.out.Total.ms";
-    public static final String MDC_MATS_OUT_SIZE_TOTAL_WIRE = "mats.out.TotalWire.bytes";
     public static final String MDC_MATS_OUT_SIZE_DATA_SERIAL = "mats.out.DataSerial.bytes";
     public static final String MDC_MATS_OUT_TIME_ENVELOPE_PRODUCE = "mats.out.EnvelopeProduce.ms";
     public static final String MDC_MATS_OUT_TIME_ENVELOPE_SERIAL = "mats.out.EnvelopeSerial.ms";
     public static final String MDC_MATS_OUT_SIZE_ENVELOPE_SERIAL = "mats.out.EnvelopeSerial.bytes";
     public static final String MDC_MATS_OUT_TIME_ENVELOPE_COMPRESS = "mats.out.EnvelopeCompress.ms";
     public static final String MDC_MATS_OUT_SIZE_ENVELOPE_WIRE = "mats.out.EnvelopeWire.bytes";
+    public static final String MDC_MATS_OUT_SIZE_TOTAL_WIRE = "mats.out.TotalWire.bytes";
     public static final String MDC_MATS_OUT_TIME_MSGSYS = "mats.out.MsgSys.ms";
 
     // ============================================================================================================

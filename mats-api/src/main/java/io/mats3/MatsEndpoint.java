@@ -262,17 +262,19 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
 
         /**
          * Sets the origin for this Endpoint, i.e. where it was created. Use this to set something sane if the
-         * {@link #getOrigin() automatically created creation info} is useless. It should be a single line, no line
-         * feeds, but tooling might split the String into multiple lines on the character ';'. It should definitely be
-         * short, but informative.
+         * {@link #getOrigin() automatically created creation info} is useless, as it is when Mats' SpringConfig defines
+         * the endpoints (thus it employs this method to set something more informative). It should be a single line, no
+         * line feeds, but tooling might split the String into multiple lines on the character ';'. It should definitely
+         * be short, but informative.
          */
         EndpointConfig<R, S> setOrigin(String info);
 
         /**
          * @return some human-interpretable information about where in the codebase this Endpoint was created. If this
          *         is displayed in a multi-line capable situation, you should split on ';'. An attempt at some automatic
-         *         creation is performed, based on creating an exception and introspecting the result. If this doesn't
-         *         yield any good result, it might be overridden by {@link #setOrigin(String)}.
+         *         creation is performed, based on instantiating an exception and introspecting the result. If this
+         *         doesn't yield any good result, it can be overridden by {@link #setOrigin(String)}, as is done by
+         *         Mats' SpringConfig.
          */
         String getOrigin();
 
