@@ -314,8 +314,11 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
 public class MatsMetricsLoggingInterceptor
         implements MatsLoggingInterceptor, MatsInitiateInterceptor, MatsStageInterceptor {
 
-    public static final Logger log_init = LoggerFactory.getLogger("io.mats3.log.init");
-    public static final Logger log_stage = LoggerFactory.getLogger("io.mats3.log.stage");
+    public static final String LOG_INIT_NAME = "io.mats3.log.init";
+    public static final String LOG_STAGE_NAME = "io.mats3.log.stage";
+
+    protected static final Logger log_init = LoggerFactory.getLogger(LOG_INIT_NAME);
+    protected static final Logger log_stage = LoggerFactory.getLogger(LOG_STAGE_NAME);
 
     public static final String LOG_PREFIX = "#MATSLOG# ";
 
@@ -650,7 +653,7 @@ public class MatsMetricsLoggingInterceptor
                 outgoingMessages, messageSenderName, extraBreakdown, extraNanosBreakdown, completedMDC);
     }
 
-    private void outputMeasurementsLoglines(Logger logger, CommonCompletedContext ctx) {
+    protected void outputMeasurementsLoglines(Logger logger, CommonCompletedContext ctx) {
         // :: Timings
         for (MatsTimingMeasurement measurement : ctx.getTimingMeasurements()) {
             String metricId = measurement.getMetricId();
@@ -677,7 +680,7 @@ public class MatsMetricsLoggingInterceptor
         }
     }
 
-    private void outputMeasurementLogline(Logger logger, String what, String mdcPrefix, String metricId,
+    protected void outputMeasurementLogline(Logger logger, String what, String mdcPrefix, String metricId,
             String baseUnit, String measure, String metricDescription, String[] labelKeyValue) {
         Collection<String> mdcKeysToClear = labelKeyValue.length > 0
                 ? new ArrayList<>()
@@ -722,7 +725,7 @@ public class MatsMetricsLoggingInterceptor
         }
     }
 
-    private void commonStageAndInitiateCompleted(CommonCompletedContext ctx, String matsVersion, String extraResult,
+    protected void commonStageAndInitiateCompleted(CommonCompletedContext ctx, String matsVersion, String extraResult,
             Logger logger, List<MatsSentOutgoingMessage> outgoingMessages, String messageSenderName,
             String extraBreakdown, long extraNanosBreakdown, Map<String, String> completedMDC) {
 
@@ -763,11 +766,11 @@ public class MatsMetricsLoggingInterceptor
         }
     }
 
-    private enum Level {
+    protected enum Level {
         INFO, ERROR
     }
 
-    private void completedLog(CommonCompletedContext ctx, String matsVersion, String logPrefix, String extraBreakdown,
+    protected void completedLog(CommonCompletedContext ctx, String matsVersion, String logPrefix, String extraBreakdown,
             long extraNanosBreakdown, List<MatsSentOutgoingMessage> outgoingMessages, Level level, Logger log,
             Throwable t, String logPostfix, Map<String, String> completedMDC) {
 
@@ -866,7 +869,7 @@ public class MatsMetricsLoggingInterceptor
         }
     }
 
-    private void msgMdcLog(MatsSentOutgoingMessage msg, Runnable runnable) {
+    protected void msgMdcLog(MatsSentOutgoingMessage msg, Runnable runnable) {
         String existingTraceId = MDC.get(MDC_TRACE_ID);
         try {
             MDC.put(MDC_TRACE_ID, msg.getTraceId());
@@ -943,7 +946,7 @@ public class MatsMetricsLoggingInterceptor
         }
     }
 
-    private String msgLogLine(String messageSenderName, MatsSentOutgoingMessage msg) {
+    protected String msgLogLine(String messageSenderName, MatsSentOutgoingMessage msg) {
         long nanosTaken_Total = msg.getEnvelopeProduceNanos()
                 + msg.getEnvelopeSerializationNanos()
                 + msg.getEnvelopeCompressionNanos()
@@ -962,7 +965,7 @@ public class MatsMetricsLoggingInterceptor
                 + " ms]";
     }
 
-    private static String msS(long nanosTake) {
+    protected static String msS(long nanosTake) {
         return Double.toString(ms(nanosTake));
     }
 
@@ -972,11 +975,11 @@ public class MatsMetricsLoggingInterceptor
      * 0.0001, 1e-4, as a special value). Takes care of handling the difference between 0 and >0 nanoseconds when
      * rounding - in that 1 nanosecond will become 0.0001 (1e-4 ms, which if used to measure things that are really
      * short lived might be magnitudes wrong), while 0 will be 0.0 exactly. Note that printing of a double always
-     * include the ".0" (unless scientific notation kicks in), which can lead your interpretation slightly astray wrt.
-     * accuracy/significant digits when running this over e.g. the number 555_555_555, which will print as "556.0", and
-     * 5_555_555_555 prints "5560.0".
+     * include the at least one decimal (unless scientific notation kicks in), which can lead your interpretation
+     * slightly astray wrt. accuracy/significant digits when running this over e.g. nanos 555_555_555, which will
+     * print as "556.0" (milliseconds), and 5_555_555_555 prints "5560.0".
      */
-    private static double ms(long nanosTaken) {
+    protected static double ms(long nanosTaken) {
         if (nanosTaken == 0) {
             return 0.0;
         }
