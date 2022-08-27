@@ -3,6 +3,7 @@ package io.mats3.impl.jms;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -12,7 +13,6 @@ import javax.jms.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.mats3.MatsConfig;
 import io.mats3.MatsEndpoint.ProcessLambda;
 import io.mats3.MatsStage;
 import io.mats3.impl.jms.JmsMatsException.JmsMatsJmsException;
@@ -230,6 +230,7 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
     }
 
     private class JmsStageConfig implements StageConfig<R, S, I> {
+        private ConcurrentHashMap<String, Object> _attributes = new ConcurrentHashMap<>();
         private int _concurrency;
         private String _creationInfo;
 
@@ -258,6 +259,12 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         }
 
         @Override
+        @SuppressWarnings("unchecked")
+        public <T> T getAttribute(String name) {
+            return (T) _attributes.get(name);
+        }
+
+        @Override
         public int getRunningStageProcessors() {
             return _stageProcessors.size();
         }
@@ -274,6 +281,12 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         @Override
         public String getOrigin() {
             return _creationInfo;
+        }
+
+        @Override
+        public StageConfig<R, S, I> setAttribute(String name, Object object) {
+            _attributes.put(name, object);
+            return this;
         }
 
         @Override

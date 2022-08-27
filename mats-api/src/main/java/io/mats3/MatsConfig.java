@@ -57,6 +57,10 @@ public interface MatsConfig {
      */
     boolean isRunning();
 
+    MatsConfig setAttribute(String name, Object object);
+
+    <T> T getAttribute(String name);
+
     /**
      * All three of {@link MatsFactory}, {@link MatsEndpoint} and {@link MatsStage} implements this interface.
      */

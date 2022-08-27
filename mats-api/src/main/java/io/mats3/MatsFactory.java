@@ -610,6 +610,10 @@ public interface MatsFactory extends StartStoppable {
 
         // Overridden to return the more specific FactoryConfig instead of MatsConfig
         @Override
+        FactoryConfig setAttribute(String name, Object object);
+
+        // Overridden to return the more specific FactoryConfig instead of MatsConfig
+        @Override
         FactoryConfig setConcurrency(int concurrency);
     }
 

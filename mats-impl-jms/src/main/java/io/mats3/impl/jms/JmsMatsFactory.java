@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -805,6 +806,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     }
 
     private class JmsMatsFactoryConfig implements FactoryConfig {
+        private ConcurrentHashMap<String, Object> _attributes = new ConcurrentHashMap<>();
+
         @Override
         public FactoryConfig setName(String name) {
             if (name == null) {
@@ -894,6 +897,12 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         }
 
         @Override
+        @SuppressWarnings("unchecked")
+        public <T> T getAttribute(String name) {
+            return (T) _attributes.get(name);
+        }
+
+        @Override
         public String getAppName() {
             return _appName;
         }
@@ -934,6 +943,12 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
                         + " instantiate class [" + type + "] MatsSerializer: ["
                         + _matsSerializer + "].", t);
             }
+        }
+
+        @Override
+        public FactoryConfig setAttribute(String name, Object object) {
+            _attributes.put(name, object);
+            return this;
         }
     }
 }

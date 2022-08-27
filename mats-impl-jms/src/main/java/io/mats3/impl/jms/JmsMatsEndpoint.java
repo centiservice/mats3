@@ -3,6 +3,7 @@ package io.mats3.impl.jms;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
@@ -216,6 +217,7 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
     }
 
     private class JmsEndpointConfig implements EndpointConfig<R, S> {
+        private ConcurrentHashMap<String, Object> _attributes = new ConcurrentHashMap<>();
         private int _concurrency;
         private String _creationInfo;
 
@@ -249,6 +251,12 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
         }
 
         @Override
+        @SuppressWarnings("unchecked")
+        public <T> T getAttribute(String name) {
+            return (T) _attributes.get(name);
+        }
+
+        @Override
         public Class<?> getIncomingClass() {
             return _stages.get(0).getStageConfig().getIncomingClass();
         }
@@ -265,6 +273,12 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
         @Override
         public String getOrigin() {
             return _creationInfo;
+        }
+
+        @Override
+        public EndpointConfig<R, S> setAttribute(String name, Object object) {
+            _attributes.put(name, object);
+            return this;
         }
 
         @Override
