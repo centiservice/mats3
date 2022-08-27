@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+import io.mats3.MatsEndpoint.DetachedProcessContext;
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsInitiator;
@@ -302,6 +303,10 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * (i.e. where an initiation produced two messages, which results in three log lines: 1 for the initiation, and 2 for
  * the messages).
  * <p/>
+ * <b>Note:</b> This logging interceptor honors the TraceProperty
+ * {@link MatsLoggingInterceptor#SUPPRESS_LOGGING_TRACE_PROPERTY_KEY} and the Endpoint Attribute
+ * {@link MatsLoggingInterceptor#SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY).
+ * <p/>
  * <b>Note: This interceptor (SLF4J Logger with Metrics on MDC) has special support in <code>JmsMatsFactory</code>: If
  * present on the classpath, it is automatically installed using the {@link #install(MatsInterceptable)} install
  * method.</b> This interceptor implements the special marker-interface {@link MatsLoggingInterceptor} of which there
@@ -491,12 +496,33 @@ public class MatsMetricsLoggingInterceptor
 
     @Override
     public void initiateCompleted(InitiateCompletedContext ctx) {
+
+        List<MatsSentOutgoingMessage> outgoingMessages = ctx.getOutgoingMessages();
+
+        // :: Handle log suppression
+        // Might be multiple messages: All messages must say suppress to actually do suppression.
+        // Handle if there are no messages
+        boolean suppressLogging = !outgoingMessages.isEmpty();
+        for (MatsSentOutgoingMessage outgoingMessage : outgoingMessages) {
+            String suppressId = outgoingMessage.getTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, String.class);
+            if (suppressId == null) {
+                suppressLogging = false;
+                break;
+            }
+        }
+
+        // TODO: Expand on this: We shall log every 15 minutes how many loglines have been suppressed.
+        // ?: Does this initialization want log suppression?
+        if (suppressLogging) {
+            // -> Yes, this initiation want log suppression.
+            return;
+        }
+
         // :: First output the user measurements
         outputMeasurementsLoglines(log_init, ctx);
 
         // :: Then the "completed" logline, either combined with a single message - or multiple lines for multiple msgs
         Map<String, String> completedMDC = Collections.singletonMap(MDC_MATS_INITIATE_COMPLETED, "true");
-        List<MatsSentOutgoingMessage> outgoingMessages = ctx.getOutgoingMessages();
         String messageSenderName = ctx.getInitiator().getParentFactory()
                 .getFactoryConfig().getName() + "|" + ctx.getInitiator().getName();
         String matsVersion = ctx.getInitiator().getParentFactory()
@@ -508,9 +534,25 @@ public class MatsMetricsLoggingInterceptor
 
     @Override
     public void stageReceived(StageReceivedContext ctx) {
+        ProcessContext<Object> processContext = ctx.getProcessContext();
+
+        // :: Handle log suppression
+        // ?: Does the Endpoint allow for log suppression?
+        Object suppressionAllowed = ctx.getStage().getParentEndpoint().getEndpointConfig()
+                .getAttribute(SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY);
+        if ((suppressionAllowed instanceof Boolean) && ((Boolean) suppressionAllowed)) {
+            // -> Yes, endpoint allows for log suppression.
+            // ?: Does this Mats Flow want log suppression?
+            String suppressId = processContext.getTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, String.class);
+            // TODO: Expand on this: We shall log every 15 minutes how many loglines have been suppressed.
+            if (suppressId != null) {
+                // -> Yes, this Mats Flow wants log suppression.
+                return;
+            }
+        }
+
         try {
             MDC.put(MDC_MATS_MESSAGE_RECEIVED, "true");
-            ProcessContext<Object> processContext = ctx.getProcessContext();
 
             long sumNanosPieces = ctx.getMessageSystemDeconstructNanos()
                     + ctx.getEnvelopeDecompressionNanos()
@@ -604,6 +646,26 @@ public class MatsMetricsLoggingInterceptor
 
     @Override
     public void stageCompleted(StageCompletedContext ctx) {
+        DetachedProcessContext processContext = ctx.getProcessContext();
+        // :: Handle log suppression
+        // NOTICE: Contrasted to initiation, we do not evaluate the outgoing messages, but instead look at the incoming.
+        // The reason is twofold: Semantically: The suppression refers to the Mats Flow as a whole. Technically: The
+        // stage might not have any outgoing messages (ProcessResult == NONE, i.e. terminate Mats Flow), and we would
+        // then have to assume that logging should happen. Also, TraceProperties are inherited by stage initiated
+        // messages, so they would typically all have the same status anyway.
+        // ?: Does the Endpoint allow for log suppression?
+        Object suppressionAllowed = ctx.getStage().getParentEndpoint().getEndpointConfig()
+                .getAttribute(SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY);
+        if ((suppressionAllowed instanceof Boolean) && ((Boolean) suppressionAllowed)) {
+            // -> Yes, endpoint allows for log suppression.
+            // ?: Does this Mats Flow want log suppression?
+            String suppressId = processContext.getTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, String.class);
+            // TODO: Expand on this: We shall log every 15 minutes how many loglines have been suppressed.
+            if (suppressId != null) {
+                // -> Yes, this Mats Flow wants log suppression.
+                return;
+            }
+        }
         // :: First output the user measurements
         outputMeasurementsLoglines(log_stage, ctx);
 
@@ -644,7 +706,7 @@ public class MatsMetricsLoggingInterceptor
         if (ctx.getProcessResult() == ProcessResult.NONE) {
             // -> Yes, there was no outgoing flow message (REQUEST,REPLY,NEXT,GOTO)
             completedMDC.put(MDC_MATS_FLOW_COMPLETED, "true");
-            long initiationTimestamp = ctx.getProcessContext().getInitiatingTimestamp().toEpochMilli();
+            long initiationTimestamp = processContext.getInitiatingTimestamp().toEpochMilli();
             long totalFlowTime = System.currentTimeMillis() - initiationTimestamp;
             completedMDC.put(MDC_MATS_FLOW_COMPLETE_TIME_TOTAL, Long.toString(totalFlowTime));
         }
@@ -976,8 +1038,8 @@ public class MatsMetricsLoggingInterceptor
      * rounding - in that 1 nanosecond will become 0.0001 (1e-4 ms, which if used to measure things that are really
      * short lived might be magnitudes wrong), while 0 will be 0.0 exactly. Note that printing of a double always
      * include the at least one decimal (unless scientific notation kicks in), which can lead your interpretation
-     * slightly astray wrt. accuracy/significant digits when running this over e.g. nanos 555_555_555, which will
-     * print as "556.0" (milliseconds), and 5_555_555_555 prints "5560.0".
+     * slightly astray wrt. accuracy/significant digits when running this over e.g. nanos 555_555_555, which will print
+     * as "556.0" (milliseconds), and 5_555_555_555 prints "5560.0".
      */
     protected static double ms(long nanosTaken) {
         if (nanosTaken == 0) {
