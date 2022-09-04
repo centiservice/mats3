@@ -167,6 +167,7 @@ public abstract class AbstractMatsTest<Z> {
 
     /**
      * TODO: Delete when > 0.18
+     *
      * @deprecated use {@link #getMatsTestBrokerInterface()}
      */
     @Deprecated
@@ -227,19 +228,19 @@ public abstract class AbstractMatsTest<Z> {
         JmsMatsFactory<Z> matsFactory;
         if (_dataSource == null) {
             // -> No DataSource
-            matsFactory = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(this.getClass().getSimpleName(),
+            matsFactory = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(this.getClass().getSimpleName() + "_app",
                     "*testing*", sessionHandler, _matsSerializer);
         }
         else {
             // -> We have DataSource
             // Create the JMS and JDBC TransactionManager-backed JMS MatsFactory.
-            matsFactory = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(this.getClass().getSimpleName(),
-                    "*testing*", sessionHandler, _dataSource, _matsSerializer);
+            matsFactory = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(this.getClass().getSimpleName()
+                    + "_app", "*testing*", sessionHandler, _dataSource, _matsSerializer);
 
         }
 
         // Set name
-        matsFactory.getFactoryConfig().setName(this.getClass().getSimpleName());
+        matsFactory.getFactoryConfig().setName(this.getClass().getSimpleName() + "_MF");
 
         /*
          * For most test scenarios, it really makes little meaning to have a concurrency of more than 1 - unless
