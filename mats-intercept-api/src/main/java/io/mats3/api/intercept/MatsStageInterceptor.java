@@ -142,6 +142,26 @@ public interface MatsStageInterceptor {
      */
     interface StageCommonContext extends StageInterceptContext {
         /**
+         * Set an attribute on this particular interception, which is shared between the different stages of
+         * interception, and also between all interceptors - use some namespacing to avoid accidental collisions. Use
+         * instead of ThreadLocals.
+         *
+         * @param key
+         *            the key name for this intercept context attribute.
+         * @param value
+         *            the value which should be held.
+         */
+        void putInterceptContextAttribute(String key, Object value);
+
+        /**
+         * @param key
+         *            the key name for this intercept context attribute.
+         * @return the intercept context attribute that was stored by
+         *         {@link #putInterceptContextAttribute(String, Object)}, <code>null</code> if there is no such value.
+         */
+        Object getInterceptContextAttribute(String key);
+
+        /**
          * @return the {@link DetachedProcessContext} for the executing stage - this is overridden in several sub
          *         interfaces to return the actual "live" {@link ProcessContext}.
          */

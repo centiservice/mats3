@@ -4,8 +4,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -1133,6 +1135,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         private final long _incomingMessageAndStateDeserializationNanos;
         private final long _preUserLambdaNanos;
 
+        private Map<String, Object> _utilityMap;
+
         public StageCommonContextImpl(ProcessContext<Object> processContext,
                 JmsMatsStage<?, ?, ?, Z> stage,
                 long startedNanos, Instant startedInstant, long endpointEnteredTimestampMillis,
@@ -1281,6 +1285,30 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
+        public void putInterceptContextAttribute(String key, Object value) {
+            // No need to store nulls, due to getter semantics.
+            if (value == null) {
+                return;
+            }
+            // ?: Have we created the Map yet?
+            if (_utilityMap == null) {
+                // -> No, not created, so make it now.
+                _utilityMap = new HashMap<>();
+            }
+            _utilityMap.put(key, value);
+        }
+
+        @Override
+        public Object getInterceptContextAttribute(String key) {
+            // ?: Have we created the map?
+            if (_utilityMap == null) {
+                // -> No, map not created, so obviously no value.
+                return null;
+            }
+            return _utilityMap.get(key);
+        }
+
+        @Override
         public DetachedProcessContext getProcessContext() {
             return _processContext;
         }
@@ -1405,6 +1433,16 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         @Override
         public long getDataAndStateDeserializationNanos() {
             return _stageCommonContext.getDataAndStateDeserializationNanos();
+        }
+
+        @Override
+        public void putInterceptContextAttribute(String key, Object value) {
+            _stageCommonContext.putInterceptContextAttribute(key, value);
+        }
+
+        @Override
+        public Object getInterceptContextAttribute(String key) {
+            return _stageCommonContext.getInterceptContextAttribute(key);
         }
 
         @Override
