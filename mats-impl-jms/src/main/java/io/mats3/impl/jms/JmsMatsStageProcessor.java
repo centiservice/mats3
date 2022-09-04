@@ -1299,13 +1299,14 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
-        public Object getInterceptContextAttribute(String key) {
+        @SuppressWarnings("unchecked")
+        public <T> T getInterceptContextAttribute(String key) {
             // ?: Have we created the map?
             if (_utilityMap == null) {
                 // -> No, map not created, so obviously no value.
                 return null;
             }
-            return _utilityMap.get(key);
+            return (T) _utilityMap.get(key);
         }
 
         @Override
@@ -1441,7 +1442,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
-        public Object getInterceptContextAttribute(String key) {
+        public <T> T getInterceptContextAttribute(String key) {
             return _stageCommonContext.getInterceptContextAttribute(key);
         }
 

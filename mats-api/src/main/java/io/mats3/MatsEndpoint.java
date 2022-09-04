@@ -280,7 +280,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
 
         // Overridden to return the more specific EndpointConfig instead of MatsConfig
         @Override
-        EndpointConfig<R, S> setAttribute(String name, Object object);
+        EndpointConfig<R, S> setAttribute(String key, Object value);
 
         // Overridden to return the more specific EndpointConfig instead of MatsConfig
         @Override

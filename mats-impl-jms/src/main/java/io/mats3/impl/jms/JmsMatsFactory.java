@@ -900,8 +900,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
         @Override
         @SuppressWarnings("unchecked")
-        public <T> T getAttribute(String name) {
-            return (T) _attributes.get(name);
+        public <T> T getAttribute(String key) {
+            return (T) _attributes.get(key);
         }
 
         @Override
@@ -948,8 +948,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         }
 
         @Override
-        public FactoryConfig setAttribute(String name, Object object) {
-            _attributes.put(name, object);
+        public FactoryConfig setAttribute(String key, Object value) {
+            _attributes.put(key, value);
             return this;
         }
     }

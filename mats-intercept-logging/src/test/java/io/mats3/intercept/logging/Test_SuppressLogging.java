@@ -1,5 +1,6 @@
 package io.mats3.intercept.logging;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -72,25 +73,42 @@ public class Test_SuppressLogging {
                 .setAttribute(MatsLoggingInterceptor.SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY, Boolean.TRUE);
     }
 
+    @AfterClass
+    public static void delay() {
+        // FOR VISUAL LOG INSPECTING WHEN DEVELOPING, set to true (and reduce the summary logging interval).
+        boolean visualLogInspect = false;
+        if (visualLogInspect) {
+            try {
+                Thread.sleep(60_000);
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     /**
      * NOT requesting log suppression, which ends up with normal logging, even though the service and terminator
      * involved allows log suppression.
      */
     @Test
     public void not_requesting_suppression_to_suppression_allowing_endpoints() {
-        DataTO dto = new DataTO(1337, "Elite");
-        StateTO sto = new StateTO(999, 333.333);
-        MATS.getMatsInitiator().initiateUnchecked(
-                (msg) -> msg.traceId(MatsTestHelp.traceId())
-                        .from(MatsTestHelp.from("test"))
-                        .to(SERVICE_SUPPRESS_ALLOWED)
-                        .replyTo(TERMINATOR_SUPPRESS_ALLOWED, sto)
-                        .request(dto));
+        for (int i = 0; i < 10; i++) {
+            DataTO dto = new DataTO(1337, "Elite");
+            StateTO sto = new StateTO(999, 333.333);
+            MATS.getMatsInitiator().initiateUnchecked(
+                    (msg) -> msg.traceId(MatsTestHelp.traceId())
+                            .from(MatsTestHelp.from("not_requesting"))
+                            .to(SERVICE_SUPPRESS_ALLOWED)
+                            .replyTo(TERMINATOR_SUPPRESS_ALLOWED, sto)
+                            .request(dto));
+            log.info("===TEST===: Inited 'not_requesting_suppression_to_suppression_allowing_endpoints'.");
 
-        // Wait synchronously for terminator to finish.
-        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
-        Assert.assertEquals(sto, result.getState());
-        Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), result.getData());
+            // Wait synchronously for terminator to finish.
+            Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
+            Assert.assertEquals(sto, result.getState());
+            Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), result.getData());
+        }
     }
 
     /**
@@ -100,21 +118,24 @@ public class Test_SuppressLogging {
      */
     @Test
     public void requesting_suppression_to_suppression_allowing_endpoints() {
-        DataTO dto = new DataTO(1337, "Elite");
-        StateTO sto = new StateTO(999, 333.333);
-        MATS.getMatsInitiator().initiateUnchecked(
-                (msg) -> msg.traceId(MatsTestHelp.traceId())
-                        .from(MatsTestHelp.from("test"))
-                        .to(SERVICE_SUPPRESS_ALLOWED)
-                        // Requesting suppression
-                        .setTraceProperty(MatsLoggingInterceptor.SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, "SuppressionId")
-                        .replyTo(TERMINATOR_SUPPRESS_ALLOWED, sto)
-                        .request(dto));
+        for (int i = 0; i < 10; i++) {
+            DataTO dto = new DataTO(1337, "Elite");
+            StateTO sto = new StateTO(999, 333.333);
+            MATS.getMatsInitiator().initiateUnchecked(
+                    (msg) -> msg.traceId(MatsTestHelp.traceId())
+                            .from(MatsTestHelp.from("request_allowed"))
+                            .to(SERVICE_SUPPRESS_ALLOWED)
+                            // Requesting suppression
+                            .setTraceProperty(MatsLoggingInterceptor.SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, true)
+                            .replyTo(TERMINATOR_SUPPRESS_ALLOWED, sto)
+                            .request(dto));
+            log.info("===TEST===: Inited 'requesting_suppression_to_suppression_allowing_endpoints'.");
 
-        // Wait synchronously for terminator to finish.
-        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
-        Assert.assertEquals(sto, result.getState());
-        Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), result.getData());
+            // Wait synchronously for terminator to finish.
+            Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
+            Assert.assertEquals(sto, result.getState());
+            Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), result.getData());
+        }
     }
 
     /**
@@ -126,20 +147,23 @@ public class Test_SuppressLogging {
      */
     @Test
     public void requesting_suppression_to_non_suppression_allowing_endpoints() {
-        DataTO dto = new DataTO(1337, "Elite");
-        StateTO sto = new StateTO(999, 333.333);
-        MATS.getMatsInitiator().initiateUnchecked(
-                (msg) -> msg.traceId(MatsTestHelp.traceId())
-                        .from(MatsTestHelp.from("test"))
-                        .to(SERVICE_DEFAULT)
-                        // Requesting suppression
-                        .setTraceProperty(MatsLoggingInterceptor.SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, "SuppressionId")
-                        .replyTo(TERMINATOR_DEFAULT, sto)
-                        .request(dto));
+        for (int i = 0; i < 10; i++) {
+            DataTO dto = new DataTO(1337, "Elite");
+            StateTO sto = new StateTO(999, 333.333);
+            MATS.getMatsInitiator().initiateUnchecked(
+                    (msg) -> msg.traceId(MatsTestHelp.traceId())
+                            .from(MatsTestHelp.from("request_non_allowed"))
+                            .to(SERVICE_DEFAULT)
+                            // Requesting suppression
+                            .setTraceProperty(MatsLoggingInterceptor.SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, true)
+                            .replyTo(TERMINATOR_DEFAULT, sto)
+                            .request(dto));
+            log.info("===TEST===: Inited 'requesting_suppression_to_non_suppression_allowing_endpoints'.");
 
-        // Wait synchronously for terminator to finish.
-        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
-        Assert.assertEquals(sto, result.getState());
-        Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), result.getData());
+            // Wait synchronously for terminator to finish.
+            Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
+            Assert.assertEquals(sto, result.getState());
+            Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), result.getData());
+        }
     }
 }

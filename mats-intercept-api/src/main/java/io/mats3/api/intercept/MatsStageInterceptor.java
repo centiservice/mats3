@@ -156,10 +156,13 @@ public interface MatsStageInterceptor {
         /**
          * @param key
          *            the key name for this intercept context attribute.
+         * @param <T>
+         *            the type of this attribute, to avoid explicit casting - but you should really know the type, otherwise
+         *            request <code>Object</code>.
          * @return the intercept context attribute that was stored by
          *         {@link #putInterceptContextAttribute(String, Object)}, <code>null</code> if there is no such value.
          */
-        Object getInterceptContextAttribute(String key);
+        <T> T getInterceptContextAttribute(String key);
 
         /**
          * @return the {@link DetachedProcessContext} for the executing stage - this is overridden in several sub

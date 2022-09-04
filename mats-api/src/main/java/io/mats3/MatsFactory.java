@@ -610,7 +610,7 @@ public interface MatsFactory extends StartStoppable {
 
         // Overridden to return the more specific FactoryConfig instead of MatsConfig
         @Override
-        FactoryConfig setAttribute(String name, Object object);
+        FactoryConfig setAttribute(String key, Object value);
 
         // Overridden to return the more specific FactoryConfig instead of MatsConfig
         @Override

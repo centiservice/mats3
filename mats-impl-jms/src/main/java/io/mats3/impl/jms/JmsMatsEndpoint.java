@@ -252,8 +252,8 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
 
         @Override
         @SuppressWarnings("unchecked")
-        public <T> T getAttribute(String name) {
-            return (T) _attributes.get(name);
+        public <T> T getAttribute(String key) {
+            return (T) _attributes.get(key);
         }
 
         @Override
@@ -276,8 +276,8 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
         }
 
         @Override
-        public EndpointConfig<R, S> setAttribute(String name, Object object) {
-            _attributes.put(name, object);
+        public EndpointConfig<R, S> setAttribute(String key, Object value) {
+            _attributes.put(key, value);
             return this;
         }
 

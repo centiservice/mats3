@@ -57,9 +57,26 @@ public interface MatsConfig {
      */
     boolean isRunning();
 
-    MatsConfig setAttribute(String name, Object object);
+    /**
+     * Sets an attribute for this entity (factory, endpoint, stage) - can e.g. be used by tooling or interceptors.
+     *
+     * @param key
+     *            the key name for this attribute.
+     * @param value
+     *            the value for this attribute.
+     * @return the config object, for method chaining.
+     */
+    MatsConfig setAttribute(String key, Object value);
 
-    <T> T getAttribute(String name);
+    /**
+     * @param key
+     *            the key name for this attribute.
+     * @param <T>
+     *            the type of this attribute, to avoid explicit casting - but you should really know the type, otherwise
+     *            request <code>Object</code>.
+     * @return the attribute value.
+     */
+    <T> T getAttribute(String key);
 
     /**
      * All three of {@link MatsFactory}, {@link MatsEndpoint} and {@link MatsStage} implements this interface.

@@ -260,8 +260,8 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
 
         @Override
         @SuppressWarnings("unchecked")
-        public <T> T getAttribute(String name) {
-            return (T) _attributes.get(name);
+        public <T> T getAttribute(String key) {
+            return (T) _attributes.get(key);
         }
 
         @Override
@@ -284,8 +284,8 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         }
 
         @Override
-        public StageConfig<R, S, I> setAttribute(String name, Object object) {
-            _attributes.put(name, object);
+        public StageConfig<R, S, I> setAttribute(String key, Object value) {
+            _attributes.put(key, value);
             return this;
         }
 
