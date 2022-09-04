@@ -817,7 +817,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
             }
             String idBefore = idThis();
             _name = name;
-            log.info(LOG_PREFIX + "Set MatsFactory name to [" + name + "], previously [" + idBefore + "]"
+            log.info(LOG_PREFIX + "Set MatsFactory name to [" + name + "]. Previous id: [" + idBefore + "]"
                     + " - new id: [" + idThis() + "].");
             return this;
         }
