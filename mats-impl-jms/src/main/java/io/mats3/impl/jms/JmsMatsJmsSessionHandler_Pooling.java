@@ -35,7 +35,8 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
      */
     public enum PoolingKeyInitiator {
         /**
-         * All initiators share a common JMS Connection.
+         * All initiators share a common JMS Connection. If {@link PoolingKeyStageProcessor} is also set to
+         * <code>FACTORY</code>, there will only be a single JMS Connection for the entire MatsFactory.
          */
         FACTORY,
 
@@ -53,7 +54,8 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
     public enum PoolingKeyStageProcessor {
         /**
          * All StageProcessors in all Stages in all Endpoints share a common JMS Connection - i.e. a single Connection
-         * for all consumers in the {@link JmsMatsFactory}.
+         * for all consumers in the {@link JmsMatsFactory}. If {@link PoolingKeyInitiator} is also set to
+         * <code>FACTORY</code>, there will only be a single JMS Connection for the entire MatsFactory.
          */
         FACTORY,
 
@@ -65,12 +67,14 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
 
         /**
          * All StageProcessors in each Stage share a common JMS Connection - i.e. every Stage has its own JMS
-         * Connection.
+         * Connection. Depending on the number of Endpoints x Stages in the service, this might lead to pretty many
+         * Connections to the broker.
          */
         STAGE,
 
         /**
-         * Each StageProcessor has its own JMS Connection - i.e. no sharing.
+         * Each StageProcessor has its own JMS Connection - i.e. no sharing. This might lead to very many Connections to
+         * the broker (Endpoints x Stages x Concurrency)!
          */
         STAGE_PROCESSOR
     }
