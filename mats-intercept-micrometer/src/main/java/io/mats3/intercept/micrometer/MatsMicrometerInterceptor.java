@@ -22,8 +22,8 @@ import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
 import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
 import io.mats3.api.intercept.MatsInterceptable;
-import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.api.intercept.MatsInterceptable.MatsMetricsInterceptor;
+import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor;
@@ -51,10 +51,11 @@ import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
  * the {@link #install(MatsInterceptableMatsFactory, MeterRegistry, boolean)} method - the <code>JmsMatsFactory</code>
  * will then remove the automatically installed, since it implements the special marker-interface
  * {@link MatsMetricsInterceptor} of which there can only be one instance installed. <i>(In a Spring context where the
- * MatsFactory is created for you using an annotation, you should still be able to do this during early phases of Spring
- * initialization, i.e. inject a reference to the <code>MatsInterceptable</code> and just install the new instance. This
- * is possible since no Micrometer meters are created (and hence tags are set) until Mats initiations are performed or
- * Mats stages receive messages.)</i>
+ * MatsFactory is created for you using an annotation, you are still able to do this during early phases of Spring
+ * initialization: E.g. inject a reference to the <code>MatsInterceptable</code> (the MatsFactory) and just install the
+ * new instance. This is possible since the Micrometer meters are lazily created when initiations are performed and Mats
+ * Stages receives messages. The decision of which tags are in use is therefore not needed until right before the
+ * service becomes operational, that is, performs inits and receives messages.)</i>
  * <p />
  * Note the argument 'includeAllTags' on the second install(..) method: If this is <code>true</code>, then tags will be
  * added to the meters which will give higher semantic resolution and more information, but which might result in a
@@ -138,6 +139,19 @@ public class MatsMicrometerInterceptor
     public static final String SIZE_OUT_WIRE_DESC = "Outgoing mats envelope wire size";
 
     private static final int NO_STAGE_INDEX = -1;
+
+    public static final String TAG_APP_NAME = "appName";
+    public static final String TAG_APP_VERSION = "appVersion";
+    public static final String TAG_EXEC = "exec";
+    public static final String TAG_TYPE = "type";
+    public static final String TAG_INITIATING_APP_NAME = "initiatingAppName";
+    public static final String TAG_INITIATOR_NAME = "initiatorName";
+    public static final String TAG_INITIATOR_ID = "initiatorId";
+    public static final String TAG_STAGE_ID = "stageId";
+    public static final String TAG_STAGE_INDEX = "stageIndex";
+    public static final String TAG_FROM = "from";
+    public static final String TAG_TO = "to";
+    public static final String UNIT_BYTES = "bytes";
 
     /**
      * A {@link MeterFilter} that applies a hopefully reasonable histogram to all timing meters. The timings are split
@@ -507,14 +521,16 @@ public class MatsMicrometerInterceptor
         Timer timerAddTagsAndRegister(Builder builder, MeterRegistry meterRegistry,
                 String appName, String appVersion, ExecutionMetricsParams params) {
             return builder
-                    .tag("appName", appName)
-                    .tag("appVersion", appVersion)
-                    .tag("exec", params._executionType)
-                    .tag("initiatingAppName", params._initiatingAppName)
-                    .tag("initiatorName", params._initiatorName)
-                    .tag("initiatorId", params._initiatorId)
-                    .tag("stageId", params._stageId)
-                    .tag("stageIndex", params._stageIndex == NO_STAGE_INDEX ? "" : Integer.toString(params._stageIndex))
+                    .tag(TAG_APP_NAME, appName)
+                    .tag(TAG_APP_VERSION, appVersion)
+
+                    .tag(TAG_EXEC, params._executionType)
+                    .tag(TAG_INITIATING_APP_NAME, params._initiatingAppName)
+                    .tag(TAG_INITIATOR_NAME, params._initiatorName)
+                    .tag(TAG_INITIATOR_ID, params._initiatorId)
+                    .tag(TAG_STAGE_ID, params._stageId)
+                    .tag(TAG_STAGE_INDEX, params._stageIndex == NO_STAGE_INDEX ? ""
+                            : Integer.toString(params._stageIndex))
                     .register(meterRegistry);
         }
 
@@ -536,14 +552,15 @@ public class MatsMicrometerInterceptor
                     .description(TIMER_EXEC_MSGSYS_COMMIT_DESC), meterRegistry, appName, appVersion, params);
 
             _count_Messages = DistributionSummary.builder(QUANTITY_EXEC_OUT_NAME)
-                    .tag("appName", appName)
-                    .tag("appVersion", appVersion)
-                    .tag("exec", params._executionType)
-                    .tag("initiatingAppName", params._initiatingAppName)
-                    .tag("initiatorName", params._initiatorName)
-                    .tag("initiatorId", params._initiatorId)
-                    .tag("stageId", params._stageId)
-                    .tag("stageIndex", params._stageIndex == NO_STAGE_INDEX ? "" : Integer.toString(params._stageIndex))
+                    .tag(TAG_APP_NAME, appName)
+                    .tag(TAG_APP_VERSION, appVersion)
+                    .tag(TAG_EXEC, params._executionType)
+                    .tag(TAG_INITIATING_APP_NAME, params._initiatingAppName)
+                    .tag(TAG_INITIATOR_NAME, params._initiatorName)
+                    .tag(TAG_INITIATOR_ID, params._initiatorId)
+                    .tag(TAG_STAGE_ID, params._stageId)
+                    .tag(TAG_STAGE_INDEX, params._stageIndex == NO_STAGE_INDEX ? ""
+                            : Integer.toString(params._stageIndex))
                     // NOTE! If we use baseUnit, we'll get crash on the meter name - instead embed directly in name.
                     // .baseUnit("quantity")
                     .description(QUANTITY_EXEC_OUT_DESC)
@@ -643,13 +660,14 @@ public class MatsMicrometerInterceptor
                 UserMetricsParams params) {
             DistributionSummary.Builder builder = DistributionSummary
                     .builder(MEASURE_EXEC_OP_PREFIX + params._metricId)
-                    .tag("appName", appName)
-                    .tag("appVersion", appVersion)
-                    .tag("exec", params._executionType)
-                    .tag("initiatingAppName", params._initiatingAppName)
-                    .tag("initiatorId", params._initiatorId)
-                    .tag("stageId", params._stageId)
-                    .tag("stageIndex", Integer.toString(params._stageIndex))
+                    .tag(TAG_APP_NAME, appName)
+                    .tag(TAG_APP_VERSION, appVersion)
+
+                    .tag(TAG_EXEC, params._executionType)
+                    .tag(TAG_INITIATING_APP_NAME, params._initiatingAppName)
+                    .tag(TAG_INITIATOR_ID, params._initiatorId)
+                    .tag(TAG_STAGE_ID, params._stageId)
+                    .tag(TAG_STAGE_INDEX, Integer.toString(params._stageIndex))
                     .baseUnit(params._baseUnit)
                     .description(params._metricDescription);
 
@@ -680,13 +698,14 @@ public class MatsMicrometerInterceptor
                 UserMetricsParams params) {
             Builder builder = Timer
                     .builder(TIMER_EXEC_OPS_PREFIX + params._metricId)
-                    .tag("appName", appName)
-                    .tag("appVersion", appVersion)
-                    .tag("exec", params._executionType)
-                    .tag("initiatingAppName", params._initiatingAppName)
-                    .tag("initiatorId", params._initiatorId)
-                    .tag("stageId", params._stageId)
-                    .tag("stageIndex", Integer.toString(params._stageIndex))
+                    .tag(TAG_APP_NAME, appName)
+                    .tag(TAG_APP_VERSION, appVersion)
+
+                    .tag(TAG_EXEC, params._executionType)
+                    .tag(TAG_INITIATING_APP_NAME, params._initiatingAppName)
+                    .tag(TAG_INITIATOR_ID, params._initiatorId)
+                    .tag(TAG_STAGE_ID, params._stageId)
+                    .tag(TAG_STAGE_INDEX, Integer.toString(params._stageIndex))
                     .description(params._metricDescription);
 
             // Add any user-set tags
@@ -787,15 +806,16 @@ public class MatsMicrometerInterceptor
 
         ReceivedMetrics(MeterRegistry meterRegistry, String appName, String appVersion, ReceivedMetricsParams params) {
             _timer_Total = Timer.builder(TIMER_IN_TOTAL_NAME)
-                    .tag("appName", appName)
-                    .tag("appVersion", appVersion)
-                    .tag("exec", "stage") // Just adding this to point out that it definitely refers to a stage.
-                    .tag("type", params._messageType)
-                    .tag("initiatingAppName", params._initiatingAppName)
-                    .tag("initiatorId", params._initiatorId)
-                    .tag("from", params._from)
-                    .tag("stageId", params._stageId)
-                    .tag("stageIndex", Integer.toString(params._stageIndex))
+                    .tag(TAG_APP_NAME, appName)
+                    .tag(TAG_APP_VERSION, appVersion)
+
+                    .tag(TAG_EXEC, "stage") // Just adding this to point out that it definitely refers to a stage.
+                    .tag(TAG_TYPE, params._messageType)
+                    .tag(TAG_INITIATING_APP_NAME, params._initiatingAppName)
+                    .tag(TAG_INITIATOR_ID, params._initiatorId)
+                    .tag(TAG_FROM, params._from)
+                    .tag(TAG_STAGE_ID, params._stageId)
+                    .tag(TAG_STAGE_INDEX, Integer.toString(params._stageIndex))
                     .description(TIMER_IN_TOTAL_DESC)
                     .register(meterRegistry);
         }
@@ -871,61 +891,66 @@ public class MatsMicrometerInterceptor
         MessageMetrics(MeterRegistry meterRegistry, String appName, String appVersion,
                 MessageMetricsParams params) {
             String stageIndexValue = params._stageIndex == NO_STAGE_INDEX ? "" : Integer.toString(params._stageIndex);
+
             _size_Envelope = DistributionSummary.builder(SIZE_OUT_ENVELOPE_NAME)
-                    .tag("appName", appName)
-                    .tag("appVersion", appVersion)
-                    .tag("exec", params._executionType)
-                    .tag("type", params._messageType)
-                    .tag("initiatingAppName", params._initiatingAppName)
-                    .tag("initiatorName", params._initiatorName)
-                    .tag("initiatorId", params._initiatorId)
-                    .tag("stageId", params._stageId)
-                    .tag("stageIndex", stageIndexValue)
-                    .tag("to", params._to)
-                    .baseUnit("bytes")
+                    .tag(TAG_APP_NAME, appName)
+                    .tag(TAG_APP_VERSION, appVersion)
+
+                    .tag(TAG_EXEC, params._executionType)
+                    .tag(TAG_TYPE, params._messageType)
+                    .tag(TAG_INITIATING_APP_NAME, params._initiatingAppName)
+                    .tag(TAG_INITIATOR_NAME, params._initiatorName)
+                    .tag(TAG_INITIATOR_ID, params._initiatorId)
+                    .tag(TAG_STAGE_ID, params._stageId)
+                    .tag(TAG_STAGE_INDEX, stageIndexValue)
+                    .tag(TAG_TO, params._to)
+                    .baseUnit(UNIT_BYTES)
                     .description(SIZE_OUT_ENVELOPE_DESC)
                     .register(meterRegistry);
 
             _size_Wire = DistributionSummary.builder(SIZE_OUT_WIRE_NAME)
-                    .tag("appName", appName)
-                    .tag("appVersion", appVersion)
-                    .tag("exec", params._executionType)
-                    .tag("type", params._messageType)
-                    .tag("initiatingAppName", params._initiatingAppName)
-                    .tag("initiatorName", params._initiatorName)
-                    .tag("initiatorId", params._initiatorId)
-                    .tag("stageId", params._stageId)
-                    .tag("stageIndex", stageIndexValue)
-                    .tag("to", params._to)
-                    .baseUnit("bytes")
+                    .tag(TAG_APP_NAME, appName)
+                    .tag(TAG_APP_VERSION, appVersion)
+
+                    .tag(TAG_EXEC, params._executionType)
+                    .tag(TAG_TYPE, params._messageType)
+                    .tag(TAG_INITIATING_APP_NAME, params._initiatingAppName)
+                    .tag(TAG_INITIATOR_NAME, params._initiatorName)
+                    .tag(TAG_INITIATOR_ID, params._initiatorId)
+                    .tag(TAG_STAGE_ID, params._stageId)
+                    .tag(TAG_STAGE_INDEX, stageIndexValue)
+                    .tag(TAG_TO, params._to)
+                    .baseUnit(UNIT_BYTES)
                     .description(SIZE_OUT_WIRE_DESC)
                     .register(meterRegistry);
 
             _timer_Total = Timer.builder(TIMER_OUT_TOTAL_NAME)
-                    .tag("appName", appName)
-                    .tag("appVersion", appVersion)
-                    .tag("exec", params._executionType)
-                    .tag("type", params._messageType)
-                    .tag("initiatingAppName", params._initiatingAppName)
-                    .tag("initiatorName", params._initiatorName)
-                    .tag("initiatorId", params._initiatorId)
-                    .tag("stageId", params._stageId)
-                    .tag("stageIndex", stageIndexValue)
-                    .tag("to", params._to)
+                    .tag(TAG_APP_NAME, appName)
+                    .tag(TAG_APP_VERSION, appVersion)
+
+                    .tag(TAG_EXEC, params._executionType)
+                    .tag(TAG_TYPE, params._messageType)
+                    .tag(TAG_INITIATING_APP_NAME, params._initiatingAppName)
+                    .tag(TAG_INITIATOR_NAME, params._initiatorName)
+                    .tag(TAG_INITIATOR_ID, params._initiatorId)
+                    .tag(TAG_STAGE_ID, params._stageId)
+                    .tag(TAG_STAGE_INDEX, stageIndexValue)
+                    .tag(TAG_TO, params._to)
                     .description(TIMER_OUT_TOTAL_DESC)
                     .register(meterRegistry);
 
             _timer_MsgSys = Timer.builder(TIMER_OUT_MSGSYS_SEND_NAME)
-                    .tag("appName", appName)
-                    .tag("appVersion", appVersion)
-                    .tag("exec", params._executionType)
-                    .tag("type", params._messageType)
-                    .tag("initiatingAppName", params._initiatingAppName)
-                    .tag("initiatorName", params._initiatorName)
-                    .tag("initiatorId", params._initiatorId)
-                    .tag("stageId", params._stageId)
-                    .tag("stageIndex", stageIndexValue)
-                    .tag("to", params._to)
+                    .tag(TAG_APP_NAME, appName)
+                    .tag(TAG_APP_VERSION, appVersion)
+
+                    .tag(TAG_EXEC, params._executionType)
+                    .tag(TAG_TYPE, params._messageType)
+                    .tag(TAG_INITIATING_APP_NAME, params._initiatingAppName)
+                    .tag(TAG_INITIATOR_NAME, params._initiatorName)
+                    .tag(TAG_INITIATOR_ID, params._initiatorId)
+                    .tag(TAG_STAGE_ID, params._stageId)
+                    .tag(TAG_STAGE_INDEX, stageIndexValue)
+                    .tag(TAG_TO, params._to)
 
                     .description(TIMER_OUT_MSGSYS_SEND_DESC)
                     .register(meterRegistry);
