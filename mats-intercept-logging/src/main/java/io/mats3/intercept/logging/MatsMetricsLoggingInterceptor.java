@@ -368,13 +368,13 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX = "mats.exec.ops.measure.";
 
     // ============================================================================================================
-    // ===== For Initiate Completed, with timings:
-    // 'true' on a single logline per completed initiation:
-    public static final String MDC_MATS_INITIATE_COMPLETED = "mats.InitiateCompleted";
-
+    // ===== For Initiate Completed (..in addition to "COMMON init/stage" above):
     // !!! Note that these MDCs are already set by JmsMats core: !!!
     // MDC_MATS_INIT = "mats.Init"; // 'true' on any loglines involving Initialization (also within Stages)
     // MDC_TRACE_ID = "traceId" // Set as soon as the user code sets it on the initialization.
+
+    // 'true' on a single logline per completed initiation:
+    public static final String MDC_MATS_INITIATE_COMPLETED = "mats.InitiateCompleted";
 
     // ============================================================================================================
     // ===== For Receiving a message
@@ -411,7 +411,7 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_IN_SIZE_DATA_SERIAL = "mats.in.DataSerial.bytes";
 
     // ============================================================================================================
-    // ===== For Stage Completed
+    // ===== For Stage Completed (..in addition to "COMMON init/stage" above):
     // !!! Note that these MDCs are already set by JmsMats core: !!!
     // MDC_MATS_STAGE = "mats.Stage"; // 'true' on Stage Processor threads (set fixed on the consumer thread)
     // MDC_MATS_STAGE_ID = "mats.StageId";
@@ -452,7 +452,8 @@ public class MatsMetricsLoggingInterceptor
 
     // ============================================================================================================
     // ===== For Sending a single message (from init, or stage) - one line per message
-    // 'true' on single logline per msg:
+    // Note the point about "combined" loglines for stage-complete + output-single-message, read JavaDoc.
+    // 'true' on single logline per msg
     public static final String MDC_MATS_MESSAGE_SENT = "mats.MessageSent";
     // Set on single logline per msg: INIT, STAGE, STAGE_INIT
     public static final String MDC_MATS_DISPATCH_TYPE = "mats.DispatchType";
@@ -478,7 +479,7 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_OUT_TIME_MSGSYS = "mats.out.MsgSys.ms";
 
     // ============================================================================================================
-    // ===== For both Message Received and Message Send (note: part of root MatsTrace, common for all msgs in flow)
+    // ===== For both Message Received and Message Send (note: part of MatsTrace itself: Common for all msgs in flow)
     public static final String MDC_MATS_INIT_APP = "mats.init.App";
     public static final String MDC_MATS_INIT_ID = "mats.init.Id"; // matsInitiate.from(initiatorId).
     public static final String MDC_MATS_AUDIT = "mats.Audit";
