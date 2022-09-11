@@ -302,7 +302,7 @@ public class MatsMicrometerInterceptor
          */
         List<MatsSentOutgoingMessage> outgoingMessages = ctx.getOutgoingMessages();
         String commonInitiatorId = outgoingMessages.isEmpty()
-                ? "_no_outgoing_messages_"
+                ? INITIATOR_ID_WHEN_NO_OUTGOING_MESSAGES
                 : outgoingMessages.get(0).getInitiatorId();
 
         ExecutionMetrics executionMetrics = _executionMetricsCache.getOrCreate(new ExecutionMetricsParams("init",
