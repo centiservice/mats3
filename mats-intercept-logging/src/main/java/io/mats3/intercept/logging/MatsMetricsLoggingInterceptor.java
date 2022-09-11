@@ -11,7 +11,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.mats3.MatsInitiator.MatsInitiate;
+import io.mats3.api.intercept.MatsInterceptable.MatsMetricsInterceptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -19,6 +19,7 @@ import org.slf4j.MDC;
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsInitiator;
+import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.api.intercept.CommonCompletedContext;
 import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
 import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
@@ -62,13 +63,14 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * </ul>
  *
  *
- * <h2>MDC Properties for Initiate Complete:</h2>
+ * <h2>MDC Properties for Initiate Complete:</h2> Notice: Initiate Complete is rather similar to Stage Complete.
  * <ul>
  * <li><b>{@link #MDC_MATS_INITIATE_COMPLETED "mats.InitiateCompleted"}</b>: 'true' <i>on a single</i> logline per
  * completed initiation - <i>can be used to count initiations</i>. Assuming each initiation produces one message, and
  * hence one flow, this count should be identical to the count of {@link #MDC_MATS_FLOW_COMPLETED}. However, an
- * initiation can produce multiple messages, as described in {@link #MDC_MATS_COMPLETE_QUANTITY_OUT}, thus if you sum
- * all those of lines that have this property set, the value should actually be identical to flows completed.</li>
+ * initiation can produce multiple messages (or zero), as described in {@link #MDC_MATS_COMPLETE_QUANTITY_OUT}, thus if
+ * you sum the quantity value of lines that have this property set, the result should actually be identical to flows
+ * completed.</li>
  * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: Set for an initiation from when it is set in the user code performing the
  * initiation (reset to whatever it was upon exit of initiation lambda)</li>
  * </ul>
@@ -76,6 +78,9 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <ul>
  * <li><b>{@link #MDC_MATS_VERSION "mats.Version"}</b>: Mats implementation version, as gotten by
  * {@link FactoryConfig#getMatsImplementationVersion()}.</li>
+ * <li><b>{@link #MDC_INIT_OR_STAGE_ID "mats.InitOrStageId"}</b>: The <i>initiatorId</i> ("fromId") from the first
+ * (typically single) message in an initiation. Note: It should be common that all messages in a single initiation have
+ * the same initiatorId. Note that it is also set on message sending.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"}</b>: Total time taken for the initiation to
  * complete - including both user code and all system code including commits.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Part of total time taken for the
@@ -85,7 +90,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * serialization of Mats messages, and production <i>and sending</i> of "message system messages" (e.g. creating and
  * populating JMS Message plus <code>jmsProducer.send(..)</code> for the JMS implementation).</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Number of messages sent in this
- * initiation.</li>
+ * initiation. Should most often be 1, but can be multiple, and also zero.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE "mats.exec.Out.TotalWire.bytes"}</b>: The sum of
  * {@link #MDC_MATS_OUT_SIZE_TOTAL_WIRE} for all messages sent in this initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Part of total time taken for committing
@@ -179,7 +184,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * </ul>
  *
  *
- * <h2>MDC Properties for Stage Complete:</h2>
+ * <h2>MDC Properties for Stage Complete:</h2> Notice: Stage Complete is rather similar to Initiate Complete.
  * <ul>
  * <li><b>{@link #MDC_MATS_STAGE_COMPLETED "mats.StageCompleted"}</b>: 'true' on a single logline per completed stage -
  * <i>can be used to count stage processings</i>. This count should be identical to the count of
@@ -188,9 +193,13 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * a Mats stage will have this set.</li>
  * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: The Mats flow's traceId, set from the initiation.</li>
  * <li><b>{@link #MDC_MATS_PROCESS_RESULT "mats.ProcessResult"}</b>: the ProcessResult enum</li>
+ * <li><b>{@link #MDC_INIT_OR_STAGE_ID "mats.InitOrStageId"}</b>: The StageId for the completed stage, thus identical to
+ * "mats.StageId". The rationale for having this one more time is so that you can search for it across initiation
+ * complete and stage complete, using a common key, as they are rather similar processes. Note that it is also set on
+ * message sending.</li>
  * </ul>
  * <b>Metrics for the processing of the stage</b> (very similar to the metrics for an initiation execution, but includes
- * the reception of a message):
+ * metrics for the reception of a message):
  * <ul>
  * <li><b>{@link #MDC_MATS_VERSION "mats.Version"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.TotalExecution.ms"}</b>: Total time taken for the stage to
@@ -247,9 +256,9 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * the message - for the JMS Implementation, it is the JMSMessageId.</li>
  * <li><i>NOTICE: NOT using "mats.out.from.app", as that is 'this' App, and thus identical to:
  * <code>"mats.AppName"</code>.</i></li>
- * <li><b>{@link #MDC_MATS_OUT_FROM_ID "mats.out.from.Id"}</b>: "this" EndpointId/StageId/InitiatorId - <i>NOTICE:
- * <code>"mats.out.from.Id"</code> == <code>"mats.StageId"</code> for Stages - but there is no corresponding for
- * InitiatorId.</i></li>
+ * <li><i>NOTICE: NOT using "mats.out.from.Id", as that is identical to "mats.InitOrStageId".</i></li>
+ * <li><b>{@link #MDC_INIT_OR_STAGE_ID "mats.InitOrStageId"}</b>: "this" StageId or InitiatorId: Who created this
+ * message.</li>
  * <li><b>{@link #MDC_MATS_OUT_TO_ID "mats.out.to.Id"}</b>: target EndpointId/StageId</li>
  * <li><i>NOTICE: NOT using "mats.out.to.app", since we do not know which app will consume it.</i></li>
  * </ul>
@@ -309,7 +318,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <p/>
  * <b>Note:</b> This logging interceptor honors the {@link MatsInitiate#setTraceProperty(String, Object) Trace Property}
  * {@link MatsLoggingInterceptor#SUPPRESS_LOGGING_TRACE_PROPERTY_KEY} and the Endpoint Attribute
- * {@link MatsLoggingInterceptor#SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY). Number of suppressed log outputs per
+ * {@link MatsLoggingInterceptor#SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY}. Number of suppressed log outputs per
  * matsFactoryName/initAppName/initiatorId/stageId will be logged every 30 minutes (stageId = "INIT" for initiations),
  * on the {@link #LOG_STAGE_NAME} logger. The first logging for each combo after logging the number of suppressions will
  * also be logged in full.
@@ -340,11 +349,11 @@ public class MatsMetricsLoggingInterceptor
 
     public static final String SUPPRESSION_MDC_KEY_PARTS_SEPARATOR = ",";
 
-    public static final MatsMetricsLoggingInterceptor INSTANCE = new MatsMetricsLoggingInterceptor();
-
     // Not using "mats." prefix for "traceId", as it is hopefully generic yet specific
     // enough that it might be used in similar applications.
     public static final String MDC_TRACE_ID = "traceId";
+
+    public static final MatsMetricsLoggingInterceptor INSTANCE = new MatsMetricsLoggingInterceptor();
 
     // !!! Note that these MDCs are already set by JmsMats core: !!!
     // String MDC_MATS_APP_NAME = "mats.AppName";
@@ -354,6 +363,7 @@ public class MatsMetricsLoggingInterceptor
     // ===== COMMON for Initiate and Stage Completed, with timings:
 
     public static final String MDC_MATS_VERSION = "mats.Version";
+    public static final String MDC_INIT_OR_STAGE_ID = "mats.InitOrStageId";
 
     // ... Metrics:
     public static final String MDC_MATS_COMPLETE_TIME_TOTAL = "mats.exec.Total.ms";
@@ -462,9 +472,11 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_OUT_MESSAGE_SYSTEM_ID = "mats.out.MsgSysId";
 
     // NOTICE: NOT using MDC_MATS_OUT_FROM_APP / "mats.out.from.App", as that is 'this' App: MDC_MATS_APP_NAME.
-    // NOTICE: MDC_MATS_OUT_FROM_ID == MDC_MATS_STAGE_ID for Stages - but there is no corresponding for InitiatorId.
-    public static final String MDC_MATS_OUT_FROM_ID = "mats.out.from.Id"; // "this" EndpointId/StageId/InitiatorId.
-    public static final String MDC_MATS_OUT_TO_ID = "mats.out.to.Id"; // target EndpointId/StageId.
+    // NOTICE: MDC_INIT_OR_STAGE_ID is also set when sending messages (as well as on init or stage complete).
+    // NOTICE: Currently, MDC_INIT_OR_STAGE_ID == MDC_MATS_OUT_FROM_ID - will be removed
+    // TODO: REMOVE once all are >=0.18.8, only leave "mats.InitOrStageId" instead.
+    public static final String MDC_MATS_OUT_FROM_ID = "mats.out.from.Id"; // "this" StageId/InitiatorId.
+    public static final String MDC_MATS_OUT_TO_ID = "mats.out.to.Id"; // target StageId.
     // NOTICE: NOT using MDC_MATS_OUT_TO_APP, since we do not know which app will consume it.
 
     // ... Metrics:
@@ -633,7 +645,20 @@ public class MatsMetricsLoggingInterceptor
         String matsVersion = ctx.getInitiator().getParentFactory()
                 .getFactoryConfig().getMatsImplementationVersion();
 
-        commonStageAndInitiateCompleted(ctx, matsVersion, "", log_init, outgoingMessages,
+        /*
+         * The initiatorId is set by sending an actual message. If no message is sent from an initation lambda, there is
+         * no initiatorId. But the lambda still executed, so we want to measure it - thus using a fictive initiatorId in
+         * the no-outgoing-message case.
+         *
+         * In case of multiple messages in one initiation, each "initiatorId" (i.e. MatsInitiate.from(..)) might be
+         * different. Assuming that I have an idea of how developers use the system, this should really not be a common
+         * situation. Therefore, we just pick the first message's "from" (i.e. "initiatorId") to tag the timings with.
+         */
+        String commonInitiatorId = outgoingMessages.isEmpty()
+                ? MatsMetricsInterceptor.INITIATOR_ID_WHEN_NO_OUTGOING_MESSAGES
+                : outgoingMessages.get(0).getInitiatorId();
+
+        commonStageAndInitiateCompleted(ctx, matsVersion, commonInitiatorId, "", log_init, outgoingMessages,
                 messageSenderName, "", 0L, completedMDC);
     }
 
@@ -804,16 +829,12 @@ public class MatsMetricsLoggingInterceptor
         outputMeasurementsLoglines(log_stage, ctx);
 
         // :: Then the "completed" logline, either combined with a single message - or multiple lines for multiple msgs
+        // :: NOTICE: Adding "stage completed" and "flow completed" extra MDCs if relevant.
         Map<String, String> completedMDC = new HashMap<>();
 
         completedMDC.put(MDC_MATS_STAGE_COMPLETED, "true");
         List<MatsSentOutgoingMessage> outgoingMessages = ctx
                 .getOutgoingMessages();
-
-        String messageSenderName = ctx.getStage().getParentEndpoint().getParentFactory()
-                .getFactoryConfig().getName();
-        String matsVersion = ctx.getStage().getParentEndpoint().getParentFactory()
-                .getFactoryConfig().getMatsImplementationVersion();
 
         // :: Specific metric for stage completed
         String extraBreakdown = " totPreprocAndDeserial:[" + ms(ctx.getTotalPreprocessAndDeserializeNanos())
@@ -845,8 +866,14 @@ public class MatsMetricsLoggingInterceptor
             completedMDC.put(MDC_MATS_FLOW_COMPLETE_TIME_TOTAL, Long.toString(totalFlowTime));
         }
 
-        commonStageAndInitiateCompleted(ctx, matsVersion, " with result " + ctx.getProcessResult(), log_stage,
-                outgoingMessages, messageSenderName, extraBreakdown, extraNanosBreakdown, completedMDC);
+        String messageSenderName = ctx.getStage().getParentEndpoint().getParentFactory()
+                .getFactoryConfig().getName();
+        String matsVersion = ctx.getStage().getParentEndpoint().getParentFactory()
+                .getFactoryConfig().getMatsImplementationVersion();
+        String stageId = ctx.getStage().getStageConfig().getStageId();
+
+        commonStageAndInitiateCompleted(ctx, matsVersion, stageId, " with result " + ctx.getProcessResult(),
+                log_stage, outgoingMessages, messageSenderName, extraBreakdown, extraNanosBreakdown, completedMDC);
     }
 
     protected void outputMeasurementsLoglines(Logger logger, CommonCompletedContext ctx) {
@@ -921,11 +948,15 @@ public class MatsMetricsLoggingInterceptor
         }
     }
 
-    protected void commonStageAndInitiateCompleted(CommonCompletedContext ctx, String matsVersion, String extraResult,
-            Logger logger, List<MatsSentOutgoingMessage> outgoingMessages, String messageSenderName,
+    protected enum Level {
+        INFO, ERROR
+    }
+
+    protected void commonStageAndInitiateCompleted(CommonCompletedContext ctx, String matsVersion, String initOrStageId,
+            String extraResult, Logger logger, List<MatsSentOutgoingMessage> outgoingMessages, String messageSenderName,
             String extraBreakdown, long extraNanosBreakdown, Map<String, String> completedMDC) {
 
-        String what = extraBreakdown.isEmpty() ? "INIT" : "STAGE";
+        String what = ctx instanceof InitiateCompletedContext ? "INIT" : "STAGE";
 
         // ?: Do we have a Throwable, indicating that processing (stage or init) failed?
         if (ctx.getThrowable().isPresent()) {
@@ -935,40 +966,43 @@ public class MatsMetricsLoggingInterceptor
             // error occurred), as they will NOT have been sent, and the log lines are supposed to represent
             // actual messages that have been put on the wire.
             Throwable t = ctx.getThrowable().get();
-            completedLog(ctx, matsVersion, LOG_PREFIX + what + " !!FAILED!!" + extraResult, extraBreakdown,
-                    extraNanosBreakdown, Collections.emptyList(), Level.ERROR, logger, t, "", completedMDC);
+            commonStageAndInitiateCompleted_inner(ctx, matsVersion, initOrStageId,
+                    LOG_PREFIX + what + " !!FAILED!!" + extraResult, extraBreakdown, extraNanosBreakdown,
+                    Collections.emptyList(), Level.ERROR, logger, t, "", completedMDC);
         }
         else if (outgoingMessages.size() != 1) {
             // -> Yes, >1 or 0 messages
 
-            // :: Output the per-message logline (there might be >1, or 0, messages)
-            for (MatsSentOutgoingMessage outgoingMessage : ctx.getOutgoingMessages()) {
-                msgMdcLog(outgoingMessage, () -> log_init.info(LOG_PREFIX
-                        + msgLogLine(messageSenderName, outgoingMessage)));
-            }
+            // Note: One could argue that the messages should come before "complete", but in the case of concat of
+            // complete and message when only 1 message, it feels better that the complete is the "main" line, and the
+            // message is the "add-on". Thus, to keep consistency, we do the same when there are >1 messages.
 
             // :: Output the 'completed' line
-            completedLog(ctx, matsVersion, LOG_PREFIX + what + " completed" + extraResult, extraBreakdown,
-                    extraNanosBreakdown, outgoingMessages, Level.INFO, logger, null, "", completedMDC);
+            commonStageAndInitiateCompleted_inner(ctx, matsVersion, initOrStageId,
+                    LOG_PREFIX + what + " completed" + extraResult, extraBreakdown, extraNanosBreakdown,
+                    outgoingMessages, Level.INFO, logger, null, "", completedMDC);
+
+            // :: Output the per-message logline (there might be >1, or 0, messages)
+            for (MatsSentOutgoingMessage outgoingMessage : ctx.getOutgoingMessages()) {
+                msgLog_AddMsgMdcs(outgoingMessage, () -> log_init.info(LOG_PREFIX
+                        + msgLog_CreateMsgLogLine(messageSenderName, outgoingMessage)));
+            }
         }
         else {
             // -> Only 1 message and no Throwable: Concat the two lines.
-            msgMdcLog(outgoingMessages.get(0), () -> {
-                String msgLine = msgLogLine(messageSenderName, outgoingMessages.get(0));
-                completedLog(ctx, matsVersion, LOG_PREFIX + what + " completed" + extraResult, extraBreakdown,
-                        extraNanosBreakdown, outgoingMessages, Level.INFO, logger, null,
-                        "\n    " + LOG_PREFIX + msgLine, completedMDC);
+            msgLog_AddMsgMdcs(outgoingMessages.get(0), () -> {
+                String msgLine = msgLog_CreateMsgLogLine(messageSenderName, outgoingMessages.get(0));
+                commonStageAndInitiateCompleted_inner(ctx, matsVersion, initOrStageId,
+                        LOG_PREFIX + what + " completed" + extraResult, extraBreakdown, extraNanosBreakdown,
+                        outgoingMessages, Level.INFO, logger, null, "\n    " + LOG_PREFIX + msgLine, completedMDC);
             });
         }
     }
 
-    protected enum Level {
-        INFO, ERROR
-    }
-
-    protected void completedLog(CommonCompletedContext ctx, String matsVersion, String logPrefix, String extraBreakdown,
-            long extraNanosBreakdown, List<MatsSentOutgoingMessage> outgoingMessages, Level level, Logger log,
-            Throwable t, String logPostfix, Map<String, String> completedMDC) {
+    protected void commonStageAndInitiateCompleted_inner(CommonCompletedContext ctx, String matsVersion,
+            String initOrStageId, String logPrefix, String extraBreakdown, long extraNanosBreakdown,
+            List<MatsSentOutgoingMessage> outgoingMessages, Level level, Logger log, Throwable t, String logPostfix,
+            Map<String, String> completedMDC) {
 
         /*
          * NOTE! The timings are a bit user-unfriendly wrt. "user lambda" timing, as this includes the production of
@@ -1018,6 +1052,7 @@ public class MatsMetricsLoggingInterceptor
             }
 
             MDC.put(MDC_MATS_VERSION, matsVersion);
+            MDC.put(MDC_INIT_OR_STAGE_ID, initOrStageId);
 
             MDC.put(MDC_MATS_COMPLETE_TIME_TOTAL, msS(ctx.getTotalExecutionNanos()));
             MDC.put(MDC_MATS_COMPLETE_TIME_USER_LAMBDA, msS(nanosTaken_UserLambdaAlone));
@@ -1055,6 +1090,7 @@ public class MatsMetricsLoggingInterceptor
             completedMDC.keySet().forEach(MDC::remove);
 
             MDC.remove(MDC_MATS_VERSION);
+            MDC.remove(MDC_INIT_OR_STAGE_ID);
 
             MDC.remove(MDC_MATS_COMPLETE_TIME_TOTAL);
             MDC.remove(MDC_MATS_COMPLETE_TIME_USER_LAMBDA);
@@ -1065,7 +1101,7 @@ public class MatsMetricsLoggingInterceptor
         }
     }
 
-    protected void msgMdcLog(MatsSentOutgoingMessage msg, Runnable runnable) {
+    protected void msgLog_AddMsgMdcs(MatsSentOutgoingMessage msg, Runnable runnable) {
         String existingTraceId = MDC.get(MDC_TRACE_ID);
         try {
             MDC.put(MDC_TRACE_ID, msg.getTraceId());
@@ -1078,7 +1114,8 @@ public class MatsMetricsLoggingInterceptor
 
             MDC.put(MDC_MATS_INIT_APP, msg.getInitiatingAppName());
             MDC.put(MDC_MATS_INIT_ID, msg.getInitiatorId());
-            MDC.put(MDC_MATS_OUT_FROM_ID, msg.getFrom());
+            MDC.put(MDC_MATS_OUT_FROM_ID, msg.getFrom()); // TODO: To be removed, INIT_OR_STAGE_ID is better.
+            MDC.put(MDC_INIT_OR_STAGE_ID, msg.getFrom());
             MDC.put(MDC_MATS_OUT_TO_ID, msg.getTo());
             MDC.put(MDC_MATS_AUDIT, Boolean.toString(!msg.isNoAudit()));
             MDC.put(MDC_MATS_PERSISTENT, Boolean.toString(!msg.isNonPersistent()));
@@ -1102,11 +1139,10 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_OUT_SIZE_TOTAL_WIRE, Integer.toString(msg.getMessageSystemTotalWireSize()));
             MDC.put(MDC_MATS_OUT_SIZE_DATA_SERIAL, Integer.toString(msg.getDataSerializedSize()));
 
-            // :: Actually run the Runnable
+            // :: Actually log the line, i.e. execute the Runnable.
             runnable.run();
         }
         finally {
-
             // :: Restore MDC
             // TraceId
             if (existingTraceId == null) {
@@ -1123,7 +1159,8 @@ public class MatsMetricsLoggingInterceptor
 
             MDC.remove(MDC_MATS_INIT_APP);
             MDC.remove(MDC_MATS_INIT_ID);
-            MDC.remove(MDC_MATS_OUT_FROM_ID);
+            MDC.remove(MDC_MATS_OUT_FROM_ID); // TODO: To be removed, INIT_OR_STAGE_ID is better..
+            MDC.remove(MDC_INIT_OR_STAGE_ID);
             MDC.remove(MDC_MATS_OUT_TO_ID);
             MDC.remove(MDC_MATS_AUDIT);
             MDC.remove(MDC_MATS_PERSISTENT);
@@ -1142,7 +1179,7 @@ public class MatsMetricsLoggingInterceptor
         }
     }
 
-    protected String msgLogLine(String messageSenderName, MatsSentOutgoingMessage msg) {
+    protected String msgLog_CreateMsgLogLine(String messageSenderName, MatsSentOutgoingMessage msg) {
         long nanosTaken_Total = msg.getEnvelopeProduceNanos()
                 + msg.getEnvelopeSerializationNanos()
                 + msg.getEnvelopeCompressionNanos()
