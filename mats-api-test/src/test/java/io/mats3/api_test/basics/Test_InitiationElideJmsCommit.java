@@ -109,8 +109,8 @@ public class Test_InitiationElideJmsCommit {
 
         matsFactory.terminator("Terminator", StateTO.class, DataTO.class,
                 (ctx, state, msg) -> {
-                    _latch.countDown();
                     strings.add(msg.string);
+                    _latch.countDown();
                 });
 
         TreeSet<String> expected = new TreeSet<>();
