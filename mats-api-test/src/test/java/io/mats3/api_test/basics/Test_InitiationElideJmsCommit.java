@@ -110,7 +110,8 @@ public class Test_InitiationElideJmsCommit {
         matsFactory.terminator("Terminator", StateTO.class, DataTO.class,
                 (ctx, state, msg) -> {
                     strings.add(msg.string);
-                    _latch.countDown();
+                    // AFTER the commit, let's count down, to communicate to the test.
+                    ctx.doAfterCommit(_latch::countDown);
                 });
 
         TreeSet<String> expected = new TreeSet<>();
