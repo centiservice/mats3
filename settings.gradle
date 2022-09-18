@@ -1,3 +1,5 @@
+import java.nio.charset.Charset
+
 rootProject.name = 'mats3'
 
 include 'mats-api', 'mats-impl-jms', 'mats-api-test',
@@ -10,5 +12,6 @@ include 'mats-api', 'mats-impl-jms', 'mats-api-test',
         'mats-util'
 
 println "** Java: ${ System.getProperty('java.version') }, Groovy: $GroovySystem.version," +
-        " Gradle: ${ gradle.gradleVersion }   (printed from settings.gradle)"
+        " Gradle: ${ gradle.gradleVersion }, Charset.defaultCharset(): ${Charset.defaultCharset() }" +
+        "   (printed from settings.gradle)"
 
