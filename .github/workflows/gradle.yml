@@ -19,18 +19,19 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        javaversion: [8, 11, 17]
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout source
       uses: actions/checkout@v3
 
-    - name: Set up JDK 8
+    - name: Set up JDK ${{ matrix.javaversion }}
       uses: actions/setup-java@v3
       with:
-        java-version: '8'
+        java-version: ${{ matrix.javaversion }}
         distribution: 'temurin'
 
-    - name: Build with Gradle, Java 8
+    - name: Build with Gradle, JDK ${{ matrix.javaversion }}
       uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
       with:
         arguments: build
