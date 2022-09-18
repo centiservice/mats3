@@ -20,7 +20,7 @@ import io.mats3.api_test.StateTO;
 import io.mats3.test.MatsTestHelp;
 
 /**
- * Test sending 20 roughly 1 MB messages directly to a terminator. 1 MB messages should be considered pretty big. Using
+ * Test sending 10 roughly 1 MB messages directly to a terminator. 1 MB messages should be considered pretty big. Using
  * the default compression level on the {@code MatsSerializer_DefaultJson} implementation {@link Deflater#BEST_SPEED},
  * the deflate operation takes just around 10ms for each of these simple messages (resulting size ~271kB), and total
  * production time (with serialization) is right about 16 ms. On the receiving size, the inflate operation takes about
@@ -61,7 +61,7 @@ public class Test_LargeMessages  {
         }
     }
 
-    private static int NUMBER_OF_MESSAGES = 20;
+    private static int NUMBER_OF_MESSAGES = 10;
     private static int NUMBER_OF_DATATO_PER_MESSAGE = 11204; // Serializes to close around 1048576 bytes, which is 1MB.
 
     private static final CountDownLatch _latch = new CountDownLatch(NUMBER_OF_MESSAGES);
@@ -101,8 +101,8 @@ public class Test_LargeMessages  {
         for (int i = 0; i < NUMBER_OF_MESSAGES; i++) {
             final int finalI = i;
             new Thread(() -> {
-                log.info(
-                        "Sending messsage: Outside of initiator-lambda: Invoking .initiateUnchecked(..) on initiator.");
+                log.info("Sending messsage: Outside of initiator-lambda: Invoking .initiateUnchecked(..)"
+                        + " on initiator.");
                 matsInitiator.initiateUnchecked(
                         (msg) -> {
                             log.info("Sending messsage: Inside initiator-lambda, before sending.");
@@ -117,9 +117,9 @@ public class Test_LargeMessages  {
         }
 
         // Wait synchronously for terminator to finish.
-        boolean gotIt = _latch.await(10, TimeUnit.SECONDS);
+        boolean gotIt = _latch.await(30, TimeUnit.SECONDS);
         if (!gotIt) {
-            throw new AssertionError("Didn't get all " + NUMBER_OF_MESSAGES + " messages in 10 seconds!");
+            throw new AssertionError("Didn't get all " + NUMBER_OF_MESSAGES + " messages in 30 seconds!");
         }
 
         Assert.assertArrayEquals(messages, _receivedMessages);
