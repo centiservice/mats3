@@ -102,6 +102,10 @@ subprojects {
          * ./gradlew -Pmats.test.broker=com.example.MyMatsTestBrokerImpl clean test
          */
         systemProperties project.properties.subMap(["mats.test.brokerurl", "mats.test.broker"])
+
+        testLogging {
+            exceptionFormat = 'full'
+        }
     }
 
     // ------------------------------------------------
