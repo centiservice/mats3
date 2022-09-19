@@ -141,13 +141,15 @@ public class Test_MatsFuturizer_Timeouts {
         // NOTICE how the order of the entered futures's timeouts are NOT in order.
         // This is to test that the Timeouter handles both adding new entries that are later than the current
         // earliest, but also earlier than the current earliest.
-        futureToEmptiness(futurizer, new DataTO(1, "60"), 60, exceptionallyConsumer);
-        futureToEmptiness(futurizer, new DataTO(2, "140"), 140, exceptionallyConsumer);
-        futureToEmptiness(futurizer, new DataTO(3, "200"), 200, exceptionallyConsumer);
-        futureToEmptiness(futurizer, new DataTO(4, "100"), 100, exceptionallyConsumer);
+        // 60, 140, 200, 100, 20, 240
+        // 120,320, 420, 220  20  520
+        futureToEmptiness(futurizer, new DataTO(1, "120"), 120, exceptionallyConsumer);
+        futureToEmptiness(futurizer, new DataTO(2, "320"), 320, exceptionallyConsumer);
+        futureToEmptiness(futurizer, new DataTO(3, "420"), 420, exceptionallyConsumer);
+        futureToEmptiness(futurizer, new DataTO(4, "220"), 220, exceptionallyConsumer);
         futureToEmptiness(futurizer, new DataTO(5, "20"), 20, exceptionallyConsumer);
         // .. we add the last timeout with the longest timeout.
-        CompletableFuture<Reply<DataTO>> last = futureToEmptiness(futurizer, new DataTO(6, "240"), 240,
+        CompletableFuture<Reply<DataTO>> last = futureToEmptiness(futurizer, new DataTO(6, "520"), 520,
                 exceptionallyConsumer);
 
         // "ACT": (well, each of the above futures have /already/ started executing, but wait for them to finish)
@@ -166,7 +168,7 @@ public class Test_MatsFuturizer_Timeouts {
         // ASSERT:
 
         // :: All the futures should now have timed out, and they shall have timed out in the order of timeouts.
-        Assert.assertEquals(Arrays.asList("20", "60", "100", "140", "200", "240"), results);
+        Assert.assertEquals(Arrays.asList("20", "120", "220", "320", "420", "520"), results);
         // .. and there should not be any Promises left in the MatsFuturizer.
         Assert.assertEquals(0, futurizer.getOutstandingPromiseCount());
     }
