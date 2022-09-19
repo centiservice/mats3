@@ -35,4 +35,5 @@ jobs:
     - name: Build with Gradle, JDK ${{ matrix.javaversion }}
       uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
       with:
-        arguments: build
+        arguments: clean build
+        cache-disabled: true
