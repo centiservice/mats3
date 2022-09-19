@@ -50,6 +50,13 @@ abstracting away the actual communication with the external service. However, du
 this will hinder composition of Mats endpoints: You should not be invoking a synchronous wrapper of a Mats Endpoint
 within another Mats Endpoint. If you have a relevant use case, instead make "service-private" Mats Endpoints.
 
+### [Application Design](developing/ApplicationDesign.md)
+
+_(by: Ståle Undheim)_ Suggesting how you may code internal services to be explicit with their requirements, i.e.
+requiring whatever objects they need as arguments to the service methods instead of looking them up themselves by use of
+MatsFuturized. This ensures that you don't fall in the nested-Mats-flows problem described in _"Composition of Mats
+Endpoints"_.
+
 Upcoming:
 
 ### Few and small messages!

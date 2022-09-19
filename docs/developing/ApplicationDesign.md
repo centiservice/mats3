@@ -1,4 +1,5 @@
 # Designing services and endpoints using Mats
+_by: Ståle Undheim_
 
 Mats is inteded to be used in a MicroService environment, where each service has its distinct responsibility, and
 the RPC mechanism between these services happens via Mats. Each service thus has a set of public endpoints that
@@ -15,62 +16,69 @@ A common scenario is that in executing an operation in your service, you need ad
 service via Mats. The worst approach for doing this, is to have a MatsFuturizer inside your internal service
 that calls out to other servces. See [Mats Composition](MatsComposition.md) for more details on this.
 
-    public class BadOrderService {
+```java
+public class BadOrderService {
 
-        @Inject private MatsFuturizer _futurizer;
-        @Inject private OrderRepository _orderRepository;
+    @Inject private MatsFuturizer _futurizer;
+    @Inject private OrderRepository _orderRepository;
 
-        public void createOrder(String customerId, String shoppingCartId) {
-            // Call out to CustomerService and ShoppingCartService
-            CustomerDto customerDto = _futurizer.futurize(...).join().getReply();
-            ShoppingCartDto shoppingCartDto = _futurizer.futurize(...).join().getReply();
+    public void createOrder(String customerId, String shoppingCartId) {
+        // Call out to CustomerService and ShoppingCartService
+        CustomerDto customerDto = _futurizer.futurize(...).join().getReply();
+        ShoppingCartDto shoppingCartDto = _futurizer.futurize(...).join().getReply();
 
-            // Convert the domain entities to local domain representations
-            Customer customer = toDomain(customerDto);
-            ShoppingCart shoppingCart = toDomain(shoppingCartDto);
+        // Convert the domain entities to local domain representations
+        Customer customer = toDomain(customerDto);
+        ShoppingCart shoppingCart = toDomain(shoppingCartDto);
 
-            Order order = Order.create(customer, shoppingCart);
+        Order order = Order.create(customer, shoppingCart);
 
-            _orderRepository.save(order);
-        }
+        _orderRepository.save(order);
     }
+}
+```
 
 The problem with the above service becomes apparent if we integrate it in a Mats Flow. As then the Mats Flow will be
 in a blocking wait on 2 other Mats Flows. If this is in turn called via a Futurizer in another Mats flow, we start
 getting into problems. A much better approach is in stead something like this:
 
-    public class BetterOrderService {
-        @Inject private OrderRepository _orderRepository;
 
-        public void createOrder(Customer customer, ShoppingCart shoppingCart) {
-            Order order = Order.create(customer, shoppingCart);
+```java
+public class BetterOrderService {
+    @Inject private OrderRepository _orderRepository;
 
-            _orderRepository.save(order);
-        }
+    public void createOrder(Customer customer, ShoppingCart shoppingCart) {
+        Order order = Order.create(customer, shoppingCart);
+
+        _orderRepository.save(order);
     }
+}
+```
 
 This is both simpler, and communicates its dependencies (Customer and ShoppingCart) via its API. This also means we
 can reuse the Order.create function in a preview in a Controller like this:
 
-    @Controller
-    public class OrderController {
+```java
+@Controller
+public class OrderController {
 
-        @RequestMapping
-        public CompletableFuture<OrderDto> previewOrder(String customerId, String shoppingCartId) {
-            // Call out to CustomerService and ShoppingCartService
-            CompletableFuture<CustomerDto> customerDto = _futurizer.futurize(...).join().getReply();
-            CompletableFuture<ShoppingCartDto> shoppingCartDto = _futurizer.futurize(...).join().getReply();
+    @RequestMapping
+    public CompletableFuture<OrderDto> previewOrder(String customerId, String shoppingCartId) {
+        // Call out to CustomerService and ShoppingCartService
+        CompletableFuture<CustomerDto> customerDto = _futurizer.futurize(...).join().getReply();
+        CompletableFuture<ShoppingCartDto> shoppingCartDto = _futurizer.futurize(...).join().getReply();
 
-            return customerDto.thenCombine(shoppingCartDto, (customerDto, shoppingCartDto) -> {
-                // Convert the domain entities to local domain representations
-                Customer customer = toDomain(customerDto);
-                ShoppingCart shoppingCart = toDomain(shoppingCartDto);
+        return customerDto.thenCombine(shoppingCartDto, (customerDto, shoppingCartDto) -> {
+            // Convert the domain entities to local domain representations
+            Customer customer = toDomain(customerDto);
+            ShoppingCart shoppingCart = toDomain(shoppingCartDto);
 
-                Order order = Order.create(customer, shoppingCart);
-                return order;
-            });
-        }
+            Order order = Order.create(customer, shoppingCart);
+            return order;
+        });
     }
+}
+```
 
 
 In this instance, it is perfectly acceptable to use a Futurizer, as we are in a synchronous request call. We can even
@@ -78,54 +86,56 @@ take the advantage of Sprigns async support to not block any Http threads while 
 a preview of order, but if we actually want to create an order, we should instead forward to a private endpoint that
 handles this, that is specific for the OrderController:
 
-    @Controller
-    public class OrderController {
+```java
+@Controller
+public class OrderController {
 
-        @Inject private MatsFuturizer _futurizer;
+    @Inject private MatsFuturizer _futurizer;
 
-        @MatsClassMapping("OrderService.private.createOrder")
-        public static class PrivateCreateOrderEndpoint {
+    @MatsClassMapping("OrderService.private.createOrder")
+    public static class PrivateCreateOrderEndpoint {
 
-            private CreateOrderRequest _request;
-            private CustomerDto _customerDto;
-            private ProcessContext<OrderDto> _processContext;
-            @Inject private BetterOrderService _orderService;
+        private CreateOrderRequest _request;
+        private CustomerDto _customerDto;
+        private ProcessContext<OrderDto> _processContext;
+        @Inject private BetterOrderService _orderService;
 
-            @Stage(Stage.INITIAL)
-            public void receiveRequest(CreateOrderRequest request) {
-                _request = request;
-                _processContext.request("CustomerService.getCustomer", _request.customerId);
-            }
-
-            @Stage(10)
-            public void receiveCustomer(CustomerDto customerDto) {
-                _customerDto = customerDto;
-                _processContext.request("ShoppingCartService.getShoppingCart", _request.shoppingCartId);
-            }
-
-            @Stage(20)
-            public OrderDto reply(ShoppingCartDto shoppingCartDto) {
-                Customer customer = toDomain(customerDto);
-                ShoppingCart shoppingCart = toDomain(shoppingCartDto);
-
-                Order order = _orderService.createOrder(customer, shoppingCart);
-
-                return toDto(order);
-            }
-
+        @Stage(Stage.INITIAL)
+        public void receiveRequest(CreateOrderRequest request) {
+            _request = request;
+            _processContext.request("CustomerService.getCustomer", _request.customerId);
         }
 
-        @RequestMapping(method = RequestMethod.POST)
-        public CompletableFuture<OrderDto> createOrder(String customerId, String shoppingCartId) {
-            return _futurizer.futurizeNonessential(
-                    "http.createOrder",
-                    "OrderController.createOrder",
-                    "OrderService.private.createOrder",
-                    OrderDto.class,
-                    new CreateOrderRequest(customerId, shoppingCartId)
-            ).thenApply(Reply::getReply);
+        @Stage(10)
+        public void receiveCustomer(CustomerDto customerDto) {
+            _customerDto = customerDto;
+            _processContext.request("ShoppingCartService.getShoppingCart", _request.shoppingCartId);
         }
+
+        @Stage(20)
+        public OrderDto reply(ShoppingCartDto shoppingCartDto) {
+            Customer customer = toDomain(customerDto);
+            ShoppingCart shoppingCart = toDomain(shoppingCartDto);
+
+            Order order = _orderService.createOrder(customer, shoppingCart);
+
+            return toDto(order);
+        }
+
     }
+
+    @RequestMapping(method = RequestMethod.POST)
+    public CompletableFuture<OrderDto> createOrder(String customerId, String shoppingCartId) {
+        return _futurizer.futurizeNonessential(
+                "http.createOrder",
+                "OrderController.createOrder",
+                "OrderService.private.createOrder",
+                OrderDto.class,
+                new CreateOrderRequest(customerId, shoppingCartId)
+        ).thenApply(Reply::getReply);
+    }
+}
+```
 
 Here we have a specific endpoint for the controller, that takes care of creating an order. The actual domain logic
 for creating an order is implemented inside the BetterOrderService, while this MatsFlow only serves as an orchestrator
