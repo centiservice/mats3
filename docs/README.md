@@ -44,17 +44,17 @@ enabling aggregate metrics. The document explains a bit about these, and gives p
 
 ### [Composition of Mats Endpoints](developing/MatsComposition.md)
 
-You might be tempted to create synchronous Client wrappers, employing the MatsFuturizer, to abstract away collaborating
-Mats Endpoints. This would feel familiar to how you might code when interfacing with external HTTP endpoints,
-abstracting away the actual communication with the external service. However, due to the asynchronous nature of Mats,
-this will hinder composition of Mats endpoints: You should not be invoking a synchronous wrapper of a Mats Endpoint
-within another Mats Endpoint. If you have a relevant use case, instead make "service-private" Mats Endpoints.
+You might be tempted to create synchronous Client wrappers, employing the `MatsFuturizer`, to abstract away
+collaborating Mats Endpoints. This would feel familiar to how you might code when interfacing with external HTTP
+endpoints, abstracting away the actual communication with the external service. However, due to the asynchronous nature
+of Mats, this will hinder composition of Mats endpoints: You should not be invoking a synchronous wrapper of a Mats
+Endpoint within another Mats Endpoint. If you have a relevant use case, instead make "service-private" Mats Endpoints.
 
-### [Application Design](developing/ApplicationDesign.md)
+### [Designing Services and Endpoints](developing/DesigningServicesAndEndpoints.md)
 
 _(by: Ståle Undheim)_ Suggesting how you may code internal services to be explicit with their requirements, i.e.
 requiring whatever objects they need as arguments to the service methods instead of looking them up themselves by use of
-MatsFuturized. This ensures that you don't fall in the nested-Mats-flows problem described in _"Composition of Mats
+`MatsFuturizer`. This ensures that you don't fall into the nested-Mats-flows problem described in _"Composition of Mats
 Endpoints"_.
 
 Upcoming:
