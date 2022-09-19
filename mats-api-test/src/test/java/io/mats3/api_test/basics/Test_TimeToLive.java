@@ -9,13 +9,12 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.slf4j.Logger;
 
-import io.mats3.MatsEndpoint;
 import io.mats3.MatsFactory;
-import io.mats3.test.junit.Rule_Mats;
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
+import io.mats3.test.junit.Rule_Mats;
 
 /**
  * Tests the Time-To-Live feature, by sending 4 messages with TTL = 150, and then a "flushing" FINAL message without
@@ -26,9 +25,9 @@ import io.mats3.test.MatsTestLatch.Result;
  * TTL for the 4 messages to 0, which is "forever", hence all should now be delivered, and the expected number of
  * delivered messages should then be 5.
  *
- * TODO: Unstable on Travis
- *
  * @author Endre Stølsvik 2019-08-25 22:40 - http://stolsvik.com/, endre@stolsvik.com
+ * @author Endre Stølsvik 2022-09-19 23:35 - hopefully eliminating instability on Github Actions (formerly instable on
+ *         Travis!)
  */
 public class Test_TimeToLive {
     private static final Logger log = MatsTestHelp.getClassLogger();
@@ -36,17 +35,15 @@ public class Test_TimeToLive {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
     public static void setupService() {
-        MatsEndpoint<DataTO, Void> single = MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().terminator(TERMINATOR, StateTO.class, DataTO.class,
                 // Ensure that there is only processed ONE message per time
                 endpointConfig -> endpointConfig.setConcurrency(1),
                 // Stage config inherits from EndpointConfig
-                MatsFactory.NO_CONFIG,
-                (context, dto) -> {
+                MatsFactory.NO_CONFIG, (ctx, state, dto) -> {
                     if ("DELAY".equals(dto.string)) {
                         try {
                             Thread.sleep(400);
@@ -55,30 +52,19 @@ public class Test_TimeToLive {
                             throw new IllegalStateException(e);
                         }
                     }
-                    return new DataTO(dto.number * 2, dto.string + ":FromService");
+                    _numberOfMessages.incrementAndGet();
+                    if ("FINAL".equals(dto.string)) {
+                        MATS.getMatsTestLatch().resolve(state, dto);
+                    }
                 });
     }
 
     private static final AtomicInteger _numberOfMessages = new AtomicInteger();
 
-    @BeforeClass
-    public static void setupTerminator() {
-        MATS.getMatsFactory().terminator(TERMINATOR, StateTO.class, DataTO.class,
-                (context, sto, dto) -> {
-                    log.debug("TERMINATOR MatsTrace:\n" + context.toString());
-                    _numberOfMessages.incrementAndGet();
-                    if (dto.string.startsWith("FINAL")) {
-                        MATS.getMatsTestLatch().resolve(sto, dto);
-                    }
-                });
-
-    }
-
     @Before
     public void resetStates() {
         _numberOfMessages.set(0);
     }
-
 
     @Test
     public void checkTestInfrastructure() {
@@ -91,7 +77,6 @@ public class Test_TimeToLive {
     }
 
     private void doTest(long timeToLive, int expectedMessages) {
-        DataTO finalDto = new DataTO(42, "FINAL");
         StateTO sto = new StateTO(420, 420.024);
 
         // :: First send 4 messages with the specified TTL.
@@ -101,10 +86,9 @@ public class Test_TimeToLive {
                         DataTO dto = new DataTO(i, "DELAY");
                         msg.traceId(MatsTestHelp.traceId())
                                 .from(MatsTestHelp.from("first_run_" + i))
-                                .to(SERVICE)
+                                .to(TERMINATOR)
                                 .nonPersistent(timeToLive)
-                                .replyTo(TERMINATOR, sto)
-                                .request(dto);
+                                .send(dto);
                     }
                 });
 
@@ -114,20 +98,26 @@ public class Test_TimeToLive {
         // ones, and gets to the terminator before the above ones. So either I had to also make this one nonPersistent,
         // or like this, do it in a separate initiation. Since I've had several cases of Travis-CI bailing on me on
         // this specific test, I now do BOTH: Both nonPersistent (but with "forever" TTL), and separate transaction.
+        // NOTE2: This was always unstable on Travis, and when going to Github Actions, it was unstable there too.
+        // I've now (2002-09-19) changed to not use a Single service and a Terminator, and instead only go for a
+        // Terminator. The problem was that the "FINAL" message ended up on the dedicated Terminator before all the
+        // other messages had arrived. It occurred to me that having this in two different endpoints introduced multiple
+        // more race possibilities, and thus reducing it to just a single Terminator should reduce this, hopefully
+        // eliminate it as ActiveMQ is supposed to keep message order when operating from a single queue.
+        DataTO finalDto = new DataTO(42, "FINAL");
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> {
                     msg.traceId(MatsTestHelp.traceId())
                             .from(MatsTestHelp.from("second_run"))
-                            .to(SERVICE)
+                            .to(TERMINATOR)
                             .nonPersistent()
-                            .replyTo(TERMINATOR, sto)
-                            .request(finalDto);
+                            .send(finalDto, sto);
                 });
 
         // Wait synchronously for terminator to finish (that is, receives the flushing "FINAL" message).
         Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult(10_000);
         Assert.assertEquals(sto, result.getState());
-        Assert.assertEquals(new DataTO(finalDto.number * 2, finalDto.string + ":FromService"), result.getData());
+        Assert.assertEquals(finalDto, result.getData());
         Assert.assertEquals(expectedMessages, _numberOfMessages.get());
     }
 }
