@@ -27,7 +27,7 @@ public class Test_ConcurrencyForEndpoint extends ATest_AbstractConcurrency {
     @BeforeClass
     public static void setupService() {
         MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
-                (endpointConfig) -> endpointConfig.setConcurrency(CONCURRENCY_TEST),
+                (endpointConfig) -> endpointConfig.setConcurrency(CONCURRENCY),
                 MatsFactory.NO_CONFIG,
                 (context, dto) -> {
                     // Emulate some lengthy processing...

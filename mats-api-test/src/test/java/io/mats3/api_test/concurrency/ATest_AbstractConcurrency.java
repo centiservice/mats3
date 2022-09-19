@@ -30,7 +30,7 @@ public class ATest_AbstractConcurrency  {
     protected static final String SERVICE = MatsTestHelp.service();
     protected static final String TERMINATOR = MatsTestHelp.terminator();
 
-    protected static final int CONCURRENCY_TEST = 8;
+    protected static final int CONCURRENCY = 8;
 
     protected static final int PROCESSING_TIME = 500;
 
@@ -40,6 +40,9 @@ public class ATest_AbstractConcurrency  {
 
     @BeforeClass
     public static void setupTerminator() {
+        // Set default concurrency to 1. This test should most definitely not pass then.
+        MATS.getMatsFactory().getFactoryConfig().setConcurrency(1);
+        // Create the terminator
         MATS.getMatsFactory().terminator(TERMINATOR, StateTO.class, DataTO.class, (context, sto, dto) -> {
             _map.put(sto.number1, dto);
             _latch.countDown();
@@ -49,7 +52,7 @@ public class ATest_AbstractConcurrency  {
     @Before
     public void clearMapsAndLatch() {
         _map.clear();
-        _latch = new CountDownLatch(CONCURRENCY_TEST);
+        _latch = new CountDownLatch(CONCURRENCY);
     }
 
     protected void performTest(double expectedMultiple, String expectedString) throws InterruptedException {
@@ -62,11 +65,11 @@ public class ATest_AbstractConcurrency  {
          * Remedy by napping a little before firing off the messages, hoping that all the StageProcessors gets one
          * message each, which is a requirement for the test to pass.
          */
-        MatsTestHelp.takeNap(PROCESSING_TIME / 2);
+        MatsTestHelp.takeNap(PROCESSING_TIME);
 
         // .. Now fire off the messages.
         MATS.getMatsInitiator().initiateUnchecked((msg) -> {
-            for (int i = 0; i < CONCURRENCY_TEST; i++) {
+            for (int i = 0; i < CONCURRENCY; i++) {
                 DataTO dto = new DataTO(i, "TheAnswer");
                 StateTO sto = new StateTO(i, i);
                 msg.traceId(MatsTestHelp.traceId())
@@ -77,18 +80,24 @@ public class ATest_AbstractConcurrency  {
             }
         });
 
-        // Wait synchronously for all messages to reach terminator
-        long maxWait = (long) (PROCESSING_TIME * 1.3);
+        // :: Wait synchronously for all messages to reach terminator
+
+        // We set the max time to receive all messages to a multiple <2 - this means that if the messages does not
+        // go through in parallel, the test should fail. We want as tight margin as possible, but since evidently
+        // the test runner instances on Github Actions are pretty crowded, we'll have to give quite a bit of leeway.
+        // Former x1.3 (650 ms) failed on MacOS (it took 685 ms!), upping to 1.75x, which still should catch if the
+        // concurrency is severely off what is configured in the tests.
+        long maxWait = (long) (PROCESSING_TIME * 1.75);
         long startMillis = System.currentTimeMillis();
-        boolean gotToZero = _latch.await((long) (PROCESSING_TIME * CONCURRENCY_TEST * 1.5), TimeUnit.MILLISECONDS);
+        boolean gotToZero = _latch.await((long) (PROCESSING_TIME * CONCURRENCY * 1.5), TimeUnit.MILLISECONDS);
         long millisTaken = System.currentTimeMillis() - startMillis;
         Assert.assertTrue("The CountDownLatch did not reach zero.", gotToZero);
         Assert.assertTrue("The CountDownLatch did not reach zero in " + maxWait + " ms (took " + millisTaken + "ms).",
                 millisTaken < maxWait);
-        log.info("@@ Test passed - Waiting for " + CONCURRENCY_TEST + " messages took " + millisTaken + " ms.");
+        log.info("@@ Test passed - Waiting for " + CONCURRENCY + " messages took " + millisTaken + " ms.");
 
         // :: Assert the processed data
-        for (int i = 0; i < CONCURRENCY_TEST; i++) {
+        for (int i = 0; i < CONCURRENCY; i++) {
             DataTO dto = _map.get(i);
             Assert.assertEquals(i * expectedMultiple, dto.number, 0);
             Assert.assertEquals(expectedString + i, dto.string);

@@ -33,12 +33,12 @@ public class Test_ConcurrencyPerStage extends ATest_AbstractConcurrency {
         // :: Configuring endpoint to use 4 as concurrency.
         MatsEndpoint<DataTO, StateTO> ep = MATS.getMatsFactory().staged(SERVICE, DataTO.class, StateTO.class,
                 (endpointConfig) -> {
-                    endpointConfig.setConcurrency(CONCURRENCY_TEST / 2);
+                    endpointConfig.setConcurrency(CONCURRENCY / 2);
                 });
         // :: Configuring this stage to override concurrency from 4 to 8.
         ep.stage(DataTO.class,
                 (stageConfig) -> {
-                    stageConfig.setConcurrency(CONCURRENCY_TEST);
+                    stageConfig.setConcurrency(CONCURRENCY);
                 } ,
                 (context, state, dto) -> {
                     // Emulate some lengthy processing...
