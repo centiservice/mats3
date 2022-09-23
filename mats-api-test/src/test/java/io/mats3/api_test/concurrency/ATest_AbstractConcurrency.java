@@ -11,17 +11,17 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.slf4j.Logger;
 
-import io.mats3.test.junit.Rule_Mats;
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
 import io.mats3.test.MatsTestHelp;
+import io.mats3.test.junit.Rule_Mats;
 
 /**
  * Abstract class for concurrency tests.
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
-public class ATest_AbstractConcurrency  {
+public class ATest_AbstractConcurrency {
     private static final Logger log = MatsTestHelp.getClassLogger();
 
     @ClassRule
@@ -86,8 +86,10 @@ public class ATest_AbstractConcurrency  {
         // go through in parallel, the test should fail. We want as tight margin as possible, but since evidently
         // the test runner instances on Github Actions are pretty crowded, we'll have to give quite a bit of leeway.
         // Former x1.3 (650 ms) failed on MacOS (it took 685 ms!), upping to 1.75x, which still should catch if the
-        // concurrency is severely off what is configured in the tests.
-        long maxWait = (long) (PROCESSING_TIME * 1.75);
+        // concurrency is severely off what is configured in the tests. Aaand, upping to 1.99, since MacOS still fails
+        // us (took 888ms, when 1.75x gives max 875!). 1.99x is still short enough that a bad test cannot falsely get
+        // green, but this will probably still fail sometimes since there is so little headroom.
+        long maxWait = (long) (PROCESSING_TIME * 1.99);
         long startMillis = System.currentTimeMillis();
         boolean gotToZero = _latch.await((long) (PROCESSING_TIME * CONCURRENCY * 1.5), TimeUnit.MILLISECONDS);
         long millisTaken = System.currentTimeMillis() - startMillis;

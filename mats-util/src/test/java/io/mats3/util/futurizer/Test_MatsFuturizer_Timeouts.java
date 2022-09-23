@@ -25,7 +25,7 @@ import io.mats3.util.MatsFuturizer.Reply;
  * synchronously timeout on the {@link CompletableFuture#get(long, TimeUnit) get(...)}, which really should be your
  * preferred way, IMHO, <b>or</b> you let the MatsFuturizer do the timeout by its timeout thread.
  *
- * TODO: Unstable on Travis
+ * TODO: Unstable on Travis, and Github Actions (in particular MacOS)
  *
  * @author Endre Stølsvik 2019-08-30 21:57 - http://stolsvik.com/, endre@stolsvik.com
  */
@@ -33,7 +33,7 @@ public class Test_MatsFuturizer_Timeouts {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String TERMINATOR = MatsTestHelp.terminator();
 
     /**
      * This Terminator is set up just to consume all messages produced by this test, so that they do not linger on the
@@ -42,14 +42,15 @@ public class Test_MatsFuturizer_Timeouts {
      */
     @BeforeClass
     public static void setupCleanupTerminator() {
-        MATS.getMatsFactory().terminator(SERVICE, Object.class, DataTO.class, (ctx, state, msg) -> {
+        MATS.getMatsFactory().terminator(TERMINATOR, Object.class, DataTO.class, (ctx, state, msg) -> {
         });
     }
 
-    private CompletableFuture<Reply<DataTO>> futureToEmptiness(MatsFuturizer futurizer, DataTO dto, int timeoutMillis,
+    private CompletableFuture<Reply<DataTO>> futureToEmptiness(MatsFuturizer futurizer, int sequence, int timeoutMillis,
             Consumer<Throwable> exceptionallyConsumer) {
         CompletableFuture<Reply<DataTO>> future = futurizer.futurize(
-                dto.string, "TimeoutTester.oneshot", SERVICE, timeoutMillis, TimeUnit.MILLISECONDS, DataTO.class, dto,
+                ""+timeoutMillis, "TimeoutTester.oneshot", TERMINATOR, timeoutMillis,
+                TimeUnit.MILLISECONDS, DataTO.class, new DataTO(sequence, "" + timeoutMillis),
                 MatsInitiate::nonPersistent);
         if (exceptionallyConsumer != null) {
             future.exceptionally((in) -> {
@@ -62,8 +63,7 @@ public class Test_MatsFuturizer_Timeouts {
 
     @Test
     public void oneShotTimeoutByMatsFuturizer() throws InterruptedException, TimeoutException {
-        DataTO dto = new DataTO(42, "TheAnswer");
-        CompletableFuture<Reply<DataTO>> future = futureToEmptiness(MATS.getMatsFuturizer(), dto, 10, null);
+        CompletableFuture<Reply<DataTO>> future = futureToEmptiness(MATS.getMatsFuturizer(), 42, 10, null);
 
         // ----- There will never be a reply, as there is no consumer for the sent message..!
 
@@ -93,8 +93,7 @@ public class Test_MatsFuturizer_Timeouts {
         // =============================================================================================
         try (MatsFuturizer futurizer = MatsFuturizer.createMatsFuturizer(MATS.getMatsFactory(),
                 this.getClass().getSimpleName())) {
-            DataTO dto = new DataTO(42, "TheAnswer");
-            CompletableFuture<Reply<DataTO>> future = futureToEmptiness(futurizer, dto, 500, null);
+            CompletableFuture<Reply<DataTO>> future = futureToEmptiness(futurizer, 42, 500, null);
 
             // ----- There will never be a reply, as there is no consumer for the sent message..!
 
@@ -141,15 +140,16 @@ public class Test_MatsFuturizer_Timeouts {
         // NOTICE how the order of the entered futures's timeouts are NOT in order.
         // This is to test that the Timeouter handles both adding new entries that are later than the current
         // earliest, but also earlier than the current earliest.
-        // 60, 140, 200, 100, 20, 240
-        // 120,320, 420, 220  20  520
-        futureToEmptiness(futurizer, new DataTO(1, "120"), 120, exceptionallyConsumer);
-        futureToEmptiness(futurizer, new DataTO(2, "320"), 320, exceptionallyConsumer);
-        futureToEmptiness(futurizer, new DataTO(3, "420"), 420, exceptionallyConsumer);
-        futureToEmptiness(futurizer, new DataTO(4, "220"), 220, exceptionallyConsumer);
-        futureToEmptiness(futurizer, new DataTO(5, "20"), 20, exceptionallyConsumer);
+        // TODO: This is damn weird. Got this failure on macos + java 8.
+        // java.lang.AssertionError: expected:<[10, 300, 400, 500, 600, 700]> but was:<[10, 300, 400, 600, 700, 500]>
+        // TODO: That is not consistent with anything; The 500 was scheduled WAY before the 700.
+        futureToEmptiness(futurizer, 1, 300, exceptionallyConsumer);
+        futureToEmptiness(futurizer, 2, 500, exceptionallyConsumer);
+        futureToEmptiness(futurizer, 3, 600, exceptionallyConsumer);
+        futureToEmptiness(futurizer, 4, 400, exceptionallyConsumer);
+        futureToEmptiness(futurizer, 5, 10, exceptionallyConsumer);
         // .. we add the last timeout with the longest timeout.
-        CompletableFuture<Reply<DataTO>> last = futureToEmptiness(futurizer, new DataTO(6, "520"), 520,
+        CompletableFuture<Reply<DataTO>> last = futureToEmptiness(futurizer, 6, 700,
                 exceptionallyConsumer);
 
         // "ACT": (well, each of the above futures have /already/ started executing, but wait for them to finish)
@@ -168,7 +168,7 @@ public class Test_MatsFuturizer_Timeouts {
         // ASSERT:
 
         // :: All the futures should now have timed out, and they shall have timed out in the order of timeouts.
-        Assert.assertEquals(Arrays.asList("20", "120", "220", "320", "420", "520"), results);
+        Assert.assertEquals(Arrays.asList("10", "300", "400", "500", "600", "700"), results);
         // .. and there should not be any Promises left in the MatsFuturizer.
         Assert.assertEquals(0, futurizer.getOutstandingPromiseCount());
     }

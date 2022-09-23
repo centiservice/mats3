@@ -21,6 +21,13 @@ dependencies {
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
 }
 
+// TODO: Trying to find why 'Test_MatsFuturizer_Timeouts' fails randomly.
+test {
+    testLogging {
+        showStandardStreams = true
+    }
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {

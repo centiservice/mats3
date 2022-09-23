@@ -11,6 +11,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -228,9 +229,10 @@ public class MatsFuturizer implements AutoCloseable {
 
     /**
      * This exception is raised through the {@link CompletableFuture} if the timeout specified when getting the
-     * {@link CompletableFuture} is reached (to get yourself a future, use the
-     * {@link #futurizeInteractiveUnreliable(String, String, String, Class, Object) futurizeXYZ(..)} methods). The
-     * exception is passed to the waiter on the future by {@link CompletableFuture#completeExceptionally(Throwable)}.
+     * {@link CompletableFuture} is reached (to get yourself a future, use one of the
+     * {@link #futurizeNonessential(String, String, String, Class, Object) futurizeXYZ(..)} methods). The exception is
+     * passed to the waiter on the future by {@link CompletableFuture#completeExceptionally(Throwable)}, where the
+     * consumer can pick it up with e.g. {@link CompletableFuture#exceptionally(Function)}.
      */
     public static class MatsFuturizerTimeoutException extends RuntimeException {
         private final long initiationTimestamp;
