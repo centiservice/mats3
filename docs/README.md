@@ -80,8 +80,11 @@ What to think about to have seamless upgrades: Mats flows with DTOs and STOs mig
 minimize the differences and incompatibilities between vN and vN+1, so that very few, preferably zero, flows crash
 midflight.
 
-## Prodcution
+## Production
 
 ### Config for ActiveMQ
 
+Suggestion for configuration of ActiveMQ, and its client (the ActiveMQ JMS ConnectionFactory) in a Mats Fabric
+environment. Albeit Mats works on a completely stock ActiveMQ, based on some 6 years of experience of using Mats on top
+of it, there are some suggestions to be made.
 
