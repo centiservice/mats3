@@ -64,9 +64,9 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     // Outgoing:
 
-    // Hack to be able to later enforce the legal call flows
-    private RuntimeException _requestOrNextSent;
-    private RuntimeException _replySent;
+    // Set when outgoing flow message is created, to catch illegal call flows
+    private DebugStackTraceException _requestOrNextSent;
+    private DebugStackTraceException _replySent;
 
     private final LinkedHashMap<String, Object> _outgoingProps = new LinkedHashMap<>();
     private final LinkedHashMap<String, byte[]> _outgoingBinaries = new LinkedHashMap<>();
@@ -512,33 +512,45 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     private static final String REPLY_TO_VOID = "REPLY_TO_VOID_NO_MESSAGE_SENT";
 
+    private static class IllegalCallFlowsException extends IllegalStateException {
+        public IllegalCallFlowsException(String message) {
+            super(message);
+        }
+    }
+
+    private static class DebugStackTraceException extends Exception {
+        public DebugStackTraceException(String message) {
+            super(message);
+        }
+    }
+
     @Override
     public MessageReference reply(Object replyDto) {
         long nanosStart = System.nanoTime();
 
-        /*
-         * Sending reply more than once is NOT LEGAL, but has never been enforced. Therefore, for now currently just log
-         * hard, and then at a later time throw IllegalStateException or some such. -2020-01-09.
-         */
-        // TODO: Reimplement to throw once all are > v0.16.0
         // ?: Have reply already been invoked?
         if (_replySent != null) {
-            // -> Yes, and this is not legal. But it has not been enforced before, so currently just log.error
-            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + "Reply has already been invoked! This is not legal,"
-                    + " and will throw exception in a later version!");
+            // -> Yes, and this is not legal.
+            String msg = "Reply has already been invoked! You cannot reply once more.";
+            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
             log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replySent);
-            log.error(LOG_PREFIX + "   THIS REPLY DEBUG STACKTRACE:", new RuntimeException("THIS REPLY STACKTRACE"));
+            log.error(LOG_PREFIX + "   THIS REPLY DEBUG STACKTRACE:",
+                    new DebugStackTraceException("THIS REPLY STACKTRACE"));
+            throw new IllegalCallFlowsException(msg);
         }
 
+        // ?: Have request or next already been invoked?
         if (_requestOrNextSent != null) {
-            // -> Yes, and this is not legal. But it has not been enforced before, so currently just log.error
-            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + "Request or Next has already been invoked! It is not legal to"
-                    + " mix Reply with Request or Next, and will throw exception in a later version!");
+            // -> Yes, and this is not legal.
+            String msg = "Request or Next has already been invoked! It is illegal to mix Reply with Request or Next.";
+            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
             log.error(LOG_PREFIX + "   PREVIOUS REQUEST/NEXT DEBUG STACKTRACE:", _requestOrNextSent);
-            log.error(LOG_PREFIX + "   THIS REPLY DEBUG STACKTRACE:", new RuntimeException("THIS REPLY STACKTRACE"));
+            log.error(LOG_PREFIX + "   THIS REPLY DEBUG STACKTRACE:",
+                    new DebugStackTraceException("THIS REPLY STACKTRACE"));
+            throw new IllegalCallFlowsException(msg);
         }
 
-        _replySent = new RuntimeException("PREVIOUS REPLY STACKTRACE");
+        _replySent = new DebugStackTraceException("PREVIOUS REPLY STACKTRACE");
 
         // :: Short-circuit the reply (to no-op) if there is nothing on the stack to reply to.
         List<Channel> stack = _incomingMatsTrace.getCurrentCall().getReplyStack();
@@ -572,22 +584,18 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
                     + " Use context.initiate(..send()..) if you want to 'invoke' the endpoint w/o req/rep semantics.");
         }
 
-        /*
-         * Sending request/next in addition to reply is NOT LEGAL, but has never been enforced. Therefore, for now
-         * currently just log hard, and then at a later time throw IllegalStateException or some such. -2020-01-24.
-         */
-        // TODO: Reimplement to throw once all are > v0.16.0
         // ?: Have reply already been invoked?
         if (_replySent != null) {
-            // -> Yes, and this is not legal. But it has not been enforced before, so currently just log.error
-            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + "Reply has been invoked! It is not legal to mix Reply with"
-                    + " Request or Next, and will throw exception in a later version!");
+            // -> Yes, and this is not legal.
+            String msg = "Reply has been invoked! It is illegal to mix Reply with Request or Next.";
+            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
             log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replySent);
             log.error(LOG_PREFIX + "   THIS REQUEST DEBUG STACKTRACE:",
-                    new RuntimeException("THIS REQUEST STACKTRACE"));
+                    new DebugStackTraceException("THIS REQUEST STACKTRACE"));
+            throw new IllegalCallFlowsException(msg);
         }
         // NOTE! IT IS LEGAL TO SEND MULTIPLE REQUEST/NEXT MESSAGES!
-        _requestOrNextSent = new RuntimeException("PREVIOUS REQUEST STACKTRACE");
+        _requestOrNextSent = new DebugStackTraceException("PREVIOUS REQUEST STACKTRACE");
 
         // :: Create next MatsTrace
         MatsSerializer<Z> matsSerializer = _parentFactory.getMatsSerializer();
@@ -611,22 +619,18 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
                     + "] invoked context.next(..), but there is no next stage.");
         }
 
-        /*
-         * Sending request/next in addition to reply is NOT LEGAL, but has never been enforced. Therefore, for now
-         * currently just log hard, and then at a later time throw IllegalStateException or some such. -2020-01-24.
-         */
-        // TODO: Reimplement to throw once all are > v0.16.0
         // ?: Have reply already been invoked?
         if (_replySent != null) {
-            // -> Yes, and this is not legal. But it has not been enforced before, so currently just log.error
-            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + "Reply has been invoked! It is not legal to mix Reply with"
-                    + " Request or Next, and will throw exception in a later version!");
+            // -> Yes, and this is not legal.
+            String msg = "Reply has been invoked! It is illegal to mix Reply with Request or Next.";
+            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
             log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replySent);
             log.error(LOG_PREFIX + "   THIS NEXT DEBUG STACKTRACE:",
-                    new RuntimeException("THIS NEXT STACKTRACE"));
+                    new DebugStackTraceException("THIS NEXT STACKTRACE"));
+            throw new IllegalCallFlowsException(msg);
         }
         // NOTE! IT IS LEGAL TO SEND MULTIPLE REQUEST/NEXT MESSAGES!
-        _requestOrNextSent = new RuntimeException("PREVIOUS NEXT STACKTRACE");
+        _requestOrNextSent = new DebugStackTraceException("PREVIOUS NEXT STACKTRACE");
 
         // :: Create next (heh!) MatsTrace
         MatsSerializer<Z> matsSerializer = _parentFactory.getMatsSerializer();

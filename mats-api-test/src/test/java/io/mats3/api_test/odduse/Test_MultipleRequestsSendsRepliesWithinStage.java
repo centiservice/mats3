@@ -56,6 +56,7 @@ public class Test_MultipleRequestsSendsRepliesWithinStage {
             // :: Perform /two/ requests to Leaf service (thus replies twice)
             context.request(SERVICE + ".Leaf", new DataTO(dto.number, dto.string + ":Request#1"));
             context.request(SERVICE + ".Leaf", new DataTO(dto.number, dto.string + ":Request#2"));
+            context.next(new DataTO(dto.number, dto.string + ":Next"));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             // This should now be invoked twice.
@@ -68,16 +69,15 @@ public class Test_MultipleRequestsSendsRepliesWithinStage {
                     .send(new DataTO(dto.number, dto.string + ":Send#1")));
             context.initiate((msg) -> msg.to(TERMINATOR)
                     .send(new DataTO(dto.number, dto.string + ":Send#2")));
-            // :: Pass on /twice/ to next stage (thus 4 times to next stage, since this stage is replied to twice).
+            // :: Pass on /twice/ to next stage (thus 6 times to next stage, since this stage is replied/next'ed 3x).
             context.next(new DataTO(dto.number, dto.string + ":Next#1"));
             context.next(new DataTO(dto.number, dto.string + ":Next#2"));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
-            // This should now be invoked four times (see above on "next" calls).
+            // This should now be invoked 6 times (see above on "next" calls).
             _serviceStage2InvocationCount.incrementAndGet();
             Assert.assertEquals(new StateTO(-10, Math.E), sto);
-            context.reply(new DataTO(dto.number, dto.string + ":Reply#1"));
-            context.reply(new DataTO(dto.number, dto.string + ":Reply#2"));
+            context.reply(new DataTO(dto.number, dto.string + ":Reply"));
         });
         ep.finishSetup();
     }
@@ -157,25 +157,25 @@ public class Test_MultipleRequestsSendsRepliesWithinStage {
         // :: Assert invocation counts
         Assert.assertEquals(1, _serviceInvocationCount.get());
         Assert.assertEquals(2, _leafInvocationCount.get());
-        Assert.assertEquals(2, _serviceStage1InvocationCount.get());
-        Assert.assertEquals(4, _serviceStage2InvocationCount.get());
+        Assert.assertEquals(3, _serviceStage1InvocationCount.get());
+        Assert.assertEquals(6, _serviceStage2InvocationCount.get());
         Assert.assertEquals(12, _terminatorInvocationCount.get());
 
         // :: These are the 12 replies that the Terminator should see.
         // Effectively a binary permutation of 3x[1|2] + the 2x2 "Send" messages.
         SortedSet<String> expected = new TreeSet<>();
-        expected.add("Initiator:Request#1:FromLeafService:Next#1:Reply#1");
-        expected.add("Initiator:Request#1:FromLeafService:Next#1:Reply#2");
-        expected.add("Initiator:Request#1:FromLeafService:Next#2:Reply#1");
-        expected.add("Initiator:Request#1:FromLeafService:Next#2:Reply#2");
+        expected.add("Initiator:Request#1:FromLeafService:Next#1:Reply");
+        expected.add("Initiator:Request#1:FromLeafService:Next#2:Reply");
         expected.add("Initiator:Request#1:FromLeafService:Send#1");
         expected.add("Initiator:Request#1:FromLeafService:Send#2");
-        expected.add("Initiator:Request#2:FromLeafService:Next#1:Reply#1");
-        expected.add("Initiator:Request#2:FromLeafService:Next#1:Reply#2");
-        expected.add("Initiator:Request#2:FromLeafService:Next#2:Reply#1");
-        expected.add("Initiator:Request#2:FromLeafService:Next#2:Reply#2");
+        expected.add("Initiator:Request#2:FromLeafService:Next#1:Reply");
+        expected.add("Initiator:Request#2:FromLeafService:Next#2:Reply");
         expected.add("Initiator:Request#2:FromLeafService:Send#1");
         expected.add("Initiator:Request#2:FromLeafService:Send#2");
+        expected.add("Initiator:Next:Next#1:Reply");
+        expected.add("Initiator:Next:Next#2:Reply");
+        expected.add("Initiator:Next:Send#1");
+        expected.add("Initiator:Next:Send#2");
 
         Assert.assertEquals(expected, new TreeSet<>(_answers.keySet()));
     }

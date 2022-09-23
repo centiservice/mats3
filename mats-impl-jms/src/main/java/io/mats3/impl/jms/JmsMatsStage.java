@@ -115,11 +115,8 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
     @Override
     public synchronized void start() {
         if (!_parentEndpoint.isFinishedSetup()) {
-            // TODO: Throw in version >= 0.17.0
-            log.warn(LOG_PREFIX + ILLEGAL_CALL_FLOWS + "NOTICE!! WRONG API USE! WILL THROW IN A LATER VERSION!"
-                    + " Cannot start Stage [" + id(_stageId, this) + "] of Endpoint [" + _parentEndpoint
-                    + "], as Endpoint is not finishSetup() yet!");
-            return;
+            throw new IllegalStateException(" Cannot start Stage [" + id(_stageId, this) + "] of Endpoint ["
+                    + _parentEndpoint + "], as Endpoint is not finishSetup() yet!");
         }
 
         log.info(LOG_PREFIX + "   |-  Starting Stage [" + id(_stageId, this) + "].");

@@ -102,7 +102,7 @@ public interface JmsMatsStatics {
     int MAX_STACK_HEIGHT = 25;
 
     /**
-     * Log prefix (after {@link #LOG_PREFIX} for flows that will be illegal in a later version.
+     * Log prefix (after {@link #LOG_PREFIX}) for flows that are illegal.
      */
     String ILLEGAL_CALL_FLOWS = "ILLEGAL CALL FLOWS! ";
 
