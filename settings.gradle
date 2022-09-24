@@ -1,5 +1,8 @@
 import java.nio.charset.Charset
 
+// From https://docs.gradle.org/current/userguide/github-actions.html
+// To run a build scan locally, either force this block to kick in by: $ CI=true ./gradlew build
+// Or run the build with: $ ./gradlew build --scan
 plugins {
     id "com.gradle.enterprise" version "3.11.1"
 }
