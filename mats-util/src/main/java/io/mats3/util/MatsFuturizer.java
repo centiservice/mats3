@@ -11,6 +11,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -335,8 +337,8 @@ public class MatsFuturizer implements AutoCloseable {
 
     /**
      * <b>NOTICE: This variant must <u>only</u> be used for "GET-style" Requests where none of the endpoints the call
-     * flow passes will add, remove or alter any state of the system, and where it doesn't matter all that much if
-     * a message (and hence the Mats flow) is lost!</b>
+     * flow passes will add, remove or alter any state of the system, and where it doesn't matter all that much if a
+     * message (and hence the Mats flow) is lost!</b>
      * <p />
      * The goal of this method is to be able to get hold of e.g. account holdings, order statuses etc, for presentation
      * to a user. The thinking is that if such a flow fails where a message of the call flow disappears, this won't make
@@ -402,8 +404,12 @@ public class MatsFuturizer implements AutoCloseable {
      * @return the number of outstanding promises, not yet completed or timed out.
      */
     public int getOutstandingPromiseCount() {
-        synchronized (_correlationIdToPromiseMap) {
+        _internalStateLock.lock();
+        try {
             return _correlationIdToPromiseMap.size();
+        }
+        finally {
+            _internalStateLock.unlock();
         }
     }
 
@@ -491,12 +497,15 @@ public class MatsFuturizer implements AutoCloseable {
         String correlationId = RandomString.randomCorrelationId();
         long timestamp = System.currentTimeMillis();
         CompletableFuture<Reply<T>> future = new CompletableFuture<>();
+        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Creating Promise for TraceId [" + traceId + "], from [" + from
+                + "], to [" + to + "], timeout in [" + timeoutMillis + "] millis.");
         return new Promise<>(traceId, correlationId, from, to, timestamp, timestamp + timeoutMillis, replyClass,
                 future);
     }
 
     protected <T> void _enqueuePromise(Promise<T> promise) {
-        synchronized (_correlationIdToPromiseMap) {
+        _internalStateLock.lock();
+        try {
             if (_correlationIdToPromiseMap.size() >= _maxOutstandingPromises) {
                 throw new IllegalStateException("There are too many Promises outstanding, so cannot add more"
                         + " - limit is [" + _maxOutstandingPromises + "].");
@@ -509,8 +518,11 @@ public class MatsFuturizer implements AutoCloseable {
             if (_nextInLineToTimeout != _timeoutSortedPromises.peek()) {
                 // -> Yes, this was evidently earlier than the one we had "next in line", so notify the timeouter-thread
                 // that a new promise was entered, to re-evaluate "next to timeout".
-                _correlationIdToPromiseMap.notifyAll();
+                _timeouterPing_InternalStateLock.signal();
             }
+        }
+        finally {
+            _internalStateLock.unlock();
         }
     }
 
@@ -551,18 +563,21 @@ public class MatsFuturizer implements AutoCloseable {
         });
     }
 
-    // Synchronized on itself
+    protected final ReentrantLock _internalStateLock = new ReentrantLock();
+    protected final Condition _timeouterPing_InternalStateLock = _internalStateLock.newCondition();
+    // Synchronized on _internalStateLock
     protected final HashMap<String, Promise<?>> _correlationIdToPromiseMap = new HashMap<>();
-    // Synchronized on the HashMap above (i.e. all three are synchronized on the HashMap).
+    // Synchronized on _internalStateLock
     protected final PriorityQueue<Promise<?>> _timeoutSortedPromises = new PriorityQueue<>();
-    // Synchronized on the HashMap above (i.e. all three are synchronized on the HashMap).
+    // Synchronized on _internalStateLock
     protected Promise<?> _nextInLineToTimeout;
 
     protected void _handleRepliesForPromises(ProcessContext<Void> context, String correlationId,
             MatsObject matsObject) {
         // Immediately pick this out of the map & queue
         Promise<?> promise;
-        synchronized (_correlationIdToPromiseMap) {
+        _internalStateLock.lock();
+        try {
             // Find the Promise from the CorrelationId
             promise = _correlationIdToPromiseMap.remove(correlationId);
             // Did we find it?
@@ -571,6 +586,9 @@ public class MatsFuturizer implements AutoCloseable {
                 _timeoutSortedPromises.remove(promise);
             }
             // NOTE: We don't bother pinging the Timeouter, as he'll find out himself soon enough if this was first.
+        }
+        finally {
+            _internalStateLock.unlock();
         }
         // ?: Did we still have the Promise?
         if (promise == null) {
@@ -636,7 +654,8 @@ public class MatsFuturizer implements AutoCloseable {
             log.info(LOG_PREFIX + "MatsFuturizer Timeouter-thread: Started!");
             while (_runFlag) {
                 List<Promise<?>> promisesToTimeout = new ArrayList<>();
-                synchronized (_correlationIdToPromiseMap) {
+                _internalStateLock.lock();
+                try {
                     while (_runFlag) {
                         try {
                             long sleepMillis;
@@ -647,6 +666,9 @@ public class MatsFuturizer implements AutoCloseable {
                                 // promise.
                                 if (now >= peekPromise._timeoutTimestamp) {
                                     // -> Yes, timed out. remove from both collections
+                                    if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Promise at head of timeout queue"
+                                            + " HAS timed out [" + (now - peekPromise._timeoutTimestamp)
+                                            + "] millis ago - traceId [" + peekPromise._traceId + "].");
                                     // It is the first, since it is the object we peeked at.
                                     _timeoutSortedPromises.remove();
                                     // Remove explicitly by CorrelationId.
@@ -660,21 +682,42 @@ public class MatsFuturizer implements AutoCloseable {
                                 _nextInLineToTimeout = peekPromise;
                                 // This Promise has >0 milliseconds left before timeout, so calculate how long to sleep.
                                 sleepMillis = peekPromise._timeoutTimestamp - now;
+                                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Promise at head of timeout queue has"
+                                        + " NOT timed out, will time out in [" + sleepMillis + "] millis - traceId ["
+                                        + peekPromise._traceId + "].");
                             }
                             else {
                                 // We have no Promise next in line to timeout.
+                                // Note: NOT logging to NOT be annoying in a dev situation.
                                 _nextInLineToTimeout = null;
-                                // Chill for a while, then just check to be on the safe side..
+                                // Sleep forever until notified, where "forever" means 30 seconds - before checking
+                                // again to be sure..!
                                 sleepMillis = 30_000;
                             }
-                            // ?: Do we have any Promises to timeout?
+
+                            // ?: Did we find any Promises to timeout?
                             if (!promisesToTimeout.isEmpty()) {
                                 // -> Yes, Promises to timeout - exit out of synch and inner run-loop to do that.
                                 break;
                             }
+
                             // ----- We've found a new sleep time, go sleep.
-                            // Now go to sleep, waiting for signal from "new element added" or close()
-                            _correlationIdToPromiseMap.wait(sleepMillis);
+
+                            // :: Now go to sleep, waiting for signal from "new element added" or close()
+                            long nanosStart_sleep = 0;
+                            // ?: Is debug enabled AND we actually have a Promise we're sleeping for.
+                            if (log.isDebugEnabled() && (_nextInLineToTimeout != null)) {
+                                nanosStart_sleep = System.nanoTime();
+                                log.debug(LOG_PREFIX + "Will now go to sleep for [" + sleepMillis + "] millis.");
+                            }
+                            // Do the sleep (actually a Object.wait(..))
+                            _timeouterPing_InternalStateLock.await(sleepMillis, TimeUnit.MILLISECONDS);
+                            if (log.isDebugEnabled() && (_nextInLineToTimeout != null)) {
+                                double millisSlept = (System.nanoTime() - nanosStart_sleep) / 1_000_000d;
+                                log.debug(LOG_PREFIX + ".. slept [" + millisSlept + "] millis (should have slept ["
+                                        + sleepMillis + "] millis, difference [" + (millisSlept - sleepMillis)
+                                        + "] millis too much).");
+                            }
                         }
                         // :: Protection against bad code - catch-all Throwables in hope that it will auto-correct.
                         catch (Throwable t) {
@@ -694,10 +737,15 @@ public class MatsFuturizer implements AutoCloseable {
                         }
                     }
                 }
+                finally {
+                    _internalStateLock.unlock();
+                }
 
                 // ----- This is outside the synch block
 
                 // :: Timing out Promises that was found to be overdue.
+                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Will now timeout [" + promisesToTimeout.size()
+                        + "] Promise(s).");
                 for (Promise<?> promise : promisesToTimeout) {
                     MDC.put("traceId", promise._traceId);
                     String msg = "The Promise/Future timed out! It was initiated from:[" + promise._from
@@ -717,7 +765,7 @@ public class MatsFuturizer implements AutoCloseable {
                         // the CompletableFuture evidently handles it and completes the future exceptionally.
                         catch (Throwable t) {
                             log.error(LOG_PREFIX + "Got problems timing out Promise/Future initiated from:["
-                                    + promise._from + "] with traceId:[" + promise._traceId + "]", t);
+                                    + promise._from + "] with traceId:[" + promise._traceId + "], ignoring.", t);
                         }
                         finally {
                             MDC.remove("traceId");
@@ -754,13 +802,17 @@ public class MatsFuturizer implements AutoCloseable {
         _futureCompleterThreadPool.shutdown();
         // :: Find all remaining Promises, and notify Timeouter-thread that we're dead.
         List<Promise<?>> promisesToCancel = new ArrayList<>();
-        synchronized (_correlationIdToPromiseMap) {
+        _internalStateLock.lock();
+        try {
             promisesToCancel.addAll(_timeoutSortedPromises);
             // Clear the collections, just to have a clear conscience.
             _timeoutSortedPromises.clear();
             _correlationIdToPromiseMap.clear();
             // Notify the Timeouter-thread that shit is going down.
-            _correlationIdToPromiseMap.notifyAll();
+            _timeouterPing_InternalStateLock.signalAll();
+        }
+        finally {
+            _internalStateLock.unlock();
         }
         // :: Cancel all outstanding Promises.
         for (Promise<?> promise : promisesToCancel) {

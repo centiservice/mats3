@@ -19,6 +19,7 @@ import io.mats3.test.junit.Rule_Mats;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.MatsFuturizerTimeoutException;
 import io.mats3.util.MatsFuturizer.Reply;
+import org.slf4j.Logger;
 
 /**
  * Basic tests of timeouts of MatsFuturizer, of which there are two completely independent variants: Either you
@@ -30,6 +31,8 @@ import io.mats3.util.MatsFuturizer.Reply;
  * @author Endre Stølsvik 2019-08-30 21:57 - http://stolsvik.com/, endre@stolsvik.com
  */
 public class Test_MatsFuturizer_Timeouts {
+    private static final Logger log = MatsTestHelp.getClassLogger();
+
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
@@ -135,6 +138,7 @@ public class Test_MatsFuturizer_Timeouts {
         CopyOnWriteArrayList<String> results = new CopyOnWriteArrayList<>();
         Consumer<Throwable> exceptionallyConsumer = (t) -> {
             MatsFuturizerTimeoutException mfte = (MatsFuturizerTimeoutException) t;
+            log.info("Got timeout for traceId ["+mfte.getTraceId()+"]!");
             results.add(mfte.getTraceId());
         };
 
