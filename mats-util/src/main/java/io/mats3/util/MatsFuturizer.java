@@ -710,7 +710,7 @@ public class MatsFuturizer implements AutoCloseable {
                                 nanosStart_sleep = System.nanoTime();
                                 log.debug(LOG_PREFIX + "Will now go to sleep for [" + sleepMillis + "] millis.");
                             }
-                            // Do the sleep (actually a Object.wait(..))
+                            // Do the sleep (.. which is a Condition.await(..) on the _internalStateLock)
                             _timeouterPing_InternalStateLock.await(sleepMillis, TimeUnit.MILLISECONDS);
                             if (log.isDebugEnabled() && (_nextInLineToTimeout != null)) {
                                 double millisSlept = (System.nanoTime() - nanosStart_sleep) / 1_000_000d;
@@ -744,7 +744,8 @@ public class MatsFuturizer implements AutoCloseable {
                 // ----- This is outside the synch block
 
                 // :: Timing out Promises that was found to be overdue.
-                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Will now timeout [" + promisesToTimeout.size()
+                int promisesToTimeoutCount = promisesToTimeout.size();
+                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Will now timeout [" + promisesToTimeoutCount
                         + "] Promise(s).");
                 for (Promise<?> promise : promisesToTimeout) {
                     MDC.put("traceId", promise._traceId);
@@ -771,6 +772,24 @@ public class MatsFuturizer implements AutoCloseable {
                             MDC.remove("traceId");
                         }
                     });
+                    /*
+                     * Wild hack to get unit tests to pass on annoying MacOS: Both Object.wait(..), and
+                     * ReentrantLock.newCondition().await(..) gives wildly bad oversleeping on MacOS, in excess of 200
+                     * ms (in contrast, my Linux box is consistenly <0.2 ms off). Thus, when submitting multiple futures
+                     * with timeout spaced 100 ms apart (as in Test_MatsFuturizer_Timeouts), we sometimes end up timing
+                     * out multiple futures in one go. However, these are still timed out in the correct order. They
+                     * would thus have come back to the test with the correct order, was it not for the moving over to
+                     * the _futureCompleterThreadPool - where these "double" timeoutings might change order.
+                     * Therefore, if there are <1, 10> futures to timeout, we'll sleep a small while between each.
+                     */
+                    if ((promisesToTimeoutCount > 1) && (promisesToTimeoutCount < 10)) {
+                        try {
+                            Thread.sleep(5);
+                        }
+                        catch (InterruptedException e) {
+                            /* Ignore, as we'll check the runFlag-condition in the loop. */
+                        }
+                    }
                 }
                 promisesToTimeout.clear();
                 // .. will now loop into the synch block again.

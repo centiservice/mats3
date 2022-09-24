@@ -146,18 +146,15 @@ public class Test_MatsFuturizer_Timeouts {
         // NOTICE how the order of the entered futures's timeouts are NOT in order.
         // This is to test that the Timeouter handles both adding new entries that are later than the current
         // earliest, but also earlier than the current earliest.
-        // TODO: This is damn weird. Got this failure on macos + java 8.
-        // java.lang.AssertionError: expected:<[10, 300, 400, 500, 600, 700]> but was:<[10, 300, 400, 600, 700, 500]>
-        // TODO: That is not consistent with anything; The 500 was scheduled WAY before the 700.
         String from = "TimeoutTester.severalTimeoutsByMatsFuturizer";
-        futureToEmptiness(futurizer, from, 1, 300, exceptionallyConsumer);
-        futureToEmptiness(futurizer, from, 2, 500, exceptionallyConsumer);
-        futureToEmptiness(futurizer, from, 3, 600, exceptionallyConsumer);
-        futureToEmptiness(futurizer, from, 4, 400, exceptionallyConsumer);
+        futureToEmptiness(futurizer, from, 1, 100, exceptionallyConsumer);
+        futureToEmptiness(futurizer, from, 2, 300, exceptionallyConsumer);
+        futureToEmptiness(futurizer, from, 3, 400, exceptionallyConsumer);
+        futureToEmptiness(futurizer, from, 4, 200, exceptionallyConsumer);
         futureToEmptiness(futurizer, from, 5, 10, exceptionallyConsumer);
         // .. we add the last timeout with the longest timeout, which we will wait for.
         CompletableFuture<Reply<DataTO>> last = futureToEmptiness(futurizer,
-                from, 6, 700, exceptionallyConsumer);
+                from, 6, 500, exceptionallyConsumer);
 
         // "ACT": (well, each of the above futures have /already/ started executing, but wait for them to finish)
 
@@ -175,7 +172,7 @@ public class Test_MatsFuturizer_Timeouts {
         // ASSERT:
 
         // :: All the futures should now have timed out, and they shall have timed out in the order of timeouts.
-        Assert.assertEquals(Arrays.asList("10", "300", "400", "500", "600", "700"), results);
+        Assert.assertEquals(Arrays.asList("10", "100", "200", "300", "400", "500"), results);
         // .. and there should not be any Promises left in the MatsFuturizer.
         Assert.assertEquals(0, futurizer.getOutstandingPromiseCount());
     }
