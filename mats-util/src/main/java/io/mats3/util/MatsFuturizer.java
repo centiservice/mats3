@@ -607,7 +607,8 @@ public class MatsFuturizer implements AutoCloseable {
             try {
                 MDC.put("traceId", promise._traceId);
                 // NOTICE! We don't log here, as the SubscriptionTerminator already has logged the ordinary mats lines.
-                log.debug(LOG_PREFIX + "Completing promise from [" + promise._from + "]: [" + promise + "]");
+                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Completing promise from [" + promise._from + "]: ["
+                        + promise + "]");
 
                 Object replyObject;
                 try {
@@ -779,8 +780,8 @@ public class MatsFuturizer implements AutoCloseable {
                      * with timeout spaced 100 ms apart (as in Test_MatsFuturizer_Timeouts), we sometimes end up timing
                      * out multiple futures in one go. However, these are still timed out in the correct order. They
                      * would thus have come back to the test with the correct order, was it not for the moving over to
-                     * the _futureCompleterThreadPool - where these "double" timeoutings might change order.
-                     * Therefore, if there are <1, 10> futures to timeout, we'll sleep a small while between each.
+                     * the _futureCompleterThreadPool - where these "double" timeoutings might change order. Therefore,
+                     * if there are <1, 10> futures to timeout, we'll sleep a small while between each.
                      */
                     if ((promisesToTimeoutCount > 1) && (promisesToTimeoutCount < 10)) {
                         try {
