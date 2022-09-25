@@ -1,5 +1,6 @@
 package io.mats3.api_test.basics;
 
+import io.mats3.MatsEndpoint;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -46,12 +47,13 @@ public class Test_SimpleReplyToSubscription {
 
     @BeforeClass
     public static void setupTerminator() {
-        MATS.getMatsFactory().subscriptionTerminator(TERMINATOR + "_Subscription", StateTO.class, DataTO.class,
+        MatsEndpoint<Void, StateTO> terminator = MATS.getMatsFactory().subscriptionTerminator(TERMINATOR + "_Subscription", StateTO.class, DataTO.class,
                 (context, sto, dto) -> {
                     log.debug("SUBSCRIPTION TERMINATOR MatsTrace:\n" + context.toString());
                     MATS.getMatsTestLatch().resolve(sto, dto);
                 });
-
+        // Ensure that this has started its receive-loop before starting tests.
+        terminator.waitForReceiving(10_000);
     }
 
     @Test
