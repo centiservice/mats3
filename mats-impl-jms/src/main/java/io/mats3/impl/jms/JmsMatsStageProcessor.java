@@ -504,6 +504,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                             // :: Overwriting the TraceId MDC, now from MatsTrace (in case missing from JMS Message)
                             MDC.put(MDC_TRACE_ID, matsTrace.getTraceId());
+                            MDC.put(MDC_MATS_CALL_NUMBER, Integer.toString(matsTrace.getCallNumber()));
 
                             // :: Current Call
                             Call<Z> currentCall = matsTrace.getCurrentCall();

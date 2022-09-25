@@ -45,6 +45,8 @@ public interface JmsMatsStatics {
 
     // ::: MDC-values. Using "mats." prefix for the Mats-specific parts of MDC
 
+    String MDC_MATS_CALL_NUMBER = "mats.CallNo"; // 0 for init, >0 for stages.
+
     String MDC_MATS_APP_NAME = "mats.AppName";
     String MDC_MATS_APP_VERSION = "mats.AppVersion";
 

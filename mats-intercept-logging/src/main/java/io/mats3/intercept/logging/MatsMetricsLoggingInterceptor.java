@@ -61,6 +61,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <li>Either, or both, of <code><b>"mats.Init"</b></code> (set to 'true' on initiation enter, and cleared on exit) and
  * <code><b>"mats.Stage"</b></code> (set to constant 'true' for all Mats Stage processors). If initiation within a
  * stage, both are set.</li>
+ * <li><code><b>"mats.CallNo"</b></code>: The "Call Number", which starts at 0 for the initiation, and then 1 for first
+ * stage processing. (It refers to the "calls", i.e. passed messages.)</li>
  * </ul>
  *
  *
@@ -406,6 +408,7 @@ public class MatsMetricsLoggingInterceptor
     // ===== For Initiate Completed (..in addition to "COMMON init/stage" above):
     // !!! Note that these MDCs are already set by JmsMats core: !!!
     // MDC_MATS_INIT = "mats.Init"; // 'true' on any loglines involving Initialization (also within Stages)
+    // MDC_MATS_CALL_NO = "mats.CallNo" // The Call Number, at 0 for initiations.
     // MDC_TRACE_ID = "traceId" // Set as soon as the user code sets it on the initialization.
 
     // 'true' on a single logline per completed initiation:
@@ -417,6 +420,7 @@ public class MatsMetricsLoggingInterceptor
     // MDC_MATS_STAGE = "mats.Stage"; // 'true' on Stage Processor threads (set fixed on the consumer thread)
     // MDC_MATS_STAGE_ID = "mats.StageId";
     // MDC_MATS_IN_MESSAGE_SYSTEM_ID = "mats.in.MsgSysId";
+    // MDC_MATS_CALL_NO = "mats.CallNo" // The Call Number, first stage of flow is 1, then increases with calls.
     // MDC_TRACE_ID = "traceId"
 
     // 'true' on a single logline per received message:
@@ -451,6 +455,7 @@ public class MatsMetricsLoggingInterceptor
     // MDC_MATS_STAGE = "mats.Stage"; // 'true' on Stage Processor threads (set fixed on the consumer thread)
     // MDC_MATS_STAGE_ID = "mats.StageId";
     // MDC_MATS_IN_MESSAGE_SYSTEM_ID = "mats.in.MsgSysId";
+    // MDC_MATS_CALL_NO = "mats.CallNo" // The Call Number, first stage of flow is 1, then increases with calls.
     // MDC_TRACE_ID = "traceId"
 
     // 'true' on a single logline per completed stage

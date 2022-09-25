@@ -90,6 +90,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         String existingMatsInit = MDC.get(MDC_MATS_INIT);
         String existingMatsAppName = MDC.get(MDC_MATS_APP_NAME);
         String existingMatsAppVersion = MDC.get(MDC_MATS_APP_VERSION);
+        String existingMatsCallNumber = MDC.get(MDC_MATS_CALL_NUMBER);
 
         // :: For Intercepting, base intercept context.
         InitiateInterceptContextImpl interceptContext = new InitiateInterceptContextImpl(this, startedInstant,
@@ -99,6 +100,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
         try { // :: try-finally: Clear up the MDC.
             MDC.put(MDC_MATS_INIT, "true");
+            MDC.put(MDC_MATS_CALL_NUMBER, "0");
 
             List<JmsMatsMessage<Z>> messagesToSend = new ArrayList<>();
 
@@ -348,6 +350,16 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             if (existingMatsAppVersion == null) {
                 // -> No, so clear it.
                 MDC.remove(MDC_MATS_APP_VERSION);
+            }
+
+            // ?: Was "mats.CallNo" set?
+            if (existingMatsCallNumber != null) {
+                // -> Yes, so restore it.
+                MDC.put(MDC_MATS_CALL_NUMBER, existingMatsCallNumber);
+            }
+            else {
+                // -> No, so clear it.
+                MDC.remove(MDC_MATS_CALL_NUMBER);
             }
 
             // ?: Was traceId set?
