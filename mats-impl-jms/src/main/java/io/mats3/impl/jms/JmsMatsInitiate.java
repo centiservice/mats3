@@ -148,7 +148,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
     }
 
     @Override
-    public MatsInitiate traceId(String traceId) {
+    public MatsInitiate traceId(CharSequence traceId) {
         // :: Decide how to handle TraceId:
         // 1. If within Stage, prefix with existing message's traceId
         // 2. If outside Stage, modify with any configured function
@@ -162,11 +162,11 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         // ?: Do we have modifier function?
         else if (_parentFactory.getInitiateTraceIdModifier() != null) {
             // -> Yes, so use this.
-            _traceId = _parentFactory.getInitiateTraceIdModifier().apply(traceId);
+            _traceId = _parentFactory.getInitiateTraceIdModifier().apply(traceId.toString());
         }
         else {
             // -> No, neither within Stage, nor having modifier function, so use directly.
-            _traceId = traceId;
+            _traceId = traceId.toString();
         }
 
         // Also set this on the MDC so that we have it on log lines if it crashes within the initiation lambda

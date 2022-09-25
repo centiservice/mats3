@@ -47,10 +47,10 @@ public interface MatsInitiator extends Closeable {
     /**
      * Initiates a new message ("request" or "send") out to an endpoint: You provide a lambda which is supplied the
      * {@link MatsInitiate} instance on which you invoke methods to construct and dispatch messages. The
-     * {@link InitiateLambda#initiate(MatsInitiate)} will be invoked in a transactional context, which will also
-     * include database operations that are invoked inside the lambda if the transaction manager for the MatsFactory
-     * is also used for database operations. This also implies that either all messages produced in the lambda will
-     * be sent, or none will.
+     * {@link InitiateLambda#initiate(MatsInitiate)} will be invoked in a transactional context, which will also include
+     * database operations that are invoked inside the lambda if the transaction manager for the MatsFactory is also
+     * used for database operations. This also implies that either all messages produced in the lambda will be sent, or
+     * none will.
      *
      * @param lambda
      *            provides the {@link MatsInitiate} instance on which to create the message to be sent.
@@ -284,11 +284,11 @@ public interface MatsInitiator extends Closeable {
          *
          * @param traceId
          *            the traceId that will follow the mats trace from initiation (first call) to termination (last
-         *            call, where the flow ends).
+         *            call, where the flow ends). Although the type is <code>CharSequence</code>, the implementation
+         *            will immediately do <code>toString()</code> on the instance to fix the value.
          * @return the {@link MatsInitiate} for chaining.
          */
-        // TODO: At next non-revision version bump, change to CharSequence.
-        MatsInitiate traceId(String traceId);
+        MatsInitiate traceId(CharSequence traceId);
 
         /**
          * Hint to the underlying implementation to which level of call and state history the underlying protocol should
@@ -459,7 +459,8 @@ public interface MatsInitiator extends Closeable {
          * where messages are initiated, so that you can see that 45% of the messages are coming from the OrderSystem's
          * REST endpoints, and 15% of all initiations are its "place_order_from_user". <b>This also implies that it
          * shall not be a dynamic value, i.e. do not put something that will vary between each call, that is, do NOT add
-         * the user's Id or something like that.</b> Such dynamic elements is what the {@link #traceId(String)} is for.
+         * the user's Id or something like that.</b> Such dynamic elements is what the {@link #traceId(CharSequence)} is
+         * for.
          *
          * @param initiatorId
          *            the originating/initiating "synthetic endpoint Id" - only used for tracing/debugging.
@@ -925,7 +926,7 @@ public interface MatsInitiator extends Closeable {
         }
 
         @Override
-        public MatsInitiate traceId(String traceId) {
+        public MatsInitiate traceId(CharSequence traceId) {
             unwrap().traceId(traceId);
             return this;
         }
