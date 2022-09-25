@@ -6,13 +6,14 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.slf4j.Logger;
 
+import io.mats3.MatsEndpoint;
 import io.mats3.MatsFactory;
-import io.mats3.test.junit.Rule_Mats;
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
+import io.mats3.test.junit.Rule_Mats;
 
 /**
  * Tests the Publish/Subscribe functionality: Sets up <i>two</i> instances of a SubscriptionTerminator to the same
@@ -53,20 +54,20 @@ public class Test_SimplePublishSubscribe {
         MatsFactory firstMatsFactory = MATS.createMatsFactory();
         MatsFactory secondMatsFactory = MATS.createMatsFactory();
 
-        firstMatsFactory.subscriptionTerminator(TERMINATOR, StateTO.class, DataTO.class,
-                (context, sto, dto) -> {
+        MatsEndpoint<Void, StateTO> sub1 = firstMatsFactory.subscriptionTerminator(TERMINATOR,
+                StateTO.class, DataTO.class, (context, sto, dto) -> {
                     log.debug("SUBSCRIPTION TERMINATOR 1 MatsTrace:\n" + context.toString());
                     matsTestLatch.resolve(sto, dto);
                 });
-        secondMatsFactory.subscriptionTerminator(TERMINATOR, StateTO.class, DataTO.class,
-                (context, sto, dto) -> {
+        MatsEndpoint<Void, StateTO> sub2 = secondMatsFactory.subscriptionTerminator(TERMINATOR,
+                StateTO.class, DataTO.class, (context, sto, dto) -> {
                     log.debug("SUBSCRIPTION TERMINATOR 2 MatsTrace:\n" + context.toString());
                     matsTestLatch2.resolve(sto, dto);
                 });
 
-        // Nap for a small while, due to the nature of Pub/Sub: If the listeners are not up when the message is sent,
-        // then they will not get the message.
-        MatsTestHelp.takeNap(100);
+        // Ensure that the SubscriptionTerminators have started their receive-loops before starting tests.
+        sub1.waitForReceiving(10_000);
+        sub2.waitForReceiving(10_000);
     }
 
     @Test
