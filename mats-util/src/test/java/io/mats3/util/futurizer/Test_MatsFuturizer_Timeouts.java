@@ -1,6 +1,7 @@
 package io.mats3.util.futurizer;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
@@ -12,6 +13,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.slf4j.Logger;
 
 import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.test.MatsTestHelp;
@@ -19,14 +21,11 @@ import io.mats3.test.junit.Rule_Mats;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.MatsFuturizerTimeoutException;
 import io.mats3.util.MatsFuturizer.Reply;
-import org.slf4j.Logger;
 
 /**
  * Basic tests of timeouts of MatsFuturizer, of which there are two completely independent variants: Either you
  * synchronously timeout on the {@link CompletableFuture#get(long, TimeUnit) get(...)}, which really should be your
  * preferred way, IMHO, <b>or</b> you let the MatsFuturizer do the timeout by its timeout thread.
- *
- * TODO: Unstable on Travis, and Github Actions (in particular MacOS)
  *
  * @author Endre Stølsvik 2019-08-30 21:57 - http://stolsvik.com/, endre@stolsvik.com
  */
@@ -93,18 +92,25 @@ public class Test_MatsFuturizer_Timeouts {
         // ==
         // == NOTE: The reason for creating a different MatsFuturizer for this one test, is that we do
         // == not want to pollute the Rule_Mats-instance of the MatsFuturizer with an outstanding
-        // == promise for 500 ms, ref. the futurizer.getOutstandingPromiseCount() calls in all tests.
+        // == promise for 5000 ms, ref. the futurizer.getOutstandingPromiseCount() calls in all tests.
         // =============================================================================================
         try (MatsFuturizer futurizer = MatsFuturizer.createMatsFuturizer(MATS.getMatsFactory(),
                 this.getClass().getSimpleName())) {
+            int futurizerTimeout = 5000;
             CompletableFuture<Reply<DataTO>> future = futureToEmptiness(futurizer,
-                    "TimeoutTester.oneShotTimeoutByCompletableFuture", 42, 500, null);
+                    "TimeoutTester.oneShotTimeoutByCompletableFuture", 42, futurizerTimeout, null);
 
             // ----- There will never be a reply, as there is no consumer for the sent message..!
 
             try {
+                log.info("Going into future.get(50 MILLISECONDS), which should time out much before the Futurizer"
+                        + " times out by [" + futurizerTimeout + "] millis.");
                 future.get(50, TimeUnit.MILLISECONDS);
-                // We should not get to the next line.
+                // We should not get to the next line, no matter.
+                // Since there is no-one answering on that endpoint, it should not resolve.
+                // Also, this should have timed out with a TimeoutException, while if the Futurizer times it out,
+                // we'll get a java.util.concurrent.ExecutionException
+                // -> cause: MatsFuturizer$MatsFuturizerTimeoutException.
                 Assert.fail("We should have gotten an TimeoutException, as the CompletableFuture should have timed"
                         + " out our wait..");
             }
@@ -116,7 +122,6 @@ public class Test_MatsFuturizer_Timeouts {
         }
     }
 
-    // TODO: Unstable on Travis (this is the test that failed)
     @Test
     public void severalTimeoutsByMatsFuturizer() throws InterruptedException, TimeoutException {
         MatsFuturizer futurizer = MATS.getMatsFuturizer();
@@ -138,7 +143,7 @@ public class Test_MatsFuturizer_Timeouts {
         CopyOnWriteArrayList<String> results = new CopyOnWriteArrayList<>();
         Consumer<Throwable> exceptionallyConsumer = (t) -> {
             MatsFuturizerTimeoutException mfte = (MatsFuturizerTimeoutException) t;
-            log.info("Got timeout for traceId ["+mfte.getTraceId()+"]!");
+            log.info("Got timeout for traceId [" + mfte.getTraceId() + "]!");
             results.add(mfte.getTraceId());
         };
 
@@ -160,7 +165,7 @@ public class Test_MatsFuturizer_Timeouts {
 
         // :: Now we wait for the last future to timeout.
         try {
-            last.get(5, TimeUnit.SECONDS);
+            last.get(30, TimeUnit.SECONDS);
             // We should not get to the next line.
             Assert.fail("We should have gotten an ExecutionException with getCause() MatsFuturizerTimeoutException,"
                     + " as the MatzFuturizer should have timed us out.");
@@ -169,10 +174,22 @@ public class Test_MatsFuturizer_Timeouts {
             // expected.
         }
 
+        // NOTICE: There is a race here. The addition of the traceId to the COWAL happens on a Futurizer thread pool
+        // thread, so we can get here before the addition has happened, thus the "500" will not have been added yet.
+        // Ask me how I know.. ;-p (Okay, Github Actions crazy sloppy runners fretted it out..)
+        // We'll thus wait in a loop here hoping for all the results to appear.
+        List<String> expected = Arrays.asList("10", "100", "200", "300", "400", "500");
+        for (int i = 0; i < 200; i++) {
+            if (results.size() == expected.size()) {
+                break;
+            }
+            Thread.sleep(20);
+        }
+
         // ASSERT:
 
         // :: All the futures should now have timed out, and they shall have timed out in the order of timeouts.
-        Assert.assertEquals(Arrays.asList("10", "100", "200", "300", "400", "500"), results);
+        Assert.assertEquals(expected, results);
         // .. and there should not be any Promises left in the MatsFuturizer.
         Assert.assertEquals(0, futurizer.getOutstandingPromiseCount());
     }
