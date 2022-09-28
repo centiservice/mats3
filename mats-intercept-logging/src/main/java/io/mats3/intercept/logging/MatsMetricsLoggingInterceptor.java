@@ -1167,6 +1167,7 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_COMPLETE_TIME_USER_LAMBDA);
             MDC.remove(MDC_MATS_COMPLETE_TIME_OUT);
             MDC.remove(MDC_MATS_COMPLETE_QUANTITY_OUT);
+            MDC.remove(MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE);
             MDC.remove(MDC_MATS_COMPLETE_TIME_DB_COMMIT);
             MDC.remove(MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT);
         }
