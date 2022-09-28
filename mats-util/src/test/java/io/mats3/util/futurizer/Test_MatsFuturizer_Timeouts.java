@@ -148,18 +148,18 @@ public class Test_MatsFuturizer_Timeouts {
         };
 
         // :: Stack up a specific set of futures out-of-order, which should time out in timeout-order
-        // NOTICE how the order of the entered futures's timeouts are NOT in order.
+        // NOTICE how the sequence of the entered futures' timeouts are NOT in order.
         // This is to test that the Timeouter handles both adding new entries that are later than the current
         // earliest, but also earlier than the current earliest.
         String from = "TimeoutTester.severalTimeoutsByMatsFuturizer";
-        futureToEmptiness(futurizer, from, 1, 100, exceptionallyConsumer);
-        futureToEmptiness(futurizer, from, 2, 300, exceptionallyConsumer);
-        futureToEmptiness(futurizer, from, 3, 400, exceptionallyConsumer);
-        futureToEmptiness(futurizer, from, 4, 200, exceptionallyConsumer);
+        futureToEmptiness(futurizer, from, 1, 200, exceptionallyConsumer);
+        futureToEmptiness(futurizer, from, 2, 600, exceptionallyConsumer);
         futureToEmptiness(futurizer, from, 5, 10, exceptionallyConsumer);
+        futureToEmptiness(futurizer, from, 3, 800, exceptionallyConsumer);
+        futureToEmptiness(futurizer, from, 4, 400, exceptionallyConsumer);
         // .. we add the last timeout with the longest timeout, which we will wait for.
         CompletableFuture<Reply<DataTO>> last = futureToEmptiness(futurizer,
-                from, 6, 500, exceptionallyConsumer);
+                from, 6, 1000, exceptionallyConsumer);
 
         // "ACT": (well, each of the above futures have /already/ started executing, but wait for them to finish)
 
@@ -178,7 +178,7 @@ public class Test_MatsFuturizer_Timeouts {
         // thread, so we can get here before the addition has happened, thus the "500" will not have been added yet.
         // Ask me how I know.. ;-p (Okay, Github Actions crazy sloppy runners fretted it out..)
         // We'll thus wait in a loop here hoping for all the results to appear.
-        List<String> expected = Arrays.asList("10", "100", "200", "300", "400", "500");
+        List<String> expected = Arrays.asList("10", "200", "400", "600", "800", "1000");
         for (int i = 0; i < 200; i++) {
             if (results.size() == expected.size()) {
                 break;
