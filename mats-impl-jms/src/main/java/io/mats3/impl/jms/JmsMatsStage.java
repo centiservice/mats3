@@ -8,15 +8,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import javax.jms.Session;
-
+import io.mats3.impl.jms.JmsMatsStageProcessor.PriorityFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint.ProcessLambda;
 import io.mats3.MatsStage;
-import io.mats3.impl.jms.JmsMatsException.JmsMatsJmsException;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
 
 /**
  * The JMS implementation of {@link MatsStage}.
@@ -126,36 +123,30 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
             return;
         }
 
-        // :: Fire up the actual stage processors, using the configured (or default) concurrency
-        int numberOfProcessors = getStageConfig().getConcurrency();
-        // ?: Is this a topic?
-        if (!_queue) {
+        // ?: Queue or Topic?
+        if (_queue) {
+            // :: Fire up the actual stage processors, using the configured (or default) concurrency
+            // Add the Standard-Priority-Only processors.
+            for (int i = 0; i < getStageConfig().getConcurrency(); i++) {
+                _stageProcessors.add(new JmsMatsStageProcessor<>(this, i, PriorityFilter.STANDARD_ONLY));
+            }
+            // Add the Interactive-Priority-Only processors.
+            for (int i = 0; i < getStageConfig().getConcurrency(); i++) {
+                _stageProcessors.add(new JmsMatsStageProcessor<>(this, i, PriorityFilter.INTERACTIVE_ONLY));
+            }
+        }
+        else {
             /*
-             * -> Yes, is it a Topic, and in that case, there shall only be one StageProcessor for the endpoint. The
-             * whole point of a MQ Topic is that all listeners to the topic will get the same messages, and thus running
-             * multiple identical Stages (i.e. listeners) on a MatsFactory for a Topic makes zero sense.
+             * -> Topic: there can and shall only be one StageProcessor for the endpoint. The whole point of a
+             * MQ Topic is that all listeners to the topic will get the same messages, and thus running multiple
+             * identical Stages (i.e. listeners) on a MatsFactory for a Topic makes zero sense.
              *
              * (Optimizations along the line of using a thread pool for the actual work of the processor must be done in
              * user code, as the MATS framework must acknowledge (commit/rollback) each message, and cannot decide what
              * code could potentially be done concurrently.. Such a thread pool is for example used in the
              * "MatsFuturizer" tool)
              */
-            numberOfProcessors = 1;
-        }
-
-        // :: Add all the ordinary stage processors
-        for (int i = 0; i < numberOfProcessors; i++) {
-            _stageProcessors.add(new JmsMatsStageProcessor<>(this, i, false));
-        }
-        // :: Add interactive stage processors
-        // ?: Is this a Queue? (Cannot add multiple processors for topic endpoints - read comment above).
-        if (_queue) {
-            // -> Yes, this is a queue, so then we can add the interactive processors
-            // Add floor'ed half of the normal numberOfProcessors, but at least 1.
-            int numberOfInteractiveProcessors = Math.max(1, (int) (numberOfProcessors / 2d));
-            for (int i = 0; i < numberOfInteractiveProcessors; i++) {
-                _stageProcessors.add(new JmsMatsStageProcessor<>(this, i, true));
-            }
+            _stageProcessors.add(new JmsMatsStageProcessor<>(this, 1, PriorityFilter.UNFILTERED));
         }
 
         // Start all stage processors

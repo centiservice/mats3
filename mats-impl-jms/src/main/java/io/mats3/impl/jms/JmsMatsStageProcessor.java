@@ -82,18 +82,33 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     private final String _randomInstanceId;
     private final JmsMatsStage<R, S, I, Z> _jmsMatsStage;
     private final int _processorNumber;
-    private final boolean _interactive;
+    private final PriorityFilter _priorityFilter;
     private final Thread _processorThread;
     private final TransactionContext _transactionContext;
 
-    JmsMatsStageProcessor(JmsMatsStage<R, S, I, Z> jmsMatsStage, int processorNumber, boolean interactive) {
+    JmsMatsStageProcessor(JmsMatsStage<R, S, I, Z> jmsMatsStage, int processorNumber,
+            PriorityFilter priorityFilter) {
         _randomInstanceId = randomString(5) + "@" + jmsMatsStage.getParentFactory();
         _jmsMatsStage = jmsMatsStage;
         _processorNumber = processorNumber;
-        _interactive = interactive;
+        _priorityFilter = priorityFilter;
         _transactionContext = jmsMatsStage.getParentFactory()
                 .getJmsMatsTransactionManager().getTransactionContext(this);
         _processorThread = new Thread(this::runner, THREAD_PREFIX + ident());
+    }
+
+    public enum PriorityFilter {
+        UNFILTERED(""),
+
+        STANDARD_ONLY("_noninteractive"),
+
+        INTERACTIVE_ONLY("_interactive");
+
+        public final String threadSuffix;
+
+        PriorityFilter(String threadSuffix) {
+            this.threadSuffix = threadSuffix;
+        }
     }
 
     private volatile boolean _runFlag = true; // Start off running.
@@ -102,8 +117,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
     private String ident() {
         return _jmsMatsStage.getStageId() + '#'
+                + _priorityFilter
                 + _processorNumber
-                + (_interactive ? "_pri" : "")
                 + " {" + _randomInstanceId + '}';
     }
 
@@ -299,9 +314,22 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             try { // catch-all-Throwable, as we do not ever want the thread to die - and handles jmsSession.crashed()
                 Session jmsSession = _jmsSessionHolder.getSession();
                 Destination destination = createJmsDestination(jmsSession, getFactory().getFactoryConfig());
-                MessageConsumer jmsConsumer = _interactive
-                        ? jmsSession.createConsumer(destination, "JMSPriority = 9")
-                        : jmsSession.createConsumer(destination);
+                MessageConsumer jmsConsumer;
+                switch (_priorityFilter) {
+                    case STANDARD_ONLY:
+                        // Only select the non-high-pri messages
+                        // The only priorities Mats use are 4 (default) and 9 (highest)
+                        // Using non-equal, just in case there ever were to come something outside of that.
+                        jmsConsumer = jmsSession.createConsumer(destination, "JMSPriority <> 9");
+                        break;
+                    case INTERACTIVE_ONLY:
+                        // Only select the high-pri messages
+                        jmsConsumer = jmsSession.createConsumer(destination, "JMSPriority = 9");
+                        break;
+                    default:
+                        // All else: Consume everything.
+                        jmsConsumer = jmsSession.createConsumer(destination);
+                }
 
                 // We've established the consumer, and hence will start to receive messages and process them.
                 // (Important for topics, where if we haven't established consumer, we won't get messages).
