@@ -272,7 +272,7 @@ public class TestH2DataSource implements XADataSource, DataSource, ConnectionPoo
             // in a separate Thread. This is OK since we use separate DataSources with random URLs for each DS instance.
             log.info("Shutting down in-mem random TestH2DataSource with url [" + thisUrl
                     + "] (performed in separate Thread to not hold back next tests).");
-            new Thread(() -> {
+            Thread shutdownH2Thread = new Thread(() -> {
                 try {
                     Connection con = getConnection();
                     Statement stmt = con.createStatement();
@@ -284,7 +284,14 @@ public class TestH2DataSource implements XADataSource, DataSource, ConnectionPoo
                     throw new AssertionError("Problems shutting down H2", e);
                 }
                 log.info("Shutdown of TestH2DataSource [" + thisUrl + "] finished (from previous tests).");
-            }, "ShutdownThread of TestH2DataSource [" + thisUrl + "]").start();
+            }, "ShutdownThread of TestH2DataSource [" + thisUrl + "]");
+            // If the VM shuts down, H2 will also shut down, probably due to a shutdown hook thread.
+            // We've sometimes gotten this exception during test runs:
+            // Caused by: org.h2.jdbc.JdbcSQLNonTransientConnectionException: Database is already closed (to disable
+            // automatic closing at VM shutdown, add ";DB_CLOSE_ON_EXIT=FALSE" to the db URL) [90121-210]
+            // So, /either/ daemon this thread, OR add that prop to the URL. Both would probably be unwise.
+            shutdownH2Thread.setDaemon(true);
+            shutdownH2Thread.start();
         }
     }
 
