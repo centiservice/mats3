@@ -216,11 +216,29 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
     private class JmsEndpointConfig implements EndpointConfig<R, S> {
         private ConcurrentHashMap<String, Object> _attributes = new ConcurrentHashMap<>();
         private int _concurrency;
+        private int _interactiveConcurrency;
         private String _creationInfo;
 
         @Override
+        public int getConcurrency() {
+            // ?: Is the concurrency set specifically?
+            if (_concurrency != 0) {
+                // -> Yes, set specifically, so return it.
+                return _concurrency;
+            }
+            // E-> No, not specific concurrency, so return parent factory's concurrency.
+            return _parentFactory.getFactoryConfig().getConcurrency();
+        }
+
+        @Override
         public EndpointConfig<R, S> setConcurrency(int concurrency) {
-            _concurrency = concurrency;
+            setConcurrencyWithLog(log, "Endpoint[" + _endpointId + "] Concurrency",
+                    this::getConcurrency,
+                    this::isConcurrencyDefault,
+                    (Integer i) -> {
+                        _concurrency = i;
+                    },
+                    concurrency);
             return this;
         }
 
@@ -230,11 +248,37 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
         }
 
         @Override
-        public int getConcurrency() {
-            if (_concurrency == 0) {
-                return _parentFactory.getFactoryConfig().getConcurrency();
+        public int getInteractiveConcurrency() {
+            // ?: Is the interactiveConcurrency set specifically?
+            if (_interactiveConcurrency != 0) {
+                // -> Yes, set specifically, so return it.
+                return _interactiveConcurrency;
             }
-            return _concurrency;
+            // E-> No, not specific /interactive/ concurrency
+            // ?: Check for specific /normal/ concurrency
+            if (_concurrency != 0) {
+                // -> Yes, normal concurrency set specifically, so return it
+                return _concurrency;
+            }
+            // E-> No, this endpoint has neither specific normal nor interactive concurrency, so go to parent factory.
+            return _parentFactory.getFactoryConfig().getInteractiveConcurrency();
+        }
+
+        @Override
+        public EndpointConfig<R, S> setInteractiveConcurrency(int concurrency) {
+            setConcurrencyWithLog(log, "Endpoint[" + _endpointId + "] Interactive Concurrency",
+                    this::getInteractiveConcurrency,
+                    this::isInteractiveConcurrencyDefault,
+                    (Integer i) -> {
+                        _interactiveConcurrency = i;
+                    },
+                    concurrency);
+            return this;
+        }
+
+        @Override
+        public boolean isInteractiveConcurrencyDefault() {
+            return _interactiveConcurrency == 0;
         }
 
         @Override

@@ -8,12 +8,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import io.mats3.impl.jms.JmsMatsStageProcessor.PriorityFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint.ProcessLambda;
 import io.mats3.MatsStage;
+import io.mats3.impl.jms.JmsMatsStageProcessor.PriorityFilter;
 
 /**
  * The JMS implementation of {@link MatsStage}.
@@ -125,21 +125,21 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
 
         // ?: Queue or Topic?
         if (_queue) {
-            // :: Fire up the actual stage processors, using the configured (or default) concurrency
+            // -> Queue: Fire up the actual stage processors, using the configured (or default) concurrency
             // Add the Standard-Priority-Only processors.
             for (int i = 0; i < getStageConfig().getConcurrency(); i++) {
                 _stageProcessors.add(new JmsMatsStageProcessor<>(this, i, PriorityFilter.STANDARD_ONLY));
             }
             // Add the Interactive-Priority-Only processors.
-            for (int i = 0; i < getStageConfig().getConcurrency(); i++) {
+            for (int i = 0; i < getStageConfig().getInteractiveConcurrency(); i++) {
                 _stageProcessors.add(new JmsMatsStageProcessor<>(this, i, PriorityFilter.INTERACTIVE_ONLY));
             }
         }
         else {
             /*
-             * -> Topic: there can and shall only be one StageProcessor for the endpoint. The whole point of a
-             * MQ Topic is that all listeners to the topic will get the same messages, and thus running multiple
-             * identical Stages (i.e. listeners) on a MatsFactory for a Topic makes zero sense.
+             * -> Topic: there can and shall only be one StageProcessor for the SubscriptionEndpoint. The whole point of
+             * a MQ Topic is that all listeners to the topic will get the same messages, and thus running multiple
+             * identical Stages (i.e. listeners) on a MatsFactory for a given Topic makes zero sense.
              *
              * (Optimizations along the line of using a thread pool for the actual work of the processor must be done in
              * user code, as the MATS framework must acknowledge (commit/rollback) each message, and cannot decide what
@@ -202,11 +202,29 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
     private class JmsStageConfig implements StageConfig<R, S, I> {
         private ConcurrentHashMap<String, Object> _attributes = new ConcurrentHashMap<>();
         private int _concurrency;
+        private int _interactiveConcurrency;
         private String _creationInfo;
 
         @Override
+        public int getConcurrency() {
+            // ?: Is the concurrency set specifically?
+            if (_concurrency != 0) {
+                // -> Yes, set specifically, so return it.
+                return _concurrency;
+            }
+            // E-> No, not specific concurrency, so return parent endpoint's concurrency.
+            return _parentEndpoint.getEndpointConfig().getConcurrency();
+        }
+
+        @Override
         public StageConfig<R, S, I> setConcurrency(int concurrency) {
-            _concurrency = concurrency;
+            setConcurrencyWithLog(log, "Stage[" + _stageId + "] Concurrency",
+                    this::getConcurrency,
+                    this::isConcurrencyDefault,
+                    (Integer i) -> {
+                        _concurrency = i;
+                    },
+                    concurrency);
             return this;
         }
 
@@ -216,11 +234,37 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         }
 
         @Override
-        public int getConcurrency() {
-            if (_concurrency == 0) {
-                return _parentEndpoint.getEndpointConfig().getConcurrency();
+        public int getInteractiveConcurrency() {
+            // ?: Is the interactiveConcurrency set specifically?
+            if (_interactiveConcurrency != 0) {
+                // -> Yes, set specifically, so return it.
+                return _interactiveConcurrency;
             }
-            return _concurrency;
+            // E-> No, not specific /interactive/ concurrency
+            // ?: Check for specific /normal/ concurrency
+            if (_concurrency != 0) {
+                // -> Yes, normal concurrency set specifically, so return it
+                return _concurrency;
+            }
+            // E-> No, this stage has neither specific normal nor interactive concurrency, so go to parent stage.
+            return _parentEndpoint.getEndpointConfig().getInteractiveConcurrency();
+        }
+
+        @Override
+        public StageConfig<R, S, I> setInteractiveConcurrency(int concurrency) {
+            setConcurrencyWithLog(log, "Stage[" + _stageId + "] Interactive Concurrency",
+                    this::getInteractiveConcurrency,
+                    this::isInteractiveConcurrencyDefault,
+                    (Integer i) -> {
+                        _interactiveConcurrency = i;
+                    },
+                    concurrency);
+            return this;
+        }
+
+        @Override
+        public boolean isInteractiveConcurrencyDefault() {
+            return _interactiveConcurrency == 0;
         }
 
         @Override

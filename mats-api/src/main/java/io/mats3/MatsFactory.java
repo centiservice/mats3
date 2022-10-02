@@ -615,6 +615,10 @@ public interface MatsFactory extends StartStoppable {
         // Overridden to return the more specific FactoryConfig instead of MatsConfig
         @Override
         FactoryConfig setConcurrency(int concurrency);
+
+        // Overridden to return the more specific FactoryConfig instead of MatsConfig
+        @Override
+        FactoryConfig setInteractiveConcurrency(int concurrency);
     }
 
     /**

@@ -115,5 +115,9 @@ public interface MatsStage<R, S, I> extends StartStoppable {
         // Overridden to return the more specific StageConfig instead of MatsConfig
         @Override
         StageConfig<R, S, I> setConcurrency(int concurrency);
+
+        // Overridden to return the more specific StageConfig instead of MatsConfig
+        @Override
+        StageConfig<R, S, I> setInteractiveConcurrency(int concurrency);
     }
 }

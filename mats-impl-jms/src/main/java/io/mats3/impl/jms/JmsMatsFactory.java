@@ -165,6 +165,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
     // Set to default, which is 0 (which means default logic; 2x numCpus)
     private int _concurrency = 0;
+    private int _interactiveConcurrency = 0;
 
     // Set to default, which is empty string (not null).
     private String _name = "";
@@ -719,11 +720,15 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
             endpoint.start();
         }
         // :: Wait for them entering receiving.
-        for (MatsEndpoint<?, ?> endpoint : getEndpoints()) {
-            endpoint.waitForReceiving(10_000);
+        boolean startedOk = waitForReceiving(30_000);
+        if (startedOk) {
+            log.info(LOG_PREFIX + "Done. Started [" + idThis() + "], and all endpoints' all stages have entered their"
+                    + " receive-loop.");
         }
-        log.info(LOG_PREFIX + "Done. Started [" + idThis() + "], and all endpoints' all stages have entered their"
-                + " receive-loop.");
+        else {
+            log.warn(LOG_PREFIX + "Done. Started [" + idThis()
+                    + "], BUT not all endpoints have entered their receive-loop?!");
+        }
     }
 
     @Override
@@ -865,12 +870,26 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         }
 
         @Override
+        public int getConcurrency() {
+
+            // ?: Is the concurrency set specifically?
+            if (_concurrency != 0) {
+                // -> Yes, set specifically, so return it.
+                return _concurrency;
+            }
+            // E-> No, not specific concurrency, so return default calculation
+            return 2 * getNumberOfCpus();
+        }
+
+        @Override
         public FactoryConfig setConcurrency(int concurrency) {
-            log.info(LOG_PREFIX + "MatsFactory's Concurrency is set to [" + concurrency
-                    + "] (was:[" + _concurrency + "]" + (isConcurrencyDefault()
-                            ? ", default, yielded:[" + getConcurrency() + "]"
-                            : "") + ").");
-            _concurrency = concurrency;
+            setConcurrencyWithLog(log, "MatsFactory Concurrency",
+                    this::getConcurrency,
+                    this::isConcurrencyDefault,
+                    (Integer i) -> {
+                        _concurrency = i;
+                    },
+                    concurrency);
             return this;
         }
 
@@ -880,11 +899,31 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         }
 
         @Override
-        public int getConcurrency() {
-            if (_concurrency == 0) {
-                return 2 * getNumberOfCpus();
+        public int getInteractiveConcurrency() {
+            // ?: Is the interactiveConcurrency set specifically?
+            if (_interactiveConcurrency != 0) {
+                // -> Yes, set specifically, so return it.
+                return _interactiveConcurrency;
             }
-            return _concurrency;
+            // E-> No, so return the factory's concurrency.
+            return getConcurrency();
+        }
+
+        @Override
+        public FactoryConfig setInteractiveConcurrency(int concurrency) {
+            setConcurrencyWithLog(log, "MatsFactory Interactive Concurrency",
+                    this::getInteractiveConcurrency,
+                    this::isInteractiveConcurrencyDefault,
+                    (Integer i) -> {
+                        _interactiveConcurrency = i;
+                    },
+                    concurrency);
+            return this;
+        }
+
+        @Override
+        public boolean isInteractiveConcurrencyDefault() {
+            return _interactiveConcurrency == 0;
         }
 
         @Override

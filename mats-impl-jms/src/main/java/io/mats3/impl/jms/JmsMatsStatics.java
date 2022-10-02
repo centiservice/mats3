@@ -3,6 +3,8 @@ package io.mats3.impl.jms;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import javax.jms.DeliveryMode;
 import javax.jms.Destination;
@@ -14,6 +16,7 @@ import javax.jms.Session;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
 
+import io.mats3.MatsConfig;
 import io.mats3.MatsEndpoint.MatsObject;
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsFactory.FactoryConfig;
@@ -387,5 +390,35 @@ public interface JmsMatsStatics {
         }
         // E-> Evidently no stackframes!?
         return NO_INVOCATION_POINT;
+    }
+
+    /**
+     * Set concurrency on entity, printing log
+     */
+    default void setConcurrencyWithLog(Logger log, String what, Supplier<Integer> getter,
+            Supplier<Boolean> isDefault, Consumer<Integer> setter, int newConcurrency) {
+
+        int previousConcurrencyResult = getter.get();
+        boolean previousIsDefault = isDefault.get();
+        // Set new
+        setter.accept(newConcurrency);
+        int newConcurrencyResult = getter.get();
+        boolean newIsDefault = isDefault.get();
+
+        String msg = what + " is set to ";
+        if (newIsDefault) {
+            msg += "[0:default -> "+newConcurrencyResult+"]";
+        }
+        else {
+            msg += "["+newConcurrencyResult+"]";
+        }
+        msg += " - was ";
+        if (previousIsDefault) {
+            msg += "[0:default -> "+previousConcurrencyResult+"]";
+        }
+        else {
+            msg += "["+previousConcurrencyResult+"]";
+        }
+        log.info(LOG_PREFIX + msg);
     }
 }

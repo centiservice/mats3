@@ -285,6 +285,10 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         // Overridden to return the more specific EndpointConfig instead of MatsConfig
         @Override
         EndpointConfig<R, S> setConcurrency(int concurrency);
+
+        // Overridden to return the more specific EndpointConfig instead of MatsConfig
+        @Override
+        EndpointConfig<R, S> setInteractiveConcurrency(int concurrency);
     }
 
     /**
