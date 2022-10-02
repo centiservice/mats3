@@ -11,6 +11,8 @@ import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
 import io.mats3.test.MatsTestHelp;
 
+import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE;
+
 /**
  * Tests throwing inside the initiator, which should "propagate all the way out", while the about-to-be-sent message
  * will be rolled back and not be sent anyway. Note that in the logs, the situation will be logged on error by the MATS
@@ -32,8 +34,6 @@ public class Test_ThrowsExceptionInInitialization {
     public static final Rule_Mats MATS = Rule_Mats.create();
 
     private static final String TERMINATOR = MatsTestHelp.terminator();
-
-    private static int WAIT_MILLIS = 200;
 
     @BeforeClass
     public static void setupTerminator() {
@@ -61,7 +61,7 @@ public class Test_ThrowsExceptionInInitialization {
         // Send a message that does NOT throw in initiation
         sendMessageToTerminator(false);
         // .. thus, the message should be received at TERMINATOR
-        Assert.assertNotNull(MATS.getMatsTestLatch().waitForResult(WAIT_MILLIS));
+        Assert.assertNotNull(MATS.getMatsTestLatch().waitForResult(WAIT_MILLIS_FOR_NON_OCCURENCE));
     }
 
     /**
@@ -76,7 +76,7 @@ public class Test_ThrowsExceptionInInitialization {
 
         // Wait synchronously for terminator to finish (which it shall not do!)
         try {
-            MATS.getMatsTestLatch().waitForResult(WAIT_MILLIS);
+            MATS.getMatsTestLatch().waitForResult(WAIT_MILLIS_FOR_NON_OCCURENCE);
         }
         // NOTE! The MatsTestLatch throws AssertionError when the wait time overruns.
         catch (AssertionError e) {

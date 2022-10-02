@@ -15,6 +15,8 @@ import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.junit.Rule_Mats;
 
+import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE;
+
 /**
  * Tests the initiation within a stage functionality.
  * <p/>
@@ -300,14 +302,15 @@ public class Test_InitiateWithinStage {
 
         // "Normal" Terminator from the service call - Wait a bit for this in case these messages slacks in the queue.
         try {
-            matsTestLath.waitForResult(500);
+            matsTestLath.waitForResult(WAIT_MILLIS_FOR_NON_OCCURENCE);
             throw new RuntimeException("NOTE: This cannot be an AssertionError! It should not have happened.");
         }
         catch (AssertionError ae) {
             /* good - there should not be a message */
         }
 
-        // Terminator "stageInit1", for the first initiation within the service's stage - we've already waited a bit.
+        // Terminator "stageInit1", for the first initiation within the service's stage.
+        // Note: waiting a very short time here, as we've already timeout out a "non occurrence" above.
         try {
             matsTestLath_stageInit1.waitForResult(5);
             throw new RuntimeException("NOTE: This cannot be an AssertionError! It should not have happened.");
@@ -317,6 +320,7 @@ public class Test_InitiateWithinStage {
         }
 
         // Terminator "stageInit2", for the second initiation within the service's stage
+        // Note: waiting a very short time here, as we've already timeout out a "non occurrence" above.
         try {
             matsTestLath_stageInit2.waitForResult(5);
             throw new RuntimeException("NOTE: This cannot be an AssertionError! It should not have happened.");
@@ -326,6 +330,7 @@ public class Test_InitiateWithinStage {
         }
 
         // Terminator "stageInit_withMatsFactory", for the initiation using MatsFactory.getDefaultInitiator()
+        // Note: waiting a very short time here, as we've already timeout out a "non occurrence" above.
         try {
             matsTestLath_stageInit_withMatsFactory_DefaultInitiator.waitForResult(5);
             throw new RuntimeException("NOTE: This cannot be an AssertionError! It should not have happened.");

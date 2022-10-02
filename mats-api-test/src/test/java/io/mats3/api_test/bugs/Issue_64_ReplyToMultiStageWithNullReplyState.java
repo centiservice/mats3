@@ -194,7 +194,7 @@ public class Issue_64_ReplyToMultiStageWithNullReplyState {
                         .to(TERMINATOR_SINGLE)
                         .send(dto, null));
 
-        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult(500);
+        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
         Assert.assertNotNull(result.getState());
         Assert.assertEquals(new DataTO(dto.number, dto.string), result.getData());
     }
@@ -217,7 +217,7 @@ public class Issue_64_ReplyToMultiStageWithNullReplyState {
                         .replyTo("Not used", "Not used")
                         .request(dto));
 
-        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult(500);
+        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
         Assert.assertNotNull(result.getState());
         Assert.assertEquals(new DataTO(dto.number, dto.string), result.getData());
     }

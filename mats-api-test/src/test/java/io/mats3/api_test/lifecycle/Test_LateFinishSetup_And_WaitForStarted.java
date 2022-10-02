@@ -1,5 +1,7 @@
 package io.mats3.api_test.lifecycle;
 
+import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -10,11 +12,11 @@ import org.junit.Test;
 import org.slf4j.Logger;
 
 import io.mats3.MatsEndpoint;
-import io.mats3.test.junit.Rule_Mats;
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
+import io.mats3.test.junit.Rule_Mats;
 
 public class Test_LateFinishSetup_And_WaitForStarted {
     private static final Logger log = MatsTestHelp.getClassLogger();
@@ -55,12 +57,12 @@ public class Test_LateFinishSetup_And_WaitForStarted {
         waiter.start();
 
         // :: Now wait for the waiter-thread to actually fire up - should go instantly.
-        boolean threadStarted = _waitThreadStarted.await(1000, TimeUnit.MILLISECONDS);
+        boolean threadStarted = _waitThreadStarted.await(5, TimeUnit.SECONDS);
         Assert.assertTrue("Waiter thread should have started!", threadStarted);
 
         // Wait for the answer in 250 ms - which should not come.
         try {
-            MATS.getMatsTestLatch().waitForResult(250);
+            MATS.getMatsTestLatch().waitForResult(WAIT_MILLIS_FOR_NON_OCCURENCE);
             Assert.fail("This should not have happened, since the Endpoint isn't started yet.");
         }
         catch (AssertionError ae) {
@@ -75,11 +77,11 @@ public class Test_LateFinishSetup_And_WaitForStarted {
         _ep.finishSetup();
 
         // Wait synchronously for terminator to finish, which now should happen pretty fast.
-        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult(1000);
+        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
         Assert.assertEquals(dto, result.getData());
 
         // The waiter should either already have gotten through the waiting, or is in the process of doing so.
-        boolean waitedFinishedOk = _waitedForStartupFinished.await(1000, TimeUnit.MILLISECONDS);
+        boolean waitedFinishedOk = _waitedForStartupFinished.await(5, TimeUnit.SECONDS);
 
         // Assert that waiter-thread actually got through.
         Assert.assertTrue("The Waiter thread should have gotten through the waiting,"

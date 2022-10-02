@@ -101,10 +101,8 @@ public class Test_MultiLevelStash {
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 
-        long waittime = 5_000;
-
         // ### STASHED AT SERVICE (stage0) - Wait synchronously for stash to appear
-        Result<StateTO, DataTO> stashContext_stage0 = _stashLatch_Stage0.waitForResult(waittime);
+        Result<StateTO, DataTO> stashContext_stage0 = _stashLatch_Stage0.waitForResult();
 
         Assert.assertEquals(from, stashContext_stage0.getContext().getFromStageId());
         Assert.assertEquals(SERVICE, stashContext_stage0.getContext().getEndpointId());
@@ -120,7 +118,7 @@ public class Test_MultiLevelStash {
                 }));
 
         // ### STASHED AT LEAF - Wait synchronously for stash to appear
-        Result<StateTO, DataTO> stashContext_leaf = _stashLatch_leaf.waitForResult(waittime);
+        Result<StateTO, DataTO> stashContext_leaf = _stashLatch_leaf.waitForResult();
 
         Assert.assertEquals(SERVICE, stashContext_leaf.getContext().getFromStageId());
         Assert.assertEquals(SERVICE + ".Leaf", stashContext_leaf.getContext().getEndpointId());
@@ -136,7 +134,7 @@ public class Test_MultiLevelStash {
                 }));
 
         // ### STASHED AT SERVICE.stage1 - Wait synchronously for stash to appear
-        Result<StateTO, DataTO> stashContext_stage1 = _stashLatch_Stage1.waitForResult(waittime);
+        Result<StateTO, DataTO> stashContext_stage1 = _stashLatch_Stage1.waitForResult();
 
         Assert.assertEquals(SERVICE + ".Leaf", stashContext_stage1.getContext().getFromStageId());
         Assert.assertEquals(SERVICE, stashContext_stage1.getContext().getEndpointId());
@@ -161,7 +159,7 @@ public class Test_MultiLevelStash {
                 }));
 
         // ### PROCESS FINISHED @ Terminator, first time! - Wait synchronously for terminator to finish.
-        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult(waittime);
+        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
         // :: Assert that the flow went through as expected, with the traceId intact.
         Assert.assertEquals(traceId, result.getContext().getTraceId());
         Assert.assertNotNull(result.getContext().getSystemMessageId());
@@ -181,7 +179,7 @@ public class Test_MultiLevelStash {
 
         // ### PROCESS FINISHED @ Terminator, second time! - Wait synchronously for terminator to finish for a second
         // time.
-        Result<StateTO, DataTO> result_Again = MATS.getMatsTestLatch().waitForResult(waittime);
+        Result<StateTO, DataTO> result_Again = MATS.getMatsTestLatch().waitForResult();
         // :: Assert that the flow went through as expected, with the traceId intact.
         Assert.assertEquals(traceId, result_Again.getContext().getTraceId());
         Assert.assertNotNull(result_Again.getContext().getSystemMessageId());
