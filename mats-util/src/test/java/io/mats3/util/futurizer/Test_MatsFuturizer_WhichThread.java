@@ -18,7 +18,9 @@ import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**
- * Tests that shows that the completer thread-pool inside MatsFuturizer is handling the completion of the futures.
+ * Tests that shows that the completer thread-pool inside MatsFuturizer is handling the completion of the futures. After
+ * a good while (some 3 years) and a bunch of failures on Github Actions, I think I finally understand how this works.
+ * Read the code comments.
  *
  * @author Endre Stølsvik 2019-08-31 16:54 - http://stolsvik.com/, endre@stolsvik.com
  */
@@ -47,8 +49,19 @@ public class Test_MatsFuturizer_WhichThread {
                      * ready, only then is the result handed over to the thread "hanging" on .get(). Good stuff with the
                      * completer thread-pool then, so that we do not hold on to the Mats topic receiver thread (in the
                      * SubscriptionTerminator) longer than absolutely necessary.
+                     *
+                     * Notice, new info 2022-10-02: If the CompletableFuture has already completed when .thenApply() etc
+                     * is invoked, /then/ it will be executed by the calling thread (i.e. 'main' or the test worker). If
+                     * the .thenApply() is invoked /before/ the CompletableFuture, then it will be the completer (i.e.
+                     * the "MatsFuturizer completer") that executes it. Basically, if you have an already completed
+                     * future on your hands, invoking methods like .thenApply() will have to be invoked by you - there
+                     * are no other threads available. But if a new CompleteableFuture is already made (i.e. what
+                     * thenApply() does), the "stack" will be executed by the completer.
+                     *
+                     * Therefore, to ensure that it will be the "MatsFuturizer completer" which runs it (which these
+                     * tests assume), we'll wait a good while here.
                      */
-                    MatsTestHelp.takeNap(50);
+                    MatsTestHelp.takeNap(1000);
                     return new DataTO(msg.number * 2, msg.string + ":FromService");
                 });
     }
@@ -69,6 +82,7 @@ public class Test_MatsFuturizer_WhichThread {
         @SuppressWarnings("unchecked")
         Reply<DataTO>[] reply = new Reply[1];
         CountDownLatch latch = new CountDownLatch(1);
+
         future.thenAccept(r -> {
             completedOnThreadName[0] = Thread.currentThread().getName();
             reply[0] = r;
@@ -78,7 +92,7 @@ public class Test_MatsFuturizer_WhichThread {
         // ASSERT
         latch.await(5, TimeUnit.SECONDS);
 
-        log.info("The future was completed on thread [" + completedOnThreadName + "} - the latency was "
+        log.info("The future was completed on thread [" + completedOnThreadName[0] + "} - the latency was "
                 + (System.currentTimeMillis() - reply[0].initiationTimestamp) + " milliseconds");
 
         Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), reply[0].reply);
@@ -103,20 +117,24 @@ public class Test_MatsFuturizer_WhichThread {
         // :: ACT
 
         String[] completedOnThreadName = new String[1];
+        @SuppressWarnings("unchecked")
+        Reply<DataTO>[] reply = new Reply[1];
 
         // Do a ".thenApply(...)", followed by a ".get()" to get the value..
         CompletableFuture<DataTO> completeFuture = future.thenApply(r -> {
             completedOnThreadName[0] = Thread.currentThread().getName();
+            reply[0] = r;
             DataTO in = r.reply;
             return new DataTO(in.number * 3, in.string + ":FromThenApply");
         });
-        DataTO reply = completeFuture.get(5, TimeUnit.SECONDS);
+        DataTO replyTo = completeFuture.get(5, TimeUnit.SECONDS);
 
         // :: ASSERT
 
-        log.info("The future was completed on thread [" + completedOnThreadName[0] + "].");
+        log.info("The future was completed on thread [" + completedOnThreadName[0] + "} - the latency was "
+                + (System.currentTimeMillis() - reply[0].initiationTimestamp) + " milliseconds");
 
-        Assert.assertEquals(new DataTO(dto.number * 2 * 3, dto.string + ":FromService:FromThenApply"), reply);
+        Assert.assertEquals(new DataTO(dto.number * 2 * 3, dto.string + ":FromService:FromThenApply"), replyTo);
 
         // The "thenAccept" should have been executed on the MatsFuturizer thread pool.
         Assert.assertTrue("Completed on thread [" + completedOnThreadName[0]
@@ -140,7 +158,7 @@ public class Test_MatsFuturizer_WhichThread {
         @SuppressWarnings("unchecked")
         Reply<DataTO>[] reply = new Reply[1];
 
-        // Do a ".thenAccept(...)", followed by a ".get()" to get the value..
+        // Do a ".thenAccept(...)", followed by a ".get()" to get the value - which won't come due to exception.
         CompletableFuture<Void> finishedFuture = future.thenAccept(r -> {
             completedOnThreadName[0] = Thread.currentThread().getName();
             reply[0] = r;
@@ -159,7 +177,8 @@ public class Test_MatsFuturizer_WhichThread {
 
         // :: ASSERT
 
-        log.info("The future was completed on thread [" + completedOnThreadName[0] + "].");
+        log.info("The future was completed on thread [" + completedOnThreadName[0] + "} - the latency was "
+                + (System.currentTimeMillis() - reply[0].initiationTimestamp) + " milliseconds");
 
         Assert.assertNotNull(thrown);
 
