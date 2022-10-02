@@ -744,11 +744,12 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * stage to reply to.
          * <p />
          * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
-         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}. The reason that multiple
-         * request/next are allowed, is that this could be used in a scatter-gather scenario - where the replies (or
-         * next) comes in to the next stage <i>of the same endpoint</i>. However, multiple replies to the
-         * <i>invoking</i> endpoint makes very little sense, which is why only one reply is allowed, and it cannot be
-         * combined with reply/next, as then the next stage could also perform a reply.
+         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
+         * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
+         * in a scatter-gather scenario - where the replies (or next) comes in to the next stage <i>of the same
+         * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
+         * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
+         * could also perform a reply.
          * <p />
          * Note: The current state is serialized when invoking this method. This means that in case of multiple
          * requests/nexts, you may change the state in between, and the next stage will get different "incoming states",
@@ -772,11 +773,12 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * {@link #next(Object)}).
          * <p />
          * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
-         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}. The reason that multiple
-         * request/next are allowed, is that this could be used in a scatter-gather scenario - where the replies (or
-         * next) comes in to the next stage <i>of the same endpoint</i>. However, multiple replies to the
-         * <i>invoking</i> endpoint makes very little sense, which is why only one reply is allowed, and it cannot be
-         * combined with reply/next, as then the next stage could also perform a reply.
+         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
+         * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
+         * in a scatter-gather scenario - where the replies (or next) comes in to the next stage <i>of the same
+         * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
+         * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
+         * could also perform a reply.
          *
          * @param replyDto
          *            the reply DTO to return to the invoker.
@@ -790,11 +792,12 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * do something like <code>if (condition) { request service } else { next }</code>.
          * <p />
          * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
-         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}. The reason that multiple
-         * request/next are allowed, is that this could be used in a scatter-gather scenario - where the replies (or
-         * next) comes in to the next stage <i>of the same endpoint</i>. However, multiple replies to the
-         * <i>invoking</i> endpoint makes very little sense, which is why only one reply is allowed, and it cannot be
-         * combined with reply/next, as then the next stage could also perform a reply.
+         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
+         * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
+         * in a scatter-gather scenario - where the replies (or next) comes in to the next stage <i>of the same
+         * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
+         * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
+         * could also perform a reply.
          * <p />
          * Note: The current state is serialized when invoking this method. This means that in case of multiple
          * requests/nexts, you may change the state in between, and the next stage will get different "incoming states",
@@ -830,6 +833,14 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * The extra reply stage of endpoint A is thus totally useless and just incurs additional message passing and
          * processing. You can instead just goto endpoint B, which achieves just this outcome: When endpoint B now
          * replies, it will reply to the caller of endpoint A.
+         * <p />
+         * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
+         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
+         * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
+         * in a scatter-gather scenario - where the replies (or next) comes in to the next stage <i>of the same
+         * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
+         * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
+         * could also perform a reply.
          *
          * @param endpointId
          *            which endpoint to go to.
