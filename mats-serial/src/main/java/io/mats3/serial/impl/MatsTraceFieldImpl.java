@@ -342,6 +342,28 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     }
 
     @Override
+    public MatsTrace<Z> addGotoCall(String from, String to, Z data, Z initialState) {
+        // Get copy of current stack. NOTE: For a send/next/pass call, the stack does not change.
+        List<ReplyChannel> newCallReplyStack = getCopyOfCurrentStackForNewCall();
+        // Clone the current MatsTrace, which is the one we're going to modify and return.
+        MatsTraceFieldImpl<Z> clone = cloneForNewCall();
+        // Prune the data and stack from current call if KeepMatsTrace says so.
+        clone.dropValuesOnCurrentCallIfAny();
+        // Add the new Call.
+        clone.c.add(new CallImpl<Z>(CallType.GOTO, getFlowId(), getInitializedTimestamp(), getCallNumber(), from,
+                new ToChannel(to, MessagingModel.QUEUE), data, newCallReplyStack));
+        if (initialState != null) {
+            // Add the state meant for the goto'ed endpoint (Notice again that we do not change the reply stack here)
+            StackStateImpl<Z> initialGototate = new StackStateImpl<Z>(newCallReplyStack.size(), initialState);
+            // Actually add the new state
+            clone.ss.add(initialGototate);
+        }
+        // Prune the StackStates if KeepMatsTrace says so.
+        clone.pruneUnnecessaryStackStates();
+        return clone;
+    }
+
+    @Override
     public void setOutgoingTimestamp(long timestamp) {
         // NOTE: SENDING SIDE: Invoked when a new message/call has been constructed, about to be sent.
         // NOTE: Shall be invoked AFTER having added a call for new outgoing message, as late as possible before send.

@@ -257,7 +257,7 @@ public interface MatsTrace<Z> {
      * @param replyToMessagingModel
      *            the {@link MessagingModel} of 'replyTo'.
      * @param data
-     *            the request data, most often a JSON representing the Request Data Transfer Object that the requesting
+     *            the request data, most often a JSON representing the Request Data Transfer Object that the requested
      *            service expects to get.
      * @param replyState
      *            the state data for the stageId that gets the reply to this request, that is, the state for the stageId
@@ -330,6 +330,15 @@ public interface MatsTrace<Z> {
      *            service expects to get.
      */
     MatsTrace<Z> addReplyCall(String from, Z data);
+
+    /**
+     * @param data
+     *            the request data, most often a JSON representing the Request Data Transfer Object that the passed-to
+     *            endpoint expects to get.
+     * @param initialState
+     *            an optional feature, whereby the state can be set for the initial stage of the requested endpoint.
+     */
+    MatsTrace<Z> addGotoCall(String from, String to, Z data, Z initialState);
 
     /**
      * Shall be invoked after adding the outgoing call, immediately before serializing the outgoing MatsTrace.

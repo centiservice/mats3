@@ -202,6 +202,9 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
         else if (callType == CallType.NEXT) {
             return MessageType.NEXT;
         }
+        else if (callType == CallType.GOTO) {
+            return MessageType.GOTO;
+        }
         else if (callType == CallType.SEND) {
             // -> SEND, so must evaluate SEND or PUBLISH
             if (_matsTrace.getCurrentCall().getTo().getMessagingModel() == MessagingModel.QUEUE) {

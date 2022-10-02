@@ -66,7 +66,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     // Set when outgoing flow message is created, to catch illegal call flows
     private DebugStackTraceException _requestOrNextSent;
-    private DebugStackTraceException _replySent;
+    private DebugStackTraceException _replyOrGotoSent;
 
     private final LinkedHashMap<String, Object> _outgoingProps = new LinkedHashMap<>();
     private final LinkedHashMap<String, byte[]> _outgoingBinaries = new LinkedHashMap<>();
@@ -528,12 +528,12 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     public MessageReference reply(Object replyDto) {
         long nanosStart = System.nanoTime();
 
-        // ?: Have reply already been invoked?
-        if (_replySent != null) {
+        // ?: Have reply or goto already been invoked?
+        if (_replyOrGotoSent != null) {
             // -> Yes, and this is not legal.
-            String msg = "Reply has already been invoked! You cannot reply once more.";
+            String msg = "Reply or Goto has already been invoked! You cannot reply/goto once more.";
             log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
-            log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replySent);
+            log.error(LOG_PREFIX + "   PREVIOUS REPLY OR GOTO DEBUG STACKTRACE:", _replyOrGotoSent);
             log.error(LOG_PREFIX + "   THIS REPLY DEBUG STACKTRACE:",
                     new DebugStackTraceException("THIS REPLY STACKTRACE"));
             throw new IllegalCallFlowsException(msg);
@@ -542,7 +542,8 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         // ?: Have request or next already been invoked?
         if (_requestOrNextSent != null) {
             // -> Yes, and this is not legal.
-            String msg = "Request or Next has already been invoked! It is illegal to mix Reply with Request or Next.";
+            String msg = "Request or Next has already been invoked! It is illegal to mix Reply or Goto"
+                    + " with Request or Next.";
             log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
             log.error(LOG_PREFIX + "   PREVIOUS REQUEST/NEXT DEBUG STACKTRACE:", _requestOrNextSent);
             log.error(LOG_PREFIX + "   THIS REPLY DEBUG STACKTRACE:",
@@ -550,7 +551,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
             throw new IllegalCallFlowsException(msg);
         }
 
-        _replySent = new DebugStackTraceException("PREVIOUS REPLY STACKTRACE");
+        _replyOrGotoSent = new DebugStackTraceException("PREVIOUS REPLY STACKTRACE");
 
         // :: Short-circuit the reply (to no-op) if there is nothing on the stack to reply to.
         List<Channel> stack = _incomingMatsTrace.getCurrentCall().getReplyStack();
@@ -569,7 +570,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         Z replyZ = matsSerializer.serializeObject(replyDto);
         MatsTrace<Z> replyMatsTrace = _incomingMatsTrace.addReplyCall(_stageId, replyZ);
 
-        String matsMessageId = produceMessage(replyDto, nanosStart, replyMatsTrace);
+        String matsMessageId = produceMessage(replyDto, null, nanosStart, replyMatsTrace);
 
         return new MessageReferenceImpl(matsMessageId);
     }
@@ -585,11 +586,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         }
 
         // ?: Have reply already been invoked?
-        if (_replySent != null) {
+        if (_replyOrGotoSent != null) {
             // -> Yes, and this is not legal.
-            String msg = "Reply has been invoked! It is illegal to mix Reply with Request or Next.";
+            String msg = "Reply or Goto has been invoked! It is illegal to mix Reply or Goto with Request or Next.";
             log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
-            log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replySent);
+            log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replyOrGotoSent);
             log.error(LOG_PREFIX + "   THIS REQUEST DEBUG STACKTRACE:",
                     new DebugStackTraceException("THIS REQUEST STACKTRACE"));
             throw new IllegalCallFlowsException(msg);
@@ -605,7 +606,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         MatsTrace<Z> requestMatsTrace = _incomingMatsTrace.addRequestCall(_stageId,
                 endpointId, MessagingModel.QUEUE, _nextStageId, MessagingModel.QUEUE, requestZ, stateZ, null);
 
-        String matsMessageId = produceMessage(requestDto, nanosStart, requestMatsTrace);
+        String matsMessageId = produceMessage(requestDto, null, nanosStart, requestMatsTrace);
 
         return new MessageReferenceImpl(matsMessageId);
     }
@@ -620,11 +621,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         }
 
         // ?: Have reply already been invoked?
-        if (_replySent != null) {
+        if (_replyOrGotoSent != null) {
             // -> Yes, and this is not legal.
-            String msg = "Reply has been invoked! It is illegal to mix Reply with Request or Next.";
+            String msg = "Reply or Goto has been invoked! It is illegal to mix Reply or Goto with Request or Next.";
             log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
-            log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replySent);
+            log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replyOrGotoSent);
             log.error(LOG_PREFIX + "   THIS NEXT DEBUG STACKTRACE:",
                     new DebugStackTraceException("THIS NEXT STACKTRACE"));
             throw new IllegalCallFlowsException(msg);
@@ -639,12 +640,62 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         Z stateZ = matsSerializer.serializeObject(_incomingAndOutgoingState);
         MatsTrace<Z> nextMatsTrace = _incomingMatsTrace.addNextCall(_stageId, _nextStageId, nextZ, stateZ);
 
-        String matsMessageId = produceMessage(nextDto, nanosStart, nextMatsTrace);
+        String matsMessageId = produceMessage(nextDto, null, nanosStart, nextMatsTrace);
 
         return new MessageReferenceImpl(matsMessageId);
     }
 
-    private String produceMessage(Object incomingDto, long nanosStart, MatsTrace<Z> outgoingMatsTrace) {
+    @Override
+    public MessageReference goTo(String endpointId, Object gotoDto) {
+        return goTo(endpointId, gotoDto, null);
+    }
+
+    @Override
+    public MessageReference goTo(String endpointId, Object gotoDto, Object initialTargetSto) {
+        long nanosStart = System.nanoTime();
+        if (endpointId == null) {
+            throw new IllegalArgumentException("Target endpointId cannot be null.");
+        }
+
+        // ?: Have reply or goto already been invoked?
+        if (_replyOrGotoSent != null) {
+            // -> Yes, and this is not legal.
+            String msg = "Reply or Goto has already been invoked! You cannot reply/goto once more.";
+            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
+            log.error(LOG_PREFIX + "   PREVIOUS REPLY OR GOTO DEBUG STACKTRACE:", _replyOrGotoSent);
+            log.error(LOG_PREFIX + "   THIS GOTO DEBUG STACKTRACE:",
+                    new DebugStackTraceException("THIS GOTO STACKTRACE"));
+            throw new IllegalCallFlowsException(msg);
+        }
+
+        // ?: Have request or next already been invoked?
+        if (_requestOrNextSent != null) {
+            // -> Yes, and this is not legal.
+            String msg = "Request or Next has already been invoked! It is illegal to mix Reply or Goto"
+                    + " with Request or Next.";
+            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
+            log.error(LOG_PREFIX + "   PREVIOUS REQUEST/NEXT DEBUG STACKTRACE:", _requestOrNextSent);
+            log.error(LOG_PREFIX + "   THIS GOTO DEBUG STACKTRACE:",
+                    new DebugStackTraceException("THIS GOTO STACKTRACE"));
+            throw new IllegalCallFlowsException(msg);
+        }
+
+        _replyOrGotoSent = new DebugStackTraceException("PREVIOUS GOTO STACKTRACE");
+
+        // :: Create next MatsTrace
+        MatsSerializer<Z> matsSerializer = _parentFactory.getMatsSerializer();
+        // Note that serialization must be performed at invocation time, to preserve contract with API.
+        Z passZ = matsSerializer.serializeObject(gotoDto);
+        Z initialTargetStateZ = matsSerializer.serializeObject(initialTargetSto);
+        MatsTrace<Z> passMatsTrace = _incomingMatsTrace.addGotoCall(_stageId, endpointId, passZ, initialTargetStateZ);
+
+        String matsMessageId = produceMessage(gotoDto, initialTargetSto, nanosStart, passMatsTrace);
+
+        return new MessageReferenceImpl(matsMessageId);
+    }
+
+    private String produceMessage(Object incomingDto, Object initialTargetSto, long nanosStart,
+            MatsTrace<Z> outgoingMatsTrace) {
         String debugInfo;
         // ?: Is this MINIMAL MatsTrace
         if (outgoingMatsTrace.getKeepTrace() == KeepMatsTrace.MINIMAL) {
@@ -668,7 +719,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         // Produce the JmsMatsMessage to send
         JmsMatsMessage<Z> next = JmsMatsMessage.produceMessage(DispatchType.STAGE, nanosStart,
                 _parentFactory.getMatsSerializer(), outgoingMatsTrace,
-                incomingDto, null, null,
+                incomingDto, initialTargetSto, null,
                 _outgoingProps, _outgoingBinaries, _outgoingStrings);
         _messagesToSend.add(next);
 

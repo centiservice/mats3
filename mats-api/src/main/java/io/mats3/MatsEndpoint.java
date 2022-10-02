@@ -298,8 +298,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
      */
     interface DetachedProcessContext {
         /**
-         * @return the {@link MatsInitiate#traceId(String) trace id} for the processed message.
-         * @see MatsInitiate#traceId(String)
+         * @return the {@link MatsInitiate#traceId(CharSequence) trace id} for the processed message.
+         * @see MatsInitiate#traceId(CharSequence)
          */
         String getTraceId();
 
@@ -808,6 +808,56 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         MessageReference next(Object nextDto);
 
         /**
+         * Passes the current call stack over to another endpoint, so that when that endpoint replies, it will return to
+         * the endpoint that invoked this endpoint.
+         * <p />
+         * This would be of use in "dispatcher" scenarios, where you might have a "case" style evaluation of the
+         * incoming message, and then either handle it yourself, or send the control over to some other endpoint
+         * (possibly one of several other endpoints) - so that when they again return, it will be to the original
+         * caller.
+         * <p />
+         * A specific "dispatcher" situation where this could be of use, is if you have an endpoint that for some
+         * specific entity Ids takes a lot of memory (e.g. customers with over 10000 orders). If you get a massive
+         * influx of orders for these customers, your standard endpoint with a high concurrency could lead to an
+         * out-of-memory situation. A solution here could be to instantiate that same endpoint code at two different
+         * endpointIds - the public one, and a private variant with much lower concurrency. The standard, public
+         * endpoint would at the initial stage evaluate if this was one of the memory-hogging entityIds, and if so, make
+         * a context.goto(..) over to the other private endpoint with lower concurrency. (The endpoint would have to
+         * self-inspect to see if it was the public or private wrt. whether it should do the evaluation).
+         * <p />
+         * Another use is <i>tail calls</i>, whereby one endpoint A does something preprocessing, and then invokes
+         * another endpoint B, but where endpoint A really just want to reply with the reply from endpoint B directly.
+         * The extra reply stage of endpoint A is thus totally useless and just incurs additional message passing and
+         * processing. You can instead just goto endpoint B, which achieves just this outcome: When endpoint B now
+         * replies, it will reply to the caller of endpoint A.
+         *
+         * @param endpointId
+         *            which endpoint to go to.
+         * @param gotoDto
+         *            the message that should be sent to the specified endpoint. Will in a dispatcher scenario often be
+         *            the incoming DTO for the current endpoint, while in a tail call situation be the requestDto for
+         *            the target endpoint.
+         */
+        MessageReference goTo(String endpointId, Object gotoDto);
+
+        /**
+         * <b>Variation of {@link #goTo(String, Object)} method</b>, where the incoming state is sent along.
+         * <p />
+         * <b>This only makes sense if the same code base "owns" both the current endpoint, and the endpoint to which
+         * this message is sent.</b>
+         *
+         * @param endpointId
+         *            which endpoint to go to.
+         * @param gotoDto
+         *            the message that should be sent to the specified endpoint. Will in a dispatcher scenario often be
+         *            the incoming DTO for the current endpoint, while in a tail call situation be the requestDto for
+         *            the target endpoint.
+         * @param initialTargetSto
+         *            the object which the target endpoint will get as its initial stage STO (State Transfer Object).
+         */
+        MessageReference goTo(String endpointId, Object gotoDto, Object initialTargetSto);
+
+        /**
          * Initiates a new message out to an endpoint. This is effectively the same as invoking
          * {@link MatsInitiator#initiate(InitiateLambda lambda) the same method} on a {@link MatsInitiator} gotten via
          * {@link MatsFactory#getOrCreateInitiator(String)}, only that this way works within the transactional context
@@ -1118,6 +1168,16 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         @Override
         public MessageReference next(Object nextDto) {
             return unwrap().next(nextDto);
+        }
+
+        @Override
+        public MessageReference goTo(String endpointId, Object gotoDto) {
+            return unwrap().goTo(endpointId, gotoDto);
+        }
+
+        @Override
+        public MessageReference goTo(String endpointId, Object gotoDto, Object initialTargetSto) {
+            return unwrap().goTo(endpointId, gotoDto, initialTargetSto);
         }
 
         @Override
