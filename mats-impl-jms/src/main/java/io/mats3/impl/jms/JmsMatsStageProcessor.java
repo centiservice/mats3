@@ -121,7 +121,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 + ":#"
                 + _processorNumber
                 + " {" + _randomInstanceId + '}'
-                + " @ "+ _jmsMatsStage.getParentFactory().idThis();
+                + " @ " + _jmsMatsStage.getParentFactory().idThis();
     }
 
     @Override
@@ -616,48 +616,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     nanosTaken_incomingMessageAndStateDeserializationNanos,
                                     nanosTaken_PreUserLambda);
 
-                            // === Invoke any interceptors, stage "Started"
-                            StageReceivedContextImpl initiateStartedContext = new StageReceivedContextImpl(
-                                    stageCommonContext[0], processContextCasted);
+                            // === Invoke any interceptors, stage "Received"
+                            invokeStageReceivedInterceptors(interceptorsForStage, stageCommonContext[0], processContextCasted);
 
-                            for (MatsStageInterceptor matsStageInterceptor : interceptorsForStage) {
-                                try {
-                                    matsStageInterceptor.stageReceived(initiateStartedContext);
-                                }
-                                catch (Throwable t) {
-                                    log.error(LOG_PREFIX + "StageInterceptor raised exception on"
-                                            + " 'started(..)', ignored.", t);
-                                }
-                            }
-
-                            // === Invoke any interceptors, stage "Intercept"
-                            // Create the InitiateInterceptContext instance (one for all interceptors)
-                            StageInterceptUserLambdaContextImpl stageInterceptContext = new StageInterceptUserLambdaContextImpl(
-                                    stageCommonContext[0]);
-                            // :: Create a "lambda stack" of the interceptors
-                            // This is the resulting lambda we will actually invoke
-                            // .. if there are no interceptors, it will directly be the user lambda
-                            @SuppressWarnings("unchecked")
-                            ProcessLambda<Object, Object, Object> currentLambda = (ProcessLambda<Object, Object, Object>) _jmsMatsStage
-                                    .getProcessLambda();
-                            /*
-                             * Create the lambda stack by moving "backwards" through the registered interceptors, as
-                             * when we'll actually invoke the resulting lambda stack, the last stacked (at top), which
-                             * is the first registered (due to iterating backwards), will be the first code to run.
-                             */
-                            for (int i = interceptorsForStage.size() - 1; i >= 0; i--) {
-                                MatsStageInterceptor interceptor = interceptorsForStage.get(i);
-                                if (!(interceptor instanceof MatsStageInterceptUserLambda)) {
-                                    continue;
-                                }
-                                final MatsStageInterceptUserLambda interceptInterceptor = (MatsStageInterceptUserLambda) interceptor;
-                                // The currentLambda is the one that the interceptor should invoke
-                                final ProcessLambda<Object, Object, Object> lambdaThatInterceptorMustInvoke = currentLambda;
-                                // .. and, wrap the current lambda with the interceptor.
-                                // It may, or may not, wrap the provided init with its own implementation
-                                currentLambda = (pc, state, incoming) -> interceptInterceptor.stageInterceptUserLambda(
-                                        stageInterceptContext, lambdaThatInterceptorMustInvoke, pc, state, incoming);
-                            }
+                            // === Invoke any interceptors, stage "Intercept" - these will wrap the UserLambda.
+                            ProcessLambda<Object, Object, Object> currentLambda = invokeWrapUserLambdaInterceptors(
+                                    interceptorsForStage, stageCommonContext[0]);
 
                             // :: Invoke the process lambda (the actual user code), possibly wrapped by interceptors.
                             // =======================================================================================
@@ -774,7 +738,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                         continue;
                     }
 
-                    // ===== FINALLY: CLEAN UP, AND INVOKE INTERCEPTORS =====
+                    // ===== FINALLY: CLEAN UP, AND INVOKE ERROR OR COMPLETE INTERCEPTORS =====
 
                     finally {
                         JmsMatsContextLocalCallback.unbindResource(ProcessContext.class);
@@ -893,7 +857,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         requests,
                                         initiations);
 
-                                // Go through interceptors "backwards" for this exit-style stage
+                                // Go through interceptors "backwards" for this exit-style intercept stage
                                 for (int i = interceptorsForStage.size() - 1; i >= 0; i--) {
                                     try {
                                         interceptorsForStage.get(i).stageCompleted(stageCompletedContext);
@@ -988,6 +952,60 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         _jmsMatsStage.removeStageProcessorFromList(this);
     }
 
+    private void invokeStageReceivedInterceptors(List<MatsStageInterceptor> interceptorsForStage,
+            StageCommonContextImpl<Z> stageCommonContext, ProcessContext<Object> processContextCasted) {
+        StageReceivedContextImpl initiateStartedContext = new StageReceivedContextImpl(
+                stageCommonContext, processContextCasted);
+
+        for (MatsStageInterceptor matsStageInterceptor : interceptorsForStage) {
+            try {
+                matsStageInterceptor.stageReceived(initiateStartedContext);
+            }
+            catch (Throwable t) {
+                log.error(LOG_PREFIX + "StageInterceptor raised exception on"
+                        + " 'started(..)', ignored.", t);
+            }
+        }
+    }
+
+    private ProcessLambda<Object, Object, Object> invokeWrapUserLambdaInterceptors(
+            List<MatsStageInterceptor> interceptorsForStage, StageCommonContextImpl<Z> stageCommonContext) {
+        // :: Create a "lambda stack" of the interceptors
+        // This is the resulting lambda we will actually invoke
+        // .. if there are no interceptors, it will directly be the user lambda
+        @SuppressWarnings("unchecked")
+        ProcessLambda<Object, Object, Object> currentLambda = (ProcessLambda<Object, Object, Object>) _jmsMatsStage
+                .getProcessLambda();
+        /*
+         * Create the lambda stack by moving "backwards" through the registered interceptors, as when we'll actually
+         * invoke the resulting lambda stack, the last stacked (at top), which is the first registered (due to iterating
+         * backwards), will be the first code to run.
+         */
+        // Create the InitiateInterceptContext instance (one for all interceptors)
+        StageInterceptUserLambdaContextImpl stageInterceptUserLambdaContext = null;
+        for (int i = interceptorsForStage.size() - 1; i >= 0; i--) {
+            MatsStageInterceptor interceptor = interceptorsForStage.get(i);
+            if (!(interceptor instanceof MatsStageInterceptUserLambda)) {
+                continue;
+            }
+            // Lazy init of StageInterceptUserLambdaContext (thus only if needed)
+            if (stageInterceptUserLambdaContext == null) {
+                stageInterceptUserLambdaContext = new StageInterceptUserLambdaContextImpl(
+                        stageCommonContext);
+            }
+            final StageInterceptUserLambdaContext stageInterceptUserLambdaContextFinal = stageInterceptUserLambdaContext;
+            final MatsStageInterceptUserLambda userLambdaInterceptor = (MatsStageInterceptUserLambda) interceptor;
+            // The currentLambda is the one that the interceptor should invoke
+            final ProcessLambda<Object, Object, Object> previousCurrentLambda = currentLambda;
+            // .. and, wrap the current lambda with the interceptor.
+            // It may, or may not, wrap the provided init with its own implementation
+            currentLambda = (pc, state, incoming) -> userLambdaInterceptor.stageInterceptUserLambda(
+                    stageInterceptUserLambdaContextFinal, previousCurrentLambda, pc,
+                    state, incoming);
+        }
+        return currentLambda;
+    }
+
     private void invokeStageMessageInterceptors(List<MatsStageInterceptor> interceptorsForStage,
             StageCommonContextImpl<Z> stageCommonContext, List<JmsMatsMessage<Z>> messagesToSend) {
         // :: Find the Message interceptors. Goddamn why is there no stream.filter[InstanceOf](Clazz.class)?
@@ -995,14 +1013,24 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 .filter(MatsStageInterceptOutgoingMessages.class::isInstance)
                 .map(MatsStageInterceptOutgoingMessages.class::cast)
                 .collect(Collectors.toList());
+
         if (!messageInterceptors.isEmpty()) {
+            // Make a cancel message-lambda, which removes the message from the current set of messagesToSend.
             Consumer<String> cancelOutgoingMessage = matsMsgId -> messagesToSend
                     .removeIf(next -> next.getMatsMessageId().equals(matsMsgId));
+
             // Making a copy for the 'messagesToSend', as it can be modified (add/remove) by the interceptor.
+            // (This is repeatedly filled with the current set of messagesToSend)
             ArrayList<JmsMatsMessage<Z>> copiedMessages = new ArrayList<>();
+
+            // Wrap the copy in an unmodifiableList, so that the intercept cannot directly affect it
+            // (must instead use the cancel message-lambda)
             List<MatsEditableOutgoingMessage> unmodifiableMessages = Collections.unmodifiableList(copiedMessages);
+
+            // Make the context, giving both the current
             StageInterceptOutgoingMessageContextImpl context = new StageInterceptOutgoingMessageContextImpl(
                     stageCommonContext, unmodifiableMessages, cancelOutgoingMessage);
+
             // Iterate through the interceptors, "showing" the matsMessages.
             for (MatsStageInterceptOutgoingMessages messageInterceptor : messageInterceptors) {
                 // Filling with the /current/ set of messagesToSend.
