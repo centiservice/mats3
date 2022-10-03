@@ -39,8 +39,8 @@ import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.api.intercept.MatsStageInterceptor;
 import io.mats3.api.intercept.MatsStageInterceptor.StageInterceptContext;
-import io.mats3.impl.jms.JmsMatsInitiator.MatsInitiator_TxRequired;
-import io.mats3.impl.jms.JmsMatsInitiator.MatsInitiator_TxRequiresNew;
+import io.mats3.impl.jms.JmsMatsInitiator.MatsInitiator_NamedInitiator_TxRequiresNew;
+import io.mats3.impl.jms.JmsMatsInitiator.MatsInitiator_DefaultInitiator_TxRequired;
 import io.mats3.impl.jms.JmsMatsProcessContext.DoAfterCommitRunnableHolder;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
@@ -493,10 +493,14 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     }
 
     /**
-     * Solution for "hoisting" transactions
+     * When we're within a Mats TX Demarcation, both within Initiate and Stage, any new initiations using
+     * DefaultInitiator should execute within the existing demarcation - while any new initiations using non-default
+     * Initiator (gotten using 'getOrCreateInitiator') should "fork out" of the existing demarcation.
      * <ul>
-     * <li>If this exists, and DefaultInitiator: Use the existing - otherwise normal.</li>
-     * <li>If this exists, and non-default Initiator: Fork out in thread, to get own context - otherwise normal.</li>
+     * <li>If this exists, and DefaultInitiator ('getDefaultInitiator'): Use the existing (supplied) MatsInitiate. If
+     * not exists: Normal initiate.</li>
+     * <li>If this exists, and non-default Initiator ('getOrCreateInitiator'): Fork out in thread, to get own context
+     * (i.e. ignore the existing MatsInitiate, fork out of it). If not exists: Normal initiate.</li>
      * </ul>
      * Note: This ThreadLocal is on the MatsFactory, thus the {@link MatsInitiate} is scoped to the MatsFactory. This
      * should make some sense: If you in a Stage do a new Initiation, even with the
@@ -508,7 +512,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     }
 
     /**
-     * Solution for keeping Stage context when doing nested initiations.
+     * When doing nested initiations from within a Stage, the Stage context should follow along just like if
+     * using context.initiate(..).
      * <ul>
      * <li>If this exists, then use
      * {@link JmsMatsInitiate#createForChildFlow(JmsMatsFactory, List, JmsMatsInternalExecutionContext, DoAfterCommitRunnableHolder, MatsTrace)}</li>
@@ -552,12 +557,12 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
                 }
             }
         }
-        return new MatsInitiator_TxRequired<Z>(this, _defaultMatsInitiator);
+        return new MatsInitiator_DefaultInitiator_TxRequired<Z>(this, _defaultMatsInitiator);
     }
 
     @Override
     public MatsInitiator getOrCreateInitiator(String name) {
-        return new MatsInitiator_TxRequiresNew<Z>(this, getOrCreateInitiator_internal(name));
+        return new MatsInitiator_NamedInitiator_TxRequiresNew<Z>(this, getOrCreateInitiator_internal(name));
     }
 
     public JmsMatsInitiator<Z> getOrCreateInitiator_internal(String name) {

@@ -585,7 +585,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
                     + " Use context.initiate(..send()..) if you want to 'invoke' the endpoint w/o req/rep semantics.");
         }
 
-        // ?: Have reply already been invoked?
+        // ?: Have reply or goto already been invoked?
         if (_replyOrGotoSent != null) {
             // -> Yes, and this is not legal.
             String msg = "Reply or Goto has been invoked! It is illegal to mix Reply or Goto with Request or Next.";
@@ -620,7 +620,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
                     + "] invoked context.next(..), but there is no next stage.");
         }
 
-        // ?: Have reply already been invoked?
+        // ?: Have reply or goto already been invoked?
         if (_replyOrGotoSent != null) {
             // -> Yes, and this is not legal.
             String msg = "Reply or Goto has been invoked! It is illegal to mix Reply or Goto with Request or Next.";

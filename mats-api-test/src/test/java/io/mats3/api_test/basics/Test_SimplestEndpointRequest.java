@@ -61,7 +61,6 @@ public class Test_SimplestEndpointRequest {
                     log.debug("TERMINATOR MatsTrace:\n" + context.toString());
                     MATS.getMatsTestLatch().resolve(sto, dto);
                 });
-
     }
 
     @Test

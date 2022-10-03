@@ -17,8 +17,8 @@ import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
  */
 public class JmsMatsInternalExecutionContext {
 
-    private JmsSessionHolder _jmsSessionHolder;
-    private MessageConsumer _messageConsumer;
+    private final JmsSessionHolder _jmsSessionHolder;
+    private final MessageConsumer _messageConsumer;
 
     static JmsMatsInternalExecutionContext forStage(JmsSessionHolder jmsSessionHolder,
             MessageConsumer messageConsumer) {
@@ -39,8 +39,8 @@ public class JmsMatsInternalExecutionContext {
     }
 
     /**
-     * @return the {@link MessageConsumer} in effect if this is in a {@link JmsMatsStageProcessor}, returns
-     *         Optional.empty() if this is a {@link JmsMatsInitiator}.
+     * @return the {@link MessageConsumer} in effect if this is within a {@link JmsMatsStageProcessor}, returns
+     *         Optional.empty() if this is within a {@link JmsMatsInitiator}.
      */
     public Optional<MessageConsumer> getMessageConsumer() {
         return Optional.ofNullable(_messageConsumer);

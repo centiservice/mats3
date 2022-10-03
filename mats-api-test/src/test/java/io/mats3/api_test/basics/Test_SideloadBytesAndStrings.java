@@ -14,21 +14,21 @@ import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
 
 /**
- * Tests the send-along bytes and Strings properties with the message - close to copy of the {@link Test_MutilStageNext}
+ * Tests the send-along bytes and Strings sideloads with the message - close to copy of the {@link Test_MutilStageNext}
  * except testing the properties too. Test initiation, next, and reply.
  * <p>
  * ASCII-artsy, it looks like this:
  *
  * <pre>
- * [Initiator]             - init request (adds props)
- *     [Service S0 - init] - next    (retrieves props, modifies them and adds to next)
- *     [Service S1 - last] - reply   (retrieves props, modifies them and adds to next)
+ * [Initiator]             - init request (adds sideloads)
+ *     [Service S0 - init] - next    (retrieves sideloads, modifies them and adds to next)
+ *     [Service S1 - last] - reply   (retrieves sideloads, modifies them and adds to next)
  * [Terminator]
  * </pre>
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
-public class Test_PropertiesBytesAndStrings  {
+public class Test_SideloadBytesAndStrings {
     private static final Logger log = MatsTestHelp.getClassLogger();
 
     @ClassRule

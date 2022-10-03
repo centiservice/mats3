@@ -125,8 +125,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                     .getCurrentMatsFactoryThreadLocal_WithinStageContext();
 
             JmsMatsInternalExecutionContext internalExecutionContext = withinStageContext
-                    .map(within -> JmsMatsInternalExecutionContext.forStage(jmsSessionHolder,
-                            within.getMessageConsumer()))
+                    .map(within -> JmsMatsInternalExecutionContext.forStage(
+                            jmsSessionHolder, within.getMessageConsumer()))
                     .orElseGet(() -> JmsMatsInternalExecutionContext.forInitiation(jmsSessionHolder));
 
             JmsMatsInitiate<Z> init = withinStageContext
@@ -771,11 +771,12 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
      * ongoing stage or initiation, any initiation done with it is "hoisted" up to the ongoing process. Otherwise, it
      * acts as normal - which is to create a transaction.
      */
-    static class MatsInitiator_TxRequired<Z> implements MatsInitiator {
+    static class MatsInitiator_DefaultInitiator_TxRequired<Z> implements MatsInitiator {
         private final JmsMatsFactory<Z> _matsFactory;
         private final JmsMatsInitiator<Z> _matsInitiator;
 
-        public MatsInitiator_TxRequired(JmsMatsFactory<Z> matsFactory, JmsMatsInitiator<Z> matsInitiator) {
+        public MatsInitiator_DefaultInitiator_TxRequired(JmsMatsFactory<Z> matsFactory,
+                JmsMatsInitiator<Z> matsInitiator) {
             _matsFactory = matsFactory;
             _matsInitiator = matsInitiator;
         }
@@ -858,11 +859,12 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
      * ongoing stage or initiation, any initiation done with it is given a new transactional context (currently by brute
      * force: create a new Thread and run it there!). Otherwise, it acts as normal - which is to create a transaction.
      */
-    static class MatsInitiator_TxRequiresNew<Z> implements MatsInitiator {
+    static class MatsInitiator_NamedInitiator_TxRequiresNew<Z> implements MatsInitiator {
         private final JmsMatsFactory<Z> _matsFactory;
         private final JmsMatsInitiator<Z> _matsInitiator;
 
-        public MatsInitiator_TxRequiresNew(JmsMatsFactory<Z> matsFactory, JmsMatsInitiator<Z> matsInitiator) {
+        public MatsInitiator_NamedInitiator_TxRequiresNew(JmsMatsFactory<Z> matsFactory,
+                JmsMatsInitiator<Z> matsInitiator) {
             _matsFactory = matsFactory;
             _matsInitiator = matsInitiator;
         }
@@ -1033,8 +1035,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             Optional<Supplier<MatsInitiate>> matsInitiateForNesting = _matsFactory
                     .getCurrentMatsFactoryThreadLocal_MatsInitiate();
             return matsInitiateForNesting.isPresent()
-                    ? "[nested-process wrapper of MatsFactory.getDefaultInitiator()]@" + Integer
-                            .toHexString(System.identityHashCode(this))
+                    ? "[nested-process wrapper of MatsFactory.getOrCreateInitiator(" + getName() + ")]@"
+                            + Integer.toHexString(System.identityHashCode(this))
                     : _matsInitiator.toString();
         }
     }

@@ -131,7 +131,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
     @Override
     public JmsMatsFactory<Z> getFactory() {
-        return _jmsMatsStage.getParentEndpoint().getParentFactory();
+        return _jmsMatsStage.getParentFactory();
     }
 
     @Override
@@ -430,14 +430,15 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             // :: Fetch Mats-specific message data from the JMS Message.
                             // ==========================================================
 
+                            String matsTraceKey = getFactory().getFactoryConfig().getMatsTraceKey();
+                            String matsTraceMetaKey = matsTraceKey + MatsSerializer.META_KEY_POSTFIX;
+
                             byte[] matsTraceBytes;
                             String matsTraceMeta;
                             String jmsMessageId;
-                            String matsTraceKey = getFactory().getFactoryConfig().getMatsTraceKey();
                             try {
                                 matsTraceBytes = mapMessage.getBytes(matsTraceKey);
-                                matsTraceMeta = mapMessage.getString(matsTraceKey
-                                        + MatsSerializer.META_KEY_POSTFIX);
+                                matsTraceMeta = mapMessage.getString(matsTraceMetaKey);
                                 jmsMessageId = mapMessage.getJMSMessageID();
                                 // Setting this in the JMS Mats implementation instead of MatsMetricsLoggingInterceptor,
                                 // so that if things fail before getting to the actual Mats part, we'll have it in
@@ -483,8 +484,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 while (mapNames.hasMoreElements()) {
                                     String name = mapNames.nextElement();
                                     // ?: Is this the MatsTrace itself?
-                                    if (matsTraceKey.equals(name)) {
-                                        // Yes, this is the MatsTrace: Do not expose this as "binary sideload".
+                                    if (matsTraceKey.equals(name) || matsTraceMetaKey.equals(name)) {
+                                        // Yes, this is the MatsTrace: Do not expose this as binary or string sideload.
                                         continue;
                                     }
                                     Object object = mapMessage.getObject(name);
@@ -566,11 +567,9 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     matsTrace);
 
                             // Set the nested initiation context supplier
-                            _jmsMatsStage.getParentFactory().setCurrentMatsFactoryThreadLocal_MatsInitiate(
-                                    initiateSupplier);
+                            getFactory().setCurrentMatsFactoryThreadLocal_MatsInitiate(initiateSupplier);
                             // Set the MatsTrace for nested initiations
-                            _jmsMatsStage.getParentFactory().setCurrentMatsFactoryThreadLocal_WithinStageContext(
-                                    matsTrace, jmsConsumer);
+                            getFactory().setCurrentMatsFactoryThreadLocal_WithinStageContext(matsTrace, jmsConsumer);
 
                             // :: Create contexts, invoke interceptors
                             // ==========================================================
@@ -617,7 +616,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     nanosTaken_PreUserLambda);
 
                             // === Invoke any interceptors, stage "Received"
-                            invokeStageReceivedInterceptors(interceptorsForStage, stageCommonContext[0], processContextCasted);
+                            invokeStageReceivedInterceptors(interceptorsForStage, stageCommonContext[0],
+                                    processContextCasted);
 
                             // === Invoke any interceptors, stage "Intercept" - these will wrap the UserLambda.
                             ProcessLambda<Object, Object, Object> currentLambda = invokeWrapUserLambdaInterceptors(

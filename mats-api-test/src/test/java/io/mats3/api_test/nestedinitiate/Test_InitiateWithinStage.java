@@ -1,4 +1,4 @@
-package io.mats3.api_test.basics;
+package io.mats3.api_test.nestedinitiate;
 
 import org.junit.Assert;
 import org.junit.Before;
