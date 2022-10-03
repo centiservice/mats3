@@ -183,7 +183,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     private volatile boolean _holdEndpointsUntilFactoryIsStarted = false;
 
     // Set to default, which is FULL
-    private KeepTrace _defaultKeepTrace = KeepTrace.FULL;
+    private KeepTrace _defaultKeepTrace = KeepTrace.COMPACT;
 
     Function<String, String> getInitiateTraceIdModifier() {
         return _initiateTraceIdModifier;
@@ -225,12 +225,12 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
     /**
      * Sets the default KeepTrace if the initiation doesn't set one itself. The default for this default is
-     * {@link KeepTrace#FULL}. Not yet moved to FactoryConfig, because I want to evaluate.
+     * {@link KeepTrace#COMPACT}. Not yet moved to FactoryConfig, because I want to evaluate.
      * <p/>
      * Must be set before the MatsFactory is "published", memory wise.
      *
      * @param defaultKeepTrace
-     *            the default KeepTrace for Mats flows - the default for this default is {@link KeepTrace#FULL}.
+     *            the default KeepTrace for Mats flows - the default for this default is {@link KeepTrace#COMPACT}.
      */
     public void setDefaultKeepTrace(KeepTrace defaultKeepTrace) {
         _defaultKeepTrace = defaultKeepTrace;
