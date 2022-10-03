@@ -103,6 +103,10 @@ subprojects {
          */
         systemProperties project.properties.subMap(["mats.test.brokerurl", "mats.test.broker"])
 
+        // Move over the CI environment variable, so that we can increase timings of tests if on CI environment.
+        // (Check MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE)
+        systemProperties System.getenv().subMap(["CI"])
+
         testLogging {
             exceptionFormat = 'full'
         }

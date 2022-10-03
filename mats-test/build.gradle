@@ -27,6 +27,16 @@ dependencies {
 
     // H2 Database, for database tests - but we do not want to make this dependency transitive, so compileOnly.
     compileOnly "com.h2database:h2:$h2Version"
+
+    // === TEST
+    testImplementation "junit:junit:$junitVersion"
+}
+
+// To get output from the Test_CI_Variable "test"
+test {
+    testLogging {
+        showStandardStreams = true
+    }
 }
 
 publishing {
