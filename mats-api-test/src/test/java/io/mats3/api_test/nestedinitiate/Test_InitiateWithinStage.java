@@ -15,7 +15,7 @@ import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.junit.Rule_Mats;
 
-import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE;
+import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE;
 
 /**
  * Tests the initiation within a stage functionality.
@@ -302,7 +302,7 @@ public class Test_InitiateWithinStage {
 
         // "Normal" Terminator from the service call - Wait a bit for this in case these messages slacks in the queue.
         try {
-            matsTestLath.waitForResult(WAIT_MILLIS_FOR_NON_OCCURENCE);
+            matsTestLath.waitForResult(WAIT_MILLIS_FOR_NON_OCCURRENCE);
             throw new RuntimeException("NOTE: This cannot be an AssertionError! It should not have happened.");
         }
         catch (AssertionError ae) {

@@ -1,6 +1,6 @@
 package io.mats3.api_test.lifecycle;
 
-import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE;
+import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -62,7 +62,7 @@ public class Test_LateFinishSetup_And_WaitForStarted {
 
         // Wait for the answer in 250 ms - which should not come.
         try {
-            MATS.getMatsTestLatch().waitForResult(WAIT_MILLIS_FOR_NON_OCCURENCE);
+            MATS.getMatsTestLatch().waitForResult(WAIT_MILLIS_FOR_NON_OCCURRENCE);
             Assert.fail("This should not have happened, since the Endpoint isn't started yet.");
         }
         catch (AssertionError ae) {

@@ -16,7 +16,7 @@ import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.junit.Rule_Mats;
 
-import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE;
+import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE;
 
 /**
  * Tests 2 scenarios:
@@ -146,7 +146,7 @@ public class Test_ThrowExceptionsInServiceShouldDlq {
             // Note: If we've found the message on DLQ, there are pretty slim chances that it also has gotten
             // to the terminator.
             try {
-                MATS.getMatsTestLatch().waitForResult(WAIT_MILLIS_FOR_NON_OCCURENCE);
+                MATS.getMatsTestLatch().waitForResult(WAIT_MILLIS_FOR_NON_OCCURRENCE);
             }
             catch (AssertionError ae) {
                 log.info("When waiting for latch, we got the expected AssertionError,"

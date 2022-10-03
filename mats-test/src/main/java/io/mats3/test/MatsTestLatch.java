@@ -16,9 +16,9 @@ public class MatsTestLatch {
      * continuous integration systems, we've set it at 1 second (1000 millis). This constant works as a central place to
      * define this, so that it is not spread out through lots of tests.
      */
-    public static final int WAIT_MILLIS_FOR_NON_OCCURENCE;
+    public static final int WAIT_MILLIS_FOR_NON_OCCURRENCE;
     static {
-        WAIT_MILLIS_FOR_NON_OCCURENCE = System.getenv("CI") != null
+        WAIT_MILLIS_FOR_NON_OCCURRENCE = System.getenv("CI") != null
                 ? 1000
                 : 250;
     }

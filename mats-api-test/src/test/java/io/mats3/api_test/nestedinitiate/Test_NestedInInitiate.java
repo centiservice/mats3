@@ -242,7 +242,7 @@ public class Test_NestedInInitiate {
 
         Result<StateTO, DataTO> result = null;
         try {
-            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE);
+            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE);
         }
         catch (AssertionError ae) {
             /* expected */
@@ -452,7 +452,7 @@ public class Test_NestedInInitiate {
 
         Result<StateTO, DataTO> result = null;
         try {
-            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE);
+            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE);
         }
         catch (AssertionError ae) {
             /* expected */
@@ -662,7 +662,7 @@ public class Test_NestedInInitiate {
 
         Result<StateTO, DataTO> result = null;
         try {
-            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE);
+            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE);
         }
         catch (AssertionError ae) {
             /* expected */
@@ -753,7 +753,7 @@ public class Test_NestedInInitiate {
 
         Result<StateTO, DataTO> result = null;
         try {
-            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE);
+            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE);
         }
         catch (AssertionError ae) {
             /* expected */
@@ -851,7 +851,7 @@ public class Test_NestedInInitiate {
 
         Result<StateTO, DataTO> result = null;
         try {
-            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE);
+            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE);
         }
         catch (AssertionError ae) {
             /* expected */
@@ -943,7 +943,7 @@ public class Test_NestedInInitiate {
 
         Result<StateTO, DataTO> result = null;
         try {
-            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE);
+            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE);
         }
         catch (AssertionError ae) {
             /* expected */
@@ -1035,7 +1035,7 @@ public class Test_NestedInInitiate {
 
         Result<StateTO, DataTO> result = null;
         try {
-            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURENCE);
+            result = __latch1.waitForResult(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE);
         }
         catch (AssertionError ae) {
             /* expected */
