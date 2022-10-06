@@ -231,10 +231,18 @@ public interface MatsTestBroker {
 
             // ::: Add features that we would want in prod.
 
-            // If using KahaDB, then you definitely want this: org.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+            // NOTICE: When using KahaDB, then you most probably want to have "skipMetadataUpdate=true":
+            // org.apache.activemq.kahaDB.files.skipMetadataUpdate=true
             // https://access.redhat.com/documentation/en-us/red_hat_amq/6.3/html/tuning_guide/perstuning-kahadb
 
-            // Note: All programmatic config here can be set via standalone broker config file 'conf/activemq.xml'.
+            // NOTICE: All programmatic config here can be set via standalone broker config file 'conf/activemq.xml'.
+
+            // :: Purge inactive destinations
+            // Some usages of Mats ends up using "host-specific topics", e.g. MatsFuturizer from 'util' does this.
+            // When using e.g. Kubernetes, hostnames will change when deploying new versions of your services.
+            // Therefore, you'll end up with many dead topics. Thus, we want to scavenge these after some inactivity.
+            // Both the Broker needs to be configured, as well as DestinationPolicies.
+            broker.setSchedulePeriodForDestinationPurge(60_123); // Every 1 minute
 
             // :: Plugins
 
@@ -246,8 +254,6 @@ public interface MatsTestBroker {
 
             // :: Set Individual DLQ - which you most definitely should do in production.
             // Hear, hear: https://users.activemq.apache.narkive.com/H7400Mn1/policymap-api-is-really-bad
-            // :: Create the individual DLQ policy for queues and topics.
-            // Note: Normal Topics (non-durable) won't DLQ. Non-durable is used in Mats, so no topic-DLQ for Mats.
             IndividualDeadLetterStrategy individualDeadLetterStrategy = new IndividualDeadLetterStrategy();
             individualDeadLetterStrategy.setQueuePrefix("DLQ.");
             individualDeadLetterStrategy.setTopicPrefix("DLQ.");
@@ -255,6 +261,8 @@ public interface MatsTestBroker {
             individualDeadLetterStrategy.setProcessExpired(true);
             // .. Also DLQ non-persistent messages
             individualDeadLetterStrategy.setProcessNonPersistent(true);
+            individualDeadLetterStrategy.setUseQueueForTopicMessages(true); // true is also default
+            individualDeadLetterStrategy.setUseQueueForQueueMessages(true); // true is also default.
 
             // :: Create destination policy entry for QUEUES:
             PolicyEntry allQueuesPolicy = new PolicyEntry();
@@ -264,6 +272,10 @@ public interface MatsTestBroker {
             // .. we do use prioritization, and this should ensure that priority information is handled in queue, and
             // persisted to store. Store JavaDoc: "A hint to the store to try recover messages according to priority"
             allQueuesPolicy.setPrioritizedMessages(true);
+            // Purge inactive Queues. The set of Queues should really be pretty stable. We only want to eventually
+            // get rid of queues for Endpoints which are taken out of the codebase.
+            allQueuesPolicy.setGcInactiveDestinations(true);
+            allQueuesPolicy.setInactiveTimeoutBeforeGC(2 * 24 * 60 * 60 * 1000); // Two full days.
 
             // :: Create policy entry for TOPICS:
             PolicyEntry allTopicsPolicy = new PolicyEntry();
@@ -272,11 +284,18 @@ public interface MatsTestBroker {
             allTopicsPolicy.setDeadLetterStrategy(individualDeadLetterStrategy);
             // .. and prioritization, not sure if that is ever relevant for Topics.
             allTopicsPolicy.setPrioritizedMessages(true);
-            // .. note: Not leveraging the RecoveryPolicy features, as we do not have evidence of this being a problem,
-            // and using it does incur a cost wrt. memory and time.
+            // Purge inactive Topics. The names of Topics will often end up being host-specific. The utility
+            // MatsFuturizer uses such logic. When using Kubernetes, the pods will change name upon redeploy of
+            // services. Get rid of the old pretty fast. But we want to see them in destination browsers like
+            // MatsBrokerMonitor, so not too fast.
+            allTopicsPolicy.setGcInactiveDestinations(true);
+            allTopicsPolicy.setInactiveTimeoutBeforeGC(2 * 60 * 60 * 1000); // 2 hours.
+            // .. note: Not leveraging the SubscriptionRecoveryPolicy features, as we do not have evidence of this being
+            // a problem, and using it does incur a cost wrt. memory and time.
             // Would probably have used a FixedSizedSubscriptionRecoveryPolicy, with setUseSharedBuffer(true).
-            // To leverage this, one would have to also set the client side (consumer) to be 'Retroactive Consumer'
-            // i.e. new ActiveMQTopic("TEST.Topic?consumer.retroactive=true");
+            // To actually get subscribers to use this, one would have to also set the client side (consumer) to be
+            // 'Retroactive Consumer' i.e. new ActiveMQTopic("TEST.Topic?consumer.retroactive=true"); This is not
+            // done by the JMS impl of Mats.
             // https://activemq.apache.org/retroactive-consumer
 
             /*
