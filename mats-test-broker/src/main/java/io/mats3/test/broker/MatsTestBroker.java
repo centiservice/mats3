@@ -19,7 +19,6 @@ import org.apache.activemq.broker.BrokerService;
 import org.apache.activemq.broker.region.policy.IndividualDeadLetterStrategy;
 import org.apache.activemq.broker.region.policy.PolicyEntry;
 import org.apache.activemq.broker.region.policy.PolicyMap;
-import org.apache.activemq.broker.region.policy.TimedSubscriptionRecoveryPolicy;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.command.ActiveMQTopic;
 import org.apache.activemq.plugin.StatisticsBrokerPlugin;
@@ -247,9 +246,11 @@ public interface MatsTestBroker {
 
             // :: Set Individual DLQ - which you most definitely should do in production.
             // Hear, hear: https://users.activemq.apache.narkive.com/H7400Mn1/policymap-api-is-really-bad
-            // :: Create the individual DLQ policy
+            // :: Create the individual DLQ policy for queues and topics.
+            // Note: Normal Topics (non-durable) won't DLQ. Non-durable is used in Mats, so no topic-DLQ for Mats.
             IndividualDeadLetterStrategy individualDeadLetterStrategy = new IndividualDeadLetterStrategy();
             individualDeadLetterStrategy.setQueuePrefix("DLQ.");
+            individualDeadLetterStrategy.setTopicPrefix("DLQ.");
             // .. Send expired messages to DLQ (Note: true is default)
             individualDeadLetterStrategy.setProcessExpired(true);
             // .. Also DLQ non-persistent messages
@@ -265,17 +266,18 @@ public interface MatsTestBroker {
             allQueuesPolicy.setPrioritizedMessages(true);
 
             // :: Create policy entry for TOPICS:
-            // .. set up Time-based Topic Subscription RecoveryPolicy, if the network glitches and you miss a message.
-            TimedSubscriptionRecoveryPolicy timedSubscriptionRecoveryPolicy = new TimedSubscriptionRecoveryPolicy();
-            timedSubscriptionRecoveryPolicy.setRecoverDuration(180_000); // 3 minutes
             PolicyEntry allTopicsPolicy = new PolicyEntry();
             allTopicsPolicy.setDestination(new ActiveMQTopic(">")); // all topics
             // .. add the IndividualDeadLetterStrategy, not sure if that is ever relevant for plain Topics.
             allTopicsPolicy.setDeadLetterStrategy(individualDeadLetterStrategy);
             // .. and prioritization, not sure if that is ever relevant for Topics.
             allTopicsPolicy.setPrioritizedMessages(true);
-            // .. add the time-based SubscriptionRecoveryPolicy
-            allTopicsPolicy.setSubscriptionRecoveryPolicy(timedSubscriptionRecoveryPolicy);
+            // .. note: Not leveraging the RecoveryPolicy features, as we do not have evidence of this being a problem,
+            // and using it does incur a cost wrt. memory and time.
+            // Would probably have used a FixedSizedSubscriptionRecoveryPolicy, with setUseSharedBuffer(true).
+            // To leverage this, one would have to also set the client side (consumer) to be 'Retroactive Consumer'
+            // i.e. new ActiveMQTopic("TEST.Topic?consumer.retroactive=true");
+            // https://activemq.apache.org/retroactive-consumer
 
             /*
              * .. chill the prefetch a bit, from Queue:1000 and Topic:Short.MAX_VALUE (!), which is very much when used
