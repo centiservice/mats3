@@ -48,6 +48,7 @@ public class Test_InteractivePriority {
         // :: Service
         MatsEndpoint<DataTO, Void> single = MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
                 (ctx, msg) -> {
+                    MatsTestHelp.takeNap(25);
                     return msg;
                 });
         single.getEndpointConfig().setAttribute(MatsLoggingInterceptor.SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY,
@@ -72,8 +73,9 @@ public class Test_InteractivePriority {
 
     @Test
     public void interactive_should_bypass_standard() throws InterruptedException {
-        int outerStandardMax = 10;
-        int innerStandardMax = 3000;
+        // :: 400 standard msgs (concurrency=10, thus 40 "rounds")
+        int outerStandardMax = 5;
+        int innerStandardMax = 80;
 
         _standardLatch = new CountDownLatch(outerStandardMax * innerStandardMax);
 
@@ -94,6 +96,7 @@ public class Test_InteractivePriority {
             }, "Standard Sender Thread #" + outer);
             standardSenderThreads[outer].start();
         }
+        // Send off all these
         for (int outer = 0; outer < outerStandardMax; outer++) {
             standardSenderThreads[outer].join();
         }
@@ -101,8 +104,9 @@ public class Test_InteractivePriority {
         log.info("##### Finished sending " + outerStandardMax + " x " + innerStandardMax + " = "
                 + (outerStandardMax * innerStandardMax) + " standard priority messages.");
 
+        // :: 40 interactive msgs (concurrency=10, thus 4 "rounds")
         int outerInteractiveMax = 5;
-        int innerInteractiveMax = 100;
+        int innerInteractiveMax = 8;
 
         _interactiveLatch = new CountDownLatch(outerInteractiveMax * innerInteractiveMax);
 
@@ -124,6 +128,7 @@ public class Test_InteractivePriority {
             }, "Interactive Sender Thread #" + outer);
             interactiveSenderThreads[outer].start();
         }
+        // .. Send off all these
         for (int outer = 0; outer < outerInteractiveMax; outer++) {
             interactiveSenderThreads[outer].join();
         }
