@@ -488,9 +488,10 @@ public interface MatsFactory extends StartStoppable {
          * flow would be "abc+123" (the plus character being the preferred separator for composed TraceIds, i.e.
          * TraceIds that are put together by successively more specific information).
          * <p />
-         * The Function gets the entire user provided TraceId as input (as set via {@link MatsInitiate#traceId(String)},
-         * and should return a fully formed TraceId that should be used instead. Needless to say, it should never throw,
-         * and if it doesn't have any contextual id to prefix with, it should return whatever that was passed into it.
+         * The Function gets the entire user provided TraceId as input (as set via
+         * {@link MatsInitiate#traceId(CharSequence)}, and should return a fully formed TraceId that should be used
+         * instead. Needless to say, it should never throw, and if it doesn't have any contextual id to prefix with, it
+         * should return whatever that was passed into it.
          *
          * @param modifier
          *            the function that accepts the TraceId that the Mats flow is initiated with, and returns the
