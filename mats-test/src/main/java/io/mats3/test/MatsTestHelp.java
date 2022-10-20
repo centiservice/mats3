@@ -14,47 +14,76 @@ public class MatsTestHelp {
      *         <code>Thread.currentThread().getStackTrace()</code> to figure this out).
      */
     public static Logger getClassLogger() {
-        return LoggerFactory.getLogger(getCallerClassName());
+        return LoggerFactory.getLogger(getCallerClassNameAndMethod()[0]);
     }
 
     /**
-     * @return a String <code>"{CallerClassSimpleName}.{name}"</code>.
+     * <b>DEPRECATED!</b>
+     *
+     * TODO: Remove v > 0.18
+     *
+     * @return a String <code>"{CallerClassSimpleName.method}.{name}"</code>.
      */
     public static String endpointId(String name) {
         return getCallerClassSimpleName() + '.' + name;
     }
 
     /**
-     * @return a String <code>"{CallerClassSimpleName}.Service"</code>.
+     * @return a String <code>"{CallerClassSimpleName.method}.Endpoint"</code>.
      */
-    public static String service() {
-        return endpointId("Service");
+    public static String endpoint() {
+        return endpointId("Endpoint");
     }
 
     /**
-     * @return a String <code>"{CallerClassSimpleName}.Terminator"</code>.
+     * @return a String <code>"{CallerClassSimpleName.method}.Endpoint.{what}"</code>.
+     */
+    public static String endpoint(String what) {
+        return endpointId("Endpoint." + what);
+    }
+
+    /**
+     * <b>DEPRECATED!</b>
+     *
+     * TODO: Remove v > 0.18
+     *
+     * @return a String <code>"{CallerClassSimpleName.method}.Endpoint"</code>.
+     */
+    public static String service() {
+        return endpointId("Endpoint");
+    }
+
+    /**
+     * @return a String <code>"{CallerClassSimpleName.method}.Terminator"</code>.
      */
     public static String terminator() {
         return endpointId("Terminator");
     }
 
     /**
-     * @return a String <code>"{CallerClassSimpleName}.traceId.{randomId}"</code>.
+     * @return a String <code>"{CallerClassSimpleName.method}.Terminator"</code>.
+     */
+    public static String terminator(String what) {
+        return endpointId("Terminator." + what);
+    }
+
+    /**
+     * @return a String <code>"{CallerClassSimpleName.method}.traceId.{randomId}"</code> - <b>BUT PLEASE NOTE!! ALWAYS
+     *         use a semantically meaningful, globally unique Id as traceId in production code!</b>
      */
     public static String traceId() {
-        return getCallerClassSimpleName() + ".traceId." + randomId();
+        return getCallerClassSimpleNameAndMethod() + "_traceId." + randomId();
     }
 
     /**
-     * @return a String <code>"{CallerClassSimpleName}.{what}"</code>.
+     * @return a String <code>"{CallerClassSimpleName.method}.{what}"</code>.
      */
     public static String from(String what) {
-        return getCallerClassSimpleName() + '.' + what;
+        return getCallerClassSimpleNameAndMethod() + '.' + what;
     }
 
     /**
-     * @return a random string of length 8 for testing - <b>BUT PLEASE NOTE!! ALWAYS use a semantically meaningful,
-     *         globally unique Id as traceId in production code!</b>
+     * @return a random string of length 8 for testing.
      */
     public static String randomId() {
         return RandomString.randomString(8);
@@ -78,23 +107,31 @@ public class MatsTestHelp {
         }
     }
 
-    private static String getCallerClassSimpleName() {
-        String classname = getCallerClassName();
-        int lastDot = classname.lastIndexOf('.');
+    private static String getCallerClassSimpleNameAndMethod() {
+        String[] classnameAndMethod = getCallerClassNameAndMethod();
+        int lastDot = classnameAndMethod[0].lastIndexOf('.');
         return lastDot > 0
-                ? classname.substring(lastDot + 1)
-                : classname;
+                ? classnameAndMethod[0].substring(lastDot + 1) + '.' + classnameAndMethod[1]
+                : classnameAndMethod[0] + '.' + classnameAndMethod[1];
+    }
+
+    private static String getCallerClassSimpleName() {
+        String[] classnameAndMethod = getCallerClassNameAndMethod();
+        int lastDot = classnameAndMethod[0].lastIndexOf('.');
+        return lastDot > 0
+                ? classnameAndMethod[0].substring(lastDot + 1)
+                : classnameAndMethod[0];
     }
 
     /**
      * from <a href="https://stackoverflow.com/a/11306854">Stackoverflow - Denys Séguret</a>.
      */
-    private static String getCallerClassName() {
+    private static String[] getCallerClassNameAndMethod() {
         StackTraceElement[] stElements = Thread.currentThread().getStackTrace();
         for (int i = 1; i < stElements.length; i++) {
             StackTraceElement ste = stElements[i];
             if (!ste.getClassName().equals(MatsTestHelp.class.getName())) {
-                return ste.getClassName();
+                return new String[] { ste.getClassName(), ste.getMethodName() };
             }
         }
         throw new AssertionError("Could not determine calling class.");

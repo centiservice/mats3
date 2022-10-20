@@ -34,6 +34,8 @@ public class Test_InitiationIntercept_JavaDoc {
 
     public static final CountDownLatch _countDownLatch = new CountDownLatch(2);
 
+    private static final String TERMINATOR = MatsTestHelp.terminator();
+
     /**
      * This Terminator is set up just to consume all messages produced by this test, so that they do not linger on the
      * MQ - which is a point if we use an external, persistent broker, as MatsTestBroker (within Rule_Mats) can be
@@ -41,7 +43,7 @@ public class Test_InitiationIntercept_JavaDoc {
      */
     @BeforeClass
     public static void setupCleanupTerminator() {
-        MATS.getMatsFactory().terminator(MatsTestHelp.terminator(), Object.class, DataTO.class, (ctx, state, msg) -> {
+        MATS.getMatsFactory().terminator(TERMINATOR, Object.class, DataTO.class, (ctx, state, msg) -> {
             _countDownLatch.countDown();
         });
     }
@@ -57,15 +59,18 @@ public class Test_InitiationIntercept_JavaDoc {
         MATS.getMatsFactory().getDefaultInitiator().initiateUnchecked(init -> {
             init.traceId(MatsTestHelp.traceId() + "_First")
                     .from(MatsTestHelp.from("test"))
-                    .to(MatsTestHelp.terminator())
+                    .to(TERMINATOR)
                     .send(new DataTO(1, "First message"));
             init.traceId(MatsTestHelp.traceId() + "_Second")
                     .from(MatsTestHelp.from("test"))
-                    .to(MatsTestHelp.terminator())
+                    .to(TERMINATOR)
                     .send(new DataTO(2, "Second message"));
         });
 
-        _countDownLatch.await(30, TimeUnit.SECONDS);
+        boolean notified = _countDownLatch.await(30, TimeUnit.SECONDS);
+        if (!notified) {
+            throw new AssertionError("Didn't get countdown.");
+        }
     }
 
     private static class MyMatsInitiateInterceptor implements MatsInitiateInterceptor,
