@@ -39,8 +39,8 @@ import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.api.intercept.MatsStageInterceptor;
 import io.mats3.api.intercept.MatsStageInterceptor.StageInterceptContext;
-import io.mats3.impl.jms.JmsMatsInitiator.MatsInitiator_NamedInitiator_TxRequiresNew;
 import io.mats3.impl.jms.JmsMatsInitiator.MatsInitiator_DefaultInitiator_TxRequired;
+import io.mats3.impl.jms.JmsMatsInitiator.MatsInitiator_NamedInitiator_TxRequiresNew;
 import io.mats3.impl.jms.JmsMatsProcessContext.DoAfterCommitRunnableHolder;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
@@ -471,14 +471,14 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         return endpoint;
     }
 
-    private ThreadLocal<Supplier<MatsInitiate>> __containingMatsInitiate = new ThreadLocal<>();
-    private ThreadLocal<WithinStageContext<Z>> __withinStageContext = new ThreadLocal<>();
+    private ThreadLocal<Supplier<MatsInitiate>> __existingMatsInitiate = new ThreadLocal<>();
+    private ThreadLocal<NestingWithinStageProcessing<Z>> __nestingWithinStageProcessing = new ThreadLocal<>();
 
-    static class WithinStageContext<Z> {
+    static class NestingWithinStageProcessing<Z> {
         private final MatsTrace<Z> _matsTrace;
         private final MessageConsumer _messageConsumer;
 
-        public WithinStageContext(MatsTrace<Z> matsTrace, MessageConsumer messageConsumer) {
+        public NestingWithinStageProcessing(MatsTrace<Z> matsTrace, MessageConsumer messageConsumer) {
             _matsTrace = matsTrace;
             _messageConsumer = messageConsumer;
         }
@@ -493,9 +493,11 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     }
 
     /**
-     * When we're within a Mats TX Demarcation, both within Initiate and Stage, any new initiations using
-     * DefaultInitiator should execute within the existing demarcation - while any new initiations using non-default
-     * Initiator (gotten using 'getOrCreateInitiator') should "fork out" of the existing demarcation.
+     *
+     * NESTING of Mats Initiations: When we're within an existing Mats TX Demarcation, both within Initiate and Stage,
+     * any new initiations using DefaultInitiator should execute within the existing demarcation - while any new
+     * initiations using non-default Initiator (gotten using 'getOrCreateInitiator') should "fork out" of the existing
+     * demarcation.
      * <ul>
      * <li>If this exists, and DefaultInitiator ('getDefaultInitiator'): Use the existing (supplied) MatsInitiate. If
      * not exists: Normal initiate.</li>
@@ -507,43 +509,58 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
      * {@link MatsFactory#getDefaultInitiator()}, if this is <i>on a different MatsFactory</i>, then the transaction
      * should not be hoisted.
      */
-    void setCurrentMatsFactoryThreadLocal_MatsInitiate(Supplier<MatsInitiate> matsInitiateSupplier) {
-        __containingMatsInitiate.set(matsInitiateSupplier);
+    void setCurrentMatsFactoryThreadLocal_ExistingMatsInitiate(Supplier<MatsInitiate> matsInitiateSupplier) {
+        __existingMatsInitiate.set(matsInitiateSupplier);
     }
 
     /**
-     * When doing nested initiations from within a Stage, the Stage context should follow along just like if
-     * using context.initiate(..).
+     * Clear out.
+     */
+    void clearCurrentMatsFactoryThreadLocal_ExistingMatsInitiate() {
+        __existingMatsInitiate.remove();
+    }
+
+    /**
+     * CURRENT NESTING HIERARCHY STARTS WITHIN A STAGE PROCESSING: When doing nested initiations from within a Stage,
+     * the Stage context should follow along just like if using context.initiate(..).
      * <ul>
-     * <li>If this exists, then use
+     * <li>If this exists (i.e. current nesting hierarchy starts from within a stage processing), then use
      * {@link JmsMatsInitiate#createForChildFlow(JmsMatsFactory, List, JmsMatsInternalExecutionContext, DoAfterCommitRunnableHolder, MatsTrace)}</li>
-     * <li>If this does not exists, then use
+     * <li>If this does not exists (i.e. current nesting hierarchy starts from "outside"), then use
      * {@link JmsMatsInitiate#createForTrueInitiation(JmsMatsFactory, List, JmsMatsInternalExecutionContext, DoAfterCommitRunnableHolder, String)}</li>
      * </ul>
      * <b>Notice: When forking out in new thread, make sure to copy over this ThreadLocal!</b>
+     * <p/>
+     * Notice: This concept is NOT overlapping with "existing mats initiate": The properties from current stage
+     * processing shall be moved over to the new initiation EVEN IF this is done with a non-default initiator. The
+     * "hoisting" of an initiation transactions into an existing transaction is orthogonal to whether the processing is
+     * within a stage or "outside".
      */
-    void setCurrentMatsFactoryThreadLocal_WithinStageContext(MatsTrace<Z> matsTrace, MessageConsumer messageConsumer) {
-        __withinStageContext.set(new WithinStageContext<>(matsTrace, messageConsumer));
+    void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(MatsTrace<Z> matsTrace,
+            MessageConsumer messageConsumer) {
+        __nestingWithinStageProcessing.set(new NestingWithinStageProcessing<>(matsTrace, messageConsumer));
     }
 
-    void setCurrentMatsFactoryThreadLocal_WithinStageContext(WithinStageContext<Z> existing) {
-        __withinStageContext.set(existing);
+    /**
+     * Used to move a {@link NestingWithinStageProcessing} from an existing thread to a "context fork out" thread.
+     */
+    void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(NestingWithinStageProcessing<Z> existing) {
+        __nestingWithinStageProcessing.set(existing);
     }
 
-    Optional<Supplier<MatsInitiate>> getCurrentMatsFactoryThreadLocal_MatsInitiate() {
-        return Optional.ofNullable(__containingMatsInitiate.get());
+    /**
+     * Clear out.
+     */
+    void clearCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing() {
+        __nestingWithinStageProcessing.remove();
     }
 
-    Optional<WithinStageContext<Z>> getCurrentMatsFactoryThreadLocal_WithinStageContext() {
-        return Optional.ofNullable(__withinStageContext.get());
+    Optional<Supplier<MatsInitiate>> getCurrentMatsFactoryThreadLocal_ExistingMatsInitiate() {
+        return Optional.ofNullable(__existingMatsInitiate.get());
     }
 
-    void clearCurrentMatsFactoryThreadLocal_MatsInitiate() {
-        __containingMatsInitiate.remove();
-    }
-
-    void clearCurrentMatsFactoryThreadLocal_WithinStageContext() {
-        __withinStageContext.remove();
+    Optional<NestingWithinStageProcessing<Z>> getCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing() {
+        return Optional.ofNullable(__nestingWithinStageProcessing.get());
     }
 
     private volatile JmsMatsInitiator<Z> _defaultMatsInitiator;

@@ -48,6 +48,8 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
     private final List<JmsMatsMessage<Z>> _messagesToSend;
     private final JmsMatsInternalExecutionContext _jmsMatsInternalExecutionContext;
     private final DoAfterCommitRunnableHolder _doAfterCommitRunnableHolder;
+
+    // :: Only for "true initiation"
     private final String _existingMdcTraceId;
 
     // :: Only for "within Stage"
@@ -541,7 +543,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
                 _messagesToSend, _jmsMatsInternalExecutionContext, _doAfterCommitRunnableHolder,
                 matsTrace);
 
-        _parentFactory.setCurrentMatsFactoryThreadLocal_MatsInitiate(initiateSupplier);
+        _parentFactory.setCurrentMatsFactoryThreadLocal_ExistingMatsInitiate(initiateSupplier);
 
         // :: Invoke the process lambda (the actual user code).
         try {
@@ -569,7 +571,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
                     + " stash()'ing it.", e);
         }
         finally {
-            _parentFactory.clearCurrentMatsFactoryThreadLocal_MatsInitiate();
+            _parentFactory.clearCurrentMatsFactoryThreadLocal_ExistingMatsInitiate();
             JmsMatsContextLocalCallback.unbindResource(ProcessContext.class);
         }
 

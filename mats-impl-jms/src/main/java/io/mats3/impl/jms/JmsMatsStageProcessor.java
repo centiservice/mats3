@@ -567,9 +567,9 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     matsTrace);
 
                             // Set the nested initiation context supplier
-                            getFactory().setCurrentMatsFactoryThreadLocal_MatsInitiate(initiateSupplier);
+                            getFactory().setCurrentMatsFactoryThreadLocal_ExistingMatsInitiate(initiateSupplier);
                             // Set the MatsTrace for nested initiations
-                            getFactory().setCurrentMatsFactoryThreadLocal_WithinStageContext(matsTrace, jmsConsumer);
+                            getFactory().setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(matsTrace, jmsConsumer);
 
                             // :: Create contexts, invoke interceptors
                             // ==========================================================
@@ -741,8 +741,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                     finally {
                         JmsMatsContextLocalCallback.unbindResource(ProcessContext.class);
-                        _jmsMatsStage.getParentFactory().clearCurrentMatsFactoryThreadLocal_MatsInitiate();
-                        _jmsMatsStage.getParentFactory().clearCurrentMatsFactoryThreadLocal_WithinStageContext();
+                        _jmsMatsStage.getParentFactory().clearCurrentMatsFactoryThreadLocal_ExistingMatsInitiate();
+                        _jmsMatsStage.getParentFactory().clearCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing();
 
                         if (throwableProcessResult == ProcessResult.USER_EXCEPTION) {
                             log.info(LOG_PREFIX + "Got [" + throwableResult.getClass().getName()
