@@ -554,7 +554,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
                     /* The stack should be user-based here, so getInvocationPoint() should be good. */
                     "-no_info(unstash)-",
                     matsTrace,
-                    currentSto, initiateSupplier,
+                    currentSto,
                     new LinkedHashMap<>(), new LinkedHashMap<>(),
                     _messagesToSend, _jmsMatsInternalExecutionContext,
                     _doAfterCommitRunnableHolder);

@@ -584,7 +584,6 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     _jmsMatsStage.getStageConfig().getOrigin(),
                                     matsTrace,
                                     currentSto,
-                                    initiateSupplier,
                                     incomingBinaries, incomingStrings,
                                     messagesToSend, internalExecutionContext,
                                     doAfterCommitRunnableHolder);

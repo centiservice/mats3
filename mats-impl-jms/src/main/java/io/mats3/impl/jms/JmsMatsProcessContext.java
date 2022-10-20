@@ -57,7 +57,6 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     private final LinkedHashMap<String, byte[]> _incomingBinaries;
     private final LinkedHashMap<String, String> _incomingStrings;
     private final S _incomingAndOutgoingState;
-    private final Supplier<MatsInitiate> _initiateSupplier;
     private final List<JmsMatsMessage<Z>> _messagesToSend;
     private final JmsMatsInternalExecutionContext _jmsMatsInternalExecutionContext;
     private final DoAfterCommitRunnableHolder _doAfterCommitRunnableHolder;
@@ -79,7 +78,6 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
             String nextStageId,
             String stageOrigin,
             MatsTrace<Z> incomingMatsTrace, S incomingAndOutgoingState,
-            Supplier<MatsInitiate> initiateSupplier,
             LinkedHashMap<String, byte[]> incomingBinaries, LinkedHashMap<String, String> incomingStrings,
             List<JmsMatsMessage<Z>> out_messagesToSend,
             JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
@@ -96,7 +94,6 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _incomingBinaries = incomingBinaries;
         _incomingStrings = incomingStrings;
         _incomingAndOutgoingState = incomingAndOutgoingState;
-        _initiateSupplier = initiateSupplier;
         _messagesToSend = out_messagesToSend;
         _jmsMatsInternalExecutionContext = jmsMatsInternalExecutionContext;
         _doAfterCommitRunnableHolder = doAfterCommitRunnableHolder;
@@ -736,7 +733,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         // Store the existing TraceId, since it should hopefully be set (extended) in the initiate.
         String existingTraceId = MDC.get(MDC_TRACE_ID);
         // Do the actual initiation
-        lambda.initiate(_initiateSupplier.get());
+
+        // 2022-10-20: Replaced actual "stage initiate" with getDefaultInitiator(), as that when directly called
+        // is equivalent, but if nesting is in effect, defaultInitiator handles this.
+        _parentFactory.getDefaultInitiator().initiateUnchecked(lambda);
+
         // Put back the previous TraceId.
         MDC.put(MDC_TRACE_ID, existingTraceId);
     }
