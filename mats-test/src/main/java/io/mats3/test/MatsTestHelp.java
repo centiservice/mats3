@@ -76,6 +76,13 @@ public class MatsTestHelp {
     }
 
     /**
+     * @return a String <code>"{CallerClassSimpleName.method}"</code>.
+     */
+    public static String from() {
+        return getCallerClassSimpleNameAndMethod();
+    }
+
+    /**
      * @return a String <code>"{CallerClassSimpleName.method}.{what}"</code>.
      */
     public static String from(String what) {
