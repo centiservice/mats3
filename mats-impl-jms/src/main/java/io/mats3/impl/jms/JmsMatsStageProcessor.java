@@ -12,7 +12,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.jms.Destination;
@@ -33,7 +32,6 @@ import io.mats3.MatsEndpoint.ProcessLambda;
 import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsInitiator.InitiateLambda;
 import io.mats3.MatsInitiator.MatsBackendException;
-import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.MatsInitiator.MatsMessageSendException;
 import io.mats3.MatsStage;
 import io.mats3.MatsStage.StageConfig;
@@ -556,83 +554,115 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     matsTrace.getCurrentState().orElse(null));
 
                             // :: Incoming Message DTO
-                            I incomingDto = handleIncomingMessageMatsObject(matsSerializer,
+                            Object incomingDto = handleIncomingMessageMatsObject(matsSerializer,
                                     _jmsMatsStage.getMessageClass(), currentCall.getData());
 
                             long nanosTaken_incomingMessageAndStateDeserializationNanos = System.nanoTime()
                                     - nanosAtStart_incomingMessageAndStateDeserializationNanos;
 
-                            Supplier<MatsInitiate> initiateSupplier = () -> JmsMatsInitiate.createForChildFlow(
-                                    getFactory(), messagesToSend, internalExecutionContext, doAfterCommitRunnableHolder,
-                                    matsTrace);
+                            // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                            // +++++ START: nextDirect handling
+                            // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-                            // Set the nested initiation context supplier
-                            getFactory().setCurrentMatsFactoryThreadLocal_ExistingMatsInitiate(initiateSupplier);
-                            // Set the MatsTrace for nested initiations
-                            getFactory().setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(matsTrace, jmsConsumer);
+                            // Initially, The current stage is obviously /this/ stage on the first pass.
+                            JmsMatsStage<R, S, ?, Z> currentStage = _jmsMatsStage;
 
-                            // :: Create contexts, invoke interceptors
-                            // ==========================================================
+                            boolean nextDirectInvoked = false;
+                            do {
+                                // :: Nested initiation handling
+                                // For initiation within this transaction demarcation (ProcessContext or DefaultInitiator)
+                                getFactory().setCurrentMatsFactoryThreadLocal_ExistingMatsInitiate(
+                                        () -> JmsMatsInitiate.createForChildFlow(getFactory(), messagesToSend,
+                                                internalExecutionContext, doAfterCommitRunnableHolder, matsTrace));
+                                // This is within a stage processing, so store the context for any nested inits
+                                // This is relevant both if within current transaction demarcation, but also if explicit
+                                // going outside when using non-default initiator: matsFactory.getOrCreateInitiator.
+                                getFactory().setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(
+                                        matsTrace, jmsConsumer);
 
-                            // .. create the ProcessContext
-                            processContext[0] = new JmsMatsProcessContext<>(
-                                    getFactory(),
-                                    _jmsMatsStage.getParentEndpoint().getEndpointId(),
-                                    _jmsMatsStage.getStageId(),
-                                    jmsMessageId,
-                                    _jmsMatsStage.getNextStageId(),
-                                    _jmsMatsStage.getStageConfig().getOrigin(),
-                                    matsTrace,
-                                    currentSto,
-                                    incomingBinaries, incomingStrings,
-                                    messagesToSend, internalExecutionContext,
-                                    doAfterCommitRunnableHolder);
+                                // :: Create contexts, invoke interceptors
+                                // ==========================================================
 
-                            long nanosTaken_PreUserLambda = System.nanoTime() - nanosAtStart_Received;
+                                // .. create the ProcessContext
+                                processContext[0] = new JmsMatsProcessContext<>(
+                                        getFactory(),
+                                        currentStage.getParentEndpoint().getEndpointId(),
+                                        currentStage.getStageId(),
+                                        jmsMessageId,
+                                        currentStage.getNextStageId(),
+                                        currentStage.getStageConfig().getOrigin(),
+                                        matsTrace,
+                                        currentSto,
+                                        incomingBinaries, incomingStrings,
+                                        messagesToSend, internalExecutionContext,
+                                        doAfterCommitRunnableHolder);
 
-                            // .. stick the ProcessContext into the ThreadLocal scope
-                            JmsMatsContextLocalCallback.bindResource(ProcessContext.class, processContext[0]);
+                                // .. stick the ProcessContext into the ThreadLocal scope
+                                JmsMatsContextLocalCallback.bindResource(ProcessContext.class, processContext[0]);
 
-                            // Cast the ProcessContext unchecked, since we need it for the interceptors.
-                            @SuppressWarnings("unchecked")
-                            ProcessContext<Object> processContextCasted = (ProcessContext<Object>) processContext[0];
+                                // Cast the ProcessContext unchecked, since we need it for the interceptors.
+                                @SuppressWarnings("unchecked")
+                                ProcessContext<Object> processContextCasted = (ProcessContext<Object>) processContext[0];
 
-                            long sameHeightOutgoingTimestamp = matsTrace.getSameHeightOutgoingTimestamp();
+                                long sameHeightOutgoingTimestamp = matsTrace.getSameHeightOutgoingTimestamp();
 
-                            // Create the common part of the interceptor contexts
-                            stageCommonContext[0] = new StageCommonContextImpl<>(
-                                    processContextCasted,
-                                    _jmsMatsStage,
-                                    startedNanos, startedInstant,
-                                    endpointEnteredTimestamp, sameHeightOutgoingTimestamp,
-                                    matsTrace, incomingDto, currentSto,
-                                    nanosTaken_DeconstructMessage,
-                                    matsTraceBytes.length,
-                                    matsTraceDeserialized.getNanosDecompression(),
-                                    matsTraceDeserialized.getSizeDecompressed(),
-                                    matsTraceDeserialized.getNanosDeserialization(),
-                                    nanosTaken_incomingMessageAndStateDeserializationNanos,
-                                    nanosTaken_PreUserLambda);
+                                // Create the common part of the interceptor contexts
+                                long nanosTaken_PreUserLambda = System.nanoTime() - nanosAtStart_Received;
+                                stageCommonContext[0] = new StageCommonContextImpl<>(
+                                        processContextCasted,
+                                        currentStage,
+                                        startedNanos, startedInstant,
+                                        endpointEnteredTimestamp, sameHeightOutgoingTimestamp,
+                                        matsTrace, incomingDto, currentSto,
+                                        nanosTaken_DeconstructMessage,
+                                        matsTraceBytes.length,
+                                        matsTraceDeserialized.getNanosDecompression(),
+                                        matsTraceDeserialized.getSizeDecompressed(),
+                                        matsTraceDeserialized.getNanosDeserialization(),
+                                        nanosTaken_incomingMessageAndStateDeserializationNanos,
+                                        nanosTaken_PreUserLambda);
 
-                            // === Invoke any interceptors, stage "Received"
-                            invokeStageReceivedInterceptors(interceptorsForStage, stageCommonContext[0],
-                                    processContextCasted);
+                                // === Invoke any interceptors, stage "Received"
+                                invokeStageReceivedInterceptors(interceptorsForStage, stageCommonContext[0],
+                                        processContextCasted);
 
-                            // === Invoke any interceptors, stage "Intercept" - these will wrap the UserLambda.
-                            ProcessLambda<Object, Object, Object> currentLambda = invokeWrapUserLambdaInterceptors(
-                                    interceptorsForStage, stageCommonContext[0]);
+                                // === Invoke any interceptors, stage "Intercept" - these will wrap the UserLambda.
+                                ProcessLambda<Object, Object, Object> currentLambda = invokeWrapUserLambdaInterceptors(
+                                        currentStage, interceptorsForStage, stageCommonContext[0]);
 
-                            // :: Invoke the process lambda (the actual user code), possibly wrapped by interceptors.
-                            // =======================================================================================
+                                // :: Invoke the process lambda (the actual user code), possibly wrapped by interceptors.
+                                // =======================================================================================
 
-                            // :: == ACTUALLY Invoke the lambda. The current lambda is the one we should invoke.
-                            long nanosAtStart_UserLambda = System.nanoTime();
-                            try {
-                                currentLambda.process(processContextCasted, currentSto, incomingDto);
+                                // :: == ACTUALLY Invoke the lambda. The current lambda is the one we should invoke.
+                                long nanosAtStart_UserLambda = System.nanoTime();
+                                try {
+                                    currentLambda.process(processContextCasted, currentSto, incomingDto);
+                                }
+                                finally {
+                                    nanosTaken_UserLambda[0] = System.nanoTime() - nanosAtStart_UserLambda;
+                                }
+
+                                // :: Handle NEXT_DIRECT "calls".
+                                nextDirectInvoked = processContext[0].isNextDirectInvoked();
+                                if (nextDirectInvoked) {
+
+                                    // TODO: Invoke StageCompleted interceptors.
+                                    // TODO: mats.StageId
+                                    // TODO: Thread name?
+                                    // TODO: Change stats-stuff on StageCommonContext
+
+                                    // Current stage is now the next stage
+                                    currentStage = currentStage.getNextStage();
+                                    // .. and set the incoming DTO.
+                                    incomingDto = processContext[0].getNextDirectDto();
+                                }
                             }
-                            finally {
-                                nanosTaken_UserLambda[0] = System.nanoTime() - nanosAtStart_UserLambda;
-                            }
+                            while (nextDirectInvoked);
+
+                            // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                            // +++++ END: nextDirect handling
+                            // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 
                             // === Invoke any interceptors, stage "Message"
                             invokeStageMessageInterceptors(interceptorsForStage, stageCommonContext[0], messagesToSend);
@@ -741,8 +771,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                     finally {
                         JmsMatsContextLocalCallback.unbindResource(ProcessContext.class);
-                        _jmsMatsStage.getParentFactory().clearCurrentMatsFactoryThreadLocal_ExistingMatsInitiate();
-                        _jmsMatsStage.getParentFactory().clearCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing();
+                        getFactory().clearCurrentMatsFactoryThreadLocal_ExistingMatsInitiate();
+                        getFactory().clearCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing();
 
                         if (throwableProcessResult == ProcessResult.USER_EXCEPTION) {
                             log.info(LOG_PREFIX + "Got [" + throwableResult.getClass().getName()
@@ -968,12 +998,14 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     private ProcessLambda<Object, Object, Object> invokeWrapUserLambdaInterceptors(
-            List<MatsStageInterceptor> interceptorsForStage, StageCommonContextImpl<Z> stageCommonContext) {
+            JmsMatsStage<R, S, ?, Z> currentStage,
+            List<MatsStageInterceptor> interceptorsForStage,
+            StageCommonContextImpl<Z> stageCommonContext) {
         // :: Create a "lambda stack" of the interceptors
         // This is the resulting lambda we will actually invoke
         // .. if there are no interceptors, it will directly be the user lambda
         @SuppressWarnings("unchecked")
-        ProcessLambda<Object, Object, Object> currentLambda = (ProcessLambda<Object, Object, Object>) _jmsMatsStage
+        ProcessLambda<Object, Object, Object> currentLambda = (ProcessLambda<Object, Object, Object>) currentStage
                 .getProcessLambda();
         /*
          * Create the lambda stack by moving "backwards" through the registered interceptors, as when we'll actually
@@ -1103,8 +1135,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         MDC.put(MDC_MATS_STAGE, "true");
         // Set the "static" values again
         MDC.put(MDC_MATS_STAGE_ID, _jmsMatsStage.getStageId());
-        MDC.put(MDC_MATS_APP_NAME, _jmsMatsStage.getParentFactory().getFactoryConfig().getAppName());
-        MDC.put(MDC_MATS_APP_VERSION, _jmsMatsStage.getParentFactory().getFactoryConfig().getAppVersion());
+        MDC.put(MDC_MATS_APP_NAME, getFactory().getFactoryConfig().getAppName());
+        MDC.put(MDC_MATS_APP_VERSION, getFactory().getFactoryConfig().getAppVersion());
     }
 
     private void chillWait(long millis) {

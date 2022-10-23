@@ -84,6 +84,10 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         return _anyProcessorMadeConsumerLatch;
     }
 
+    String getStageId() {
+        return _stageId;
+    }
+
     private String _nextStageId;
 
     void setNextStageId(String nextStageId) {
@@ -94,8 +98,14 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         return _nextStageId;
     }
 
-    String getStageId() {
-        return _stageId;
+    private JmsMatsStage<R, S, ?, Z> _nextStage;
+
+    void setNextStage(JmsMatsStage<R, S, ?, Z> nextStage) {
+        _nextStage = nextStage;
+    }
+
+    public JmsMatsStage<R, S, ?, Z> getNextStage() {
+        return _nextStage;
     }
 
     private final CopyOnWriteArrayList<JmsMatsStageProcessor<R, S, I, Z>> _stageProcessors = new CopyOnWriteArrayList<>();

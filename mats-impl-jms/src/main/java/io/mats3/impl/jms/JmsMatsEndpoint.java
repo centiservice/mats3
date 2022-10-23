@@ -90,6 +90,7 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
         // :: Set this next stage's Id on the previous stage, unless we're first, in which case there is no previous.
         if (_stages.size() > 0) {
             _stages.get(_stages.size() - 1).setNextStageId(stageId);
+            _stages.get(_stages.size() - 1).setNextStage(stage);
         }
         _stages.add(stage);
         stage.getStageConfig().setOrigin(getInvocationPoint());

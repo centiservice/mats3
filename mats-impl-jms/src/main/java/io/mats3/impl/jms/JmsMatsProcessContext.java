@@ -11,7 +11,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +18,6 @@ import org.slf4j.MDC;
 
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsInitiator.InitiateLambda;
-import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.MatsInitiator.MessageReference;
 import io.mats3.MatsStage;
 import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
@@ -70,6 +68,9 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     private final LinkedHashMap<String, Object> _outgoingProps = new LinkedHashMap<>();
     private final LinkedHashMap<String, byte[]> _outgoingBinaries = new LinkedHashMap<>();
     private final LinkedHashMap<String, String> _outgoingStrings = new LinkedHashMap<>();
+
+    private boolean _nextDirectInvoked; // Set 'true' of nextDirect is invoked
+    private Object _nextDirectDto; // Value of nextDirect incoming message
 
     JmsMatsProcessContext(JmsMatsFactory<Z> parentFactory,
             String endpointId,
@@ -585,7 +586,8 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         // ?: Have reply or goto already been invoked?
         if (_replyOrGotoSent != null) {
             // -> Yes, and this is not legal.
-            String msg = "Reply or Goto has been invoked! It is illegal to mix Reply or Goto with Request or Next.";
+            String msg = "Reply or Goto has already been invoked! It is illegal to mix Reply or Goto with Request or"
+                    + " Next.";
             log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
             log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replyOrGotoSent);
             log.error(LOG_PREFIX + "   THIS REQUEST DEBUG STACKTRACE:",
@@ -620,7 +622,8 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         // ?: Have reply or goto already been invoked?
         if (_replyOrGotoSent != null) {
             // -> Yes, and this is not legal.
-            String msg = "Reply or Goto has been invoked! It is illegal to mix Reply or Goto with Request or Next.";
+            String msg = "Reply or Goto has already been invoked! It is illegal to mix Reply or Goto with Request or"
+                    + " Next.";
             log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
             log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replyOrGotoSent);
             log.error(LOG_PREFIX + "   THIS NEXT DEBUG STACKTRACE:",
@@ -640,6 +643,56 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         String matsMessageId = produceMessage(nextDto, null, nanosStart, nextMatsTrace);
 
         return new MessageReferenceImpl(matsMessageId);
+    }
+
+    @Override
+    public void nextDirect(Object nextDirectDto) {
+        // :: Assert that we have a next-stage
+        if (_nextStageId == null) {
+            throw new IllegalStateException("Stage [" + _stageId
+                    + "] invoked context.nextDirect(..), but there is no next stage.");
+        }
+
+        // TODO: NO other flow-messages are allowed
+        // IT IS NOT LEGAL TO SEND *ANY OTHER* FLOW MESSAGE ALONG WITH nextDirect(..)
+
+        // ?: Have reply or goto already been invoked?
+        if (_replyOrGotoSent != null) {
+            // -> Yes, and this is not legal.
+            String msg = "Reply or Goto has already been invoked! It is illegal to mix NextDirect with any other flow"
+                    + " message.";
+            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
+            log.error(LOG_PREFIX + "   PREVIOUS REPLY DEBUG STACKTRACE:", _replyOrGotoSent);
+            log.error(LOG_PREFIX + "   THIS NEXT DEBUG STACKTRACE:",
+                    new DebugStackTraceException("THIS NEXT_DIRECT STACKTRACE"));
+            throw new IllegalCallFlowsException(msg);
+        }
+        // ?: Have request or next already been invoked?
+        if (_requestOrNextSent != null) {
+            // -> Yes, and this is not legal.
+            String msg = "Request, Next or NextDirect has already been invoked! It is illegal to mix NextDirect with"
+                    + " any other flow message.";
+            log.error(LOG_PREFIX + ILLEGAL_CALL_FLOWS + msg);
+            log.error(LOG_PREFIX + "   PREVIOUS REQUEST/NEXT DEBUG STACKTRACE:", _requestOrNextSent);
+            log.error(LOG_PREFIX + "   THIS REPLY DEBUG STACKTRACE:",
+                    new DebugStackTraceException("THIS NEXT_DIRECT STACKTRACE"));
+            throw new IllegalCallFlowsException(msg);
+        }
+        // NextDirect is now performed.
+        _requestOrNextSent = new DebugStackTraceException("PREVIOUS NEXT_DIRECT STACKTRACE");
+
+        // Set nextDirect, which will make the StageProcessor perform the operation.
+        _nextDirectInvoked = true;
+        // Value of nextDirect, which can be null.
+        _nextDirectDto = nextDirectDto;
+    }
+
+    boolean isNextDirectInvoked() {
+        return _nextDirectInvoked;
+    }
+
+    Object getNextDirectDto() {
+        return _nextDirectDto;
     }
 
     @Override

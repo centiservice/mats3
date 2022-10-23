@@ -786,10 +786,10 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         MessageReference reply(R replyDto);
 
         /**
-         * Invokes the next stage of a multi-stage endpoint directly, instead of going through a request-reply to some
-         * service. The rationale for this method is that in certain situation you might not need to invoke some service
-         * after all (e.g. in situation X, you do not need the holding information of the customer): Basically, you can
-         * do something like <code>if (condition) { request service } else { next }</code>.
+         * Passes to the next stage of a multi-stage endpoint. The rationale for this method is that in certain
+         * situation you might not need to invoke some service after all (e.g. in situation X, you do not need the
+         * account details for the customer): Basically, you can do something like
+         * <code>if (condition) { request service } else { next }</code>.
          * <p />
          * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
          * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
@@ -809,6 +809,29 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          *            which the next stage then must handle correctly.
          */
         MessageReference next(Object nextDto);
+
+        /**
+         * Directly invokes the next stage of a multi-stage endpoint, within the same transactional demarcation that
+         * this stage is in, without incurring the overhead of serialization and sending a message on the message queue.
+         * This is a limited and specialized, but much faster variant of {@link #next(Object)}.
+         * <p/>
+         * Implementation details which are unspecified and whose effects or non-effects cannot be relied on:
+         * <ul>
+         * <li>Which thread runs the next lambda: You may not depend on the next stage's lambda being invoked on the
+         * same thread that runs this stage. The invocation may be passed over to another thread for execution, as if
+         * utilizing a service-internal task executor. Therefore, you cannot expect any ThreadLocals set in this lambda
+         * to to be present in the next.</li>
+         * <li>How the next lambda is invoked: You cannot expect this to behave like a method call to the next lambda,
+         * nor can you expect the lambda to be executed only when this lambda has exited. Therefore, invocation of this
+         * method should be the very last instruction in the current lambda.</li>
+         * </ul>
+         * <p/>
+         * This method is meant for doing conditional calls, and a specific scenario is lazy cache population.
+         * <p/>
+         * It is legal to do "series" of nextDirects, i.e. check whether to call X in stage 0, no thus nextDirect, then
+         * check whether to call Y in stage 1, no thus nextDirect, then actually execute something in stage 2.
+         */
+        void nextDirect(Object nextDirectDto);
 
         /**
          * Passes the current call stack over to another endpoint, so that when that endpoint replies, it will return to
@@ -1179,6 +1202,11 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         @Override
         public MessageReference next(Object nextDto) {
             return unwrap().next(nextDto);
+        }
+
+        @Override
+        public void nextDirect(Object nextDirectDto) {
+            unwrap().nextDirect(nextDirectDto);
         }
 
         @Override
