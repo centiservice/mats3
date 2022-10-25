@@ -107,11 +107,11 @@ public interface MatsStageInterceptor {
     }
 
     interface StagePreprocessAndDeserializeErrorContext extends StageInterceptContext {
-        ReceiveDeconstructError getReceiveDeconstructError();
+        StagePreprocessAndDeserializeError getStagePreprocessAndDeserializeError();
 
         Optional<Throwable> getThrowable();
 
-        enum ReceiveDeconstructError {
+        enum StagePreprocessAndDeserializeError {
             /**
              * If the incoming message is not of the message system's expected type (for JMS, it should be MapMessage)
              */
