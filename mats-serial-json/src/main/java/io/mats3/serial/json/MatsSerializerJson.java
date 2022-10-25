@@ -297,8 +297,8 @@ public class MatsSerializerJson implements MatsSerializer<String> {
             }
 
             long deserializationNanos = System.nanoTime() - nanosStartDeserialization;
-            return new DeserializedMatsTraceImpl(matsTrace, decompressedBytesLength, deserializationNanos,
-                    decompressionNanos);
+            return new DeserializedMatsTraceImpl(matsTrace, matsTraceBytes.length, decompressedBytesLength,
+                    deserializationNanos, decompressionNanos);
         }
         catch (IOException e) {
             throw new SerializationException("Couldn't deserialize MatsTrace from given JSON, which is crazy!\n"
@@ -308,14 +308,16 @@ public class MatsSerializerJson implements MatsSerializer<String> {
 
     private static final class DeserializedMatsTraceImpl implements DeserializedMatsTrace<String> {
         private final MatsTrace<String> _matsTrace;
-        private final int _sizeUncompressed;
+        private final int _sizeIncoming;
+        private final int _sizeDecompressed;
         private final long _nanosDeserialization;
         private final long _nanosDecompression;
 
-        public DeserializedMatsTraceImpl(MatsTrace<String> matsTrace, int sizeUncompressed,
+        public DeserializedMatsTraceImpl(MatsTrace<String> matsTrace, int sizeIncoming, int sizeDecompressed,
                 long nanosDeserialization, long nanosDecompression) {
             _matsTrace = matsTrace;
-            _sizeUncompressed = sizeUncompressed;
+            _sizeIncoming = sizeIncoming;
+            _sizeDecompressed = sizeDecompressed;
             _nanosDeserialization = nanosDeserialization;
             _nanosDecompression = nanosDecompression;
         }
@@ -326,8 +328,13 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         }
 
         @Override
+        public int getSizeIncoming() {
+            return _sizeIncoming;
+        }
+
+        @Override
         public int getSizeDecompressed() {
-            return _sizeUncompressed;
+            return _sizeDecompressed;
         }
 
         @Override

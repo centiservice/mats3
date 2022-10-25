@@ -21,9 +21,9 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
  * It is worth pointing out that <i>all</i> the communicating parties needs to be using the same serialization
  * mechanism, as this constitute the "wire-representation" of the protocol that {@link MatsTrace} represents. There is
  * however a mechanism to handle different serializations, by means of a {@link #handlesMeta(String) metadata
- * construct}: Along with the serialized bytes, a metadata String must be provided. It is thus possible to construct
- * a MatsSerializer that holds multiple underlying MatsSerializers, choosing based on the "meta" String. This can
- * then be used to upgrade from a format to another.
+ * construct}: Along with the serialized bytes, a metadata String must be provided. It is thus possible to construct a
+ * MatsSerializer that holds multiple underlying MatsSerializers, choosing based on the "meta" String. This can then be
+ * used to upgrade from a format to another.
  *
  * @param <Z>
  *            The type which STOs and DTOs are serialized into. When employing JSON for the "outer" serialization of
@@ -187,9 +187,13 @@ public interface MatsSerializer<Z> {
         MatsTrace<Z> getMatsTrace();
 
         /**
-         * @return the number of bytes the trace became after decompression, before deserialization. (The size of the
-         *         (potentially) compressed trace is obviously the byte array you sent in to
-         *         {@link #deserializeMatsTrace(byte[], String)}.
+         * @return the number of bytes the (potentically compressed) trace was, i.e. the length of the 'serialized' byte
+         *         array to {@link #deserializeMatsTrace(byte[], String)}.
+         */
+        int getSizeIncoming();
+
+        /**
+         * @return the number of bytes the trace became after decompression, before deserialization.
          */
         int getSizeDecompressed();
 
