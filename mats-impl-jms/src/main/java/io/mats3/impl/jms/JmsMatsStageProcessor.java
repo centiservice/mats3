@@ -353,8 +353,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     finally {
                         _processorInReceive = false;
                     }
-                    long startedNanos = System.nanoTime();
-                    Instant startedInstant = Instant.now();
+                    long nanos_Received = System.nanoTime();
+                    Instant instant_Received = Instant.now();
 
                     // Need to check whether the JMS Message gotten is null, as that signals that the
                     // Consumer, Session or Connection was closed from another thread.
@@ -391,16 +391,14 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     @SuppressWarnings({ "unchecked", "rawtypes" })
                     List<MatsStageInterceptor>[] interceptorsForStage = new List[1];
 
-                    long millis_Received = System.currentTimeMillis(); // Used for setting "Endpoint Entered Timestamp"
-                    long nanosAtStart_Received = System.nanoTime();
                     long[] nanosTaken_UserLambda = { 0L };
                     long[] nanosTaken_totalEnvelopeSerAndComp = { 0L };
                     long[] nanosTaken_totalMsgSysProdAndSend = { 0L };
 
+                    boolean preprocessOrDeserializeError = false;
                     Throwable throwableResult = null;
                     ProcessResult throwableProcessResult = null;
 
-                    StagePreprocessAndDeserializeError[] stagePreprocessAndDeserializeError = new StagePreprocessAndDeserializeError[1];
                     @SuppressWarnings({ "unchecked", "rawtypes" })
                     JmsMatsProcessContext<R, S, Z>[] processContext = new JmsMatsProcessContext[1];
 
@@ -408,153 +406,14 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                         // :: Going into Mats Transaction
                         _transactionContext.doTransaction(internalExecutionContext, () -> {
-                            long nanosAtStart_DeconstructMessage = System.nanoTime();
-                            // Assert that this is indeed a JMS MapMessage.
-                            if (!(message instanceof MapMessage)) {
-                                String msg = "Got some JMS Message that is not instanceof JMS MapMessage"
-                                        + " - cannot be a MATS message! Refusing this message!";
-                                log.error(LOG_PREFIX + msg + "\n" + message);
-                                stagePreprocessAndDeserializeError[0] = StagePreprocessAndDeserializeError.WRONG_MESSAGE_TYPE;
-                                throw new MatsRefuseMessageException(msg);
-                            }
 
-                            // ----- This is a MapMessage
-                            MapMessage mapMessage = (MapMessage) message;
+                            PreprocessAndDeserializeData<S, Z> data = preprocessAndDeserializeData(getFactory(),
+                                    _jmsMatsStage, nanos_Received, instant_Received, message);
 
-                            // :: Fetch Mats-specific message data from the JMS Message.
-                            // ==========================================================
-
-                            String matsTraceKey = getFactory().getFactoryConfig().getMatsTraceKey();
-                            String matsTraceMetaKey = matsTraceKey + MatsSerializer.META_KEY_POSTFIX;
-
-                            byte[] matsTraceBytes;
-                            String matsTraceMeta;
-                            String jmsMessageId;
-                            try {
-                                matsTraceBytes = mapMessage.getBytes(matsTraceKey);
-                                matsTraceMeta = mapMessage.getString(matsTraceMetaKey);
-                                jmsMessageId = mapMessage.getJMSMessageID();
-                                // Setting this in the JMS Mats implementation instead of MatsMetricsLoggingInterceptor,
-                                // so that if things fail before getting to the actual Mats part, we'll have it in
-                                // the log lines.
-                                MDC.put(MDC_MATS_IN_MESSAGE_SYSTEM_ID, jmsMessageId);
-
-                                // Fetching the TraceId early from the JMS Message for MDC, so that can follow in logs.
-                                String jmsTraceId = mapMessage.getStringProperty(JMS_MSG_PROP_TRACE_ID);
-                                MDC.put(MDC_TRACE_ID, jmsTraceId);
-
-                                // :: Assert that we got some values
-                                if (matsTraceBytes == null) {
-                                    String msg = "Got some JMS Message that is missing MatsTrace byte array on"
-                                            + "JMS MapMessage key '" + matsTraceKey +
-                                            "' - cannot be a MATS message! Refusing this message!";
-                                    log.error(LOG_PREFIX + msg + "\n" + message);
-                                    stagePreprocessAndDeserializeError[0] = StagePreprocessAndDeserializeError.MISSING_CONTENTS;
-                                    throw new MatsRefuseMessageException(msg);
-                                }
-
-                                if (matsTraceMeta == null) {
-                                    String msg = "Got some JMS Message that is missing MatsTraceMeta String on"
-                                            + "JMS MapMessage key '" + MatsSerializer.META_KEY_POSTFIX
-                                            + "' - cannot be a MATS message! Refusing this message!";
-                                    log.error(LOG_PREFIX + msg + "\n" + message);
-                                    stagePreprocessAndDeserializeError[0] = StagePreprocessAndDeserializeError.MISSING_CONTENTS;
-                                    throw new MatsRefuseMessageException(msg);
-                                }
-                            }
-                            catch (JMSException e) {
-                                stagePreprocessAndDeserializeError[0] = StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR;
-                                throw new JmsMatsJmsException("Got JMSException when getting the MatsTrace"
-                                        + " from the MapMessage by using mapMessage.get[Bytes|String](..)."
-                                        + " Pretty crazy.", e);
-                            }
-
-                            // :: Getting the 'sideloads'; Byte-arrays and Strings from the MapMessage.
-                            LinkedHashMap<String, byte[]> incomingBinaries = new LinkedHashMap<>();
-                            LinkedHashMap<String, String> incomingStrings = new LinkedHashMap<>();
-                            try {
-                                @SuppressWarnings("unchecked")
-                                Enumeration<String> mapNames = (Enumeration<String>) mapMessage.getMapNames();
-                                while (mapNames.hasMoreElements()) {
-                                    String name = mapNames.nextElement();
-                                    // ?: Is this the MatsTrace itself?
-                                    if (matsTraceKey.equals(name) || matsTraceMetaKey.equals(name)) {
-                                        // Yes, this is the MatsTrace: Do not expose this as binary or string sideload.
-                                        continue;
-                                    }
-                                    Object object = mapMessage.getObject(name);
-                                    if (object instanceof byte[]) {
-                                        incomingBinaries.put(name, (byte[]) object);
-                                    }
-                                    else if (object instanceof String) {
-                                        incomingStrings.put(name, (String) object);
-                                    }
-                                    else {
-                                        log.warn("Got some object in the MapMessage to ["
-                                                + _jmsMatsStage.getStageId()
-                                                + "] which is neither byte[] nor String - which should not"
-                                                + " happen - Ignoring.");
-                                    }
-                                }
-                            }
-                            catch (JMSException e) {
-                                stagePreprocessAndDeserializeError[0] = StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR;
-                                throw new JmsMatsJmsException("Got JMSException when getting 'sideloads'"
-                                        + " from the MapMessage by using mapMessage.get[Bytes|String](..)."
-                                        + " Pretty crazy.", e);
-                            }
-
-                            long nanosTaken_DeconstructMessage = System.nanoTime() - nanosAtStart_DeconstructMessage;
-
-                            // :: Deserialize the MatsTrace and DTO/STO from the message data.
-                            // ================================================================
-
-                            MatsSerializer<Z> matsSerializer = getFactory().getMatsSerializer();
-                            DeserializedMatsTrace<Z> matsTraceDeserialized;
-                            try {
-                                matsTraceDeserialized = matsSerializer
-                                        .deserializeMatsTrace(matsTraceBytes, matsTraceMeta);
-                            }
-                            catch (Exception e) {
-                                String msg = "Got some JMS Message where we could not deserialize the MatsTrace.";
-                                log.error(LOG_PREFIX + msg + "\n" + message);
-                                stagePreprocessAndDeserializeError[0] = StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR;
-                                throw new MatsRefuseMessageException(msg, e);
-                            }
-                            MatsTrace<Z> matsTrace = matsTraceDeserialized.getMatsTrace();
                             // Update the MatsTrace with stage-incoming timestamp - handles the "endpoint entered" logic
-                            matsTrace.setStageEnteredTimestamp(millis_Received);
+                            data.matsTrace.setStageEnteredTimestamp(instant_Received.toEpochMilli());
                             // Fetch endpoint entered (Not same as stage entered - only initial stage is "ep entered")
-                            long endpointEnteredTimestamp = matsTrace.getSameHeightEndpointEnteredTimestamp();
-
-                            // :: Overwriting the TraceId MDC, now from MatsTrace (in case missing from JMS Message)
-                            MDC.put(MDC_TRACE_ID, matsTrace.getTraceId());
-                            MDC.put(MDC_MATS_CALL_NUMBER, Integer.toString(matsTrace.getCallNumber()));
-
-                            // :: Current Call
-                            Call<Z> currentCall = matsTrace.getCurrentCall();
-                            // Assert that this is indeed a JMS Message meant for this Stage
-                            if (!_jmsMatsStage.getStageId().equals(currentCall.getTo().getId())) {
-                                String msg = "The incoming MATS message is not to this Stage! this:["
-                                        + _jmsMatsStage.getStageId() + "], msg:[" + currentCall.getTo()
-                                        + "]. Refusing this message!";
-                                log.error(LOG_PREFIX + msg + "\n" + mapMessage);
-                                stagePreprocessAndDeserializeError[0] = StagePreprocessAndDeserializeError.WRONG_STAGE;
-                                throw new MatsRefuseMessageException(msg);
-                            }
-
-                            long nanosAtStart_incomingMessageAndStateDeserializationNanos = System.nanoTime();
-
-                            // :: Current State: If null, make an empty object instead, unless Void -> null.
-                            S currentSto = handleIncomingState(matsSerializer, _jmsMatsStage.getStateClass(),
-                                    matsTrace.getCurrentState().orElse(null));
-
-                            // :: Incoming Message DTO
-                            Object incomingDto = handleIncomingMessageMatsObject(matsSerializer,
-                                    _jmsMatsStage.getMessageClass(), currentCall.getData());
-
-                            long nanosTaken_incomingMessageAndStateDeserializationNanos = System.nanoTime()
-                                    - nanosAtStart_incomingMessageAndStateDeserializationNanos;
+                            long endpointEnteredTimestamp = data.matsTrace.getSameHeightEndpointEnteredTimestamp();
 
                             // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                             // +++++ START: nextDirect handling
@@ -562,20 +421,22 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                             // Initially, The current stage is obviously /this/ stage on the first pass.
                             JmsMatsStage<R, S, ?, Z> currentStage = _jmsMatsStage;
+                            S currentSto = data.sto;
+                            Object incomingDto = data.dto;
 
-                            boolean nextDirectInvoked = false;
+                            boolean nextDirectInvoked;
                             do {
                                 // :: Nested initiation handling
                                 // For initiation within this transaction demarcation (ProcessContext or
                                 // DefaultInitiator)
                                 getFactory().setCurrentMatsFactoryThreadLocal_ExistingMatsInitiate(
                                         () -> JmsMatsInitiate.createForChildFlow(getFactory(), messagesToSend,
-                                                internalExecutionContext, doAfterCommitRunnableHolder, matsTrace));
+                                                internalExecutionContext, doAfterCommitRunnableHolder, data.matsTrace));
                                 // This is within a stage processing, so store the context for any nested inits
                                 // This is relevant both if within current transaction demarcation, but also if explicit
                                 // going outside when using non-default initiator: matsFactory.getOrCreateInitiator.
                                 getFactory().setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(
-                                        matsTrace, jmsConsumer);
+                                        data.matsTrace, jmsConsumer);
 
                                 // :: Create contexts, invoke interceptors
                                 // ==========================================================
@@ -585,12 +446,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         getFactory(),
                                         currentStage.getParentEndpoint().getEndpointId(),
                                         currentStage.getStageId(),
-                                        jmsMessageId,
+                                        data.jmsMessageId,
                                         currentStage.getNextStageId(),
                                         currentStage.getStageConfig().getOrigin(),
-                                        matsTrace,
+                                        data.matsTrace,
                                         currentSto,
-                                        incomingBinaries, incomingStrings,
+                                        data.incomingBinaries, data.incomingStrings,
                                         messagesToSend, internalExecutionContext,
                                         doAfterCommitRunnableHolder);
 
@@ -601,30 +462,29 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 @SuppressWarnings("unchecked")
                                 ProcessContext<Object> processContextCasted = (ProcessContext<Object>) processContext[0];
 
-                                long sameHeightOutgoingTimestamp = matsTrace.getSameHeightOutgoingTimestamp();
+                                long sameHeightOutgoingTimestamp = data.matsTrace.getSameHeightOutgoingTimestamp();
 
                                 // Create the common part of the interceptor contexts
-                                long nanosTaken_PreUserLambda = System.nanoTime() - nanosAtStart_Received;
+                                long nanosTaken_PreUserLambda = System.nanoTime() - nanos_Received;
                                 stageCommonContext[0] = new StageCommonContextImpl<>(
                                         processContextCasted,
                                         currentStage,
-                                        startedNanos, startedInstant,
+                                        nanos_Received, instant_Received,
                                         endpointEnteredTimestamp, sameHeightOutgoingTimestamp,
-                                        matsTrace, incomingDto, currentSto,
-                                        nanosTaken_DeconstructMessage,
-                                        matsTraceBytes.length,
-                                        matsTraceDeserialized.getNanosDecompression(),
-                                        matsTraceDeserialized.getSizeDecompressed(),
-                                        matsTraceDeserialized.getNanosDeserialization(),
-                                        nanosTaken_incomingMessageAndStateDeserializationNanos,
+                                        data.matsTrace, incomingDto, currentSto,
+                                        data.nanosTaken_DeconstructMessage,
+                                        data.deserializedMatsTrace.getSizeIncoming(),
+                                        data.deserializedMatsTrace.getNanosDecompression(),
+                                        data.deserializedMatsTrace.getSizeDecompressed(),
+                                        data.deserializedMatsTrace.getNanosDeserialization(),
+                                        data.nanosTaken_incomingMessageAndStateDeserializationNanos,
                                         nanosTaken_PreUserLambda);
 
                                 // Fetch relevant interceptors
                                 interceptorsForStage[0] = getFactory().getInterceptorsForStage(stageCommonContext[0]);
 
                                 // === Invoke any interceptors, stage "Received"
-                                invokeStageReceivedInterceptors(interceptorsForStage[0], stageCommonContext[0],
-                                        processContextCasted);
+                                invokeStageReceivedInterceptors(interceptorsForStage[0], stageCommonContext[0]);
 
                                 // === Invoke any interceptors, stage "Intercept" - these will wrap the UserLambda.
                                 ProcessLambda<Object, Object, Object> currentLambda = invokeWrapUserLambdaInterceptors(
@@ -678,7 +538,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                              * that the typical situation is that there is just one traceId (incoming + request or
                              * reply, which have the same traceId), as stage-initiations are a more seldom situation.
                              */
-                            concatAllTraceIds(matsTrace, messagesToSend);
+                            concatAllTraceIds(data.matsTrace.getTraceId(), messagesToSend);
 
                             // :: Send any outgoing Mats messages (replies, requests, new messages etc..)
                             // ?: Any messages produced?
@@ -718,6 +578,19 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                     // ===== CATCH: HANDLE THE DIFFERENT ERROR SITUATIONS =====
 
+                    catch (JmsMessageReadMatsJmsException e) {
+                        // Special case of JmsMatsJmsException indicating that reading from JMS Message failed.
+                        preprocessOrDeserializeError = true;
+                        // Throw on (the original exception) to crash the JMS Session
+                        throw e;
+                    }
+                    catch (MessageProblemRefuseMessageException e) {
+                        // Special case of MatsRefuseMessageException indicating that there are issues with the JMS
+                        // message - handled by tx mgr, attempted insta-rollback (refuse).
+                        preprocessOrDeserializeError = true;
+                        // .. This is handled by transaction manager (rollback), so we should just continue.
+                        continue;
+                    }
                     catch (JmsMatsMessageSendException e) {
                         /*
                          * This is the special situation which is the "VERY BAD!" scenario, i.e. DB was committed, but
@@ -756,7 +629,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                         // Just record this for interceptor - but take the cause, since that is the actual exception.
                         throwableResult = e.getCause();
                         throwableProcessResult = ProcessResult.USER_EXCEPTION;
-                        // .. These are handled by transaction manager (rollback), so we should just continue.
+                        // .. This is handled by transaction manager (rollback), so we should just continue.
                         continue;
                     }
                     // Handle most other Throwables that may come out, except Errors which are not AssertionError.
@@ -775,7 +648,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                         getFactory().clearCurrentMatsFactoryThreadLocal_ExistingMatsInitiate();
                         getFactory().clearCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing();
 
-                        if (throwableProcessResult == ProcessResult.USER_EXCEPTION) {
+                        if (preprocessOrDeserializeError) {
+                            log.info(LOG_PREFIX + "Got a preprocess (deconstruct) or deserialize error - this is either"
+                                    + " handled by the Mats TransactionManager, or it will \"crash\" the JMS Session"
+                                    + " and recreate the connectivity - look at log message above.");
+                        }
+                        else if (throwableProcessResult == ProcessResult.USER_EXCEPTION) {
                             log.info(LOG_PREFIX + "Got [" + throwableResult.getClass().getName()
                                     + "] inside transactional message processing, which most probably originated from"
                                     + " user code. The situation shall have been handled by the MATS TransactionManager"
@@ -793,39 +671,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     + " hitch.");
                         }
 
-                        long nanosTaken_TotalStartReceiveToFinished = System.nanoTime() - nanosAtStart_Received;
+                        long nanosTaken_TotalStartReceiveToFinished = System.nanoTime() - nanos_Received;
 
-                        // :: INVOKE "Finished" interceptors, either preprocess/deserialization error, or complete.
+                        // === Invoke any interceptors, stage "Completed"
 
-                        // ?: Was there a preprocess/deserialization error?
-                        if (stagePreprocessAndDeserializeError[0] != null) {
-                            // -> Yes, so then the rest of the processing never happened.
-
-                            // === Invoke any interceptors, stage "stagePreprocessAndDeserializeError"
-
-                            StagePreprocessAndDeserializeErrorContextImpl context = new StagePreprocessAndDeserializeErrorContextImpl(
-                                    _jmsMatsStage, startedNanos, startedInstant, stagePreprocessAndDeserializeError[0],
-                                    throwableResult);
-
-                            // We will not have made the interceptors list at this point (it is before processing
-                            // happened), so make it now - using the original MatsStage.
-                            List<MatsStageInterceptor> interceptorsForStage_local = getFactory()
-                                    .getInterceptorsForStage(context);
-
-                            for (MatsStageInterceptor matsStageInterceptor : interceptorsForStage_local) {
-                                try {
-                                    matsStageInterceptor.stagePreprocessAndDeserializeError(context);
-                                }
-                                catch (Throwable t) {
-                                    log.error(LOG_PREFIX + "StageInterceptor raised exception on"
-                                            + " 'stagePreprocessAndDeserializeError(..)', ignored.", t);
-                                }
-                            }
-                        }
-                        else {
+                        // ?: Was there a preprocess/deserialization error? (In which case no "completed")
+                        if (!preprocessOrDeserializeError) {
                             // -> No, not reprocess/deserialization error. Normal processing.
-
-                            // === Invoke any interceptors, stage "Completed"
 
                             // ?: Assert that we've come to the actual place in the code where we're running the user
                             // lambda
@@ -840,6 +692,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             }
                             else {
                                 // -> We have expected pieces in place
+
+                                // ::: "Calculate" the ProcessingResult based on current throwable/message situation
 
                                 // :: Find any "result" message (REPLY, NEXT, GOTO)
                                 // NOTE! This cannot be NEXT_DIRECT, as that would already have been handled in
@@ -859,9 +713,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         .filter(m -> m.getDispatchType() == DispatchType.STAGE_INIT)
                                         .collect(Collectors.toList());
 
-                                // :: "Calculate" the ProcessingResult based on current throwable/message situation
                                 ProcessResult processResult;
-                                // Throwable "overrides" any messages
+                                // Throwable "overrides" any messages (they haven't been sent)
                                 // ?: Did we have a throwableProcessingResult?
                                 if (throwableProcessResult != null) {
                                     // -> Yes, and then this is it.
@@ -1012,10 +865,248 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         _jmsMatsStage.removeStageProcessorFromList(this);
     }
 
-    private void invokeStageReceivedInterceptors(List<MatsStageInterceptor> interceptorsForStage,
-            StageCommonContextImpl<Z> stageCommonContext, ProcessContext<Object> processContextCasted) {
-        StageReceivedContextImpl initiateStartedContext = new StageReceivedContextImpl(
-                stageCommonContext, processContextCasted);
+    private static class PreprocessAndDeserializeData<S, Z> {
+        final MatsTrace<Z> matsTrace;
+        final String jmsMessageId;
+        final S sto;
+        final Object dto;
+        final LinkedHashMap<String, byte[]> incomingBinaries;
+        final LinkedHashMap<String, String> incomingStrings;
+        final long nanosTaken_DeconstructMessage;
+        final DeserializedMatsTrace<Z> deserializedMatsTrace;
+        final long nanosTaken_incomingMessageAndStateDeserializationNanos;
+
+        public PreprocessAndDeserializeData(MatsTrace<Z> matsTrace, String jmsMessageId, S sto, Object dto,
+                LinkedHashMap<String, byte[]> incomingBinaries,
+                LinkedHashMap<String, String> incomingStrings, long nanosTaken_DeconstructMessage,
+                DeserializedMatsTrace<Z> deserializedMatsTrace,
+                long nanosTaken_incomingMessageAndStateDeserializationNanos) {
+            this.matsTrace = matsTrace;
+            this.jmsMessageId = jmsMessageId;
+            this.sto = sto;
+            this.dto = dto;
+            this.incomingBinaries = incomingBinaries;
+            this.incomingStrings = incomingStrings;
+            this.nanosTaken_DeconstructMessage = nanosTaken_DeconstructMessage;
+            this.deserializedMatsTrace = deserializedMatsTrace;
+            this.nanosTaken_incomingMessageAndStateDeserializationNanos = nanosTaken_incomingMessageAndStateDeserializationNanos;
+        }
+    }
+
+    private static class MessageProblemRefuseMessageException extends MatsRefuseMessageException {
+        public MessageProblemRefuseMessageException(String message) {
+            super(message);
+        }
+
+        public MessageProblemRefuseMessageException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    private static class JmsMessageReadMatsJmsException extends JmsMatsJmsException {
+        public JmsMessageReadMatsJmsException(String msg, JMSException cause) {
+            super(msg, cause);
+        }
+    }
+
+    private static <R, S, Z> PreprocessAndDeserializeData<S, Z> preprocessAndDeserializeData(
+            JmsMatsFactory<Z> matsFactory, JmsMatsStage<R, S, ?, Z> jmsMatsStage,
+            long startedNanos, Instant startedInstant,
+            Message message)
+            throws MessageProblemRefuseMessageException, JmsMessageReadMatsJmsException {
+        long nanosAtStart_DeconstructMessage = System.nanoTime();
+        // Assert that this is indeed a JMS MapMessage.
+        if (!(message instanceof MapMessage)) {
+            String reason = "Got some JMS Message that is not instanceof JMS MapMessage"
+                    + " - cannot be a MATS message! Refusing this message!";
+            MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason);
+            invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
+                    startedInstant, StagePreprocessAndDeserializeError.WRONG_MESSAGE_TYPE, up, reason, message);
+            throw up;
+        }
+
+        // ----- This is a MapMessage
+        MapMessage mapMessage = (MapMessage) message;
+
+        // :: Fetch Mats-specific message data from the JMS Message.
+        // ==========================================================
+
+        String matsTraceKey = matsFactory.getFactoryConfig().getMatsTraceKey();
+        String matsTraceMetaKey = matsTraceKey + MatsSerializer.META_KEY_POSTFIX;
+
+        byte[] matsTraceBytes;
+        String matsTraceMeta;
+        String jmsMessageId;
+        try {
+            matsTraceBytes = mapMessage.getBytes(matsTraceKey);
+            matsTraceMeta = mapMessage.getString(matsTraceMetaKey);
+            jmsMessageId = mapMessage.getJMSMessageID();
+            // Setting this in the JMS Mats implementation instead of MatsMetricsLoggingInterceptor,
+            // so that if things fail before getting to the actual Mats part, we'll have it in
+            // the log lines.
+            MDC.put(MDC_MATS_IN_MESSAGE_SYSTEM_ID, jmsMessageId);
+
+            // Fetching the TraceId early from the JMS Message for MDC, so that can follow in logs.
+            String jmsTraceId = mapMessage.getStringProperty(JMS_MSG_PROP_TRACE_ID);
+            MDC.put(MDC_TRACE_ID, jmsTraceId);
+
+            // :: Assert that we got some values
+            if ((matsTraceBytes == null) || (matsTraceMeta == null)) {
+                String reason = "Got some JMS Message that is missing MatsTrace byte array"
+                        + " or MatsTraceMeta String on JMS MapMessage key '" + matsTraceKey +
+                        "' - cannot be a MATS message! Refusing this message!";
+                MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason);
+                invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
+                        startedInstant, StagePreprocessAndDeserializeError.MISSING_CONTENTS, up, reason, message);
+                throw up;
+            }
+        }
+        catch (JMSException e) {
+            String reason = "Got JMSException when getting the MatsTrace from the JMS MapMessage by using"
+                    + " mapMessage.get[Bytes|String](..). Pretty crazy.";
+            JmsMessageReadMatsJmsException up = new JmsMessageReadMatsJmsException(reason, e);
+            invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
+                    startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, message);
+            throw up;
+        }
+
+        // :: Getting the 'sideloads'; Byte-arrays and Strings from the MapMessage.
+        LinkedHashMap<String, byte[]> incomingBinaries = new LinkedHashMap<>();
+        LinkedHashMap<String, String> incomingStrings = new LinkedHashMap<>();
+        try {
+            @SuppressWarnings("unchecked")
+            Enumeration<String> mapNames = (Enumeration<String>) mapMessage.getMapNames();
+            while (mapNames.hasMoreElements()) {
+                String name = mapNames.nextElement();
+                // ?: Is this the MatsTrace itself?
+                if (matsTraceKey.equals(name) || matsTraceMetaKey.equals(name)) {
+                    // Yes, this is the MatsTrace: Do not expose this as binary or string sideload.
+                    continue;
+                }
+                Object object = mapMessage.getObject(name);
+                if (object instanceof byte[]) {
+                    incomingBinaries.put(name, (byte[]) object);
+                }
+                else if (object instanceof String) {
+                    incomingStrings.put(name, (String) object);
+                }
+                else {
+                    log.warn("Got some object in the MapMessage to ["
+                            + jmsMatsStage.getStageId()
+                            + "] which is neither byte[] nor String - which should not"
+                            + " happen - Ignoring.");
+                }
+            }
+        }
+        catch (JMSException e) {
+            String reason = "Got JMSException when getting 'sideloads' from the JMS MapMessage by using"
+                    + " mapMessage.get[Bytes|String](..). Pretty crazy.";
+            JmsMessageReadMatsJmsException up = new JmsMessageReadMatsJmsException(reason, e);
+            invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
+                    startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, message);
+            throw up;
+        }
+
+        long nanosTaken_DeconstructMessage = System.nanoTime() - nanosAtStart_DeconstructMessage;
+
+        // :: Deserialize the MatsTrace and DTO/STO from the message data.
+        // ================================================================
+
+        MatsSerializer<Z> matsSerializer = matsFactory.getMatsSerializer();
+        DeserializedMatsTrace<Z> matsTraceDeserialized;
+        try {
+            matsTraceDeserialized = matsSerializer.deserializeMatsTrace(matsTraceBytes, matsTraceMeta);
+        }
+        catch (Throwable t) {
+            String reason = "Could not deserialize the MatsTrace from the JMS Message.";
+            MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason, t);
+            invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
+                    startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, message);
+            throw up;
+        }
+        MatsTrace<Z> matsTrace = matsTraceDeserialized.getMatsTrace();
+
+        // :: Overwriting the TraceId MDC, now from MatsTrace (in case missing from JMS Message)
+        MDC.put(MDC_TRACE_ID, matsTrace.getTraceId());
+        MDC.put(MDC_MATS_CALL_NUMBER, Integer.toString(matsTrace.getCallNumber()));
+
+        // :: Current Call
+        Call<Z> currentCall = matsTrace.getCurrentCall();
+        // Assert that this is indeed a JMS Message meant for this Stage
+        if (!jmsMatsStage.getStageId().equals(currentCall.getTo().getId())) {
+            String reason = "The incoming MATS message is not to this Stage! this:["
+                    + jmsMatsStage.getStageId() + "], msg:[" + currentCall.getTo() + "]. Refusing this message!";
+            MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason);
+            invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
+                    startedInstant, StagePreprocessAndDeserializeError.WRONG_STAGE, up, reason, message);
+            throw up;
+        }
+
+        long nanosAtStart_incomingMessageAndStateDeserializationNanos = System.nanoTime();
+
+        // :: Current State: If null, make an empty object instead, unless Void -> null.
+        S currentSto;
+        try {
+            currentSto = JmsMatsStatics.handleIncomingState(matsSerializer, jmsMatsStage.getStateClass(),
+                    matsTrace.getCurrentState().orElse(null));
+        }
+        catch (Throwable t) {
+            String reason = "Could not deserialize the current state (STO) from the MatsTrace from the JMS Message.";
+            MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason, t);
+            invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
+                    startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, message);
+            throw up;
+        }
+
+        // :: Incoming Message DTO
+        Object incomingDto;
+        try {
+            incomingDto = JmsMatsStatics.handleIncomingMessageMatsObject(matsSerializer,
+                    jmsMatsStage.getMessageClass(), currentCall.getData());
+        }
+        catch (Throwable t) {
+            String reason = "Could not deserialize the current state (STO) from the MatsTrace from the JMS Message.";
+            MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason, t);
+            invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
+                    startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, message);
+            throw up;
+        }
+
+        long nanosTaken_incomingMessageAndStateDeserializationNanos = System.nanoTime()
+                - nanosAtStart_incomingMessageAndStateDeserializationNanos;
+
+        return new PreprocessAndDeserializeData<>(matsTrace, jmsMessageId, currentSto, incomingDto, incomingBinaries,
+                incomingStrings, nanosTaken_DeconstructMessage, matsTraceDeserialized,
+                nanosTaken_incomingMessageAndStateDeserializationNanos);
+    }
+
+    private static <R, S, Z> void invokeStagePreprocessAndDeserializationErrorInterceptors(
+            JmsMatsFactory<Z> matsFactory, JmsMatsStage<R, S, ?, Z> jmsMatsStage,
+            long startedNanos, Instant startedInstant, StagePreprocessAndDeserializeError error,
+            Throwable throwable, String reason, Message message) {
+
+        log.error(LOG_PREFIX + reason + "\n" + message);
+
+        StagePreprocessAndDeserializeErrorContextImpl context = new StagePreprocessAndDeserializeErrorContextImpl(
+                jmsMatsStage, startedNanos, startedInstant, error, throwable);
+
+        // Fetch relevant interceptors.
+        List<MatsStageInterceptor> interceptorsForStage_local = matsFactory.getInterceptorsForStage(context);
+
+        for (MatsStageInterceptor matsStageInterceptor : interceptorsForStage_local) {
+            try {
+                matsStageInterceptor.stagePreprocessAndDeserializeError(context);
+            }
+            catch (Throwable t) {
+                log.error(LOG_PREFIX + "StageInterceptor raised exception on"
+                        + " 'stagePreprocessAndDeserializeError(..)', ignored.", t);
+            }
+        }
+    }
+
+    private static void invokeStageReceivedInterceptors(List<MatsStageInterceptor> interceptorsForStage,
+            StageCommonContext stageCommonContext) {
+        StageReceivedContextImpl initiateStartedContext = new StageReceivedContextImpl(stageCommonContext);
 
         for (MatsStageInterceptor matsStageInterceptor : interceptorsForStage) {
             try {
@@ -1028,7 +1119,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
     }
 
-    private ProcessLambda<Object, Object, Object> invokeWrapUserLambdaInterceptors(
+    private static <R, S, Z> ProcessLambda<Object, Object, Object> invokeWrapUserLambdaInterceptors(
             JmsMatsStage<R, S, ?, Z> currentStage,
             List<MatsStageInterceptor> interceptorsForStage,
             StageCommonContextImpl<Z> stageCommonContext) {
@@ -1068,7 +1159,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         return currentLambda;
     }
 
-    private void invokeStageMessageInterceptors(List<MatsStageInterceptor> interceptorsForStage,
+    private static <Z> void invokeStageMessageInterceptors(List<MatsStageInterceptor> interceptorsForStage,
             StageCommonContextImpl<Z> stageCommonContext, List<JmsMatsMessage<Z>> messagesToSend) {
         // :: Find the Message interceptors. Goddamn why is there no stream.filter[InstanceOf](Clazz.class)?
         List<MatsStageInterceptOutgoingMessages> messageInterceptors = interceptorsForStage.stream()
@@ -1106,7 +1197,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
     }
 
-    private void concatAllTraceIds(MatsTrace<Z> matsTrace, List<JmsMatsMessage<Z>> messagesToSend) {
+    private static <Z> void concatAllTraceIds(String incomingTraceId, List<JmsMatsMessage<Z>> messagesToSend) {
         // ?: Are there any outgoing messages? (There are none for e.g. Terminator)
         if (!messagesToSend.isEmpty()) {
             // -> Yes, there are outgoing messages.
@@ -1115,17 +1206,16 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             if (messagesToSend.size() == 1) {
                 // ?: Is the traceId different from the one we are processing?
                 // (This can happen if it is a Terminator, but which send a new message)
-                if (!messagesToSend.get(0).getMatsTrace().getTraceId().equals(matsTrace
-                        .getTraceId())) {
+                if (!messagesToSend.get(0).getMatsTrace().getTraceId().equals(incomingTraceId)) {
                     // -> Yes, different, so create a new MDC traceId value containing both.
-                    String bothTraceIds = matsTrace.getTraceId()
+                    String bothTraceIds = incomingTraceId
                             + ';' + messagesToSend.get(0).getMatsTrace().getTraceId();
                     MDC.put(MDC_TRACE_ID, bothTraceIds);
                 }
                 else {
                     // -> They are the same. Should already be correct on MDC, but set anyway for good measure.
                     // (an interceptor could potentially have overwritten it)
-                    MDC.put(MDC_TRACE_ID, matsTrace.getTraceId());
+                    MDC.put(MDC_TRACE_ID, incomingTraceId);
                 }
             }
             else {
@@ -1133,9 +1223,9 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 // Using TreeSet to both: 1) de-duplicate, 2) get sort.
                 Set<String> allTraceIds = new TreeSet<>();
                 // Add the TraceId for the message we are processing.
-                allTraceIds.add(matsTrace.getTraceId());
+                allTraceIds.add(incomingTraceId);
                 // :: Add TraceIds for all the outgoing messages
-                for (JmsMatsMessage<Z> msg : messagesToSend) {
+                for (JmsMatsMessage<?> msg : messagesToSend) {
                     allTraceIds.add(msg.getMatsTrace().getTraceId());
                 }
                 String collectedTraceIds;
@@ -1170,7 +1260,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         MDC.put(MDC_MATS_APP_VERSION, getFactory().getFactoryConfig().getAppVersion());
     }
 
-    private void chillWait(long millis) {
+    private static void chillWait(long millis) {
         try {
             Thread.sleep(millis);
         }
@@ -1179,7 +1269,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
     }
 
-    private void chillWait() {
+    private static void chillWait() {
         // About 30 seconds..
         // TODO: Make exponential backoff.
         // (This will kick inn if you /do not/ use a "failover:" protocol, and the broker goes down.)
@@ -1582,8 +1672,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
      * Implementation of {@link StageReceivedContext}.
      */
     private static class StageReceivedContextImpl extends StageBaseContextImpl implements StageReceivedContext {
-        public StageReceivedContextImpl(StageCommonContext stageCommonContext,
-                ProcessContext<Object> processContext) {
+        public StageReceivedContextImpl(StageCommonContext stageCommonContext) {
             super(stageCommonContext);
         }
 

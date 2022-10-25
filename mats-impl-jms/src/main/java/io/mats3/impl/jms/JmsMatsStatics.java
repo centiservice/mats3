@@ -219,7 +219,7 @@ public interface JmsMatsStatics {
         }
     }
 
-    default <S, Z> S handleIncomingState(MatsSerializer<Z> matsSerializer, Class<S> stateClass,
+    static <S, Z> S handleIncomingState(MatsSerializer<Z> matsSerializer, Class<S> stateClass,
             StackState<Z> stackState) {
         // ?: Is the desired class Void.TYPE/void.class (or Void.class for legacy reasons).
         if ((stateClass == Void.TYPE) || (stateClass == Void.class)) {
@@ -244,7 +244,7 @@ public interface JmsMatsStatics {
         return matsSerializer.deserializeObject(stackState.getState(), stateClass);
     }
 
-    default <I, Z> I handleIncomingMessageMatsObject(MatsSerializer<Z> matsSerializer, Class<I> incomingMessageClass,
+    static <I, Z> I handleIncomingMessageMatsObject(MatsSerializer<Z> matsSerializer, Class<I> incomingMessageClass,
             Z data) {
         // ?: Is the desired class Void.TYPE/void.class (or Void.class for legacy reasons).
         if (incomingMessageClass == Void.TYPE || incomingMessageClass == Void.class) {

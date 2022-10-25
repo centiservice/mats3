@@ -525,11 +525,13 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         MatsTrace<Z> matsTrace = deserializedMatsTrace.getMatsTrace();
 
         // :: Current State: If null, make an empty object instead, unless Void, which is null.
-        S currentSto = handleIncomingState(matsSerializer, stateClass, matsTrace.getCurrentState().orElse(null));
+        S currentSto = JmsMatsStatics.handleIncomingState(matsSerializer, stateClass,
+                matsTrace.getCurrentState().orElse(null));
 
         // :: Current Call, incoming Message DTO
         Call<Z> currentCall = matsTrace.getCurrentCall();
-        I incomingDto = handleIncomingMessageMatsObject(matsSerializer, incomingClass, currentCall.getData());
+        I incomingDto = JmsMatsStatics.handleIncomingMessageMatsObject(matsSerializer, incomingClass,
+                currentCall.getData());
 
         double millisDeserializing = (System.nanoTime() - nanosStart) / 1_000_000d;
 
