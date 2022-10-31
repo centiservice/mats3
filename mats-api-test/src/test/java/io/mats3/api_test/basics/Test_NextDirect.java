@@ -60,6 +60,14 @@ public class Test_NextDirect {
         ep.lastStage(DataTO.class, (ctx, state, msg) -> {
             Assert.assertEquals(12345, state.number1);
             Assert.assertEquals(Math.E, state.number2, 0d);
+
+            // :: StageId should reflect "stage1", and obviously should EndpointId still be same.
+            Assert.assertEquals(ENDPOINT, ctx.getEndpointId());
+            Assert.assertEquals(ENDPOINT+".stage1", ctx.getStageId());
+
+            // :: From stage should be stage0 (i.e. endpoint itself)
+            Assert.assertEquals(ENDPOINT, ctx.getFromStageId());
+
             return msg;
         });
 
@@ -117,7 +125,7 @@ public class Test_NextDirect {
             Assert.assertEquals(1d, state.number2, 0d);
             state.number1 = 7654;
             state.number2 = 2d;
-            log.info("Invoking context.nextDirect() from Stage2");
+            log.info("Invoking context.nextDirect() from Stage3");
             ctx.nextDirect(new DataTO(msg.number * 7, msg.string + "_NextDirectFromStage3"));
         });
         ep.stage(DataTO.class, (ctx, state, msg) -> {

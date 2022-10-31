@@ -126,6 +126,11 @@ public interface MatsOutgoingMessage {
         /**
          * Only for {@link DispatchType#STAGE}.
          */
+        NEXT_DIRECT,
+
+        /**
+         * Only for {@link DispatchType#STAGE}.
+         */
         GOTO
     }
 

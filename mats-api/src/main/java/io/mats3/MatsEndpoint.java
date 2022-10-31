@@ -811,25 +811,53 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         MessageReference next(Object nextDto);
 
         /**
-         * Directly invokes the next stage of a multi-stage endpoint, within the same transactional demarcation that
-         * this stage is in, without incurring the overhead of serialization and sending a message on the message queue.
-         * This is a limited and specialized, but much faster variant of {@link #next(Object)}.
+         * A "direct" variant of {@link #next(Object)} which directly executes the next stage of a multi-stage endpoint.
+         * This is done within the same transactional demarcation that this stage is in, without incurring the overhead
+         * of serialization and sending a message on the message queue. This is a limited and specialized, but much
+         * faster, variant of {@link #next(Object)}.
+         * <p/>
+         * The functionality is meant for doing conditional calls, e.g.:
+         *
+         * <pre>
+         * if (something) {
+         *     request another endpoint
+         * }
+         * else {
+         *     go directly to next stage
+         * }
+         * </pre>
+         *
+         * This can be of utility if an endpoint in some situations requires more information from a collaborating
+         * endpoint, while in other situations it does not require that information. Another scenario this helps with is
+         * lazy cache population (typically for a short-lived cache), which one could argue is a specialized version of
+         * the former.
          * <p/>
          * Implementation details which are unspecified and whose effects or non-effects cannot be relied on:
          * <ul>
          * <li>Which thread runs the next lambda: You may not depend on the next stage's lambda being invoked on the
-         * same thread that runs this stage. The invocation may be passed over to another thread for execution, as if
-         * utilizing a service-internal task executor. Therefore, you cannot expect any ThreadLocals set in this lambda
-         * to to be present in the next.</li>
+         * same thread that runs this stage. The invocation may be passed over to another thread for execution, e.g. the
+         * thread pool of the next stage, or by using an executor. Therefore, you cannot expect any ThreadLocals set in
+         * this lambda to to be present in the next.</li>
          * <li>How the next lambda is invoked: You cannot expect this to behave like a method call to the next lambda,
-         * nor can you expect the lambda to be executed only when this lambda has exited. Therefore, invocation of this
-         * method should be the very last instruction in the current lambda.</li>
+         * nor can you expect the lambda to be executed only when the current lambda has exited. Therefore, invocation
+         * of this method should be the very last operation in the current lambda.</li>
          * </ul>
          * <p/>
-         * This method is meant for doing conditional calls, and a specific scenario is lazy cache population.
-         * <p/>
-         * It is legal to do "series" of nextDirects, i.e. check whether to call X in stage 0, no thus nextDirect, then
-         * check whether to call Y in stage 1, no thus nextDirect, then actually execute something in stage 2.
+         * Some notes:
+         * <ul>
+         * <li>There is no new <i>message</i> created for a nextDirect, so e.g. messageIds when in the next stage will
+         * refer to the previous proper incoming message.</li>
+         * <li>The broker won't know about a nextDirect, so you will get less counts of messages on the next stage's
+         * queue.</li>
+         * <li>If employing MatsTrace (which the JMS impl do), it will contain no record of the nextDirect having been
+         * performed. For example, if the message crops up on a DLQ, any nextDirects in the flow will not be
+         * visible.</li>
+         * <li>There are implications for the Interceptors, some of which might be subtle. E.g. any preprocess and
+         * deserialization timings, and message sizes, will be 0.</li>
+         * <li>It is legal to do "series" of nextDirects, i.e. that the resulting flow has multiple nextDirects right
+         * after each other.</li>
+         * <li></li>
+         * </ul>
          */
         void nextDirect(Object nextDirectDto);
 

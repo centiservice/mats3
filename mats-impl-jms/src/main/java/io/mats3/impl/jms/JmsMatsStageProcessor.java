@@ -45,7 +45,6 @@ import io.mats3.api.intercept.MatsStageInterceptor.MatsStageInterceptUserLambda;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCommonContext;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.ProcessResult;
-import io.mats3.api.intercept.MatsStageInterceptor.StageInterceptContext;
 import io.mats3.api.intercept.MatsStageInterceptor.StageInterceptOutgoingMessageContext;
 import io.mats3.api.intercept.MatsStageInterceptor.StageInterceptUserLambdaContext;
 import io.mats3.api.intercept.MatsStageInterceptor.StagePreprocessAndDeserializeErrorContext;
@@ -353,8 +352,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     finally {
                         _processorInReceive = false;
                     }
-                    long nanos_Received = System.nanoTime();
-                    Instant instant_Received = Instant.now();
+                    long[] nanos_Received = { System.nanoTime() };
+                    Instant[] instant_Received = { Instant.now() };
 
                     // Need to check whether the JMS Message gotten is null, as that signals that the
                     // Consumer, Session or Connection was closed from another thread.
@@ -408,10 +407,10 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                         _transactionContext.doTransaction(internalExecutionContext, () -> {
 
                             PreprocessAndDeserializeData<S, Z> data = preprocessAndDeserializeData(getFactory(),
-                                    _jmsMatsStage, nanos_Received, instant_Received, message);
+                                    _jmsMatsStage, nanos_Received[0], instant_Received[0], message);
 
                             // Update the MatsTrace with stage-incoming timestamp - handles the "endpoint entered" logic
-                            data.matsTrace.setStageEnteredTimestamp(instant_Received.toEpochMilli());
+                            data.matsTrace.setStageEnteredTimestamp(instant_Received[0].toEpochMilli());
                             // Fetch endpoint entered (Not same as stage entered - only initial stage is "ep entered")
                             long endpointEnteredTimestamp = data.matsTrace.getSameHeightEndpointEnteredTimestamp();
 
@@ -421,10 +420,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                             // Initially, The current stage is obviously /this/ stage on the first pass.
                             JmsMatsStage<R, S, ?, Z> currentStage = _jmsMatsStage;
-                            S currentSto = data.sto;
+                            long sameHeightOutgoingTimestamp = data.matsTrace.getSameHeightOutgoingTimestamp();
+                            S incomingAndOutgoingSto = data.sto;
                             Object incomingDto = data.dto;
 
-                            boolean nextDirectInvoked;
+                            boolean nextDirectInvoked = false;
+                            JmsMatsStage<R, S, ?, Z> previousStage = null;
                             do {
                                 // :: Nested initiation handling
                                 // For initiation within this transaction demarcation (ProcessContext or
@@ -442,7 +443,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 // ==========================================================
 
                                 // .. create the ProcessContext
-                                processContext[0] = new JmsMatsProcessContext<>(
+                                JmsMatsProcessContext<R, S, Z> processContext_l = JmsMatsProcessContext.create(
                                         getFactory(),
                                         currentStage.getParentEndpoint().getEndpointId(),
                                         currentStage.getStageId(),
@@ -450,10 +451,17 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         currentStage.getNextStageId(),
                                         currentStage.getStageConfig().getOrigin(),
                                         data.matsTrace,
-                                        currentSto,
+                                        incomingAndOutgoingSto,
                                         data.incomingBinaries, data.incomingStrings,
                                         messagesToSend, internalExecutionContext,
                                         doAfterCommitRunnableHolder);
+                                if (nextDirectInvoked) {
+                                    processContext_l.overrideForNextDirect(getFactory().getFactoryConfig().getAppName(),
+                                            getFactory().getFactoryConfig().getAppVersion(),
+                                            previousStage.getStageId(), instant_Received[0]);
+                                }
+
+                                processContext[0] = processContext_l;
 
                                 // .. stick the ProcessContext into the ThreadLocal scope
                                 JmsMatsContextLocalCallback.bindResource(ProcessContext.class, processContext[0]);
@@ -462,23 +470,24 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 @SuppressWarnings("unchecked")
                                 ProcessContext<Object> processContextCasted = (ProcessContext<Object>) processContext[0];
 
-                                long sameHeightOutgoingTimestamp = data.matsTrace.getSameHeightOutgoingTimestamp();
-
                                 // Create the common part of the interceptor contexts
-                                long nanosTaken_PreUserLambda = System.nanoTime() - nanos_Received;
-                                stageCommonContext[0] = new StageCommonContextImpl<>(
-                                        processContextCasted,
-                                        currentStage,
-                                        nanos_Received, instant_Received,
-                                        endpointEnteredTimestamp, sameHeightOutgoingTimestamp,
-                                        data.matsTrace, incomingDto, currentSto,
-                                        data.nanosTaken_DeconstructMessage,
-                                        data.deserializedMatsTrace.getSizeIncoming(),
-                                        data.deserializedMatsTrace.getNanosDecompression(),
-                                        data.deserializedMatsTrace.getSizeDecompressed(),
-                                        data.deserializedMatsTrace.getNanosDeserialization(),
-                                        data.nanosTaken_incomingMessageAndStateDeserializationNanos,
-                                        nanosTaken_PreUserLambda);
+                                long nanosTaken_PreUserLambda = System.nanoTime() - nanos_Received[0];
+                                stageCommonContext[0] = nextDirectInvoked
+                                        ? StageCommonContextImpl.forNextDirect(processContextCasted,
+                                                currentStage, nanos_Received[0], instant_Received[0],
+                                                endpointEnteredTimestamp, sameHeightOutgoingTimestamp,
+                                                data.matsTrace, incomingDto, incomingAndOutgoingSto)
+                                        : StageCommonContextImpl.ordinary(processContextCasted,
+                                                currentStage, nanos_Received[0], instant_Received[0],
+                                                endpointEnteredTimestamp, sameHeightOutgoingTimestamp,
+                                                data.matsTrace, incomingDto, incomingAndOutgoingSto,
+                                                data.nanosTaken_DeconstructMessage,
+                                                data.deserializedMatsTrace.getSizeIncoming(),
+                                                data.deserializedMatsTrace.getNanosDecompression(),
+                                                data.deserializedMatsTrace.getSizeDecompressed(),
+                                                data.deserializedMatsTrace.getNanosDeserialization(),
+                                                data.nanosTaken_incomingMessageAndStateDeserializationNanos,
+                                                nanosTaken_PreUserLambda);
 
                                 // Fetch relevant interceptors
                                 interceptorsForStage[0] = getFactory().getInterceptorsForStage(stageCommonContext[0]);
@@ -497,7 +506,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 // :: == ACTUALLY Invoke the lambda. The current lambda is the one we should invoke.
                                 long nanosAtStart_UserLambda = System.nanoTime();
                                 try {
-                                    currentLambda.process(processContextCasted, currentSto, incomingDto);
+                                    currentLambda.process(processContextCasted, incomingAndOutgoingSto, incomingDto);
                                 }
                                 finally {
                                     nanosTaken_UserLambda[0] = System.nanoTime() - nanosAtStart_UserLambda;
@@ -512,7 +521,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     // TODO: Thread name?
                                     // TODO: Change stats-stuff on StageCommonContext
 
+                                    nanos_Received[0] = System.nanoTime();
+                                    Instant now = Instant.now();
+                                    instant_Received[0] = now;
+                                    sameHeightOutgoingTimestamp = now.toEpochMilli();
+
                                     // Current stage is now the next stage
+                                    previousStage = currentStage;
                                     currentStage = currentStage.getNextStage();
                                     // .. and set the incoming DTO.
                                     incomingDto = processContext[0].getNextDirectDto();
@@ -671,7 +686,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     + " hitch.");
                         }
 
-                        long nanosTaken_TotalStartReceiveToFinished = System.nanoTime() - nanos_Received;
+                        long nanosTaken_TotalStartReceiveToFinished = System.nanoTime() - nanos_Received[0];
 
                         // === Invoke any interceptors, stage "Completed"
 
@@ -1291,37 +1306,6 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     /**
-     * Implementation of {@link StageInterceptContext}.
-     */
-    private static class StageInterceptContextImpl implements StageInterceptContext {
-
-        private final MatsStage<?, ?, ?> _matsStage;
-        private final long _startedNanos;
-        private final Instant _startedInstant;
-
-        public StageInterceptContextImpl(MatsStage<?, ?, ?> matsStage, long startedNanos, Instant startedInstant) {
-            _matsStage = matsStage;
-            _startedNanos = startedNanos;
-            _startedInstant = startedInstant;
-        }
-
-        @Override
-        public MatsStage<?, ?, ?> getStage() {
-            return _matsStage;
-        }
-
-        @Override
-        public Instant getStartedInstant() {
-            return _startedInstant;
-        }
-
-        @Override
-        public long getStartedNanoTime() {
-            return _startedNanos;
-        }
-    }
-
-    /**
      * Implementation of {@link StageCommonContext}, used as a container for the common fields for the subsequent
      * interface implementations.
      */
@@ -1346,9 +1330,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         private final long _incomingMessageAndStateDeserializationNanos;
         private final long _preUserLambdaNanos;
 
+        private final boolean _isNextDirect;
+
         private Map<String, Object> _utilityMap;
 
-        public StageCommonContextImpl(ProcessContext<Object> processContext,
+        private StageCommonContextImpl(ProcessContext<Object> processContext,
                 JmsMatsStage<?, ?, ?, Z> stage,
                 long startedNanos, Instant startedInstant, long endpointEnteredTimestampMillis,
                 long precedingSameStackHeightOutgoingTimestamp, MatsTrace<Z> matsTrace, Object incomingMessage,
@@ -1359,7 +1345,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 int incomingEnvelopeUncompressedSize,
                 long incomingEnvelopeDeserializationNanos,
                 long incomingMessageAndStateDeserializationNanos,
-                long preUserLambdaNanos) {
+                long preUserLambdaNanos,
+                boolean isNextDirect) {
             _processContext = processContext;
 
             _stage = stage;
@@ -1379,6 +1366,43 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             _incomingEnvelopeDeserializationNanos = incomingEnvelopeDeserializationNanos;
             _incomingMessageAndStateDeserializationNanos = incomingMessageAndStateDeserializationNanos;
             _preUserLambdaNanos = preUserLambdaNanos;
+
+            _isNextDirect = isNextDirect;
+        }
+
+        static <Z> StageCommonContextImpl<Z> ordinary(ProcessContext<Object> processContext,
+                JmsMatsStage<?, ?, ?, Z> stage,
+                long startedNanos, Instant startedInstant, long endpointEnteredTimestampMillis,
+                long precedingSameStackHeightOutgoingTimestamp, MatsTrace<Z> matsTrace, Object incomingMessage,
+                Object incomingState,
+                long incomingEnvelopeDeconstructNanos,
+                int incomingEnvelopeRawSize,
+                long incomingEnvelopeDecompressionNanos,
+                int incomingEnvelopeUncompressedSize,
+                long incomingEnvelopeDeserializationNanos,
+                long incomingMessageAndStateDeserializationNanos,
+                long preUserLambdaNanos) {
+            return new StageCommonContextImpl<>(processContext, stage,
+                    startedNanos, startedInstant, endpointEnteredTimestampMillis,
+                    precedingSameStackHeightOutgoingTimestamp, matsTrace, incomingMessage,
+                    incomingState, incomingEnvelopeDeconstructNanos, incomingEnvelopeRawSize,
+                    incomingEnvelopeDecompressionNanos, incomingEnvelopeUncompressedSize,
+                    incomingEnvelopeDeserializationNanos, incomingMessageAndStateDeserializationNanos,
+                    preUserLambdaNanos, false);
+        }
+
+        static <Z> StageCommonContextImpl<Z> forNextDirect(ProcessContext<Object> processContext,
+                JmsMatsStage<?, ?, ?, Z> stage,
+                long startedNanos, Instant startedInstant, long endpointEnteredTimestampMillis,
+                long precedingSameStackHeightOutgoingTimestamp, MatsTrace<Z> matsTrace, Object incomingMessage,
+                Object incomingState) {
+            return new StageCommonContextImpl<>(processContext, stage,
+                    startedNanos, startedInstant, endpointEnteredTimestampMillis,
+                    precedingSameStackHeightOutgoingTimestamp, matsTrace, incomingMessage,
+                    incomingState, 0, 0,
+                    0, 0,
+                    0, 0,
+                    0, true);
         }
 
         @Override
@@ -1419,6 +1443,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
         @Override
         public MessageType getIncomingMessageType() {
+            // ?: Is this a NEXT_DIRECT?
+            if (_isNextDirect) {
+                return MessageType.NEXT_DIRECT;
+            }
+            // E-> Not NEXT_DIRECT
+
             CallType callType = _matsTrace.getCurrentCall().getCallType();
             if (callType == CallType.REQUEST) {
                 return MessageType.REQUEST;
@@ -1532,6 +1562,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
         @Override
         public int getMessageSystemTotalWireSize() {
+            // ?: Is this NEXT_DIRECT?
+            if (_isNextDirect) {
+                // -> Yes, NEXT_DIRECT, so message system wire size is 0 (there was none!)
+                return 0;
+            }
+            // E-> Not NEXT_DIRECT, so calculate
             DetachedProcessContext processContext = getProcessContext();
 
             // Calculate extra sizes we know as implementation

@@ -59,7 +59,15 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     private final JmsMatsInternalExecutionContext _jmsMatsInternalExecutionContext;
     private final DoAfterCommitRunnableHolder _doAfterCommitRunnableHolder;
 
-    // Outgoing:
+    // :: Overrides if NEXT_DIRECT:
+
+    private boolean _isNextDirect;
+    private String _nd_fromAppName;
+    private String _nd_fromAppVersion;
+    private String _nd_fromStageId;
+    private Instant _nd_fromTimestamp;
+
+    // :: Outgoing:
 
     // Set when outgoing flow message is created, to catch illegal call flows
     private DebugStackTraceException _requestOrNextSent;
@@ -69,10 +77,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     private final LinkedHashMap<String, byte[]> _outgoingBinaries = new LinkedHashMap<>();
     private final LinkedHashMap<String, String> _outgoingStrings = new LinkedHashMap<>();
 
+    // :: "Return values" if NEXT_DIRECT is invoked.
     private boolean _nextDirectInvoked; // Set 'true' of nextDirect is invoked
     private Object _nextDirectDto; // Value of nextDirect incoming message
 
-    JmsMatsProcessContext(JmsMatsFactory<Z> parentFactory,
+    private JmsMatsProcessContext(JmsMatsFactory<Z> parentFactory,
             String endpointId,
             String stageId,
             String systemMessageId,
@@ -100,6 +109,28 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _doAfterCommitRunnableHolder = doAfterCommitRunnableHolder;
     }
 
+    void overrideForNextDirect(String nd_fromAppName, String nd_fromAppVersion,
+            String nd_fromStageId, Instant nd_fromTimestamp) {
+        _isNextDirect = true;
+        _nd_fromAppName = nd_fromAppName;
+        _nd_fromAppVersion = nd_fromAppVersion;
+        _nd_fromStageId = nd_fromStageId;
+        _nd_fromTimestamp = nd_fromTimestamp;
+    }
+
+    static <R, S, Z> JmsMatsProcessContext<R, S, Z> create(JmsMatsFactory<Z> parentFactory,
+            String endpointId, String stageId, String systemMessageId, String nextStageId, String stageOrigin,
+            MatsTrace<Z> incomingMatsTrace, S incomingAndOutgoingState,
+            LinkedHashMap<String, byte[]> incomingBinaries, LinkedHashMap<String, String> incomingStrings,
+            List<JmsMatsMessage<Z>> out_messagesToSend,
+            JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
+            DoAfterCommitRunnableHolder doAfterCommitRunnableHolder) {
+        return new JmsMatsProcessContext<>(parentFactory, endpointId, stageId, systemMessageId, nextStageId,
+                stageOrigin,
+                incomingMatsTrace, incomingAndOutgoingState, incomingBinaries,
+                incomingStrings, out_messagesToSend, jmsMatsInternalExecutionContext, doAfterCommitRunnableHolder);
+    }
+
     /**
      * Holds any Runnable set by {@link #doAfterCommit(Runnable)}.
      */
@@ -124,6 +155,12 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     @Override
     public String getFromAppName() {
+        // ?: Is this a NEXT_DIRECT?
+        if (_isNextDirect) {
+            // -> Yes, NEXT_DIRECT
+            return _nd_fromAppName;
+        }
+        // E-> No, not NEXT_DIRECT
         // If first call, then there is no CallingAppName on CurrentCall (to save some space), since it would be the
         // same as initializing.
         return _incomingMatsTrace.getCallNumber() == 1
@@ -133,6 +170,12 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     @Override
     public String getFromAppVersion() {
+        // ?: Is this a NEXT_DIRECT?
+        if (_isNextDirect) {
+            // -> Yes, NEXT_DIRECT
+            return _nd_fromAppVersion;
+        }
+        // E-> No, not NEXT_DIRECT
         // If first call, then there is no CallingAppVersion on CurrentCall (to save some space), since it would be the
         // same as initializing.
         return _incomingMatsTrace.getCallNumber() == 1
@@ -142,11 +185,23 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     @Override
     public String getFromStageId() {
+        // ?: Is this a NEXT_DIRECT?
+        if (_isNextDirect) {
+            // -> Yes, NEXT_DIRECT
+            return _nd_fromStageId;
+        }
+        // E-> No, not NEXT_DIRECT
         return _incomingMatsTrace.getCurrentCall().getFrom();
     }
 
     @Override
     public Instant getFromTimestamp() {
+        // ?: Is this a NEXT_DIRECT?
+        if (_isNextDirect) {
+            // -> Yes, NEXT_DIRECT
+            return _nd_fromTimestamp;
+        }
+        // E-> No, not NEXT_DIRECT
         return Instant.ofEpochMilli(_incomingMatsTrace.getCurrentCall().getCalledTimestamp());
     }
 
@@ -405,8 +460,8 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         // .. serialized MatsTrace's meta info:
 
         // TODO: DEBUG
-        SerializedMatsTrace serializedMatsTrace = _parentFactory.getMatsSerializer().serializeMatsTrace(
-                _incomingMatsTrace);
+        SerializedMatsTrace serializedMatsTrace = _parentFactory.getMatsSerializer()
+                .serializeMatsTrace(_incomingMatsTrace);
         byte[] serializedMTBytes = serializedMatsTrace.getMatsTraceBytes();
         String serializedMTMeta = serializedMatsTrace.getMeta();
 

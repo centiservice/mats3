@@ -549,7 +549,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
 
         // :: Invoke the process lambda (the actual user code).
         try {
-            JmsMatsProcessContext<R, S, Z> processContext = new JmsMatsProcessContext<>(
+            JmsMatsProcessContext<R, S, Z> processContext = JmsMatsProcessContext.create(
                     _parentFactory,
                     endpointId,
                     stageId,
