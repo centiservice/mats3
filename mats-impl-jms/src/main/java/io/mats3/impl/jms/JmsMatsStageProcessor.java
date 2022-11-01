@@ -418,6 +418,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             // +++++ START: nextDirect handling
                             // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+                            String threadName = Thread.currentThread().getName();
+
                             // Initially, The current stage is obviously /this/ stage on the first pass.
                             JmsMatsStage<R, S, ?, Z> currentStage = _jmsMatsStage;
                             long sameHeightOutgoingTimestamp = data.matsTrace.getSameHeightOutgoingTimestamp();
@@ -460,15 +462,15 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                             getFactory().getFactoryConfig().getAppVersion(),
                                             previousStage.getStageId(), instant_Received[0]);
                                 }
-
+                                // Now set it
                                 processContext[0] = processContext_l;
 
                                 // .. stick the ProcessContext into the ThreadLocal scope
-                                JmsMatsContextLocalCallback.bindResource(ProcessContext.class, processContext[0]);
+                                JmsMatsContextLocalCallback.bindResource(ProcessContext.class, processContext_l);
 
                                 // Cast the ProcessContext unchecked, since we need it for the interceptors.
                                 @SuppressWarnings("unchecked")
-                                ProcessContext<Object> processContextCasted = (ProcessContext<Object>) processContext[0];
+                                ProcessContext<Object> processContextCasted = (ProcessContext<Object>) processContext_l;
 
                                 // Create the common part of the interceptor contexts
                                 long nanosTaken_PreUserLambda = System.nanoTime() - nanos_Received[0];
@@ -499,11 +501,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 ProcessLambda<Object, Object, Object> currentLambda = invokeWrapUserLambdaInterceptors(
                                         currentStage, interceptorsForStage[0], stageCommonContext[0]);
 
-                                // :: Invoke the process lambda (the actual user code), possibly wrapped by
-                                // interceptors.
-                                // =======================================================================================
-
-                                // :: == ACTUALLY Invoke the lambda. The current lambda is the one we should invoke.
+                                // == Invoke the UserLambda, possibly wrapped.
                                 long nanosAtStart_UserLambda = System.nanoTime();
                                 try {
                                     currentLambda.process(processContextCasted, incomingAndOutgoingSto, incomingDto);
@@ -512,15 +510,26 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     nanosTaken_UserLambda[0] = System.nanoTime() - nanosAtStart_UserLambda;
                                 }
 
+                                // === Invoke any interceptors, stage "Message"
+                                invokeStageMessageInterceptors(interceptorsForStage[0], stageCommonContext[0],
+                                        messagesToSend);
+
                                 // :: Handle NEXT_DIRECT "calls".
                                 nextDirectInvoked = processContext[0].isNextDirectInvoked();
                                 if (nextDirectInvoked) {
+                                    long nanosTaken_TotalStartReceiveToFinished = System.nanoTime() - nanos_Received[0];
 
-                                    // TODO: Invoke StageCompleted interceptors.
-                                    // TODO: mats.StageId
-                                    // TODO: Thread name?
-                                    // TODO: Change stats-stuff on StageCommonContext
+                                    // :: Invoke StageCompletedInterceptors
+                                    List<MatsSentOutgoingMessage> initiations = messagesToSend.stream()
+                                            .filter(m -> m.getDispatchType() == DispatchType.STAGE_INIT)
+                                            .collect(Collectors.toList());
+                                    invokeStageCompletedInterceptors(internalExecutionContext, messagesToSend,
+                                            stageCommonContext[0], interceptorsForStage[0], nanosTaken_UserLambda[0],
+                                            nanosTaken_totalEnvelopeSerAndComp[0], nanosTaken_totalMsgSysProdAndSend[0],
+                                            null, processContext[0], nanosTaken_TotalStartReceiveToFinished,
+                                            null, Collections.emptyList(), initiations, ProcessResult.NEXT_DIRECT);
 
+                                    // Change timestamps for "received" and sameHeightOutgoingTimestamp.
                                     nanos_Received[0] = System.nanoTime();
                                     Instant now = Instant.now();
                                     instant_Received[0] = now;
@@ -529,19 +538,22 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     // Current stage is now the next stage
                                     previousStage = currentStage;
                                     currentStage = currentStage.getNextStage();
-                                    // .. and set the incoming DTO.
-                                    incomingDto = processContext[0].getNextDirectDto();
+
+                                    // Set the incoming DTO (may be null).
+                                    incomingDto = processContext_l.getNextDirectDto();
+
+                                    // Set new ThreadName
+                                    Thread.currentThread().setName(THREAD_PREFIX + currentStage.getStageId()
+                                            + " (nd) - " + ident());
                                 }
                             } while (nextDirectInvoked);
+
+                            // Reset name if NEXT_DIRECT has changed it.
+                            Thread.currentThread().setName(threadName);
 
                             // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                             // +++++ END: nextDirect handling
                             // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-                            // === Invoke any interceptors, stage "Message"
-                            // Note: The two array-hacks must be set at this point
-                            invokeStageMessageInterceptors(interceptorsForStage[0], stageCommonContext[0],
-                                    messagesToSend);
 
                             // :: Send messages on target queues/topics
                             // =======================================================================================
@@ -766,36 +778,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     processResult = ProcessResult.NONE;
                                 }
 
-                                StageCompletedContextImpl stageCompletedContext = new StageCompletedContextImpl(
-                                        stageCommonContext[0],
-                                        processResult,
-                                        nanosTaken_UserLambda[0],
-                                        processContext[0].getMeasurements(),
-                                        processContext[0].getTimingMeasurements(),
-                                        nanosTaken_totalEnvelopeSerAndComp[0],
-                                        internalExecutionContext.getDbCommitNanos(),
-                                        nanosTaken_totalMsgSysProdAndSend[0],
-                                        internalExecutionContext.getMessageSystemCommitNanos(),
-                                        nanosTaken_TotalStartReceiveToFinished,
-                                        throwableResult,
-                                        Collections.unmodifiableList(messagesToSend),
-                                        resultMessage,
-                                        requests,
-                                        initiations);
-
-                                // Go through interceptors "backwards" for this exit-style intercept stage
-                                List<MatsStageInterceptor> interceptorsForStage_local = interceptorsForStage[0];
-
-                                for (int i = interceptorsForStage_local.size() - 1; i >= 0; i--) {
-                                    try {
-                                        interceptorsForStage_local.get(i).stageCompleted(stageCompletedContext);
-                                    }
-                                    catch (Throwable t) {
-                                        log.error(LOG_PREFIX + "StageInterceptor [" + interceptorsForStage_local.get(i)
-                                                + "] raised a [" + t.getClass().getSimpleName() + "] when invoking"
-                                                + " stageCompleted(..) - ignoring, but this is probably quite bad.", t);
-                                    }
-                                }
+                                invokeStageCompletedInterceptors(internalExecutionContext, messagesToSend,
+                                        stageCommonContext[0], interceptorsForStage[0], nanosTaken_UserLambda[0],
+                                        nanosTaken_totalEnvelopeSerAndComp[0], nanosTaken_totalMsgSysProdAndSend[0],
+                                        throwableResult, processContext[0], nanosTaken_TotalStartReceiveToFinished,
+                                        resultMessage, requests, initiations, processResult);
                             }
                         }
                     }
@@ -927,8 +914,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     private static <R, S, Z> PreprocessAndDeserializeData<S, Z> preprocessAndDeserializeData(
             JmsMatsFactory<Z> matsFactory, JmsMatsStage<R, S, ?, Z> jmsMatsStage,
             long startedNanos, Instant startedInstant,
-            Message message)
-            throws MessageProblemRefuseMessageException, JmsMessageReadMatsJmsException {
+            Message message) throws MessageProblemRefuseMessageException, JmsMessageReadMatsJmsException {
         long nanosAtStart_DeconstructMessage = System.nanoTime();
         // Assert that this is indeed a JMS MapMessage.
         if (!(message instanceof MapMessage)) {
@@ -1208,6 +1194,51 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 // NOTICE: If the interceptor cancels a message, or initiates a new matsMessage, this WILL show up for
                 // the next invoked interceptor.
                 messageInterceptor.stageInterceptOutgoingMessages(context);
+            }
+        }
+    }
+
+    private static <R, S, Z> void invokeStageCompletedInterceptors(
+            JmsMatsInternalExecutionContext internalExecutionContext,
+            List<JmsMatsMessage<Z>> messagesToSend, StageCommonContextImpl<Z> stageCommonContext,
+            List<MatsStageInterceptor> interceptorsForStage, long nanosTaken_UserLambda,
+            long nanosTaken_totalEnvelopeSerAndComp, long nanosTaken_totalMsgSysProdAndSend,
+            Throwable throwableResult, JmsMatsProcessContext<R, S, Z> processContext,
+            long nanosTaken_TotalStartReceiveToFinished, MatsSentOutgoingMessage resultMessage,
+            List<MatsSentOutgoingMessage> requests, List<MatsSentOutgoingMessage> initiations,
+            ProcessResult processResult) {
+        StageCompletedContextImpl stageCompletedContext = new StageCompletedContextImpl(
+                stageCommonContext,
+                processResult,
+                nanosTaken_UserLambda,
+                processContext.getMeasurements(),
+                processContext.getTimingMeasurements(),
+                nanosTaken_totalEnvelopeSerAndComp,
+                internalExecutionContext.getDbCommitNanos(),
+                nanosTaken_totalMsgSysProdAndSend,
+                internalExecutionContext.getMessageSystemCommitNanos(),
+                nanosTaken_TotalStartReceiveToFinished,
+                throwableResult,
+                Collections.unmodifiableList(messagesToSend),
+                resultMessage,
+                requests,
+                initiations);
+
+        // Go through interceptors backwards for this exit-style intercept stage
+        for (int i = interceptorsForStage.size() - 1; i >= 0; i--) {
+            try {
+                if (processResult == ProcessResult.NEXT_DIRECT) {
+                    interceptorsForStage.get(i).stageCompletedNextDirect(stageCompletedContext);
+                }
+                else {
+                    interceptorsForStage.get(i).stageCompleted(stageCompletedContext);
+                }
+            }
+            catch (Throwable t) {
+                log.error(LOG_PREFIX + "StageInterceptor [" + interceptorsForStage.get(i)
+                        + "] raised a [" + t.getClass().getSimpleName() + "] when invoking"
+                        + " stageCompleted(..) for stage [" + stageCompletedContext.getStage()
+                        + "] - ignoring, but this is probably quite bad.", t);
             }
         }
     }

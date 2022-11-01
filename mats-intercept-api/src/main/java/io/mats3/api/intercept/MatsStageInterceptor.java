@@ -82,9 +82,22 @@ public interface MatsStageInterceptor {
     /**
      * Invoked <i>after</i> the stage is fully completed, outgoing messages sent, db and messaging system committed. You
      * cannot anymore modify any outgoing messages etc - for this, implement {@link MatsStageInterceptOutgoingMessages}.
+     *
+     * @see #stageCompletedNextDirect(StageCompletedContext)
      */
     default void stageCompleted(StageCompletedContext context) {
         /* no-op */
+    }
+
+    /**
+     * Special variant of {@link #stageCompleted(StageCompletedContext)} which is invoked when a
+     * {@link ProcessContext#nextDirect(Object)} has been performed: As opposed to the ordinary variant, this does
+     * <i>not</i> execute outside the stage's transactional demarcation, since the nextDirect stage processing happens
+     * within the same transactional demarcation as the stage which invoked nextDirect. Therefore, no outgoing messages
+     * has yet been sent, and db and message system are not yet committed.
+     */
+    default void stageCompletedNextDirect(StageCompletedContext context) {
+        stageCompleted(context);
     }
 
     interface StageInterceptContext {
@@ -157,8 +170,8 @@ public interface MatsStageInterceptor {
          * @param key
          *            the key name for this intercept context attribute.
          * @param <T>
-         *            the type of this attribute, to avoid explicit casting - but you should really know the type, otherwise
-         *            request <code>Object</code>.
+         *            the type of this attribute, to avoid explicit casting - but you should really know the type,
+         *            otherwise request <code>Object</code>.
          * @return the intercept context attribute that was stored by
          *         {@link #putInterceptContextAttribute(String, Object)}, <code>null</code> if there is no such value.
          */
@@ -356,6 +369,8 @@ public interface MatsStageInterceptor {
             REPLY,
 
             NEXT,
+
+            NEXT_DIRECT,
 
             GOTO,
 
