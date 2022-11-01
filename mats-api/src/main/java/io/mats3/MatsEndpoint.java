@@ -17,7 +17,7 @@ import io.mats3.MatsStage.StageConfig;
 
 /**
  * Represents a MATS Endpoint - you create instances from the {@link MatsFactory} (or use the Spring integration).
- * <p />
+ * <p/>
  * <i>Implementation Note: It shall be possible to use instances of <code>MatsEndpoint</code> as keys in a
  * <code>HashMap</code>, i.e. their equals and hashCode should remain stable throughout the life of the MatsFactory -
  * and similar instances but with different MatsFactory are <i>not</i> equals. Depending on the implementation, instance
@@ -108,7 +108,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
      * Specialization of {@link MatsEndpoint.ProcessLambda ProcessLambda} which does not have a state, and have the same
      * return-semantics as {@link MatsEndpoint.ProcessReturnLambda ProcessLambda} - used for single-stage endpoints as
      * these does not have multiple stages to transfer state between.
-     * <p />
+     * <p/>
      * However, since it is possible to send state along with the request, one may still use the
      * {@link MatsEndpoint.ProcessReturnLambda ProcessReturnLambda} for single-stage endpoints, but in this case you
      * need to code it up yourself by making a multi-stage and then just adding a single lastStage.
@@ -134,11 +134,11 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
      * {@link MatsFactory#terminator(String, Class, Class, ProcessTerminatorLambda) terminators} and
      * {@link MatsFactory#subscriptionTerminator(String, Class, Class, ProcessTerminatorLambda) subscription
      * terminators}.
-     * <p />
+     * <p/>
      * This sets the state of the endpoint to "finished setup", and will invoke {@link #start()} on the endpoint,
      * <b>unless</b> {@link MatsFactory#holdEndpointsUntilFactoryIsStarted()} has been invoked prior to creating the
      * endpoint.
-     * <p />
+     * <p/>
      * You may implement "delayed start" of an endpoint by <b>not</b> invoking finishedSetup() after setting it up.
      * Taking into account the first chapter of this JavaDoc, note that you must then <b>only</b> use the
      * {@link MatsFactory#staged(String, Class, Class) staged} type of Endpoint setup, as the others implicitly invokes
@@ -147,7 +147,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
      * {@link MatsFactory#start()} is invoked, such a not-finished endpoint will then not be started. You may then later
      * invoke finishSetup(), e.g. when any needed caches are finished populated, and the endpoint will then be finished
      * and started.
-     * <p />
+     * <p/>
      * Another way to implement "delayed start" is to obviously just not create the endpoint until later: MatsFactory
      * has no <i>"that's it, now all endpoints must have been created"</i>-lifecycle stage, and can fire up new
      * endpoints until the JVM is dead.
@@ -164,7 +164,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
     /**
      * Waits till all stages of the endpoint has entered their receive-loops, i.e. invokes
      * {@link MatsStage#waitForReceiving(int)} on all {@link MatsStage}s of the endpoint.
-     * <p />
+     * <p/>
      * Note: This method makes most sense for
      * {@link MatsFactory#subscriptionTerminator(String, Class, Class, ProcessTerminatorLambda)
      * SubscriptionTerminators}: These are based on MQ Topics, whose semantics are that if you do not listen right when
@@ -176,7 +176,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
      * "initial load" of the cache. It is also relevant for tools like the <code>MatsFuturizer</code>, which uses a
      * node-specific Topic for the final reply message from the requested service; If the SubscriptionTerminator has not
      * yet made it to the receive-loop, any replies will simply be lost and the future never completed.
-     * <p />
+     * <p/>
      * Note: Currently, this only holds for the initial start. If the entity has started the receive-loop at some point,
      * it will always immediately return - even though it is currently stopped.
      *
@@ -196,7 +196,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
 
     /**
      * <b>Should most probably only be used for testing!</b>
-     * <p />
+     * <p/>
      * First invokes {@link #stop(int) stop(gracefulShutdownMillis)}, and if successful <b>removes</b> the endpoint from
      * its MatsFactory. This enables a new endpoint to be registered with the same endpointId as the one removed (which
      * otherwise is not accepted). This might be of interest in testing scenarios, where you want to <i>change</i> the
@@ -471,14 +471,14 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         /**
          * Attaches a binary payload ("sideload") to the next outgoing message, being it a request or a reply. Note that
          * for initiations, you have the same method on the {@link MatsInitiate} instance.
-         * <p />
+         * <p/>
          * The rationale for having this is to not have to encode a largish byte array inside the JSON structure that
          * carries the Request or Reply DTO - byte arrays represent very badly in JSON.
-         * <p />
+         * <p/>
          * Note: The byte array is not compressed (as might happen with the DTO), so if the payload is large, you might
          * want to consider compressing it before attaching it (and will then have to decompress it on the receiving
          * side).
-         * <p />
+         * <p/>
          * Note: This will be added to the subsequent {@link #request(String, Object) request}, {@link #reply(Object)
          * reply} or {@link #next(Object) next} message - and then cleared. Thus, if you perform multiple request or
          * next calls, then each must have their binaries, strings and trace properties set separately. (Any
@@ -501,15 +501,15 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         /**
          * Attaches a <code>String</code> payload ("sideload") to the next outgoing message, being it a request or a
          * reply. Note that for initiations, you have the same method on the {@link MatsInitiate} instance.
-         * <p />
+         * <p/>
          * The rationale for having this is to not have to encode a largish string document inside the JSON structure
          * that carries the Request or Reply DTO.
-         * <p />
+         * <p/>
          * Note: The String payload is not compressed (as might happen with the DTO), so if the payload is large, you
          * might want to consider compressing it before attaching it and instead use the
          * {@link #addBytes(String, byte[]) addBytes(..)} method (and will then have to decompress it on the receiving
          * side).
-         * <p />
+         * <p/>
          * Note: This will be added to the subsequent {@link #request(String, Object) request}, {@link #reply(Object)
          * reply} or {@link #next(Object) next} message - and then cleared. Thus, if you perform multiple request or
          * next calls, then each must have their binaries, strings and trace properties set separately. (Any
@@ -537,7 +537,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * down in the stack adds it, it will be present in all subsequent stages including all the way to the
          * Terminator. Note that any initiations within a Stage will also inherit trace properties present on the
          * Stage's incoming message.
-         * <p />
+         * <p/>
          * Possible use cases: You can for example "sneak along" some property meant for Service X through an invocation
          * of intermediate Service A (which subsequently calls Service X), where the signature (DTO) of the intermediate
          * Service A does not provide such functionality. Another usage would be to add some "global context variable",
@@ -545,14 +545,14 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * can obviously lead to pretty hard-to-understand code if used extensively: When employed, you should code
          * rather defensively, where if this property is not present when a stage needs it, it should throw
          * {@link MatsRefuseMessageException} and clearly explain that the property needs to be present.
-         * <p />
+         * <p/>
          * Note: This will be added to the subsequent {@link #request(String, Object) request}, {@link #reply(Object)
          * reply} or {@link #next(Object) next} message - and then cleared. Thus, if you perform multiple request or
          * next calls, then each must have their binaries, strings and trace properties set separately. (Any
          * {@link #initiate(InitiateLambda) initiations} are separate from this, neither getting nor consuming binaries,
          * strings nor trace properties set on the <code>ProcessContext</code> - they must be set on the
          * {@link MatsInitiate MatsInitiate} instance within the initiate-lambda).
-         * <p />
+         * <p/>
          * Note: <i>incoming</i> trace properties (that was present on the incoming message) will be added to <i>all</i>
          * outgoing message, <i>including initiations within the stage</i>.
          *
@@ -574,29 +574,29 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * other. BUT, the specific arguments for "number of items in order" (outside the measure itself!) shall not
          * change between one Stage processing and the next: e.g. the metricDescription shall <b>NOT</b> be dynamically
          * constructed to e.g. say <i>"Number of items in order 1234 for customer 5678"</i>.
-         * <p />
+         * <p/>
          * Note: It is illegal to use the same 'metricId' for more than one measurement for a given stage, and this also
          * goes between measurements and {@link #logTimingMeasurement(String, String, long, String...) timing
          * measurements}.
-         * <p />
+         * <p/>
          * <b>Inclusion as metric by plugin 'mats-intercept-micrometer'</b>: A new meter will be created (and cached),
          * of type <code>DistributionSummary</code>, with the 'name' set to
          * <code>"mats.exec.ops.measure.{metricId}.{baseUnit}"</code> ("measure"-&gt;"time" for timings), and
          * 'description' to description. (Tags/labels already added on the meter by the plugin include 'appName',
          * 'initiatorId', 'initiatingAppName', 'stageId' (for stages), and 'initiatorName' (for inits)). Read about
          * parameter 'labelKeyValue' below.
-         * <p />
+         * <p/>
          * <b>Inclusion as log line by plugin 'mats-intercept-logging'</b>: A log line will be output by each added
          * measurement, where the MDC for that log line will have an entry with key
          * <code>"mats.ops.measure.{metricId}.{baseUnit}"</code>. Read about parameter 'labelKeyValue' below.
-         * <p />
+         * <p/>
          * It generally makes most sense if the same metrics are added for each processing of a particular Stage, i.e.
          * if the "number of items" are 0, then that should also be recorded along with the "total amount for order in
          * dollar" as 0, not just elided. Otherwise, your metrics will be skewed.
-         * <p />
+         * <p/>
          * You should use a dot-notation for the metricId if you want to add multiple meters with a
          * hierarchical/subdivision layout.
-         * <p />
+         * <p/>
          * The vararg 'labelKeyValue' is an optional element where the String-array consist of one or several alternate
          * key, value pairs. <b>Do not employ this feature unless you know what the effects are, and you actually need
          * it!</b> This will be added as labels/tags to the metric, and added to the SLF4J MDC for the measurement log
@@ -606,7 +606,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * make sense and will blow up your metric cardinality. Notice that if you do employ e.g. two labels, each
          * having one of three values, <i>you'll effectively create 9 different meters</i>, where your measurement will
          * go to one of them.
-         * <p />
+         * <p/>
          * <b>NOTICE: If you want to do a timing, then instead use
          * {@link #logTimingMeasurement(String, String, long, String...)}</b>
          *
@@ -632,15 +632,15 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         /**
          * Same as {@link #logMeasurement(String, String, String, double, String...) addMeasurement(..)}, but
          * specifically for timings - <b>Read that JavaDoc!</b>
-         * <p />
+         * <p/>
          * Note: It is illegal to use the same 'metricId' for more than one measurement for a given stage, and this also
          * goes between timing measurements and {@link #logMeasurement(String, String, String, double, String...)
          * measurements}.
-         * <p />
+         * <p/>
          * For the metrics-plugin 'mats-intercept-micrometer' plugin, the 'baseUnit' argument is deduced to whatever is
          * appropriate for the receiving metrics system, e.g. for Prometheus it is "seconds", even though you always
          * record the measurement in nanoseconds using this method.
-         * <p />
+         * <p/>
          * For the logging-plugin 'mats-intercept-logging' plugin, the timing in the log line will be in milliseconds
          * (with fractions), even though you always record the measurement in nanoseconds using this method.
          *
@@ -674,7 +674,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * {@link MatsInitiate#unstash(byte[], Class, Class, Class, ProcessLambda) unstash(stashBytes,...)} to get the
          * Mats flow going again. Notice that functionally, the unstash-operation is a kind of initiation, only that
          * this type of initiation doesn't start a <i>new</i> Mats flow, rather <i>continuing an existing flow</i>.
-         * <p />
+         * <p/>
          * <b>Notice that this feature should not typically be used to "park" a Mats flow for days.</b> One might have a
          * situation where a part of an order flow potentially needs manual handling, e.g. validating a person's
          * identity if this has not been validated before. It might (should!) be tempting to employ the stash function
@@ -695,7 +695,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * state classes are in practice really not that frequent). However, by stashing over days, instead of a normal
          * Mats flow that take seconds, you massively increase the time window in which such deserialization problems
          * can occur. You at least have to consider this if employing the stash-functionality.
-         * <p />
+         * <p/>
          * <b>Note about data and metadata which should be stored along with the stash-bytes:</b> You only get a binary
          * serialized incoming execution context in return from this method (which includes the incoming message,
          * incoming state, the execution stack and {@link ProcessContext#getTraceProperty(String, Class) trace
@@ -713,7 +713,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * stash and data. You should probably also have some kind of monitoring / health checks for stashes that have
          * become stale - i.e. stashes that have not been unstashed for a considerable time, and whose Mats flow have
          * thus stopped up, and where the downstream endpoints/stages therefore will not get invoked.
-         * <p />
+         * <p/>
          * <b>Notes:</b>
          * <ul>
          * <li>Invoking {@code stash()} will not affect the stage processing in any way other than producing a
@@ -742,7 +742,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * set to the next stage in the multi-stage endpoint. This will throw if the current process stage is a
          * terminator, single-stage endpoint or the last endpoint of a multi-stage endpoint, as there then is no next
          * stage to reply to.
-         * <p />
+         * <p/>
          * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
          * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
          * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
@@ -750,7 +750,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
          * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
          * could also perform a reply.
-         * <p />
+         * <p/>
          * Note: The current state is serialized when invoking this method. This means that in case of multiple
          * requests/nexts, you may change the state in between, and the next stage will get different "incoming states",
          * which may be of use in a scatter-gather scenario.
@@ -767,11 +767,11 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * this endpoint it is semantically a terminator (the <code>replyTo</code> of an initiation's request), or if it
          * is the last stage of an endpoint that was invoked directly (using {@link MatsInitiate#send(Object)
          * MatsInitiate.send(msg)}).
-         * <p />
+         * <p/>
          * It is possible to do "early return" in a multi-stage endpoint by invoking this method in a stage that is not
          * the last. (You are then not allowed to also perform {@link #request(String, Object)} or
          * {@link #next(Object)}).
-         * <p />
+         * <p/>
          * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
          * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
          * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
@@ -786,11 +786,23 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         MessageReference reply(R replyDto);
 
         /**
-         * Passes to the next stage of a multi-stage endpoint. The rationale for this method is that in certain
-         * situation you might not need to invoke some service after all (e.g. in situation X, you do not need the
-         * account details for the customer): Basically, you can do something like
-         * <code>if (condition) { request service } else { next }</code>.
-         * <p />
+         * Passes to the next stage of a multi-stage endpoint. The functionality is meant for doing conditional calls,
+         * e.g.:
+         *
+         * <pre>
+         * if (something missing) {
+         *     request another endpoint with reply coming to next stage.
+         * }
+         * else {
+         *     pass to next stage
+         * }
+         * </pre>
+         *
+         * This can be of utility if an endpoint in some situations requires more information from a collaborating
+         * endpoint, while in other situations it does not require that information.
+         * <p/>
+         * You should rather use {@link #nextDirect(Object)} if your transactional demarcation needs allows it!
+         * <p/>
          * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
          * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
          * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
@@ -798,10 +810,12 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
          * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
          * could also perform a reply.
-         * <p />
+         * <p/>
          * Note: The current state is serialized when invoking this method. This means that in case of multiple
          * requests/nexts, you may change the state in between, and the next stage will get different "incoming states",
          * which may be of use in a scatter-gather scenario.
+         *
+         * @see #nextDirect(Object)
          *
          * @param nextDto
          *            the object for the next stage's incoming DTO, which must match what the next stage expects. When
@@ -812,15 +826,16 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
 
         /**
          * A "direct" variant of {@link #next(Object)} which directly executes the next stage of a multi-stage endpoint.
-         * This is done within the same transactional demarcation that this stage is in, without incurring the overhead
-         * of serialization and sending a message on the message queue. This is a limited and specialized, but much
-         * faster, variant of {@link #next(Object)}.
+         * This is done within the same transactional demarcation that this stage is in, neither incurring any
+         * transactional cost nor the overhead of serialization and sending a message on the message queue with
+         * subsequent receiving and deserialization. It is a limited and specialized, but much faster, variant of
+         * {@link #next(Object)}.
          * <p/>
          * The functionality is meant for doing conditional calls, e.g.:
          *
          * <pre>
-         * if (something) {
-         *     request another endpoint
+         * if (something missing) {
+         *     request another endpoint with reply coming to next stage.
          * }
          * else {
          *     go directly to next stage
@@ -828,9 +843,11 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * </pre>
          *
          * This can be of utility if an endpoint in some situations requires more information from a collaborating
-         * endpoint, while in other situations it does not require that information. Another scenario this helps with is
-         * lazy cache population (typically for a short-lived cache), which one could argue is a specialized version of
-         * the former.
+         * endpoint, while in other situations it does not require that information. A scenario nextDirect is
+         * particularly good for is lazy cache population where the caching of the information only incurs cost if the
+         * information is missing, since if the information is present in the cache, you can do a close to zero cost
+         * nextDirect call. Had you been using {@link #next(Object) ordinary next}, you would at least incur the cost of
+         * sending and receiving a message even though the information is present in the cache.
          * <p/>
          * Implementation details which are unspecified and whose effects or non-effects cannot be relied on:
          * <ul>
@@ -845,18 +862,24 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * <p/>
          * Some notes:
          * <ul>
-         * <li>There is no new <i>message</i> created for a nextDirect, so e.g. messageIds when in the next stage will
-         * refer to the previous proper incoming message.</li>
-         * <li>The broker won't know about a nextDirect, so you will get less counts of messages on the next stage's
-         * queue.</li>
+         * <li>There is no new <i>message system message</i> created for a nextDirect, so e.g. messageIds when in the
+         * next stage will refer to the previous stage's incoming message.</li>
+         * <li>Since there is no message system message, the message broker won't see any trace of a nextDirect. This
+         * also means that you'll get less counts of messages on the next stage's queue.</li>
+         * <li>The stage processing thread for the stage doing nextDirect is busy while the next stage executes, either
+         * by actually executing it, or waiting for the execution, depending on the Mats implementation. If the next
+         * stage is slow, any queue build-up will therefore happen on the stage that performed the nextDirect. Any
+         * adjustment of concurrency must be done on the stage actually receiving message system messages.</li>
+         * <li>It is legal to do "series" of nextDirects, i.e. that one stage does a nextDirect, and then the next stage
+         * also does a nextDirect.</li>
+         * <li>Neither the state object or the DTO is serialized and deserialized, but instead passed directly to the
+         * next stage.</li>
          * <li>If employing MatsTrace (which the JMS impl do), it will contain no record of the nextDirect having been
          * performed. For example, if the message crops up on a DLQ, any nextDirects in the flow will not be
          * visible.</li>
          * <li>There are implications for the Interceptors, some of which might be subtle. E.g. any preprocess and
-         * deserialization timings, and message sizes, will be 0.</li>
-         * <li>It is legal to do "series" of nextDirects, i.e. that the resulting flow has multiple nextDirects right
-         * after each other.</li>
-         * <li></li>
+         * deserialization timings, and message sizes, will be 0. Also, read up on the <code>stageCompleted(..)</code>
+         * vs. <code>stageCompletedNextDirect(..)</code></li>
          * </ul>
          */
         void nextDirect(Object nextDirectDto);
@@ -864,27 +887,30 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         /**
          * Passes the current call stack over to another endpoint, so that when that endpoint replies, it will return to
          * the endpoint that invoked this endpoint.
-         * <p />
+         * <p/>
          * This would be of use in "dispatcher" scenarios, where you might have a "case" style evaluation of the
          * incoming message, and then either handle it yourself, or send the control over to some other endpoint
          * (possibly one of several other endpoints) - so that when they again return, it will be to the original
          * caller.
-         * <p />
+         * <p/>
          * A specific "dispatcher" situation where this could be of use, is if you have an endpoint that for some
-         * specific entity Ids takes a lot of memory (e.g. customers with over 10000 orders). If you get a massive
-         * influx of orders for these customers, your standard endpoint with a high concurrency could lead to an
-         * out-of-memory situation. A solution here could be to instantiate that same endpoint code at two different
-         * endpointIds - the public one, and a private variant with much lower concurrency. The standard, public
-         * endpoint would at the initial stage evaluate if this was one of the memory-hogging entityIds, and if so, make
-         * a context.goto(..) over to the other private endpoint with lower concurrency. (The endpoint would have to
-         * self-inspect to see if it was the public or private wrt. whether it should do the evaluation).
-         * <p />
-         * Another use is <i>tail calls</i>, whereby one endpoint A does something preprocessing, and then invokes
-         * another endpoint B, but where endpoint A really just want to reply with the reply from endpoint B directly.
-         * The extra reply stage of endpoint A is thus totally useless and just incurs additional message passing and
-         * processing. You can instead just goto endpoint B, which achieves just this outcome: When endpoint B now
-         * replies, it will reply to the caller of endpoint A.
-         * <p />
+         * specific (known) entities consumes a particularly large amount of memory. For example, you might have a
+         * specific set of frequent customers which when loaded takes much more memory than a normal customer. If you
+         * get an influx of orders for these customers at the same time, your standard endpoint with a high concurrency
+         * could lead to an out-of-memory situation. A solution here could be to instantiate that same endpoint code at
+         * two different endpointIds - the public one, and a private variant with much lower concurrency. The standard,
+         * public endpoint would at the initial stage evaluate if this was one of the known memory-hogging customers,
+         * and if so, make a context.goto(..) over to the other private endpoint with lower concurrency. (The endpoint
+         * would have to evaluate if it is the public or private wrt. whether it should do the eval-then-goto: Either by
+         * looking at its endpointId, or by use of {@link #goTo(String, Object, Object) initialState}, or by modifying
+         * the DTO, or by {@link ProcessContext#addString(String, String) sideloads}).
+         * <p/>
+         * Another use is <i>tail calls</i>, whereby one endpoint A does some preprocessing, and then invokes another
+         * endpoint B, but where endpoint A really just want to reply with the reply from endpoint B directly. The extra
+         * reply stage of endpoint A is thus totally useless and just incurs additional message passing and processing.
+         * You can instead just goto endpoint B, which achieves just this outcome: When endpoint B now replies, it will
+         * reply to the caller of endpoint A.
+         * <p/>
          * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
          * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
          * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
@@ -904,7 +930,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
 
         /**
          * <b>Variation of {@link #goTo(String, Object)} method</b>, where the incoming state is sent along.
-         * <p />
+         * <p/>
          * <b>This only makes sense if the same code base "owns" both the current endpoint, and the endpoint to which
          * this message is sent.</b>
          *
@@ -926,7 +952,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * of the {@link MatsStage} which this method is invoked within. Also, the traceId and from-endpointId is
          * predefined, but it is still recommended to set the traceId, as that will append the new string on the
          * existing traceId, making log tracking (e.g. when debugging) better.
-         * <p />
+         * <p/>
          * <b>IMPORTANT NOTICE!!</b> The {@link MatsInitiator} returned from {@link MatsFactory#getDefaultInitiator()
          * MatsFactory.getDefaultInitiator()} is "magic" in that when employed from within a Mats Stage's context
          * (thread), it works exactly as this method: Any initiations performed participates in the Mats Stage's
@@ -946,14 +972,14 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * there yet - as we're still within the SQL transaction demarcation. Therefore, if the process-service wakes up
          * really fast and tries to find the new work, it will not see anything yet. (It might then presume that e.g.
          * another node of the service-cluster took care of whatever woke it up, and go back to sleep.)
-         * <p />
+         * <p/>
          * Note: This is per processing; Setting it is only relevant for the current message. If you invoke the method
          * more than once, only the last Runnable will be run. If you set it to <code>null</code>, you "cancel" any
          * previously set Runnable.
-         * <p />
+         * <p/>
          * Note: If any Exception is raised from the stage lambda code after the Runnable has been set, or any Exception
          * is raised by the processing or committing, the Runnable will not be run.
-         * <p />
+         * <p/>
          * Note: If the <code>doAfterCommit</code> Runnable throws a {@link RuntimeException}, it will be logged on
          * ERROR level, then ignored.
          *
@@ -968,7 +994,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * the Mats implementation in use, or configured into this instance of the Mats implementation. Is mirrored by
          * the same method at {@link MatsInitiate#getAttribute(Class, String...)}. There is also a
          * ThreadLocal-accessible version at {@link ContextLocal#getAttribute(Class, String...)}.
-         * <p />
+         * <p/>
          * Mandatory: If the Mats implementation has a transactional SQL Connection, it shall be available by
          * <code>'context.getAttribute(Connection.class)'</code>.
          *
