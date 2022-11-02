@@ -739,21 +739,22 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
 
         /**
          * Sends a request message, meaning that the specified endpoint will be invoked, with the reply-to endpointId
-         * set to the next stage in the multi-stage endpoint. This will throw if the current process stage is a
-         * terminator, single-stage endpoint or the last endpoint of a multi-stage endpoint, as there then is no next
-         * stage to reply to.
+         * set to the next stage in the multi-stage endpoint.
          * <p/>
-         * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
-         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
-         * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
-         * in a scatter-gather scenario - where the replies (or next) comes in to the next stage <i>of the same
+         * This will throw if the current process stage is a terminator, single-stage endpoint or the last endpoint of a
+         * multi-stage endpoint, as there then is no next stage to reply to.
+         * <p/>
+         * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} messages; OR a
+         * single {@link #reply(Object) reply}, {@link #next(Object) next}, {@link #nextDirect(Object) nextDirect}, or
+         * {@link #goTo(String, Object) goTo} message. The reason that multiple requests are allowed is that this could
+         * be used in a scatter-gather scenario - where the replies come in to the next stage <i>of the same
          * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
          * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
          * could also perform a reply.
          * <p/>
-         * Note: The current state is serialized when invoking this method. This means that in case of multiple
-         * requests/nexts, you may change the state in between, and the next stage will get different "incoming states",
-         * which may be of use in a scatter-gather scenario.
+         * Note: The current state and DTO is serialized <i>when invoking this method</i>. This means that in case of
+         * multiple requests, you may change the state in between each request, and the next stage will get different
+         * "incoming states" for each of the replies, which may be of use in a scatter-gather scenario.
          *
          * @param endpointId
          *            which endpoint to invoke
@@ -763,22 +764,27 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         MessageReference request(String endpointId, Object requestDto);
 
         /**
-         * Sends a reply to the requesting service. This will be ignored if there is no endpointId on the stack, i.e. if
-         * this endpoint it is semantically a terminator (the <code>replyTo</code> of an initiation's request), or if it
-         * is the last stage of an endpoint that was invoked directly (using {@link MatsInitiate#send(Object)
-         * MatsInitiate.send(msg)}).
+         * Sends a reply to the requesting service. When returning an object from a
+         * {@link MatsEndpoint#lastStage(Class, ProcessReturnLambda) lastStage} lambda, this is the method that actually
+         * gets invoked.
+         * <p/>
+         * This will be ignored if there is no endpointId on the stack, i.e. if this endpoint it is semantically a
+         * terminator (the <code>replyTo</code> of an initiation's request), or if it is the last stage of an endpoint
+         * that was invoked directly (using {@link MatsInitiate#send(Object) MatsInitiate.send(msg)}).
          * <p/>
          * It is possible to do "early return" in a multi-stage endpoint by invoking this method in a stage that is not
-         * the last. (You are then not allowed to also perform {@link #request(String, Object)} or
-         * {@link #next(Object)}).
+         * the last.
          * <p/>
-         * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
-         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
-         * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
-         * in a scatter-gather scenario - where the replies (or next) comes in to the next stage <i>of the same
+         * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} messages; OR a
+         * single {@link #reply(Object) reply}, {@link #next(Object) next}, {@link #nextDirect(Object) nextDirect}, or
+         * {@link #goTo(String, Object) goTo} message. The reason that multiple requests are allowed is that this could
+         * be used in a scatter-gather scenario - where the replies come in to the next stage <i>of the same
          * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
          * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
          * could also perform a reply.
+         * <p/>
+         * Note: The current state and DTO is serialized <i>when invoking this method</i>. Any changes to the state
+         * object or the DTO performed afterwards won't be present on the reply-receiving stage.
          *
          * @param replyDto
          *            the reply DTO to return to the invoker.
@@ -786,8 +792,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         MessageReference reply(R replyDto);
 
         /**
-         * Passes to the next stage of a multi-stage endpoint. The functionality is meant for doing conditional calls,
-         * e.g.:
+         * Sends a message which passes the control to the next stage of a multi-stage endpoint. The functionality is
+         * meant for doing conditional requests, e.g.:
          *
          * <pre>
          * if (something missing) {
@@ -801,19 +807,19 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * This can be of utility if an endpoint in some situations requires more information from a collaborating
          * endpoint, while in other situations it does not require that information.
          * <p/>
-         * You should rather use {@link #nextDirect(Object)} if your transactional demarcation needs allows it!
+         * <b>Note: You should rather use {@link #nextDirect(Object)} if your transactional demarcation needs allows
+         * it!</b>
          * <p/>
-         * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
-         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
-         * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
-         * in a scatter-gather scenario - where the replies (or next) comes in to the next stage <i>of the same
+         * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} messages; OR a
+         * single {@link #reply(Object) reply}, {@link #next(Object) next}, {@link #nextDirect(Object) nextDirect}, or
+         * {@link #goTo(String, Object) goTo} message. The reason that multiple requests are allowed is that this could
+         * be used in a scatter-gather scenario - where the replies come in to the next stage <i>of the same
          * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
          * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
          * could also perform a reply.
          * <p/>
-         * Note: The current state is serialized when invoking this method. This means that in case of multiple
-         * requests/nexts, you may change the state in between, and the next stage will get different "incoming states",
-         * which may be of use in a scatter-gather scenario.
+         * Note: The current state and DTO is serialized <i>when invoking this method</i>. Any changes to the state
+         * object or the DTO performed afterwards won't be present in the subsequent stage.
          *
          * @see #nextDirect(Object)
          *
@@ -825,11 +831,11 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         MessageReference next(Object nextDto);
 
         /**
-         * A "direct" variant of {@link #next(Object)} which directly executes the next stage of a multi-stage endpoint.
-         * This is done within the same transactional demarcation that this stage is in, neither incurring any
-         * transactional cost nor the overhead of serialization and sending a message on the message queue with
-         * subsequent receiving and deserialization. It is a limited and specialized, but much faster, variant of
-         * {@link #next(Object)}.
+         * Specialized, less resource demanding, and faster "direct" variant of {@link #next(Object)} which executes the
+         * next stage of a multi-stage endpoint within the same stage processor and transactional demarcation that this
+         * stage is in - that is, there is no actual message sent. This ensures that you neither incur any transactional
+         * cost nor the overhead of serialization and sending a message on the message queue with subsequent receiving
+         * and deserialization.
          * <p/>
          * The functionality is meant for doing conditional calls, e.g.:
          *
@@ -838,7 +844,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          *     request another endpoint with reply coming to next stage.
          * }
          * else {
-         *     go directly to next stage
+         *     directly execute the next stage
          * }
          * </pre>
          *
@@ -846,18 +852,19 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * endpoint, while in other situations it does not require that information. A scenario nextDirect is
          * particularly good for is lazy cache population where the caching of the information only incurs cost if the
          * information is missing, since if the information is present in the cache, you can do a close to zero cost
-         * nextDirect call. Had you been using {@link #next(Object) ordinary next}, you would at least incur the cost of
+         * nextDirect invocation. Had you been using {@link #next(Object) ordinary next}, you would incur the cost of
          * sending and receiving a message even though the information is present in the cache.
          * <p/>
-         * Implementation details which are unspecified and whose effects or non-effects cannot be relied on:
+         * Implementation details which are unspecified and whose effects or non-effects shall not be relied on:
          * <ul>
-         * <li>Which thread runs the next lambda: You may not depend on the next stage's lambda being invoked on the
-         * same thread that runs this stage. The invocation may be passed over to another thread for execution, e.g. the
-         * thread pool of the next stage, or by using an executor. Therefore, you cannot expect any ThreadLocals set in
-         * this lambda to to be present in the next.</li>
-         * <li>How the next lambda is invoked: You cannot expect this to behave like a method call to the next lambda,
-         * nor can you expect the lambda to be executed only when the current lambda has exited. Therefore, invocation
-         * of this method should be the very last operation in the current lambda.</li>
+         * <li>It is unspecified which thread runs the next stage: The invocation may be done by the same stage
+         * processor thread which executes this stage, or the execution may be done by another thread. Therefore, you
+         * cannot expect any ThreadLocals set in this lambda to to be present in the next.</li>
+         * <li>It is unspecified how the next lambda is invoked: You cannot expect this to behave like a method call to
+         * the next lambda (i.e. the next stage has been executed when the method returns), nor can you expect the
+         * lambda to be executed only when the current lambda has exited (i.e. behaving like a message). Therefore,
+         * invocation of this method should be the very last operation in the current lambda so that this does not make
+         * a difference.</li>
          * </ul>
          * <p/>
          * Some notes:
@@ -873,7 +880,13 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * <li>It is legal to do "series" of nextDirects, i.e. that one stage does a nextDirect, and then the next stage
          * also does a nextDirect.</li>
          * <li>Neither the state object or the DTO is serialized and deserialized, but instead passed directly to the
-         * next stage.</li>
+         * next stage. This ties back to the point about unspecified way of invoking the next lambda and that the
+         * invocation of nextDirect should be the last operation in the current stage: It is unspecified whether a
+         * change to the state object or DTO <i>after</i> the invocation of nextDirect will be visible to the next
+         * stage. (This as opposed to all the other message sending methods, where it is specified that the objects are
+         * serialized upon method invocation, and any changes done afterwards will not be visible to the receiver.)</li>
+         * <li>If the next stage throws an exception, it will be the current stage that eventually DLQs - this might
+         * be confusing when researching an error.</li>
          * <li>If employing MatsTrace (which the JMS impl do), it will contain no record of the nextDirect having been
          * performed. For example, if the message crops up on a DLQ, any nextDirects in the flow will not be
          * visible.</li>
@@ -881,43 +894,56 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * deserialization timings, and message sizes, will be 0. Also, read up on the <code>stageCompleted(..)</code>
          * vs. <code>stageCompletedNextDirect(..)</code></li>
          * </ul>
+         * <p/>
+         * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} messages; OR a
+         * single {@link #reply(Object) reply}, {@link #next(Object) next}, {@link #nextDirect(Object) nextDirect}, or
+         * {@link #goTo(String, Object) goTo} message. The reason that multiple requests are allowed is that this could
+         * be used in a scatter-gather scenario - where the replies come in to the next stage <i>of the same
+         * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
+         * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
+         * could also perform a reply.
          */
         void nextDirect(Object nextDirectDto);
 
         /**
-         * Passes the current call stack over to another endpoint, so that when that endpoint replies, it will return to
-         * the endpoint that invoked this endpoint.
+         * Sends a message which passes the current call stack over to another endpoint, so that when that endpoint
+         * replies, it will return to the endpoint which invoked this endpoint.
          * <p/>
          * This would be of use in "dispatcher" scenarios, where you might have a "case" style evaluation of the
          * incoming message, and then either handle it yourself, or send the control over to some other endpoint
          * (possibly one of several other endpoints) - so that when they again return, it will be to the original
          * caller.
          * <p/>
-         * A specific "dispatcher" situation where this could be of use, is if you have an endpoint that for some
+         * A specific dispatcher-like situation where this could be of use, is if you have an endpoint that for some
          * specific (known) entities consumes a particularly large amount of memory. For example, you might have a
          * specific set of frequent customers which when loaded takes much more memory than a normal customer. If you
          * get an influx of orders for these customers at the same time, your standard endpoint with a high concurrency
          * could lead to an out-of-memory situation. A solution here could be to instantiate that same endpoint code at
          * two different endpointIds - the public one, and a private variant with much lower concurrency. The standard,
          * public endpoint would at the initial stage evaluate if this was one of the known memory-hogging customers,
-         * and if so, make a context.goto(..) over to the other private endpoint with lower concurrency. (The endpoint
-         * would have to evaluate if it is the public or private wrt. whether it should do the eval-then-goto: Either by
-         * looking at its endpointId, or by use of {@link #goTo(String, Object, Object) initialState}, or by modifying
-         * the DTO, or by {@link ProcessContext#addString(String, String) sideloads}).
+         * and if so, make a context.goto(..) over to the other private endpoint with lower concurrency thereby ensuring
+         * that the memory usage would be contained. (The endpoint would have to evaluate if it is the public or private
+         * instance wrt. whether it should do the eval-then-goto: Either by looking at its endpointId (check if it is
+         * the private, low-concurrency variant), or by use of the {@link #goTo(String, Object, Object)
+         * initialState}-feature, or by modifying the DTO before goTo, or by
+         * {@link ProcessContext#addString(String, String) sideloads}).
          * <p/>
          * Another use is <i>tail calls</i>, whereby one endpoint A does some preprocessing, and then invokes another
-         * endpoint B, but where endpoint A really just want to reply with the reply from endpoint B directly. The extra
+         * endpoint B, but where endpoint A really just want to directly reply with the reply from endpoint B. The extra
          * reply stage of endpoint A is thus totally useless and just incurs additional message passing and processing.
-         * You can instead just goto endpoint B, which achieves just this outcome: When endpoint B now replies, it will
-         * reply to the caller of endpoint A.
+         * You can instead just goTo endpoint B, which achieves just this outcome: When endpoint B now replies, <i>it
+         * will reply to the caller of endpoint A</i>.
          * <p/>
-         * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} and/or
-         * {@link #next(Object) next} message, OR a single {@link #reply(Object) reply}, OR a single
-         * {@link #goTo(String, Object)}. The reason that multiple request/next are allowed, is that this could be used
-         * in a scatter-gather scenario - where the replies (or next) comes in to the next stage <i>of the same
+         * Note: Legal outgoing flows: Either one or several {@link #request(String, Object) request} messages; OR a
+         * single {@link #reply(Object) reply}, {@link #next(Object) next}, {@link #nextDirect(Object) nextDirect}, or
+         * {@link #goTo(String, Object) goTo} message. The reason that multiple requests are allowed is that this could
+         * be used in a scatter-gather scenario - where the replies come in to the next stage <i>of the same
          * endpoint</i>. However, multiple replies to the <i>invoking</i> endpoint makes very little sense, which is why
          * only one reply is allowed, and it cannot be combined with request or next, nor goto, as then the next stage
          * could also perform a reply.
+         * <p/>
+         * Note: The current state and DTO is serialized <i>when invoking this method</i>. Any changes to the state
+         * object or the DTO performed afterwards won't be present for the targeted endpoint.
          *
          * @param endpointId
          *            which endpoint to go to.
@@ -1021,13 +1047,11 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
     }
 
     /**
-     * Can be thrown by any of the {@link ProcessLambda}s of the {@link MatsStage}s to denote that it would prefer this
-     * message to be instantly put on a <i>Dead Letter Queue</i> (the stage processing, including any database actions,
-     * will still be rolled back as with any other exception thrown out of a ProcessLambda). This is just advisory - the
-     * message might still be presented a number of times to the {@link MatsStage} in question (i.e. for the
-     * backend-configured number of retries, e.g. default 1 delivery + 5 redeliveries for ActiveMQ).
-     *
-     * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
+     * Can be thrown by the {@link ProcessLambda} of the {@link MatsStage}s to denote that it would prefer this message
+     * to be instantly put on a <i>Dead Letter Queue</i> (the stage processing, including any database actions, will
+     * still be rolled back as with any other exception thrown out of a ProcessLambda). This is just advisory - the
+     * message might still be presented a number of times to the {@link MatsStage} in question even though the stage
+     * throws <code>MatsRefuseMessageException</code> every time.
      */
     class MatsRefuseMessageException extends Exception {
         public MatsRefuseMessageException(String message, Throwable cause) {
@@ -1041,8 +1065,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
 
     /**
      * A base Wrapper for {@link ProcessContext}, which simply implements ProcessContext, takes a ProcessContext
-     * instance and forwards all calls to that. Meant to be extended to add extra functionality, e.g. Spring
-     * integration.
+     * instance and forwards all calls to that.
      */
     class ProcessContextWrapper<R> implements MatsWrapper<ProcessContext<R>>, ProcessContext<R> {
         /**
