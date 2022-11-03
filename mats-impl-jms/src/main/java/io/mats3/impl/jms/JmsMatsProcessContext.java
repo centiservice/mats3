@@ -837,16 +837,19 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     @Override
     public void initiate(InitiateLambda lambda) {
-        // Store the existing TraceId, since it should hopefully be set (extended) in the initiate.
+        // :: Store the existing TraceId, since it should hopefully be set (extended) in the initiate.
         String existingTraceId = MDC.get(MDC_TRACE_ID);
-        // Do the actual initiation
 
-        // 2022-10-20: Replaced actual "stage initiate" with getDefaultInitiator(), as that when directly called
-        // is equivalent, but if nesting is in effect, defaultInitiator handles this.
-        _parentFactory.getDefaultInitiator().initiateUnchecked(lambda);
-
-        // Put back the previous TraceId.
-        MDC.put(MDC_TRACE_ID, existingTraceId);
+        try {
+            // :: Do the actual initiation
+            // 2022-10-20: Replaced actual "stage initiate" with getDefaultInitiator(), as that when directly called
+            // is equivalent, but if nesting is in effect, defaultInitiator handles this.
+            _parentFactory.getDefaultInitiator().initiateUnchecked(lambda);
+        }
+        finally {
+            // :: Put back the previous TraceId.
+            MDC.put(MDC_TRACE_ID, existingTraceId);
+        }
     }
 
     @Override

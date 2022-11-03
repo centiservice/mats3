@@ -50,39 +50,42 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
     private final DoAfterCommitRunnableHolder _doAfterCommitRunnableHolder;
 
     // :: Only for "true initiation"
-    private final String _existingMdcTraceId;
+    private final String _fromOutsideMdcTraceId;
 
     // :: Only for "within Stage"
     private final MatsTrace<Z> _existingMatsTrace;
+    private final String _fromId;
 
     static <Z> JmsMatsInitiate<Z> createForTrueInitiation(JmsMatsFactory<Z> parentFactory,
             List<JmsMatsMessage<Z>> messagesToSend, JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder, String existingMdcTraceId) {
+
         return new JmsMatsInitiate<>(parentFactory, messagesToSend, jmsMatsInternalExecutionContext,
-                doAfterCommitRunnableHolder,
-                null, existingMdcTraceId);
+                doAfterCommitRunnableHolder, null, existingMdcTraceId, null);
     }
 
     static <Z> JmsMatsInitiate<Z> createForChildFlow(JmsMatsFactory<Z> parentFactory,
             List<JmsMatsMessage<Z>> messagesToSend, JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder,
-            MatsTrace<Z> existingMatsTrace) {
+            MatsTrace<Z> existingMatsTrace, String fromId) {
+
         return new JmsMatsInitiate<>(parentFactory, messagesToSend, jmsMatsInternalExecutionContext,
-                doAfterCommitRunnableHolder,
-                existingMatsTrace, null);
+                doAfterCommitRunnableHolder, existingMatsTrace, null, fromId);
     }
 
     private JmsMatsInitiate(JmsMatsFactory<Z> parentFactory, List<JmsMatsMessage<Z>> messagesToSend,
             JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder,
-            MatsTrace<Z> existingMatsTrace, String existingMdcTraceId) {
+            MatsTrace<Z> existingMatsTrace, String fromOutsideMdcTraceId, String fromId) {
         _parentFactory = parentFactory;
         _messagesToSend = messagesToSend;
         _jmsMatsInternalExecutionContext = jmsMatsInternalExecutionContext;
         _doAfterCommitRunnableHolder = doAfterCommitRunnableHolder;
 
         _existingMatsTrace = existingMatsTrace;
-        _existingMdcTraceId = existingMdcTraceId;
+        _fromOutsideMdcTraceId = fromOutsideMdcTraceId;
+
+        _fromId = fromId;
 
         reset();
     }
@@ -111,26 +114,14 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
             // -> Yes, initiation within a Stage.
             // Set the initial traceId - any setting of TraceId is appended.
             _traceId = _existingMatsTrace.getTraceId();
-            // Set the initial from (initiatorId), which is the current processing stage
-            _from = _existingMatsTrace.getCurrentCall().getTo().getId();
         }
         else {
             // -> No, this is an initiation from MatsInitiator, i.e. "from the outside".
+            // No "starting traceId"
             _traceId = null;
-            _from = null;
         }
 
-        // :: Since the '_parentFactory.getInitiateTraceIdModifier()' might use the MDC to modify (prefix) the TraceId
-        // with, after each sent message, we need to reset it to whatever it was at start.
-        // ?: Did we have an existing MDC traceId? (only for "true initiations")
-        if (_existingMdcTraceId != null) {
-            // -> Yes, so restore it.
-            MDC.put(MDC_TRACE_ID, _existingMdcTraceId);
-        }
-        else {
-            // -> No, so clear it.
-            MDC.remove(MDC_TRACE_ID);
-        }
+        resetMdcTraceId();
 
         // :: Set defaults
         // NOTE: _traceId is set above.
@@ -139,14 +130,32 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         _nonPersistent = false;
         _interactive = false;
         _timeToLive = 0;
-        // NOTE: _from is set above
+        // Either null ("from the outside"), or the current processing stage ("from within a stage")
+        _from = _fromId;
         _to = null;
         _replyTo = null;
         _replyToSubscription = false;
         _replySto = null;
+
         _props.clear();
         _binaries.clear();
         _strings.clear();
+    }
+
+    /**
+     * Since the '_parentFactory.getInitiateTraceIdModifier()' might use the MDC to modify (prefix) the TraceId, we need
+     * to reset the MDC before applying the modifier.
+     */
+    private void resetMdcTraceId() {
+        // ?: Did we have an existing MDC traceId? (only for "true initiations")
+        if (_fromOutsideMdcTraceId != null) {
+            // -> Yes, so restore it.
+            MDC.put(MDC_TRACE_ID, _fromOutsideMdcTraceId);
+        }
+        else {
+            // -> No, so clear it.
+            MDC.remove(MDC_TRACE_ID);
+        }
     }
 
     @Override
@@ -164,6 +173,10 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         // ?: Do we have modifier function?
         else if (_parentFactory.getInitiateTraceIdModifier() != null) {
             // -> Yes, so use this.
+            // First reset MDC so that if used by the modifier function, it'll not "stack up" when repeated.
+            // (The MDC is set to the calculated traceId in bottom of this function)
+            resetMdcTraceId();
+            // Now apply the modifier to the incoming traceId.
             _traceId = _parentFactory.getInitiateTraceIdModifier().apply(traceId.toString());
         }
         else {
@@ -543,7 +556,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
 
         Supplier<MatsInitiate> initiateSupplier = () -> JmsMatsInitiate.createForChildFlow(_parentFactory,
                 _messagesToSend, _jmsMatsInternalExecutionContext, _doAfterCommitRunnableHolder,
-                matsTrace);
+                matsTrace, matsTrace.getCurrentCall().getTo().getId());
 
         _parentFactory.setCurrentMatsFactoryThreadLocal_ExistingMatsInitiate(initiateSupplier);
 

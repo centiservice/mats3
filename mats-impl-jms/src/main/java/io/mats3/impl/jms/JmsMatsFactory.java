@@ -476,10 +476,13 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
     static class NestingWithinStageProcessing<Z> {
         private final MatsTrace<Z> _matsTrace;
+        private final String _currentStageId;
         private final MessageConsumer _messageConsumer;
 
-        public NestingWithinStageProcessing(MatsTrace<Z> matsTrace, MessageConsumer messageConsumer) {
+        public NestingWithinStageProcessing(MatsTrace<Z> matsTrace, String currentStageId,
+                MessageConsumer messageConsumer) {
             _matsTrace = matsTrace;
+            _currentStageId = currentStageId;
             _messageConsumer = messageConsumer;
         }
 
@@ -489,6 +492,10 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
         public MessageConsumer getMessageConsumer() {
             return _messageConsumer;
+        }
+
+        public String getCurrentStageId() {
+            return _currentStageId;
         }
     }
 
@@ -525,7 +532,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
      * the Stage context should follow along just like if using context.initiate(..).
      * <ul>
      * <li>If this exists (i.e. current nesting hierarchy starts from within a stage processing), then use
-     * {@link JmsMatsInitiate#createForChildFlow(JmsMatsFactory, List, JmsMatsInternalExecutionContext, DoAfterCommitRunnableHolder, MatsTrace)}</li>
+     * {@link JmsMatsInitiate#createForChildFlow(JmsMatsFactory, List, JmsMatsInternalExecutionContext, DoAfterCommitRunnableHolder, MatsTrace, String)}</li>
      * <li>If this does not exists (i.e. current nesting hierarchy starts from "outside"), then use
      * {@link JmsMatsInitiate#createForTrueInitiation(JmsMatsFactory, List, JmsMatsInternalExecutionContext, DoAfterCommitRunnableHolder, String)}</li>
      * </ul>
@@ -536,9 +543,9 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
      * "hoisting" of an initiation transactions into an existing transaction is orthogonal to whether the processing is
      * within a stage or "outside".
      */
-    void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(MatsTrace<Z> matsTrace,
+    void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(MatsTrace<Z> matsTrace, String currentStageId,
             MessageConsumer messageConsumer) {
-        __nestingWithinStageProcessing.set(new NestingWithinStageProcessing<>(matsTrace, messageConsumer));
+        __nestingWithinStageProcessing.set(new NestingWithinStageProcessing<>(matsTrace, currentStageId, messageConsumer));
     }
 
     /**

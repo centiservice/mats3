@@ -1,5 +1,6 @@
 package io.mats3.api_test.basics;
 
+import io.mats3.MatsFactory;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -15,6 +16,12 @@ import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.junit.Rule_Mats;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 /**
  * Tests the {@link ProcessContext#nextDirect(Object)} functionality.
  *
@@ -27,13 +34,11 @@ public class Test_NextDirect {
     public static final Rule_Mats MATS = Rule_Mats.create();
 
     private static final String ENDPOINT = MatsTestHelp.endpoint();
-    private static final String ENDPOINT_LEAF1 = MatsTestHelp.endpoint("leaf1");
-    private static final String ENDPOINT_LEAF2 = MatsTestHelp.endpoint("leaf2");
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @Before
     public void setupEndpoints() {
-        // :: The Terminator that resolves the test
+        // :: The Terminator that resolves the tests
         MATS.getMatsFactory().terminator(TERMINATOR, StateTO.class, DataTO.class, (ctx, state, msg) -> {
             MATS.getMatsTestLatch().resolve(ctx, state, msg);
         });
@@ -85,24 +90,41 @@ public class Test_NextDirect {
         Assert.assertEquals(new DataTO(dto.number * Math.PI, dto.string + "_NextDirect"), result.getData());
     }
 
+    private static final String ENDPOINT_LEAF1 = MatsTestHelp.endpoint("leaf1");
+    private static final String ENDPOINT_LEAF2 = MatsTestHelp.endpoint("leaf2");
+    private static final String TERMINATOR_FOR_INITS = MatsTestHelp.terminator("for_inits");
+
     @Test
-    public void withRequests() {
+    public void doubleNextDirects_interleaved_with_Requests_and_InitiationsInStages() throws InterruptedException {
         // :: ARRANGE
-        MatsEndpoint<DataTO, Void> leaf1 = MATS.getMatsFactory().single(ENDPOINT_LEAF1, DataTO.class, DataTO.class, (
+        // :: Some leaf services
+        MatsFactory matsFactory = MATS.getMatsFactory();
+        matsFactory.single(ENDPOINT_LEAF1, DataTO.class, DataTO.class, (
                 ctx, msg) -> new DataTO(msg.number,
                         msg.string + "_leaf1"));
-        MatsEndpoint<DataTO, Void> leaf2 = MATS.getMatsFactory().single(ENDPOINT_LEAF2, DataTO.class, DataTO.class, (
+        matsFactory.single(ENDPOINT_LEAF2, DataTO.class, DataTO.class, (
                 ctx, msg) -> new DataTO(msg.number,
                         msg.string + "_leaf2"));
 
+        // :: Extra terminator for stage-inits
+        CopyOnWriteArrayList<String> received_inits = new CopyOnWriteArrayList<>();
+        CountDownLatch initsReceivedLatch = new CountDownLatch(18);
+        matsFactory.terminator(TERMINATOR_FOR_INITS, StateTO.class, DataTO.class, (ctx, state, msg) -> {
+            received_inits.add(ctx.getFromStageId() + "#" + msg.string);
+            initsReceivedLatch.countDown();
+        });
+
         // :: The Endpoint which employs nextDirect(..)
-        MatsEndpoint<DataTO, StateTO> ep = MATS.getMatsFactory().staged(ENDPOINT, DataTO.class, StateTO.class);
+        MatsEndpoint<DataTO, StateTO> ep = matsFactory.staged(ENDPOINT, DataTO.class, StateTO.class);
         ep.stage(DataTO.class, (ctx, state, msg) -> {
             Assert.assertEquals(0, state.number1);
             Assert.assertEquals(0, state.number2, 0d);
             state.number1 = 12345;
             state.number2 = Math.E;
             log.info("Invoking context.nextDirect() from Stage0");
+            ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(0d, "zero")));
+            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(0d, "zero_DI")));
+            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(0d, "zero_NI")));
             ctx.nextDirect(new DataTO(msg.number * Math.PI, msg.string + "_NextDirectFromStage0"));
         });
         ep.stage(DataTO.class, (ctx, state, msg) -> {
@@ -110,6 +132,9 @@ public class Test_NextDirect {
             Assert.assertEquals(Math.E, state.number2, 0d);
             state.number1 = 456;
             state.number2 = Math.PI;
+            ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(1d, "one")));
+            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(1d, "one_DI")));
+            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(1d, "one_NI")));
             ctx.request(ENDPOINT_LEAF1, new DataTO(msg.number, msg.string + "_requestFromStage1"));
         });
         ep.stage(DataTO.class, (ctx, state, msg) -> {
@@ -118,6 +143,9 @@ public class Test_NextDirect {
             state.number1 = 789;
             state.number2 = 1d;
             log.info("Invoking context.nextDirect() from Stage2");
+            ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(2d, "two")));
+            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(2d, "two_DI")));
+            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(2d, "two_NI")));
             ctx.nextDirect(new DataTO(msg.number * Math.E, msg.string + "_NextDirectFromStage2"));
         });
         ep.stage(DataTO.class, (ctx, state, msg) -> {
@@ -126,6 +154,9 @@ public class Test_NextDirect {
             state.number1 = 7654;
             state.number2 = 2d;
             log.info("Invoking context.nextDirect() from Stage3");
+            ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(3d, "three")));
+            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(3d, "three_DI")));
+            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(3d, "three_NI")));
             ctx.nextDirect(new DataTO(msg.number * 7, msg.string + "_NextDirectFromStage3"));
         });
         ep.stage(DataTO.class, (ctx, state, msg) -> {
@@ -133,11 +164,17 @@ public class Test_NextDirect {
             Assert.assertEquals(2d, state.number2, 0d);
             state.number1 = 1000;
             state.number2 = 1000d;
+            ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(4d, "four")));
+            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(4d, "four_DI")));
+            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(4d, "four_NI")));
             ctx.request(ENDPOINT_LEAF2, new DataTO(msg.number, msg.string + "_requestFromStage4"));
         });
         ep.lastStage(DataTO.class, (ctx, state, msg) -> {
             Assert.assertEquals(1000, state.number1);
             Assert.assertEquals(1000d, state.number2, 0d);
+            ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(5d, "five")));
+            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(5d, "five_DI")));
+            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(5d, "five_NI")));
             return new DataTO(msg.number, msg.string + "_replyFromStage5");
         });
 
@@ -162,5 +199,35 @@ public class Test_NextDirect {
                 + "_NextDirectFromStage2_NextDirectFromStage3"
                 + "_requestFromStage4_leaf2"
                 + "_replyFromStage5"), result.getData());
+
+        // Make sure all stage-inits have arrived
+        boolean await = initsReceivedLatch.await(30, TimeUnit.SECONDS);
+        Assert.assertTrue("Didn't get countdown", await);
+
+        // Create expected-list
+        ArrayList<String> expected_inits = new ArrayList<>();
+        expected_inits.add("Test_NextDirect.Endpoint#zero");
+        expected_inits.add("Test_NextDirect.Endpoint#zero_DI");
+        expected_inits.add("Test_NextDirect.Endpoint#zero_NI");
+        expected_inits.add("Test_NextDirect.Endpoint.stage1#one");
+        expected_inits.add("Test_NextDirect.Endpoint.stage1#one_DI");
+        expected_inits.add("Test_NextDirect.Endpoint.stage1#one_NI");
+        expected_inits.add("Test_NextDirect.Endpoint.stage2#two");
+        expected_inits.add("Test_NextDirect.Endpoint.stage2#two_DI");
+        expected_inits.add("Test_NextDirect.Endpoint.stage2#two_NI");
+        expected_inits.add("Test_NextDirect.Endpoint.stage3#three");
+        expected_inits.add("Test_NextDirect.Endpoint.stage3#three_DI");
+        expected_inits.add("Test_NextDirect.Endpoint.stage3#three_NI");
+        expected_inits.add("Test_NextDirect.Endpoint.stage4#four");
+        expected_inits.add("Test_NextDirect.Endpoint.stage4#four_DI");
+        expected_inits.add("Test_NextDirect.Endpoint.stage4#four_NI");
+        expected_inits.add("Test_NextDirect.Endpoint.stage5#five");
+        expected_inits.add("Test_NextDirect.Endpoint.stage5#five_DI");
+        expected_inits.add("Test_NextDirect.Endpoint.stage5#five_NI");
+
+        // Sort received-list
+        received_inits.sort(Comparator.naturalOrder());
+        // Assert that we got all the initiations.
+        Assert.assertEquals(expected_inits, received_inits);
     }
 }

@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -131,7 +130,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
             JmsMatsInitiate<Z> init = withinStageContext
                     .map(within -> JmsMatsInitiate.createForChildFlow(_parentFactory, messagesToSend,
-                            internalExecutionContext, doAfterCommitRunnableHolder, within.getMatsTrace()))
+                            internalExecutionContext, doAfterCommitRunnableHolder,
+                            within.getMatsTrace(), within.getCurrentStageId()))
                     .orElseGet(() -> JmsMatsInitiate.createForTrueInitiation(_parentFactory, messagesToSend,
                             internalExecutionContext, doAfterCommitRunnableHolder, existingTraceId));
             try {
@@ -336,39 +336,38 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         }
         finally {
             // :: Restore MDC
-            // ?: Was "mats.Init" set?
-            if (existingMatsInit == null) {
-                // -> No, so clear it.
+            if (existingMatsInit != null) {
+                MDC.put(MDC_MATS_INIT, existingMatsInit);
+            }
+            else {
                 MDC.remove(MDC_MATS_INIT);
             }
-            // ?: Was "mats.AppName" set?
-            if (existingMatsAppName == null) {
-                // -> No, so clear it.
+
+            if (existingMatsAppName != null) {
+                MDC.put(MDC_MATS_APP_NAME, existingMatsAppName);
+            }
+            else {
                 MDC.remove(MDC_MATS_APP_NAME);
             }
-            // ?: Was "mats.AppVersion" set?
-            if (existingMatsAppVersion == null) {
-                // -> No, so clear it.
+
+            if (existingMatsAppVersion != null) {
+                MDC.put(MDC_MATS_APP_VERSION, existingMatsAppVersion);
+            }
+            else {
                 MDC.remove(MDC_MATS_APP_VERSION);
             }
 
-            // ?: Was "mats.CallNo" set?
             if (existingMatsCallNumber != null) {
-                // -> Yes, so restore it.
                 MDC.put(MDC_MATS_CALL_NUMBER, existingMatsCallNumber);
             }
             else {
-                // -> No, so clear it.
                 MDC.remove(MDC_MATS_CALL_NUMBER);
             }
 
-            // ?: Was traceId set?
             if (existingTraceId != null) {
-                // -> Yes, so restore it.
                 MDC.put(MDC_TRACE_ID, existingTraceId);
             }
             else {
-                // -> No, so clear it.
                 MDC.remove(MDC_TRACE_ID);
             }
         }

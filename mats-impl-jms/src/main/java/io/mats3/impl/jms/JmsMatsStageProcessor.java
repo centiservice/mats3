@@ -382,7 +382,10 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     JmsMatsInternalExecutionContext internalExecutionContext = JmsMatsInternalExecutionContext
                             .forStage(_jmsSessionHolder, jmsConsumer);
 
-                    List<JmsMatsMessage<Z>> messagesToSend = new ArrayList<>();
+                    // The messages produced in a stage - will be reused (cleared) if nextDirect is invoked by stage
+                    List<JmsMatsMessage<Z>> stageMessagesProduced = new ArrayList<>();
+                    // Final list of messages to send (taking into account any nextDirect invocations)
+                    List<JmsMatsMessage<Z>> allMessagesToSend = new ArrayList<>();
 
                     @SuppressWarnings({ "unchecked", "rawtypes" })
                     StageCommonContextImpl<Z>[] stageCommonContext = new StageCommonContextImpl[1];
@@ -432,14 +435,16 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 // :: Nested initiation handling
                                 // For initiation within this transaction demarcation (ProcessContext or
                                 // DefaultInitiator)
+                                final String currentStageId = currentStage.getStageId();
                                 getFactory().setCurrentMatsFactoryThreadLocal_ExistingMatsInitiate(
-                                        () -> JmsMatsInitiate.createForChildFlow(getFactory(), messagesToSend,
-                                                internalExecutionContext, doAfterCommitRunnableHolder, data.matsTrace));
+                                        () -> JmsMatsInitiate.createForChildFlow(getFactory(), stageMessagesProduced,
+                                                internalExecutionContext, doAfterCommitRunnableHolder, data.matsTrace,
+                                                currentStageId));
                                 // This is within a stage processing, so store the context for any nested inits
                                 // This is relevant both if within current transaction demarcation, but also if explicit
                                 // going outside when using non-default initiator: matsFactory.getOrCreateInitiator.
                                 getFactory().setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(
-                                        data.matsTrace, jmsConsumer);
+                                        data.matsTrace, currentStageId, jmsConsumer);
 
                                 // :: Create contexts, invoke interceptors
                                 // ==========================================================
@@ -455,7 +460,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         data.matsTrace,
                                         incomingAndOutgoingSto,
                                         data.incomingBinaries, data.incomingStrings,
-                                        messagesToSend, internalExecutionContext,
+                                        stageMessagesProduced, internalExecutionContext,
                                         doAfterCommitRunnableHolder);
                                 if (nextDirectInvoked) {
                                     processContext_l.overrideForNextDirect(getFactory().getFactoryConfig().getAppName(),
@@ -512,7 +517,10 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                                 // === Invoke any interceptors, stage "Message"
                                 invokeStageMessageInterceptors(interceptorsForStage[0], stageCommonContext[0],
-                                        messagesToSend);
+                                        stageMessagesProduced);
+
+                                // Copy the stageMessagesProduced over to allMessagesToSend, so that they'll be sent.
+                                allMessagesToSend.addAll(stageMessagesProduced);
 
                                 // :: Handle NEXT_DIRECT "calls".
                                 nextDirectInvoked = processContext[0].isNextDirectInvoked();
@@ -520,20 +528,23 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     long nanosTaken_TotalStartReceiveToFinished = System.nanoTime() - nanos_Received[0];
 
                                     // :: Invoke StageCompletedInterceptors
-                                    List<MatsSentOutgoingMessage> initiations = messagesToSend.stream()
-                                            .filter(m -> m.getDispatchType() == DispatchType.STAGE_INIT)
-                                            .collect(Collectors.toList());
-                                    invokeStageCompletedInterceptors(internalExecutionContext, messagesToSend,
-                                            stageCommonContext[0], interceptorsForStage[0], nanosTaken_UserLambda[0],
+                                    // NOTE: All stageMessagesProduces shall be STAGE_INIT, i.e. initiations.
+                                    // (It is not possible to mix nextDirect with any other flow message).
+                                    invokeStageCompletedInterceptors(internalExecutionContext, stageCommonContext[0],
+                                            interceptorsForStage[0], nanosTaken_UserLambda[0],
                                             nanosTaken_totalEnvelopeSerAndComp[0], nanosTaken_totalMsgSysProdAndSend[0],
                                             null, processContext[0], nanosTaken_TotalStartReceiveToFinished,
-                                            null, Collections.emptyList(), initiations, ProcessResult.NEXT_DIRECT);
+                                            stageMessagesProduced, null, Collections.emptyList(),
+                                            stageMessagesProduced, ProcessResult.NEXT_DIRECT);
 
                                     // Change timestamps for "received" and sameHeightOutgoingTimestamp.
                                     nanos_Received[0] = System.nanoTime();
                                     Instant now = Instant.now();
                                     instant_Received[0] = now;
                                     sameHeightOutgoingTimestamp = now.toEpochMilli();
+
+                                    // Clear the stageMessagesProduced, for nextDirect stage to have clear list.
+                                    stageMessagesProduced.clear();
 
                                     // Current stage is now the next stage
                                     previousStage = currentStage;
@@ -565,17 +576,17 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                              * that the typical situation is that there is just one traceId (incoming + request or
                              * reply, which have the same traceId), as stage-initiations are a more seldom situation.
                              */
-                            concatAllTraceIds(data.matsTrace.getTraceId(), messagesToSend);
+                            concatAllTraceIds(data.matsTrace.getTraceId(), allMessagesToSend);
 
                             // :: Send any outgoing Mats messages (replies, requests, new messages etc..)
                             // ?: Any messages produced?
-                            if (!messagesToSend.isEmpty()) {
+                            if (!allMessagesToSend.isEmpty()) {
                                 // -> Yes, there are messages, so send them.
                                 // (commit is performed when it exits the transaction lambda)
 
                                 long nanosAtStart_totalEnvelopeSerialization = System.nanoTime();
                                 long nowMillis = System.currentTimeMillis();
-                                for (JmsMatsMessage<Z> matsMessage : messagesToSend) {
+                                for (JmsMatsMessage<Z> matsMessage : allMessagesToSend) {
                                     matsMessage.serializeAndCacheMatsTrace(nowMillis);
                                 }
                                 long nowNanos = System.nanoTime();
@@ -583,7 +594,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         - nanosAtStart_totalEnvelopeSerialization;
 
                                 long nanosAtStart_totalProduceAndSendMsgSysMessages = nowNanos;
-                                produceAndSendMsgSysMessages(log, _jmsSessionHolder, getFactory(), messagesToSend);
+                                produceAndSendMsgSysMessages(log, _jmsSessionHolder, getFactory(), allMessagesToSend);
                                 nanosTaken_totalMsgSysProdAndSend[0] = System.nanoTime() -
                                         nanosAtStart_totalProduceAndSendMsgSysMessages;
                             }
@@ -725,18 +736,18 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 // :: Find any "result" message (REPLY, NEXT, GOTO)
                                 // NOTE! This cannot be NEXT_DIRECT, as that would already have been handled in
                                 // the processing code above.
-                                MatsSentOutgoingMessage resultMessage = messagesToSend.stream()
+                                MatsSentOutgoingMessage resultMessage = stageMessagesProduced.stream()
                                         .filter(m -> (m.getMessageType() == MessageType.REPLY)
                                                 || (m.getMessageType() == MessageType.NEXT)
                                                 || (m.getMessageType() == MessageType.GOTO))
                                         .findFirst().orElse(null);
                                 // :: Find any Request messages (note that Reqs can be produced both by stage and init)
-                                List<MatsSentOutgoingMessage> requests = messagesToSend.stream()
+                                List<MatsSentOutgoingMessage> requests = stageMessagesProduced.stream()
                                         .filter(m -> (m.getMessageType() == MessageType.REQUEST)
                                                 && (m.getDispatchType() == DispatchType.STAGE))
                                         .collect(Collectors.toList());
                                 // :: Find any initiations performed within the stage (ProcessType.STAGE_INIT)
-                                List<MatsSentOutgoingMessage> initiations = messagesToSend.stream()
+                                List<MatsSentOutgoingMessage> initiations = stageMessagesProduced.stream()
                                         .filter(m -> m.getDispatchType() == DispatchType.STAGE_INIT)
                                         .collect(Collectors.toList());
 
@@ -778,11 +789,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     processResult = ProcessResult.NONE;
                                 }
 
-                                invokeStageCompletedInterceptors(internalExecutionContext, messagesToSend,
-                                        stageCommonContext[0], interceptorsForStage[0], nanosTaken_UserLambda[0],
+                                invokeStageCompletedInterceptors(internalExecutionContext, stageCommonContext[0],
+                                        interceptorsForStage[0], nanosTaken_UserLambda[0],
                                         nanosTaken_totalEnvelopeSerAndComp[0], nanosTaken_totalMsgSysProdAndSend[0],
                                         throwableResult, processContext[0], nanosTaken_TotalStartReceiveToFinished,
-                                        resultMessage, requests, initiations, processResult);
+                                        stageMessagesProduced, resultMessage, requests, initiations, processResult);
                             }
                         }
                     }
@@ -1200,12 +1211,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
     private static <R, S, Z> void invokeStageCompletedInterceptors(
             JmsMatsInternalExecutionContext internalExecutionContext,
-            List<JmsMatsMessage<Z>> messagesToSend, StageCommonContextImpl<Z> stageCommonContext,
-            List<MatsStageInterceptor> interceptorsForStage, long nanosTaken_UserLambda,
-            long nanosTaken_totalEnvelopeSerAndComp, long nanosTaken_totalMsgSysProdAndSend,
-            Throwable throwableResult, JmsMatsProcessContext<R, S, Z> processContext,
-            long nanosTaken_TotalStartReceiveToFinished, MatsSentOutgoingMessage resultMessage,
-            List<MatsSentOutgoingMessage> requests, List<MatsSentOutgoingMessage> initiations,
+            StageCommonContextImpl<Z> stageCommonContext, List<MatsStageInterceptor> interceptorsForStage,
+            long nanosTaken_UserLambda, long nanosTaken_totalEnvelopeSerAndComp,
+            long nanosTaken_totalMsgSysProdAndSend, Throwable throwableResult,
+            JmsMatsProcessContext<R, S, Z> processContext, long nanosTaken_TotalStartReceiveToFinished,
+            List<? extends MatsSentOutgoingMessage> messagesToSend, MatsSentOutgoingMessage resultMessage,
+            List<? extends MatsSentOutgoingMessage> requests, List<? extends MatsSentOutgoingMessage> initiations,
             ProcessResult processResult) {
         StageCompletedContextImpl stageCompletedContext = new StageCompletedContextImpl(
                 stageCommonContext,
@@ -1221,8 +1232,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 throwableResult,
                 Collections.unmodifiableList(messagesToSend),
                 resultMessage,
-                requests,
-                initiations);
+                Collections.unmodifiableList(requests),
+                Collections.unmodifiableList(initiations));
 
         // Go through interceptors backwards for this exit-style intercept stage
         for (int i = interceptorsForStage.size() - 1; i >= 0; i--) {
