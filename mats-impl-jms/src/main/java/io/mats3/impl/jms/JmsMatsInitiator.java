@@ -888,8 +888,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                 // -> Evidently within an existing Mats demarcation, so fire up a new subInitiateThread to do the
                 // initiation.
                 Throwable[] throwableResult = new Throwable[1];
-                String threadName = Thread.currentThread().getName() + ":subInitiation_" + Integer.toString(
-                        Math.abs(ThreadLocalRandom.current().nextInt()), 36);
+                String threadName = Thread.currentThread().getName() + " StageNested {"
+                        + _matsFactory.randomString(5) + '}';
                 Map<String, String> copyOfContextMap = MDC.getCopyOfContextMap();
                 Optional<NestingWithinStageProcessing<Z>> existingMatsTrace = _matsFactory
                         .getCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing();
@@ -957,8 +957,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                 // -> Evidently within an existing Mats demarcation, so fire up a new subInitiateThread to do the
                 // initiation.
                 Throwable[] throwableResult = new Throwable[1];
-                String threadName = Thread.currentThread().getName() + ":subInitiation_" + Integer.toString(
-                        Math.abs(ThreadLocalRandom.current().nextInt()), 36);
+                String threadName = Thread.currentThread().getName() + " StageNested {"
+                        + _matsFactory.randomString(5) + '}';
                 Map<String, String> copyOfContextMap = MDC.getCopyOfContextMap();
                 Optional<NestingWithinStageProcessing<Z>> existingMatsTrace = _matsFactory
                         .getCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing();

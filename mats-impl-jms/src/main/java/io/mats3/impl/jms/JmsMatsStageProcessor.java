@@ -95,11 +95,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     public enum PriorityFilter {
-        UNFILTERED("unfiltered"),
+        UNFILTERED("unfilt"),
 
-        STANDARD_ONLY("standard"),
+        STANDARD_ONLY("std"),
 
-        INTERACTIVE_ONLY("interactive");
+        INTERACTIVE_ONLY("pri");
 
         public final String threadSuffix;
 
@@ -113,11 +113,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     private volatile JmsSessionHolder _jmsSessionHolder;
 
     private String ident() {
-        return _jmsMatsStage.getStageId() + ':'
+        return _jmsMatsStage.getStageId() + " ("
                 + _priorityFilter.threadSuffix
-                + ":#"
+                + "#"
                 + _processorNumber
-                + " {" + _randomInstanceId + '}'
+                + ") {" + _randomInstanceId + '}'
                 + " @ " + _jmsMatsStage.getParentFactory().idThis();
     }
 
