@@ -885,8 +885,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * change to the state object or DTO <i>after</i> the invocation of nextDirect will be visible to the next
          * stage. (This as opposed to all the other message sending methods, where it is specified that the objects are
          * serialized upon method invocation, and any changes done afterwards will not be visible to the receiver.)</li>
-         * <li>If the next stage throws an exception, it will be the current stage that eventually DLQs - this might
-         * be confusing when researching an error.</li>
+         * <li>If the next stage throws an exception, it will be the current stage that eventually DLQs - this might be
+         * confusing when researching an error.</li>
          * <li>If employing MatsTrace (which the JMS impl do), it will contain no record of the nextDirect having been
          * performed. For example, if the message crops up on a DLQ, any nextDirects in the flow will not be
          * visible.</li>
@@ -909,10 +909,9 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * Sends a message which passes the current call stack over to another endpoint, so that when that endpoint
          * replies, it will return to the endpoint which invoked this endpoint.
          * <p/>
-         * This would be of use in "dispatcher" scenarios, where you might have a "case" style evaluation of the
-         * incoming message, and then either handle it yourself, or send the control over to some other endpoint
-         * (possibly one of several other endpoints) - so that when they again return, it will be to the original
-         * caller.
+         * This would be of use in dispatcher scenarios, where you might have a case-style evaluation of the incoming
+         * message, and then either handle it yourself, or send the control over to some other endpoint (possibly one of
+         * several other endpoints) - so that when they again reply, it will be to the original caller.
          * <p/>
          * A specific dispatcher-like situation where this could be of use, is if you have an endpoint that for some
          * specific (known) entities consumes a particularly large amount of memory. For example, you might have a
