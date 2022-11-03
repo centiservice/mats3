@@ -1,6 +1,11 @@
 package io.mats3.api_test.basics;
 
-import io.mats3.MatsFactory;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -9,18 +14,14 @@ import org.junit.Test;
 import org.slf4j.Logger;
 
 import io.mats3.MatsEndpoint;
+import io.mats3.MatsEndpoint.DetachedProcessContext;
 import io.mats3.MatsEndpoint.ProcessContext;
+import io.mats3.MatsFactory;
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.junit.Rule_Mats;
-
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Tests the {@link ProcessContext#nextDirect(Object)} functionality.
@@ -68,7 +69,7 @@ public class Test_NextDirect {
 
             // :: StageId should reflect "stage1", and obviously should EndpointId still be same.
             Assert.assertEquals(ENDPOINT, ctx.getEndpointId());
-            Assert.assertEquals(ENDPOINT+".stage1", ctx.getStageId());
+            Assert.assertEquals(ENDPOINT + ".stage1", ctx.getStageId());
 
             // :: From stage should be stage0 (i.e. endpoint itself)
             Assert.assertEquals(ENDPOINT, ctx.getFromStageId());
@@ -121,10 +122,21 @@ public class Test_NextDirect {
             Assert.assertEquals(0, state.number2, 0d);
             state.number1 = 12345;
             state.number2 = Math.E;
-            log.info("Invoking context.nextDirect() from Stage0");
+
+            Assert.assertEquals(new DataTO(20d, "hjort"), ctx.getTraceProperty("init", DataTO.class));
+
+            // Set TraceProps, bytes and strings
+
+            ctx.setTraceProperty("stage0", new DataTO(10d, "elg"));
+            ctx.addBytes("bytes_stage0", new byte[] { 1, 2, 3 });
+            ctx.addString("string_stage0", "String from Stage0");
+
             ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(0d, "zero")));
-            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(0d, "zero_DI")));
-            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(0d, "zero_NI")));
+            matsFactory.getDefaultInitiator()
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(0d, "zero_DI")));
+            matsFactory.getOrCreateInitiator("test")
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(0d, "zero_NI")));
+            log.info("Invoking context.nextDirect() from Stage0");
             ctx.nextDirect(new DataTO(msg.number * Math.PI, msg.string + "_NextDirectFromStage0"));
         });
         ep.stage(DataTO.class, (ctx, state, msg) -> {
@@ -132,9 +144,19 @@ public class Test_NextDirect {
             Assert.assertEquals(Math.E, state.number2, 0d);
             state.number1 = 456;
             state.number2 = Math.PI;
+
+            Assert.assertEquals(new DataTO(20d, "hjort"), ctx.getTraceProperty("init", DataTO.class));
+            Assert.assertEquals(new DataTO(10d, "elg"), ctx.getTraceProperty("stage0", DataTO.class));
+
+            // Previous nextDirect stage sideloads should be present
+            Assert.assertArrayEquals(new byte[] { 1, 2, 3 }, ctx.getBytes("bytes_stage0"));
+            Assert.assertEquals("String from Stage0", ctx.getString("string_stage0"));
+
             ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(1d, "one")));
-            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(1d, "one_DI")));
-            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(1d, "one_NI")));
+            matsFactory.getDefaultInitiator()
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(1d, "one_DI")));
+            matsFactory.getOrCreateInitiator("test")
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(1d, "one_NI")));
             ctx.request(ENDPOINT_LEAF1, new DataTO(msg.number, msg.string + "_requestFromStage1"));
         });
         ep.stage(DataTO.class, (ctx, state, msg) -> {
@@ -142,10 +164,25 @@ public class Test_NextDirect {
             Assert.assertEquals(Math.PI, state.number2, 0d);
             state.number1 = 789;
             state.number2 = 1d;
-            log.info("Invoking context.nextDirect() from Stage2");
+
+            Assert.assertEquals(new DataTO(20d, "hjort"), ctx.getTraceProperty("init", DataTO.class));
+            Assert.assertEquals(new DataTO(10d, "elg"), ctx.getTraceProperty("stage0", DataTO.class));
+
+            // :: Set more
+
+            ctx.setTraceProperty("stage2", new DataTO(25d, "hund"));
+            ctx.addBytes("bytes_stage2", new byte[] { 4, 5, 6 });
+            ctx.addString("string_stage2", "String from Stage2");
+
+            // The new TraceProperty is only present on outgoing messages, not the current context.
+            Assert.assertNull(null, ctx.getTraceProperty("stage2", DataTO.class));
+
             ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(2d, "two")));
-            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(2d, "two_DI")));
-            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(2d, "two_NI")));
+            matsFactory.getDefaultInitiator()
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(2d, "two_DI")));
+            matsFactory.getOrCreateInitiator("test")
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(2d, "two_NI")));
+            log.info("Invoking context.nextDirect() from Stage2");
             ctx.nextDirect(new DataTO(msg.number * Math.E, msg.string + "_NextDirectFromStage2"));
         });
         ep.stage(DataTO.class, (ctx, state, msg) -> {
@@ -153,10 +190,30 @@ public class Test_NextDirect {
             Assert.assertEquals(1d, state.number2, 0d);
             state.number1 = 7654;
             state.number2 = 2d;
-            log.info("Invoking context.nextDirect() from Stage3");
+
+            Assert.assertEquals(new DataTO(20d, "hjort"), ctx.getTraceProperty("init", DataTO.class));
+            Assert.assertEquals(new DataTO(10d, "elg"), ctx.getTraceProperty("stage0", DataTO.class));
+            Assert.assertEquals(new DataTO(25d, "hund"), ctx.getTraceProperty("stage2", DataTO.class));
+
+            // Previous nextDirect stage sideloads should be present
+            Assert.assertArrayEquals(new byte[] { 4, 5, 6 }, ctx.getBytes("bytes_stage2"));
+            Assert.assertEquals("String from Stage2", ctx.getString("string_stage2"));
+
+            // :: Set more
+
+            ctx.setTraceProperty("stage3", new DataTO(30d, "hane"));
+            ctx.addBytes("bytes_stage3", new byte[] { 3, 2, 1 });
+            ctx.addString("string_stage3", "String from Stage3");
+
+            // The new TraceProperty is only present on outgoing messages, not the current context.
+            Assert.assertNull(null, ctx.getTraceProperty("stage3", DataTO.class));
+
             ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(3d, "three")));
-            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(3d, "three_DI")));
-            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(3d, "three_NI")));
+            matsFactory.getDefaultInitiator()
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(3d, "three_DI")));
+            matsFactory.getOrCreateInitiator("test")
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(3d, "three_NI")));
+            log.info("Invoking context.nextDirect() from Stage3");
             ctx.nextDirect(new DataTO(msg.number * 7, msg.string + "_NextDirectFromStage3"));
         });
         ep.stage(DataTO.class, (ctx, state, msg) -> {
@@ -164,17 +221,35 @@ public class Test_NextDirect {
             Assert.assertEquals(2d, state.number2, 0d);
             state.number1 = 1000;
             state.number2 = 1000d;
+
+            Assert.assertEquals(new DataTO(20d, "hjort"), ctx.getTraceProperty("init", DataTO.class));
+            Assert.assertEquals(new DataTO(10d, "elg"), ctx.getTraceProperty("stage0", DataTO.class));
+            Assert.assertEquals(new DataTO(25d, "hund"), ctx.getTraceProperty("stage2", DataTO.class));
+            Assert.assertEquals(new DataTO(30d, "hane"), ctx.getTraceProperty("stage3", DataTO.class));
+
+            // From previous-previous nextDirect stage sideloads should be gone
+            Assert.assertNull(ctx.getBytes("bytes_stage2"));
+            Assert.assertNull(ctx.getString("string_stage2"));
+
+            // .. while previous nextDirect stage sideloads should be present
+            Assert.assertArrayEquals(new byte[] { 3, 2, 1 }, ctx.getBytes("bytes_stage3"));
+            Assert.assertEquals("String from Stage3", ctx.getString("string_stage3"));
+
             ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(4d, "four")));
-            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(4d, "four_DI")));
-            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(4d, "four_NI")));
+            matsFactory.getDefaultInitiator()
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(4d, "four_DI")));
+            matsFactory.getOrCreateInitiator("test")
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(4d, "four_NI")));
             ctx.request(ENDPOINT_LEAF2, new DataTO(msg.number, msg.string + "_requestFromStage4"));
         });
         ep.lastStage(DataTO.class, (ctx, state, msg) -> {
             Assert.assertEquals(1000, state.number1);
             Assert.assertEquals(1000d, state.number2, 0d);
             ctx.initiate(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(5d, "five")));
-            matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(5d, "five_DI")));
-            matsFactory.getOrCreateInitiator("test").initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(5d, "five_NI")));
+            matsFactory.getDefaultInitiator()
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(5d, "five_DI")));
+            matsFactory.getOrCreateInitiator("test")
+                    .initiateUnchecked(init -> init.to(TERMINATOR_FOR_INITS).send(new DataTO(5d, "five_NI")));
             return new DataTO(msg.number, msg.string + "_replyFromStage5");
         });
 
@@ -184,6 +259,7 @@ public class Test_NextDirect {
         StateTO state = new StateTO(12, 34.56);
 
         MATS.getMatsInitiator().initiateUnchecked(init -> init.traceId(MatsTestHelp.traceId())
+                .setTraceProperty("init", new DataTO(20, "hjort"))
                 .from(MatsTestHelp.from())
                 .to(ENDPOINT)
                 .replyTo(TERMINATOR, state)
@@ -199,6 +275,12 @@ public class Test_NextDirect {
                 + "_NextDirectFromStage2_NextDirectFromStage3"
                 + "_requestFromStage4_leaf2"
                 + "_replyFromStage5"), result.getData());
+
+        DetachedProcessContext ctx = result.getContext();
+        Assert.assertEquals(new DataTO(20d, "hjort"), ctx.getTraceProperty("init", DataTO.class));
+        Assert.assertEquals(new DataTO(10d, "elg"), ctx.getTraceProperty("stage0", DataTO.class));
+        Assert.assertEquals(new DataTO(25d, "hund"), ctx.getTraceProperty("stage2", DataTO.class));
+        Assert.assertEquals(new DataTO(30d, "hane"), ctx.getTraceProperty("stage3", DataTO.class));
 
         // Make sure all stage-inits have arrived
         boolean await = initsReceivedLatch.await(30, TimeUnit.SECONDS);

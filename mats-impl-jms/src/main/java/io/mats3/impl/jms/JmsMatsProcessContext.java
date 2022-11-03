@@ -130,6 +130,21 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
                 incomingStrings, out_messagesToSend, jmsMatsInternalExecutionContext, doAfterCommitRunnableHolder);
     }
 
+
+    // :: Need access to the outgoing props, binaries and strings for nextDirect
+
+    LinkedHashMap<String, Object> getOutgoingProps() {
+        return _outgoingProps;
+    }
+
+    LinkedHashMap<String, byte[]> getOutgoingBinaries() {
+        return _outgoingBinaries;
+    }
+
+    LinkedHashMap<String, String> getOutgoingStrings() {
+        return _outgoingStrings;
+    }
+
     /**
      * Holds any Runnable set by {@link #doAfterCommit(Runnable)}.
      */

@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -459,13 +460,20 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         currentStage.getStageConfig().getOrigin(),
                                         data.matsTrace,
                                         incomingAndOutgoingSto,
-                                        data.incomingBinaries, data.incomingStrings,
-                                        stageMessagesProduced, internalExecutionContext,
+                                        nextDirectInvoked
+                                                ? processContext[0].getOutgoingBinaries() // fetch from previous
+                                                : data.incomingBinaries,
+                                        nextDirectInvoked
+                                                ? processContext[0].getOutgoingStrings() // fetch from previous
+                                                : data.incomingStrings,
+                                        stageMessagesProduced,
+                                        internalExecutionContext,
                                         doAfterCommitRunnableHolder);
                                 if (nextDirectInvoked) {
                                     processContext_l.overrideForNextDirect(getFactory().getFactoryConfig().getAppName(),
                                             getFactory().getFactoryConfig().getAppVersion(),
-                                            previousStage.getStageId(), instant_Received[0]);
+                                            previousStage.getStageId(),
+                                            instant_Received[0]);
                                 }
                                 // Now set it
                                 processContext[0] = processContext_l;
@@ -542,6 +550,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     Instant now = Instant.now();
                                     instant_Received[0] = now;
                                     sameHeightOutgoingTimestamp = now.toEpochMilli();
+
+                                    // Blood-hack to add the TraceProperties to existing MatsTrace, both for keeping
+                                    // on any later actual new message (with new MatsTrace), but also nextDirect stage.
+                                    for (Entry<String, Object> entry : processContext_l.getOutgoingProps().entrySet()) {
+                                        data.matsTrace.setTraceProperty(entry.getKey(),
+                                                getFactory().getMatsSerializer().serializeObject(entry.getValue()));
+                                    }
 
                                     // Clear the stageMessagesProduced, for nextDirect stage to have clear list.
                                     stageMessagesProduced.clear();
