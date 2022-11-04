@@ -10,6 +10,11 @@ You should probably read the top-level [README.md](../README.md) file first!
 
 ## Coding
 
+### [System of Services](developing/SystemOfServices.md)
+
+These documents frequently talk about a _Service_ and sometimes _Application_, as well as _System_. This document
+describes what is meant by these terms, and a bit of philosophy as to what constitute a good service codebase.
+
 ### [Endpoints, Stages and Initiations](developing/EndpointsAndInitiations.md)
 
 How to code Mats Endpoints and Stages, both pure Java and with SpringConfig (annotations). Single-stage and multi-stage

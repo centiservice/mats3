@@ -30,11 +30,11 @@ containing a stack, which makes the semantics of sending and receiving messages 
 
 You may use Mats however you like! You can code a single-file `public static void main`-method that directly creates an
 `ActiveMQConnectionFactory`, using hardcoded strings for its URL and credentials, then create a `JmsMatsFactory`,
-providing the ConnectionFactory to it. You may then go ahead and create any endpoints you want, providing handling
-lambdas for each of the endpoints' stages. And then the main-method may exit, and you'll have a piece of code which when
-run will connect to that ActiveMQ message broker and provide those endpoints. You could also let the main thread not
-die, but instead act on some external events, e.g. read some (hardcoded!) file from the filesystem, and initiate a
-message each time it changes.
+providing the ConnectionFactory to it (read more at *[MatsFactory](developing/MatsFactory.md)*). You may then go ahead
+and create any endpoints you want, providing handling lambdas for each of the endpoints' stages. And then the
+main-method may exit, and you'll have a piece of code which when run will connect to that ActiveMQ message broker and
+provide those endpoints. You could also let the main thread not die, but instead act on some external events, e.g. read
+some (hardcoded!) file from the filesystem, and initiate a message each time it changes.
 
 The resulting piece of code will be some dozens of lines. And it could arguably be called a Service.
 
@@ -62,14 +62,22 @@ So, when these documents talk of a Service, this is what is meant:
 
 Additional components of a good services architecture are, in the humble opinion of the author:
 
-1. Common logging setup, so that you get the same good information from any service in the system. The log should be
+1. High-Availability and scale-out compatible: It must be possible to run more than a single instance of the service.
+   The typical problem to handle is "ownership of data": When running a single instance, you may assume that the db
+   never changes unless "yourself" has changed it, while if there are >1 instance running, another copy of you may
+   change the db. This has clear implications for how you think and code, in particular wrt. caching, and therefore you
+   should always run at least 2 instances of any service in staging and prod to weed out such problems from the get-go.
+2. Common logging setup, so that you get the same good information from any service in the system. The log should be
    sent to a centralized system like Elastic/Kibana.
-2. Metrics set up and available for scrape, with easy ability to create service-specific metrics.
-3. Tracing.
-4. Health checks, where it is possible to easily create service-specific checks.
-5. A service-local introspection HTML GUI. This can show generic information like current config, system information
+3. Metrics set up and available for scrape, with easy ability to create service-specific metrics.
+4. Tracing.
+5. Health checks, where it is possible to easily create service-specific checks.
+6. A service-local introspection HTML GUI. This can show generic information like current config, system information
    like CPUs and memory etc. In addition, enabling developers to display service-specific information to themselves is
    great.
+
+One reader of this document mentioned _[The Twelve-Factor App](https://12factor.net/)_. There is clearly an overlap of
+ideas.
 
 For more on developing services utilizing Mats, read [Developing with Mats](DevelopingWithMats.md).
 

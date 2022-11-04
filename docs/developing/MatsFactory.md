@@ -46,8 +46,8 @@ away the Connection-getting.
 
 ## Connecting to the correct JMS broker
 
-The similarity with JMS ConnectionFactory and JDBC DataSource is pretty apt, as both basically are databases. A Message
-Broker is just a rather specialized database: One may think of it as having specialized FIFO-tables, where
+The similarity between JMS ConnectionFactory and JDBC DataSource is pretty apt, as both basically are databases. A
+Message Broker is just a rather specialized database: One may think of it as having specialized FIFO-tables, where
 "rows" are added to named tables at the end, and consumed from the head. _(Indeed, for example PostgreSQL has features
 specifically created for using the SQL server as a message broker, blurring the lines between those two types of
 products)_
