@@ -15,7 +15,7 @@ ext {
     activeMqVersion = '5.16.5'  // 5.16.5 is the last planned Java 8 version.
     artemisMqVersion = '2.19.1' // 2.19.1 is the last planned Java 8 version.
     springVersion = '5.3.23'
-    jacksonVersion = '2.13.2'
+    jacksonVersion = '2.13.4'
     slf4jVersion = '1.7.36'
     micrometerVersion = '1.9.4'
 
@@ -26,15 +26,15 @@ ext {
     // For the JUnit system tests, and the JUnit testing tools
     junitVersion = '4.13.2'
     // For the Jupiter testing tools
-    jupiterVersion = '5.9.0'
-    jupiterPlatformVersion = '1.9.0'
+    jupiterVersion = '5.9.1'
+    jupiterPlatformVersion = '1.9.1'
 
     // For testing
     logbackVersion = '1.2.11' // Old stable: SLF4J 1.7, Java EE, JDK 8.
-    h2Version = '2.1.210'
-    jettyVersion = '9.4.46.v20220331'
-    hibernateVersion = '5.6.5.Final'
-    remockVersion = '1.1.0'
+    h2Version = '2.1.214'
+    jettyVersion = '9.4.49.v20220914'
+    hibernateVersion = '5.6.12.Final'
+    remockVersion = '2.0.0'
 }
 
 // :: Note: Two different subproject-blocks, one for all common elements, and one for publishing.
