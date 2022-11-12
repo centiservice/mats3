@@ -231,16 +231,6 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
     }
 
     @Override
-    @Deprecated
-    public MatsInitiate timeToLive(long timeToLiveMillis) {
-        if (timeToLiveMillis < 0) {
-            throw new IllegalArgumentException("timeToLive must be > 0");
-        }
-        _timeToLive = timeToLiveMillis;
-        return this;
-    }
-
-    @Override
     public MatsInitiate noAudit() {
         _noAudit = true;
         return this;

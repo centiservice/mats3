@@ -403,15 +403,6 @@ public interface MatsInitiator extends Closeable {
         MatsInitiate interactive();
 
         /**
-         * TODO: Remove when everybody is >0.15.0
-         *
-         * @deprecated Use {@link #nonPersistent(long)} instead. It makes little sense to have a timeToLive on a message
-         *             that is also persistent (i.e. <i>not</i> nonPersistent), therefore these was combined.
-         */
-        @Deprecated
-        MatsInitiate timeToLive(long millis);
-
-        /**
          * Marks this Mats flow as not relevant for auditing.
          * <p />
          * When considering auditing ("event sourcing"-style) of all messages, one quickly realizes that there are very
@@ -952,12 +943,6 @@ public interface MatsInitiator extends Closeable {
         @Override
         public MatsInitiate interactive() {
             unwrap().interactive();
-            return this;
-        }
-
-        @Override
-        public MatsInitiate timeToLive(long millis) {
-            unwrap().timeToLive(millis);
             return this;
         }
 
