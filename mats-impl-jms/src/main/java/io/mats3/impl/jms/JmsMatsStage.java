@@ -309,7 +309,12 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
 
         @Override
         public StageConfig<R, S, I> setAttribute(String key, Object value) {
-            _attributes.put(key, value);
+            if (value == null) {
+                _attributes.remove(key);
+            }
+            else {
+                _attributes.put(key, value);
+            }
             return this;
         }
 

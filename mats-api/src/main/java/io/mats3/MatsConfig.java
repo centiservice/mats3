@@ -109,12 +109,14 @@ public interface MatsConfig {
     boolean isRunning();
 
     /**
-     * Sets an attribute for this entity (factory, endpoint, stage) - can e.g. be used by tooling or interceptors.
+     * Sets an attribute for this entity (factory, endpoint, stage) - can e.g. be used by tooling or interceptors. If
+     * the value is <code>null</code>, the mapping for the specified key is cleared.
      *
      * @param key
-     *            the key name for this attribute.
+     *            the key name for this attribute. Not <code>null</code>.
      * @param value
-     *            the value for this attribute.
+     *            the value for this attribute. If the value is <code>null</code>, the mapping for the specified key is
+     *            cleared.
      * @return the config object, for method chaining.
      */
     MatsConfig setAttribute(String key, Object value);

@@ -1017,7 +1017,12 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
         @Override
         public FactoryConfig setAttribute(String key, Object value) {
-            _attributes.put(key, value);
+            if (value == null) {
+                _attributes.remove(key);
+            }
+            else {
+                _attributes.put(key, value);
+            }
             return this;
         }
     }

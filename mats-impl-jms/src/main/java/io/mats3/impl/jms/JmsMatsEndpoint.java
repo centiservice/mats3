@@ -319,7 +319,12 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
 
         @Override
         public EndpointConfig<R, S> setAttribute(String key, Object value) {
-            _attributes.put(key, value);
+            if (value == null) {
+                _attributes.remove(key);
+            }
+            else {
+                _attributes.put(key, value);
+            }
             return this;
         }
 
