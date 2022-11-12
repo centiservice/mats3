@@ -166,17 +166,6 @@ public abstract class AbstractMatsTest<Z> {
     }
 
     /**
-     * TODO: Delete when > 0.18
-     *
-     * @deprecated use {@link #getMatsTestBrokerInterface()}
-     */
-    @Deprecated
-    public synchronized Object getMatsTestMqInterface() {
-        throw new AssertionError("Renamed to getMatsTestBrokerInterface(),"
-                + " returning a MatsTestBrokerInterface instance.");
-    }
-
-    /**
      * @return a {@link MatsTestBrokerInterface} instance for getting DLQs (and hopefully other snacks at a later time).
      */
     public synchronized MatsTestBrokerInterface getMatsTestBrokerInterface() {

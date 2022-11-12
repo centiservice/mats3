@@ -122,20 +122,6 @@ public class SpringJmsMatsFactoryProducer {
     }
 
     /**
-     * TODO: Deprecated: Wrongly named method. Remove when > v0.16.0.
-     *
-     * @deprecated use
-     *             {@link #createSpringPlatformTransactionManagerTxMatsFactory(String, String, MatsSerializer, ConnectionFactory, PlatformTransactionManager)}
-     */
-    @Deprecated
-    public static SpringJmsMatsFactoryWrapper createSpringDataSourceTxMatsFactory(String appName, String appVersion,
-            MatsSerializer<?> matsSerializer, ConnectionFactory jmsConnectionFactory,
-            PlatformTransactionManager platformTransactionManager) {
-        return createSpringPlatformTransactionManagerTxMatsFactory(appName, appVersion, matsSerializer,
-                jmsConnectionFactory, platformTransactionManager);
-    }
-
-    /**
      * If you need a {@link MatsFactory} that only handles the JMS transactions, this is your factory method - but if
      * you DO make any database calls within any Mats endpoint lambda, you will now have no or poor transactional
      * demarcation, use

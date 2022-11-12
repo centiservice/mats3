@@ -43,16 +43,6 @@ public interface MatsTrace<Z> {
     String NULLED = "-nulled-";
 
     /**
-     * @deprecated TODO: delete once all > v0.18.4
-     */
-    @Deprecated
-    default MatsTrace<Z> withDebugInfo(String initializingAppName, String initializingAppVersion,
-            String initializingHost,
-            String initiatorId, long initializedTimestamp, String debugInfo) {
-        return withDebugInfo(initializingAppName, initializingAppVersion, initializingHost, initiatorId, debugInfo);
-    }
-
-    /**
      * Can only be set once..
      *
      * @param initiatorId
@@ -462,15 +452,6 @@ public interface MatsTrace<Z> {
          *         constructed as follows: {@link MatsTrace#getFlowId()} + "_" + flow-unique messageId.
          */
         String getMatsMessageId();
-
-        /**
-         * @deprecated TODO: Remove once all are >= 0.18.4
-         */
-        @Deprecated
-        default Call<Z> setDebugInfo(String callingAppName, String callingAppVersion, String callingHost,
-                long calledTimestamp, String matsMessageId, String debugInfo) {
-            return setDebugInfo(callingAppName, callingAppVersion, callingHost, debugInfo);
-        }
 
         /**
          * Can only be set once.

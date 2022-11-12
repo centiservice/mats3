@@ -733,8 +733,6 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
                         throw e;
                     }
 
-                    // TODO: Also somehow check runFlag of StageProcessor before committing.
-
                     /*
                      * IFF the SQL Connection was fetched, we will now commit (and close) it.
                      */

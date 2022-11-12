@@ -329,15 +329,8 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         }
 
         @Override
-        @Deprecated
-        public Class<I> getIncomingMessageClass() {
-            return getIncomingClass();
-        }
-
-        @Override
         public Class<I> getIncomingClass() {
             return _incomingClass;
         }
     }
-
 }

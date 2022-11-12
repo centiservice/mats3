@@ -48,16 +48,6 @@ public interface MatsSerializer<Z> {
     }
 
     /**
-     * TODO: DELETE after users are at > 0.15.0. (Evaluate whether extensions @Override).
-     */
-    @Deprecated
-    default MatsTrace<Z> createNewMatsTrace(String traceId, KeepMatsTrace keepMatsTrace, boolean nonPersistent,
-            boolean interactive) {
-        return createNewMatsTrace(traceId, Long.toHexString(Math.abs(ThreadLocalRandom.current().nextLong())),
-                keepMatsTrace, nonPersistent, interactive, 0, false);
-    }
-
-    /**
      * Used when initiating a new MATS flow. Since the {@link MatsTrace} implementation is dependent on the
      * serialization mechanism in use, we need a way provided by the serializer to instantiate new instances of the
      * implementation of MatsTrace. A {@link Call} must be added before it is good to be sent.

@@ -79,15 +79,6 @@ import io.mats3.test.broker.MatsTestBroker;
 public class ScenarioConnectionFactoryProducer implements MatsProfiles {
 
     /**
-     * TODO: Deprectated. Remove once >= 0.16
-     *
-     * @deprecated Use the factory method {@link #withRegularConnectionFactory(ConnectionFactoryProvider)} instead.
-     */
-    @Deprecated
-    public ScenarioConnectionFactoryProducer() {
-    }
-
-    /**
      * Creates a {@link ScenarioConnectionFactoryProducer}, where you need to provide the {@link MatsScenario#REGULAR
      * REGULAR} scenario's {@link ConnectionFactoryProvider}. This is the one that will be used in Production and
      * Production-like environments, e.g. Staging, Acceptance Testing, Pre-Prod or whatever you call those environments.
@@ -120,17 +111,6 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
     }
 
     /**
-     * TODO: Deprecated, remove once >= 0.16.0
-     *
-     * @deprecated use {@link #withRegularConnectionFactory(ConnectionFactoryProvider)} instead.
-     */
-    @Deprecated
-    public ScenarioConnectionFactoryProducer regularConnectionFactory(ConnectionFactoryProvider providerLambda) {
-        _regularConnectionFactoryProvider = providerLambda;
-        return this;
-    }
-
-    /**
      * Optional: Provide a ConnectionFactoryProvider lambda for the {@link MatsScenario#LOCALHOST LOCALHOST} scenario
      * (which only is meant to be used for development and possibly testing). If this is not provided, it will be a
      * somewhat specially tailored ActiveMQ ConnectionFactory with the URL <code>"tcp://localhost:61616"</code>, read
@@ -146,17 +126,6 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
             ConnectionFactoryProvider localhostConnectionFactoryProvider) {
         _localhostConnectionFactoryProvider = localhostConnectionFactoryProvider;
         return this;
-    }
-
-    /**
-     * TODO: Deprecated, remove once >= 0.16.0
-     *
-     * @deprecated use {@link #withLocalhostConnectionFactory(ConnectionFactoryProvider)} instead.
-     */
-    @Deprecated
-    public ScenarioConnectionFactoryProducer localhostConnectionFactory(
-            ConnectionFactoryProvider providerLambda) {
-        return withLocalhostConnectionFactory(providerLambda);
     }
 
     /**
@@ -186,16 +155,6 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
             ConnectionFactoryProvider localVmConnectionFactoryProvider) {
         _localVmConnectionFactoryProvider = localVmConnectionFactoryProvider;
         return this;
-    }
-
-    /**
-     * TODO: Deprecated, remove once >= 0.16.0
-     *
-     * @deprecated use {@link #withLocalhostConnectionFactory(ConnectionFactoryProvider)} instead.
-     */
-    @Deprecated
-    public ScenarioConnectionFactoryProducer localVmConnectionFactory(ConnectionFactoryProvider providerLambda) {
-        return withLocalVmConnectionFactory(providerLambda);
     }
 
     /**
@@ -250,16 +209,6 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
     }
 
     /**
-     * TODO: Deprecated, remove once >= 0.16.0
-     *
-     * @deprecated use {@link #withScenarioDecider(ScenarioDecider)} instead.
-     */
-    @Deprecated
-    public ScenarioConnectionFactoryProducer scenarioDecider(ScenarioDecider scenarioDecider) {
-        return withScenarioDecider(scenarioDecider);
-    }
-
-    /**
      * Creates the appropriate {@link ConnectionFactory}, which is a wrapper integrating with Spring - the decision
      * between the configured scenarios is done after all Spring beans are defined.
      *
@@ -273,16 +222,6 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
                 _localhostConnectionFactoryProvider,
                 _localVmConnectionFactoryProvider,
                 _scenarioDecider);
-    }
-
-    /**
-     * TODO: Deprecated, remove once >= 0.16.0
-     *
-     * @deprecated use {@link #build()} instead.
-     */
-    @Deprecated
-    public ScenarioConnectionFactoryWrapper create() {
-        return build();
     }
 
     // ====== Implementation

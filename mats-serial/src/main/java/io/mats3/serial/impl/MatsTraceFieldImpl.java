@@ -722,9 +722,8 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
 
             // Increase CallNumber
             cloned.cn = this.cn + 1;
-            // Increase TotalCallNumber, handling previous versions which didn't handle it.
-            // TODO: Remove special handling once all are >=0.17.
-            cloned.tcn = Math.max(cloned.cn, this.tcn + 1);
+            // Increase TotalCallNumber
+            cloned.tcn = this.tcn + 1;
             return cloned;
         }
         catch (CloneNotSupportedException e) {
@@ -866,10 +865,6 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
             if (getCallType() != CallType.REPLY) {
                 throw new IllegalStateException("Type of this call is not REPLY, so you cannot ask for"
                         + " ReplyFromSpanId.");
-            }
-            // TODO: REMOVE THIS HACK ONCE EVERYONE IS >=0.16
-            if (rid == null) {
-                return 0;
             }
             return rid;
         }

@@ -178,8 +178,6 @@ public class JmsMatsTransactionManager_JmsAndJdbc extends JmsMatsTransactionMana
 
                 // ----- The JMS Session is currently OK, so commit the DB.
 
-                // TODO: Also somehow check runFlag of StageProcessor before committing.
-
                 log.debug(LOG_PREFIX + "COMMIT SQL: ProcessingLambda finished, committing SQL Connection.");
                 /*
                  * IFF the SQL Connection was fetched, we will now commit (and close) it.

@@ -72,14 +72,6 @@ public interface MatsStage<R, S, I> extends StartStoppable {
         int getStageIndex();
 
         /**
-         * TODO: Remove once all are >= 0.17
-         *
-         * @deprecated use correctly named {@link #getIncomingClass()}.
-         */
-        @Deprecated
-        Class<I> getIncomingMessageClass();
-
-        /**
          * @return the class expected for incoming messages to this process stage.
          */
         Class<I> getIncomingClass();
