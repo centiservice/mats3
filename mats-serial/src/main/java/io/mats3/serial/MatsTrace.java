@@ -209,7 +209,7 @@ public interface MatsTrace<Z> {
     void setTraceProperty(String propertyName, Z propertyValue);
 
     /**
-     * Retrieves a property value set by {@link #setTraceProperty(String, Z)}, refer to
+     * Retrieves a property value set by {@link #setTraceProperty(String, Object)}, refer to
      * <code>ProcessContext.getTraceProperty(String, Class)</code>. Notice that on the MatsTrace-side, the value is of
      * type {@code Z}.
      *
@@ -288,8 +288,8 @@ public interface MatsTrace<Z> {
     /**
      * Adds a {@link Call.CallType#NEXT NEXT} Call, which is a "skip call" to the next stage in a multistage service, as
      * opposed to the normal request out to a service expecting a reply. The functionality is functionally identical to
-     * {@link #addSendCall(String, String, MessagingModel, Z, Z) addSendCall(...)}, but has its own {@link Call.CallType
-     * CallType} enum value {@link Call.CallType#NEXT NEXT}.
+     * {@link #addSendCall(String, String, MessagingModel, Object, Object)} addSendCall(...)}, but has its own
+     * {@link Call.CallType CallType} enum value {@link Call.CallType#NEXT NEXT}.
      * <p />
      * Note: Cannot specify {@link MessagingModel} here, as one cannot fathom where that would make sense: It must be
      * {@link MessagingModel#QUEUE QUEUE}.
@@ -351,8 +351,8 @@ public interface MatsTrace<Z> {
     /**
      * @return the timestamp set by {@link #setOutgoingTimestamp(long)} for the preceding call on the same stack height.
      *         Used to calculate the "time between stages" for the different stages on an endpoint. It does not make
-     *         sense to get this for the initial stage of an Endpoint if the incoming is a REQUEST, and the return
-     *         value will then be <code>-1</code>.
+     *         sense to get this for the initial stage of an Endpoint if the incoming is a REQUEST, and the return value
+     *         will then be <code>-1</code>.
      */
     long getSameHeightOutgoingTimestamp();
 

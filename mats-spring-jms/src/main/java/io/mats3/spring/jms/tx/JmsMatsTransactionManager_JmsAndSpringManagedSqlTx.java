@@ -450,7 +450,7 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
      * DataSourceUtil.getConnection(dataSource) - if the returned Connection's toString() looks like
      * <code>"DeferredConnectionProxy@3ec11999 WITHOUT actual Connection from DataSource@3406472c..."</code> then the
      * actual Connection is still not gotten. When it is gotten (e.g. after having done a SQL CRUD operation), the
-     * toString() will look like <code>"DeferredConnectionProxy@3ec11999 WITH actual Connection@b5cc23a"</code>>
+     * toString() will look like <code>"DeferredConnectionProxy@3ec11999 WITH actual Connection@b5cc23a"</code>
      */
     public static DataSource wrapLazyConnectionDatasource(DataSource targetDataSource) {
         log.info(LOG_PREFIX + "Wrapping provided DataSource in a 'magic lazy proxy' which allows both"

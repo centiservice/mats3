@@ -215,7 +215,7 @@ public interface MatsOutgoingMessage {
 
         /**
          * @return time taken (in nanoseconds) to compress the envelope - will be <code>0</code> if no compression was
-         *         applied, while it will return > 0 if compression was applied.
+         *         applied, while it will return &gt; 0 if compression was applied.
          */
         long getEnvelopeCompressionNanos();
 

@@ -38,7 +38,7 @@ import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
  * <pre>
  * &#64;RegisterExtension
  * public Extension_MatsEndpoint&lt;String, String&gt; _world = Extension_MatsEndpoint.single(endpointFactory, "World",
- *         String.class, String.class, (context, in) -> in + "World");
+ *         String.class, String.class, (context, in) -&gt; in + "World");
  * </pre>
  *
  * Should one want to utilize this test endpoint approach in a test which brings up a Spring context which contains a
@@ -65,7 +65,7 @@ public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I>
      * Sets the internal {@link MatsFactory} to be utilized for the creation of this endpoint.
      * <p>
      * If not utilized explicitly can also be injected/autowired through the use of the test execution listener
-     * <code>SpringInjectRulesAndExtensions</code>> should this Extension be utilized in a test where a Spring context
+     * <code>SpringInjectRulesAndExtensions</code> should this Extension be utilized in a test where a Spring context
      * is in play.
      *
      * @param matsFactory

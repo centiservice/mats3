@@ -38,7 +38,7 @@ import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
  * <pre>
  * &#64;Rule
  * public Rule_MatsEndpoint&lt;String, String&gt; _world = Rule_MatsEndpoint.single(endpointFactory, "World",
- *         String.class, String.class, (context, in) -> in + "World");
+ *         String.class, String.class, (context, in) -&gt; in + "World");
  * </pre>
  *
  * Should one want to utilize this test endpoint approach in a test which brings up a Spring context which contains a

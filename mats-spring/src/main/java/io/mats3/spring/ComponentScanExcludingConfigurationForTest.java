@@ -40,7 +40,7 @@ import org.springframework.core.annotation.AliasFor;
  * A test class employing @ConfigurationForTest would look something like this:
  *
  * <pre>
- * &#64;MatsTestProfile // <- If you employ the JmsSpringConnectionFactoryProducer's logic to handle JMS ConnectionFactory
+ * &#64;MatsTestProfile // &lt;- If you employ the JmsSpringConnectionFactoryProducer's logic to handle JMS ConnectionFactory
  * &#64;RunWith(SpringRunner.class)
  * public class IntegrationTestClass {
  *
@@ -74,7 +74,7 @@ import org.springframework.core.annotation.AliasFor;
  * with @Configuration.</i> Such an integration test class would look something like this:
  *
  * <pre>
- * &#64;MatsTestProfile // <- If you employ the JmsSpringConnectionFactoryProducer's logic to handle JMS ConnectionFactory
+ * &#64;MatsTestProfile // &lt;- If you employ the JmsSpringConnectionFactoryProducer's logic to handle JMS ConnectionFactory
  * &#64;RunWith(SpringRunner.class)
  * &#64;ContextConfiguration(classes = { ApplicationSpringConfigurationClass_Using_ComponentScan.class,
  *         InnerStaticConfigurationClassForTest.class })

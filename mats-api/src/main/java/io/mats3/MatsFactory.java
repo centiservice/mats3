@@ -69,8 +69,8 @@ public interface MatsFactory extends StartStoppable {
     FactoryConfig getFactoryConfig();
 
     /**
-     * Simple Consumer&lt;MatsConfig&gt-implementation that does nothing, for use where you e.g. only need to config the
-     * stage, not the endpoint, in e.g. the method
+     * Simple Consumer&lt;MatsConfig&gt;-implementation that does nothing, for use where you e.g. only need to config
+     * the stage, not the endpoint, in e.g. the method
      * {@link #terminator(String, Class, Class, Consumer, Consumer, ProcessTerminatorLambda)}.
      */
     Consumer<MatsConfig> NO_CONFIG = config -> {

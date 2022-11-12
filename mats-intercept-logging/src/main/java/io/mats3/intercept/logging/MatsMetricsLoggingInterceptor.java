@@ -182,7 +182,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <li><b>{@link #MDC_MATS_IN_SIZE_ENVELOPE_WIRE "mats.in.EnvelopeWire.bytes"}</b>: How big the incoming Mats envelope
  * ("MatsTrace") was in the incoming message system message, i.e. "on the wire".</li>
  * <li><b>{@link #MDC_MATS_IN_TIME_ENVELOPE_DECOMPRESS "mats.in.EnvelopeDecompress.ms"}</b>: Part of total time taken to
- * decompress the Mats envelope (will be 0 if it was sent plain, and >0 if it was compressed).</li>
+ * decompress the Mats envelope (will be 0 if it was sent plain, and &gt; 0 if it was compressed).</li>
  * <li><b>{@link #MDC_MATS_IN_SIZE_ENVELOPE_SERIAL "mats.in.EnvelopeSerial.bytes"}</b>: How big the incoming Mats
  * envelope ("MatsTrace") is in its serialized form, after decompression.</li>
  * <li><b>{@link #MDC_MATS_IN_TIME_ENVELOPE_DESERIAL "mats.in.EnvelopeDeserial.ms"}</b>: Part of total time taken to
@@ -1279,7 +1279,7 @@ public class MatsMetricsLoggingInterceptor
     /**
      * Converts nanos to millis with a sane number of significant digits ("3.5" significant digits), but assuming that
      * this is not used to measure things that take less than 0.001 milliseconds (in which case it will be "rounded" to
-     * 0.0001, 1e-4, as a special value). Takes care of handling the difference between 0 and >0 nanoseconds when
+     * 0.0001, 1e-4, as a special value). Takes care of handling the difference between 0 and &gt; 0 nanoseconds when
      * rounding - in that 1 nanosecond will become 0.0001 (1e-4 ms, which if used to measure things that are really
      * short lived might be magnitudes wrong), while 0 will be 0.0 exactly. Note that printing of a double always
      * include the at least one decimal (unless scientific notation kicks in), which can lead your interpretation

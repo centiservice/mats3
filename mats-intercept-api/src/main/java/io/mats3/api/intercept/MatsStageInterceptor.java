@@ -286,7 +286,7 @@ public interface MatsStageInterceptor {
 
         /**
          * @return time taken (in nanoseconds) to decompress the "on the wire" representation of the envelope. - will be
-         *         <code>0</code> if no compression was applied, while it will return > 0 if compression was applied.
+         *         <code>0</code> if no compression was applied, while it will return &gt; 0 if compression was applied.
          */
         long getEnvelopeDecompressionNanos();
 

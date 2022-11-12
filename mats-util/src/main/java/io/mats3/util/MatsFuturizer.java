@@ -266,7 +266,7 @@ public class MatsFuturizer implements AutoCloseable {
      * {@link #futurizeNonessential(String, String, String, Class, Object) futurizeInteractiveUnreliable(..)}
      *
      * @param traceId
-     *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(String)}
+     *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(CharSequence)}
      * @param from
      *            the "from" of the initiation, see {@link MatsInitiate#from(String)}
      * @param to
@@ -311,7 +311,7 @@ public class MatsFuturizer implements AutoCloseable {
      * {@link #futurizeNonessential(String, String, String, Class, Object) futurizeInteractiveUnreliable(..)}
      *
      * @param traceId
-     *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(String)}
+     *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(CharSequence)}
      * @param from
      *            the "from" of the initiation, see {@link MatsInitiate#from(String)}
      * @param to
@@ -380,7 +380,7 @@ public class MatsFuturizer implements AutoCloseable {
      * MatsFuturizerTimeoutException} mentioned above).
      *
      * @param traceId
-     *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(String)}
+     *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(CharSequence)}
      * @param from
      *            the "from" of the initiation, see {@link MatsInitiate#from(String)}
      * @param to

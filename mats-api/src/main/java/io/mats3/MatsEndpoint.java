@@ -155,7 +155,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
     void finishSetup();
 
     /**
-     * Starts the endpoint (unless {@link #finishSetup() has NOT been invoked), invoking {@link MatsStage#start()} on
+     * Starts the endpoint (unless {@link #finishSetup()} has NOT been invoked), invoking {@link MatsStage#start()} on
      * any not-yet started stages of the endpoint (which should be all of them at application startup).
      */
     @Override

@@ -376,13 +376,12 @@ public interface MatsInitiator extends Closeable {
         MatsInitiate nonPersistent(long timeToLiveMillis);
 
         /**
-         * <b>Prioritize this message & flow!</b> Hint to the underlying implementation that a human is actually waiting
-         * for the result of a request, and that the flow therefore should be prioritized. This status will be kept
-         * through the entire flow, so that all messages in the flow are prioritized. This makes it possible to use the
-         * same "AccountService.getBalances" service both for the Web Application that the user facing GUI are
-         * employing, and the batch processing of a ton of orders. Without such a feature, the interactive usage could
-         * be backlogged by the batch process, while if the interactive flag is set, it will bypass the backlog of
-         * "ordinary" messages.
+         * <b>Prioritize this Mats flow!</b> Hint to the underlying implementation that a human is actually waiting for
+         * the result of a request, and that the flow therefore should be prioritized. This status will be kept through
+         * the entire flow, so that all messages in the flow are prioritized. This makes it possible to use the same
+         * "AccountService.getBalances" service both for the Web Application that the user facing GUI are employing, and
+         * the batch processing of a ton of orders. Without such a feature, the interactive usage could be backlogged by
+         * the batch process, while if the interactive flag is set, it will bypass the backlog of "ordinary" messages.
          * <p />
          * This implies that MATS defines two levels of prioritization: "Ordinary" and "Interactive". Most processing
          * should employ the default, i.e. "Ordinary", while places where <i><u>a human is actually waiting for the
