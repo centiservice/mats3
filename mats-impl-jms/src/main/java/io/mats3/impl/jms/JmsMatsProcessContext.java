@@ -633,7 +633,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         Z replyZ = matsSerializer.serializeObject(replyDto);
         MatsTrace<Z> replyMatsTrace = _incomingMatsTrace.addReplyCall(_stageId, replyZ);
 
-        String matsMessageId = produceMessage(replyDto, null, nanosStart, replyMatsTrace);
+        String matsMessageId = produceMessage(replyDto, null, null, nanosStart, replyMatsTrace);
 
         return new MessageReferenceImpl(matsMessageId);
     }
@@ -670,7 +670,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         MatsTrace<Z> requestMatsTrace = _incomingMatsTrace.addRequestCall(_stageId,
                 endpointId, MessagingModel.QUEUE, _nextStageId, MessagingModel.QUEUE, requestZ, stateZ, null);
 
-        String matsMessageId = produceMessage(requestDto, null, nanosStart, requestMatsTrace);
+        String matsMessageId = produceMessage(requestDto, _incomingAndOutgoingState, null, nanosStart, requestMatsTrace);
 
         return new MessageReferenceImpl(matsMessageId);
     }
@@ -714,7 +714,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         Z stateZ = matsSerializer.serializeObject(_incomingAndOutgoingState);
         MatsTrace<Z> nextMatsTrace = _incomingMatsTrace.addNextCall(_stageId, _nextStageId, nextZ, stateZ);
 
-        String matsMessageId = produceMessage(nextDto, null, nanosStart, nextMatsTrace);
+        String matsMessageId = produceMessage(nextDto, _incomingAndOutgoingState, null, nanosStart, nextMatsTrace);
 
         return new MessageReferenceImpl(matsMessageId);
     }
@@ -808,12 +808,12 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         Z initialTargetStateZ = matsSerializer.serializeObject(initialTargetSto);
         MatsTrace<Z> passMatsTrace = _incomingMatsTrace.addGotoCall(_stageId, endpointId, passZ, initialTargetStateZ);
 
-        String matsMessageId = produceMessage(gotoDto, initialTargetSto, nanosStart, passMatsTrace);
+        String matsMessageId = produceMessage(gotoDto, initialTargetSto, initialTargetSto, nanosStart, passMatsTrace);
 
         return new MessageReferenceImpl(matsMessageId);
     }
 
-    private String produceMessage(Object incomingDto, Object initialTargetSto, long nanosStart,
+    private String produceMessage(Object incomingDto, Object sameStackHeightState, Object initialTargetSto, long nanosStart,
             MatsTrace<Z> outgoingMatsTrace) {
         String debugInfo;
         // ?: Is this MINIMAL MatsTrace

@@ -32,7 +32,7 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
 
     private final Object _outgoingMessage;
     private final Object _initialTargetState;
-    private final Object _replyToState;
+    private final Object _sameStackHeightState;
 
     private final Map<String, byte[]> _bytes;
     private final Map<String, String> _strings;
@@ -46,7 +46,7 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
             long nanosAtStart_ProducingOutgoingMessage,
             MatsSerializer<Z> matsSerializer,
             MatsTrace<Z> outgoingMatsTrace,
-            Object outgoingMessage, Object initialTargetState, Object replyToState,
+            Object outgoingMessage, Object initialTargetState, Object sameStackHeightState,
             HashMap<String, Object> props,
             HashMap<String, byte[]> bytes,
             HashMap<String, String> strings) {
@@ -82,12 +82,12 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
 
         // Produce and return the JmsMatsMessage
         return new JmsMatsMessage<>(dispatchType, matsSerializer, outgoingMatsTrace,
-                outgoingMessage, initialTargetState, replyToState,
+                outgoingMessage, initialTargetState, sameStackHeightState,
                 bytesCopied, stringsCopied, nanosAtStart_ProducingOutgoingMessage);
     }
 
     private JmsMatsMessage(DispatchType dispatchType, MatsSerializer<Z> matsSerializer, MatsTrace<Z> matsTrace,
-            Object outgoingMessage, Object initialTargetState, Object replyToState,
+            Object outgoingMessage, Object initialTargetState, Object sameStackHeightState,
             Map<String, byte[]> bytes, Map<String, String> strings, long nanosAtStart_ProducingOutgoingMessage) {
         _dispatchType = dispatchType;
         _matsSerializer = matsSerializer;
@@ -95,7 +95,7 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
 
         _outgoingMessage = outgoingMessage;
         _initialTargetState = initialTargetState;
-        _replyToState = replyToState;
+        _sameStackHeightState = sameStackHeightState;
 
         _bytes = bytes;
         _strings = strings;
@@ -287,8 +287,8 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
     }
 
     @Override
-    public Optional<Object> getReplyToState() {
-        return Optional.ofNullable(_replyToState);
+    public Optional<Object> getSameStackHeightState() {
+        return Optional.ofNullable(_sameStackHeightState);
     }
 
     @Override

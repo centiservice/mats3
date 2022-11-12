@@ -67,10 +67,11 @@ public interface MatsOutgoingMessage {
     Optional<Boolean> isReplyToSubscription();
 
     /**
-     * TODO: EVALUATE THIS METHOD: Should probably rather be getSameStackHeightState() TODO: Should also probably have
-     * getSameStackHeightExtraState() or somesuch.
+     * @return the "same stackheight" outgoing state; If this is a Request, it is the state that will be present upon
+     *         the subsequent Reply. If this is a Next, it is the state present on the nest stage. If it is a Goto, it
+     *         will be the "intialState" if set - and thus same as {@link #getInitialTargetState()}.
      */
-    Optional<Object> getReplyToState();
+    Optional<Object> getSameStackHeightState();
 
     /**
      * @return the outgoing data (DTO)
@@ -92,8 +93,8 @@ public interface MatsOutgoingMessage {
     String getString(String key);
 
     /**
-     * @return for initiations, it is possible, albeit should be uncommon, to send along an initial <i>incoming</i>
-     *         target state - this returns that.
+     * @return for initiations and Goto, it is possible to send along an initial <i>incoming</i> target state - this
+     *         returns that.
      */
     Optional<Object> getInitialTargetState();
 
