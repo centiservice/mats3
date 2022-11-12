@@ -38,12 +38,12 @@ public class Test_DifferingFromSpecifiedTypes_ForReplyAndIncoming {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     if (dto.string.equals("SubDataTO")) {
                         // Covariant reply (i.e. more specialized, narrower) type than specified
@@ -91,7 +91,7 @@ public class Test_DifferingFromSpecifiedTypes_ForReplyAndIncoming {
         StateTO sto = new StateTO(420, 420.024);
         _initiator.initiateUnchecked((msg) -> msg.traceId(MatsTestHelp.randomId())
                 .from(MatsTestHelp.from("1"))
-                .to(SERVICE)
+                .to(ENDPOINT)
                 .replyTo(TERMINATOR + ".SubDataTO", sto)
                 .request(dto));
 
@@ -109,7 +109,7 @@ public class Test_DifferingFromSpecifiedTypes_ForReplyAndIncoming {
         StateTO sto = new StateTO(420, 420.024);
         _initiator.initiateUnchecked((msg) -> msg.traceId(MatsTestHelp.randomId())
                 .from(MatsTestHelp.from("2"))
-                .to(SERVICE)
+                .to(ENDPOINT)
                 .replyTo(TERMINATOR + ".DataTO", sto)
                 .request(dto));
 
@@ -126,7 +126,7 @@ public class Test_DifferingFromSpecifiedTypes_ForReplyAndIncoming {
         StateTO sto = new StateTO(420, 420.024);
         _initiator.initiateUnchecked((msg) -> msg.traceId(MatsTestHelp.randomId())
                 .from(MatsTestHelp.from("3"))
-                .to(SERVICE)
+                .to(ENDPOINT)
                 .replyTo(TERMINATOR + ".SubDataTO", sto)
                 .request(dto));
 

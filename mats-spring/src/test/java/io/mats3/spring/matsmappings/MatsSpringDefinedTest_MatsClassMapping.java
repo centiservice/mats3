@@ -37,8 +37,8 @@ public class MatsSpringDefinedTest_MatsClassMapping {
     private static final Logger log = MatsTestHelp.getClassLogger();
 
     private static final String ENDPOINT_ID = "MatsClassMapping.";
-    private static final String SERVICE_MAIN = "AppMain";
-    private static final String SERVICE_LEAF = "Leaf";
+    private static final String ENDPOINT_MAIN = "AppMain";
+    private static final String ENDPOINT_LEAF = "Leaf";
     private static final String TERMINATOR = "Terminator";
 
     @Configuration
@@ -77,7 +77,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
         /**
          * Creating a "Leaf" Single Stage endpoint using @MatsClassMapping.
          */
-        @MatsClassMapping(ENDPOINT_ID + SERVICE_LEAF)
+        @MatsClassMapping(ENDPOINT_ID + ENDPOINT_LEAF)
         public static class MatsClassMapping_Leaf {
             @Inject
             private SomeSimpleService _someSimpleService;
@@ -86,12 +86,12 @@ public class MatsSpringDefinedTest_MatsClassMapping {
             public SpringTestDataTO springMatsSingleEndpoint(SpringTestDataTO msg) {
                 // Interact with Spring injected service
                 _someSimpleService.increaseCounter();
-                return new SpringTestDataTO(msg.number * 2, msg.string + ':' + SERVICE_LEAF);
+                return new SpringTestDataTO(msg.number * 2, msg.string + ':' + ENDPOINT_LEAF);
             }
         }
     }
 
-    @MatsClassMapping(ENDPOINT_ID + SERVICE_MAIN)
+    @MatsClassMapping(ENDPOINT_ID + ENDPOINT_MAIN)
     @Configuration // This must be here so that this Spring component is automatically picked up by test runner.
     public static class MatsStagedClass {
 
@@ -144,7 +144,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
             Assert.assertEquals(new SpringTestStateTO(5, "fem"), _someOtherService);
 
             // Do a request to a service
-            _context.request(ENDPOINT_ID + SERVICE_LEAF, new SpringTestDataTO(in.number, in.string));
+            _context.request(ENDPOINT_ID + ENDPOINT_LEAF, new SpringTestDataTO(in.number, in.string));
         }
 
         @Stage(10)
@@ -226,7 +226,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
             Assert.assertEquals(new SpringTestStateTO(5, "fem"), _someOtherService);
 
             // Do a request to a service
-            _context.request(ENDPOINT_ID + SERVICE_LEAF, new SpringTestDataTO(in.numero, in.cuerda));
+            _context.request(ENDPOINT_ID + ENDPOINT_LEAF, new SpringTestDataTO(in.numero, in.cuerda));
         }
 
         @Stage(40)
@@ -250,7 +250,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
             Assert.assertEquals(new SpringTestStateTO(5, "fem"), _someOtherService);
 
             // Reply to caller with our amazing result.
-            return new SpringTestDataTO(in.number * 5, in.string + ':' + SERVICE_MAIN);
+            return new SpringTestDataTO(in.number * 5, in.string + ':' + ENDPOINT_MAIN);
         }
     }
 
@@ -271,7 +271,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
                 init -> {
                     init.traceId(MatsTestHelp.traceId())
                             .from(MatsTestHelp.from("test"))
-                            .to(ENDPOINT_ID + SERVICE_MAIN)
+                            .to(ENDPOINT_ID + ENDPOINT_MAIN)
                             .replyTo(ENDPOINT_ID + TERMINATOR, sto);
                     init.request(dto);
                 });
@@ -279,7 +279,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
         Result<SpringTestStateTO, SpringTestDataTO> result = _latch.waitForResult();
         Assert.assertEquals(sto, result.getState());
         Assert.assertEquals(new SpringTestDataTO(dto.number * 2 * 3 * 2 * 5,
-                dto.string + ':' + SERVICE_LEAF + ":next" + ':' + SERVICE_LEAF + ':' + SERVICE_MAIN),
+                dto.string + ':' + ENDPOINT_LEAF + ":next" + ':' + ENDPOINT_LEAF + ':' + ENDPOINT_MAIN),
                 result.getData());
 
         // Check that the SomeSimpleService interactions took place

@@ -30,12 +30,12 @@ public class Test_ReplyClass_Object {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
     public static void setupService_ReplyClass_Object() {
-        MATS.getMatsFactory().single(SERVICE, Object.class, String.class,
+        MATS.getMatsFactory().single(ENDPOINT, Object.class, String.class,
                 (context, incoming) -> {
                     switch (incoming) {
                         case "String":
@@ -85,7 +85,7 @@ public class Test_ReplyClass_Object {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.randomId())
                         .from(MatsTestHelp.from(replyToTerminator + serviceRequestedReply))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR + "." + replyToTerminator, sto)
                         .request(serviceRequestedReply));
 

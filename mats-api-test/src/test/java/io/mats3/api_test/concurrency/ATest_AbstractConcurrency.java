@@ -27,7 +27,7 @@ public class ATest_AbstractConcurrency {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    protected static final String SERVICE = MatsTestHelp.service();
+    protected static final String ENDPOINT = MatsTestHelp.endpoint();
     protected static final String TERMINATOR = MatsTestHelp.terminator();
 
     protected static final int CONCURRENCY = 8;
@@ -74,7 +74,7 @@ public class ATest_AbstractConcurrency {
                 StateTO sto = new StateTO(i, i);
                 msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from(expectedString))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto);
             }

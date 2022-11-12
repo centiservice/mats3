@@ -41,7 +41,7 @@ public class Test_InitiateTraceIdModifier {
     public static final Rule_Mats MATS = Rule_Mats.create();
 
     private static final String TERMINATOR = MatsTestHelp.terminator();
-    private static final String TERMINATOR_MANY = MatsTestHelp.endpointId("Terminator_Many");
+    private static final String TERMINATOR_MANY = MatsTestHelp.endpoint("Terminator_Many");
 
     // For the "many messages" situation:
     private static volatile List<String> _traceIdsWithinMats;
@@ -97,7 +97,7 @@ public class Test_InitiateTraceIdModifier {
         MATS.getMatsFactory().getFactoryConfig().setInitiateTraceIdModifier((origTraceId) -> "Prefixed|" + origTraceId);
 
         // Create a single-stage service
-        String sendingTerminator = MatsTestHelp.service();
+        String sendingTerminator = MatsTestHelp.endpoint();
         MATS.getMatsFactory().terminator(sendingTerminator, StateTO.class, DataTO.class, (ctx, state, msg) -> {
             ctx.initiate(init -> init.traceId("WithinStage").to(TERMINATOR).send(msg, state));
         });

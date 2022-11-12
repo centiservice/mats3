@@ -26,10 +26,10 @@ public class Test_CallOverflow {
     public void infiniteRequestRecursionToSelf() throws MatsMessageSendException, MatsBackendException {
         // Arrange
         MATS.cleanMatsFactories();
-        String SERVICE = MatsTestHelp.endpointId("infiniteRequestRecursionToSelf");
+        String ENDPOINT = MatsTestHelp.endpoint("infiniteRequestRecursionToSelf");
 
-        MatsEndpoint<DataTO, DataTO> ep = MATS.getMatsFactory().staged(SERVICE, DataTO.class, DataTO.class);
-        ep.stage(DataTO.class, (ctx, state, msg) -> ctx.request(SERVICE, msg)); // Requesting ourselves
+        MatsEndpoint<DataTO, DataTO> ep = MATS.getMatsFactory().staged(ENDPOINT, DataTO.class, DataTO.class);
+        ep.stage(DataTO.class, (ctx, state, msg) -> ctx.request(ENDPOINT, msg)); // Requesting ourselves
         ep.stage(DataTO.class, (ctx, state, msg) -> Assert.fail("Should never come here"));
         ep.finishSetup();
 
@@ -37,45 +37,45 @@ public class Test_CallOverflow {
         MATS.getMatsInitiator().initiate(init -> init
                 .traceId(MatsTestHelp.traceId())
                 .from(MatsTestHelp.from("test"))
-                .to(SERVICE)
+                .to(ENDPOINT)
                 .send(null));
 
         // Assert
         MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(
-                SERVICE);
-        Assert.assertEquals(SERVICE, dlqMessage.getFrom());
+                ENDPOINT);
+        Assert.assertEquals(ENDPOINT, dlqMessage.getFrom());
     }
 
     @Test
     public void infiniteSendChildFlow() throws MatsMessageSendException, MatsBackendException {
         // Arrange
         MATS.cleanMatsFactories();
-        String SERVICE = MatsTestHelp.endpointId("infiniteSendChildFlow");
+        String ENDPOINT = MatsTestHelp.endpoint("infiniteSendChildFlow");
 
-        MATS.getMatsFactory().terminator(SERVICE, StateTO.class, DataTO.class,
-                (ctx, state, msg) -> ctx.initiate(init -> init.to(SERVICE).send(msg))); // Creating child flow
+        MATS.getMatsFactory().terminator(ENDPOINT, StateTO.class, DataTO.class,
+                (ctx, state, msg) -> ctx.initiate(init -> init.to(ENDPOINT).send(msg))); // Creating child flow
 
         // Act
         MATS.getMatsInitiator().initiate(init -> init
                 .traceId(MatsTestHelp.traceId())
                 .from(MatsTestHelp.from("test"))
-                .to(SERVICE)
+                .to(ENDPOINT)
                 .send(null));
 
         // Assert
         MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(
-                SERVICE);
-        Assert.assertEquals(SERVICE, dlqMessage.getFrom());
+                ENDPOINT);
+        Assert.assertEquals(ENDPOINT, dlqMessage.getFrom());
     }
 
     @Test
     public void infiniteSendChildFlow_UsingDefaultInitiator() throws MatsMessageSendException, MatsBackendException {
         // Arrange
         MATS.cleanMatsFactories();
-        String SERVICE = MatsTestHelp.endpointId("infiniteSendChildFlow_UsingDefaultInitiator");
+        String ENDPOINT = MatsTestHelp.endpoint("infiniteSendChildFlow_UsingDefaultInitiator");
 
         // Here employing "magic" DefaultInitiator, which "shortcuts" to just be an invocation on ctx.initiate()..
-        MATS.getMatsFactory().terminator(SERVICE, StateTO.class, DataTO.class,
+        MATS.getMatsFactory().terminator(ENDPOINT, StateTO.class, DataTO.class,
                 (ctx, state, msg) ->
                 // This initiation is "hoisted" due to the use of DefaultInitiator, so it is exactly as if directly
                 // employing the "ctx.initiate()" method
@@ -83,30 +83,30 @@ public class Test_CallOverflow {
                         .initiateUnchecked(init -> init
                                 // Note: Do not need to specify 'traceId' and 'from', since we're effectively using
                                 // "ctx.initiate()"..
-                                .to(SERVICE)
+                                .to(ENDPOINT)
                                 .send(msg)));
 
         // Act
         MATS.getMatsInitiator().initiate(init -> init
                 .traceId(MatsTestHelp.traceId())
                 .from(MatsTestHelp.from("test"))
-                .to(SERVICE)
+                .to(ENDPOINT)
                 .send(null));
 
         // Assert
         MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(
-                SERVICE);
-        Assert.assertEquals(SERVICE, dlqMessage.getFrom());
+                ENDPOINT);
+        Assert.assertEquals(ENDPOINT, dlqMessage.getFrom());
     }
 
     @Test
     public void infiniteSendChildFlow_UsingNonDefaultInitiator() throws MatsMessageSendException, MatsBackendException {
         // Arrange
         MATS.cleanMatsFactories();
-        String SERVICE = MatsTestHelp.endpointId("infiniteSendChildFlow_UsingNonDefaultInitiator");
+        String ENDPOINT = MatsTestHelp.endpoint("infiniteSendChildFlow_UsingNonDefaultInitiator");
 
         // Here employing "magic" DefaultInitiator, which "shortcuts" to just be an invocation on ctx.initiate()..
-        MATS.getMatsFactory().terminator(SERVICE, StateTO.class, DataTO.class,
+        MATS.getMatsFactory().terminator(ENDPOINT, StateTO.class, DataTO.class,
                 (ctx, state, msg) ->
                 // This initiation is done in a separate context, currently a new Thread - and is as such
                 // completely separate from the outside Stage processing. However, we carry over the current
@@ -115,19 +115,19 @@ public class Test_CallOverflow {
                         .initiateUnchecked(init -> init
                                 // Note: Do not need to specify 'traceId' and 'from', because .. magic.
                                 // (Current msg is set in a "WithinStageContext" MatsFactory-specific ThreadLocal)
-                                .to(SERVICE)
+                                .to(ENDPOINT)
                                 .send(msg)));
 
         // Act
         MATS.getMatsInitiator().initiate(init -> init
                 .traceId(MatsTestHelp.traceId())
                 .from(MatsTestHelp.from("actual_initiate"))
-                .to(SERVICE)
+                .to(ENDPOINT)
                 .send(null));
 
         // Assert
         MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(
-                SERVICE);
-        Assert.assertEquals(SERVICE, dlqMessage.getFrom());
+                ENDPOINT);
+        Assert.assertEquals(ENDPOINT, dlqMessage.getFrom());
     }
 }

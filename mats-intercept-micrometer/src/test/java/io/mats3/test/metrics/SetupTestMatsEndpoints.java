@@ -27,12 +27,12 @@ public class SetupTestMatsEndpoints {
         return __matsFactory;
     }
 
-    static final String SERVICE = MatsTestHelp.service();
+    static final String ENDPOINT = MatsTestHelp.endpoint();
     static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
     public static void setupLeafService() {
-        getMatsFactory().single(SERVICE + ".Leaf", DataTO.class, DataTO.class,
+        getMatsFactory().single(ENDPOINT + ".Leaf", DataTO.class, DataTO.class,
                 (context, dto) -> {
                     if (log.isDebugEnabled()) log.debug("Incoming message for LeafService: DTO:[" + dto
                             + "], context:\n" + context);
@@ -43,7 +43,7 @@ public class SetupTestMatsEndpoints {
 
     @BeforeClass
     public static void setupMidMultiStagedService() {
-        MatsEndpoint<DataTO, StateTO> ep = getMatsFactory().staged(SERVICE + ".Mid", DataTO.class,
+        MatsEndpoint<DataTO, StateTO> ep = getMatsFactory().staged(ENDPOINT + ".Mid", DataTO.class,
                 StateTO.class);
         ep.stage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for MidService: DTO:[" + dto
@@ -53,7 +53,7 @@ public class SetupTestMatsEndpoints {
             sto.number1 = dto.multiplier;
             // Add an important number to state..!
             sto.number2 = Math.PI;
-            context.request(SERVICE + ".Leaf", new DataTO(dto.number, dto.string + ":LeafCall", 2));
+            context.request(ENDPOINT + ".Leaf", new DataTO(dto.number, dto.string + ":LeafCall", 2));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for MidService.stage1: DTO:[" + dto
@@ -78,14 +78,14 @@ public class SetupTestMatsEndpoints {
 
     @BeforeClass
     public static void setupMasterMultiStagedService() {
-        MatsEndpoint<DataTO, StateTO> ep = getMatsFactory().staged(SERVICE, DataTO.class, StateTO.class);
+        MatsEndpoint<DataTO, StateTO> ep = getMatsFactory().staged(ENDPOINT, DataTO.class, StateTO.class);
         ep.stage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for Multi: DTO:[" + dto
                     + "], STO:[" + sto + "], context:\n" + context);
             Assert.assertEquals(new StateTO(0, 0), sto);
             sto.number1 = Integer.MAX_VALUE;
             sto.number2 = Math.E;
-            context.request(SERVICE + ".Mid", new DataTO(dto.number, dto.string + ":MidCall1", 3));
+            context.request(ENDPOINT + ".Mid", new DataTO(dto.number, dto.string + ":MidCall1", 3));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for Multi.stage1: DTO:[" + dto
@@ -107,7 +107,7 @@ public class SetupTestMatsEndpoints {
             context.logTimingMeasurement("test.stagetiming3", "Test measurement 3 from stage 1 of master",
                     1_000_000_000, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
 
-            context.request(SERVICE + ".Mid", new DataTO(dto.number, dto.string + ":MidCall2", 7));
+            context.request(ENDPOINT + ".Mid", new DataTO(dto.number, dto.string + ":MidCall2", 7));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for Multi.stage2: DTO:[" + dto
@@ -115,7 +115,7 @@ public class SetupTestMatsEndpoints {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE, Math.E * 2), sto);
             sto.number1 = Integer.MIN_VALUE / 2;
             sto.number2 = Math.E / 2;
-            context.request(SERVICE + ".Leaf", new DataTO(dto.number, dto.string + ":LeafCall1", 4));
+            context.request(ENDPOINT + ".Leaf", new DataTO(dto.number, dto.string + ":LeafCall1", 4));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for Multi.stage3: DTO:[" + dto
@@ -123,7 +123,7 @@ public class SetupTestMatsEndpoints {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE / 2, Math.E / 2), sto);
             sto.number1 = Integer.MIN_VALUE / 4;
             sto.number2 = Math.E / 4;
-            context.request(SERVICE + ".Leaf", new DataTO(dto.number, dto.string + ":LeafCall2", 6));
+            context.request(ENDPOINT + ".Leaf", new DataTO(dto.number, dto.string + ":LeafCall2", 6));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for Multi.stage4: DTO:[" + dto
@@ -131,7 +131,7 @@ public class SetupTestMatsEndpoints {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE / 4, Math.E / 4), sto);
             sto.number1 = Integer.MAX_VALUE / 2;
             sto.number2 = Math.PI / 2;
-            context.request(SERVICE + ".Mid", new DataTO(dto.number, dto.string + ":MidCall3", 8));
+            context.request(ENDPOINT + ".Mid", new DataTO(dto.number, dto.string + ":MidCall3", 8));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for Multi.stage5: DTO:[" + dto
@@ -139,7 +139,7 @@ public class SetupTestMatsEndpoints {
             Assert.assertEquals(new StateTO(Integer.MAX_VALUE / 2, Math.PI / 2), sto);
             sto.number1 = Integer.MAX_VALUE / 4;
             sto.number2 = Math.PI / 4;
-            context.request(SERVICE + ".Mid", new DataTO(dto.number, dto.string + ":MidCall4", 9));
+            context.request(ENDPOINT + ".Mid", new DataTO(dto.number, dto.string + ":MidCall4", 9));
         });
         ep.lastStage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for Multi.stage6: DTO:[" + dto

@@ -25,7 +25,7 @@ public class AppServiceMatsInvoker {
     public SpringTestDataTO invokeMatsWithFuturizer(double number, String string) {
         CompletableFuture<Reply<SpringTestDataTO>> completableFuture = _matsFuturizer.futurizeNonessential("TraceId",
                 "AppServiceMatsInvoker",
-                AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINSERVICE,
+                AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINENDPOINT,
                 SpringTestDataTO.class,
                 new SpringTestDataTO(number, string));
 

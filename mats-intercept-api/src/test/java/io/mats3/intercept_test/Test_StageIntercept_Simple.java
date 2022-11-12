@@ -30,14 +30,14 @@ public class Test_StageIntercept_Simple {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     private static final CountDownLatch _latch = new CountDownLatch(2);
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, dto) -> new DataTO(dto.number * 2, dto.string + ":FromService"));
     }
 
@@ -62,12 +62,12 @@ public class Test_StageIntercept_Simple {
         MATS.getMatsFactory().getDefaultInitiator().initiateUnchecked(init -> {
             init.traceId(MatsTestHelp.traceId() + "_First")
                     .from(MatsTestHelp.from("test"))
-                    .to(SERVICE)
+                    .to(ENDPOINT)
                     .replyTo(TERMINATOR, new DataTO(0, "null"))
                     .request(new DataTO(1, "First message"));
             init.traceId(MatsTestHelp.traceId() + "_Second")
                     .from(MatsTestHelp.from("test"))
-                    .to(SERVICE)
+                    .to(ENDPOINT)
                     .replyTo(TERMINATOR, new DataTO(0, "null"))
                     .request(new DataTO(2, "Second message"));
         });

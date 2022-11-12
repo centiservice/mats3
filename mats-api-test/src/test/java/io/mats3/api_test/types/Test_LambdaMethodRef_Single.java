@@ -25,7 +25,7 @@ public class Test_LambdaMethodRef_Single {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     private static final String MATCH_TYPES = ".MatchTypes";
@@ -33,7 +33,7 @@ public class Test_LambdaMethodRef_Single {
 
     @BeforeClass
     public static void setupService_MatchTypes_StaticMethodRef() {
-        MATS.getMatsFactory().single(SERVICE + MATCH_TYPES, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT + MATCH_TYPES, DataTO.class, DataTO.class,
                 Test_LambdaMethodRef_Single::lambda_MatchTypes);
     }
 
@@ -43,7 +43,7 @@ public class Test_LambdaMethodRef_Single {
 
     @BeforeClass
     public static void setupService_WideTypes_InstanceMethodRef() {
-        MATS.getMatsFactory().single(SERVICE + WIDE_TYPES, DataTO.class, DataTO.class, Test_LambdaMethodRef_Single::lambda_WideTypes);
+        MATS.getMatsFactory().single(ENDPOINT + WIDE_TYPES, DataTO.class, DataTO.class, Test_LambdaMethodRef_Single::lambda_WideTypes);
     }
 
     private static SubDataTO lambda_WideTypes(ProcessContext<?> context, Object dtoObject) {
@@ -68,7 +68,7 @@ public class Test_LambdaMethodRef_Single {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.randomId())
                         .from(MatsTestHelp.from("matchTypes"))
-                        .to(SERVICE + MATCH_TYPES)
+                        .to(ENDPOINT + MATCH_TYPES)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 
@@ -88,7 +88,7 @@ public class Test_LambdaMethodRef_Single {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.randomId())
                         .from(MatsTestHelp.from("wideTypes"))
-                        .to(SERVICE + WIDE_TYPES)
+                        .to(ENDPOINT + WIDE_TYPES)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 

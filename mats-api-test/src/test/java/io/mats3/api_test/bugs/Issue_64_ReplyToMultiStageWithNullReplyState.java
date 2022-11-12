@@ -33,13 +33,13 @@ public class Issue_64_ReplyToMultiStageWithNullReplyState {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
-    private static final String TERMINATOR_SINGLE = MatsTestHelp.endpointId("TerminatorSingleStage");
-    private static final String TERMINATOR_MULTI = MatsTestHelp.endpointId("TerminatorMultiStage");
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
+    private static final String TERMINATOR_SINGLE = MatsTestHelp.endpoint("TerminatorSingleStage");
+    private static final String TERMINATOR_MULTI = MatsTestHelp.endpoint("TerminatorMultiStage");
 
     @BeforeClass
     public static void single() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class, (context, dto) -> {
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class, (context, dto) -> {
             // Calculate the resulting values
             double resultNumber = dto.number * 2;
             String resultString = dto.string + ":FromService";
@@ -78,7 +78,7 @@ public class Issue_64_ReplyToMultiStageWithNullReplyState {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR_SINGLE, sto)
                         .request(dto));
 
@@ -94,7 +94,7 @@ public class Issue_64_ReplyToMultiStageWithNullReplyState {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR_MULTI, sto)
                         .request(dto));
 
@@ -115,7 +115,7 @@ public class Issue_64_ReplyToMultiStageWithNullReplyState {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR_SINGLE, null)
                         .request(dto));
 
@@ -145,7 +145,7 @@ public class Issue_64_ReplyToMultiStageWithNullReplyState {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR_SINGLE, new MatsIssue64Bypasser())
                         .request(dto));
 
@@ -168,7 +168,7 @@ public class Issue_64_ReplyToMultiStageWithNullReplyState {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR_MULTI, null)
                         .request(dto));
 

@@ -32,7 +32,7 @@ public class Test_MultipleRequestsSendsRepliesWithinStage {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     private static final AtomicInteger _serviceInvocationCount = new AtomicInteger(0);
@@ -47,7 +47,7 @@ public class Test_MultipleRequestsSendsRepliesWithinStage {
 
     @BeforeClass
     public static void setupThreeStageService() {
-        MatsEndpoint<DataTO, StateTO> ep = MATS.getMatsFactory().staged(SERVICE, DataTO.class, StateTO.class);
+        MatsEndpoint<DataTO, StateTO> ep = MATS.getMatsFactory().staged(ENDPOINT, DataTO.class, StateTO.class);
         ep.stage(DataTO.class, (context, sto, dto) -> {
             // Should only be invoked once.
             _serviceInvocationCount.incrementAndGet();
@@ -55,8 +55,8 @@ public class Test_MultipleRequestsSendsRepliesWithinStage {
             sto.number1 = 10;
             sto.number2 = Math.PI;
             // :: Perform /two/ requests to Leaf service (thus replies twice)
-            context.request(SERVICE + ".Leaf", new DataTO(dto.number, dto.string + ":Request#1"));
-            context.request(SERVICE + ".Leaf", new DataTO(dto.number, dto.string + ":Request#2"));
+            context.request(ENDPOINT + ".Leaf", new DataTO(dto.number, dto.string + ":Request#1"));
+            context.request(ENDPOINT + ".Leaf", new DataTO(dto.number, dto.string + ":Request#2"));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             // This should now be invoked twice.
@@ -83,7 +83,7 @@ public class Test_MultipleRequestsSendsRepliesWithinStage {
 
     @BeforeClass
     public static void setupLeafService() {
-        MATS.getMatsFactory().single(SERVICE + ".Leaf", DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT + ".Leaf", DataTO.class, DataTO.class,
                 (context, dto) -> {
                     // Should be invoked twice.
                     _leafInvocationCount.incrementAndGet();
@@ -144,7 +144,7 @@ public class Test_MultipleRequestsSendsRepliesWithinStage {
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .keepTrace(keepTrace)
                         .from(MatsTestHelp.from("test_keepTrace_" + keepTrace))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 

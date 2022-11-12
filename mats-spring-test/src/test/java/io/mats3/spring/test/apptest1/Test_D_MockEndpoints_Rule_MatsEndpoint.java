@@ -31,11 +31,11 @@ public class Test_D_MockEndpoints_Rule_MatsEndpoint {
     private static final Logger log = MatsTestHelp.getClassLogger();
     @Rule
     public Rule_MatsEndpoint<SpringTestDataTO, SpringTestDataTO> _leaf1 = Rule_MatsEndpoint.create(
-            AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFSERVICE1, SpringTestDataTO.class, SpringTestDataTO.class);
+            AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFENDPOINT1, SpringTestDataTO.class, SpringTestDataTO.class);
 
     @Rule
     public Rule_MatsEndpoint<SpringTestDataTO, SpringTestDataTO> _leaf2 = Rule_MatsEndpoint.create(
-            AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFSERVICE2, SpringTestDataTO.class, SpringTestDataTO.class);
+            AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFENDPOINT2, SpringTestDataTO.class, SpringTestDataTO.class);
 
     @Inject
     private AppServiceMatsInvoker _matsInvoker;

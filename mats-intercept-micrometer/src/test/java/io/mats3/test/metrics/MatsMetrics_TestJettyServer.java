@@ -190,7 +190,7 @@ public class MatsMetrics_TestJettyServer {
                         msg.traceId(MatsTestHelp.traceId())
                                 .keepTrace(KeepTrace.FULL)
                                 .from("/sendRequestInitiated")
-                                .to(SetupTestMatsEndpoints.SERVICE)
+                                .to(SetupTestMatsEndpoints.ENDPOINT)
                                 .replyTo(SetupTestMatsEndpoints.TERMINATOR, sto)
                                 .request(dto);
                     });

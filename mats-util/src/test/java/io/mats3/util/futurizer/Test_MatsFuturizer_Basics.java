@@ -29,11 +29,11 @@ public class Test_MatsFuturizer_Basics {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, msg) -> new DataTO(msg.number * 2, msg.string + ":FromService"));
     }
 
@@ -43,7 +43,7 @@ public class Test_MatsFuturizer_Basics {
 
         DataTO dto = new DataTO(42, "TheAnswer");
         CompletableFuture<Reply<DataTO>> future = futurizer.futurizeNonessential(
-                "traceId", "OneSingleMessage", SERVICE, DataTO.class, dto);
+                "traceId", "OneSingleMessage", ENDPOINT, DataTO.class, dto);
 
         Reply<DataTO> result = future.get(1, TimeUnit.SECONDS);
 
@@ -75,7 +75,7 @@ public class Test_MatsFuturizer_Basics {
             DataTO dto = new DataTO(i, "TheAnswer");
 
             futures.add(futurizer.futurizeNonessential(
-                    "traceId", "SeveralMessages.futurized", SERVICE, DataTO.class, dto));
+                    "traceId", "SeveralMessages.futurized", ENDPOINT, DataTO.class, dto));
         }
 
         // :: Wait for each of them to complete

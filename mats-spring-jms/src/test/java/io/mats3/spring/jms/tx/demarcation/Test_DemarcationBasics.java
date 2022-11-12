@@ -56,7 +56,7 @@ import io.mats3.util.wrappers.DeferredConnectionProxyDataSourceWrapper.DeferredC
 public class Test_DemarcationBasics {
     private static final Logger log = MatsTestHelp.getClassLogger();
 
-    public static final String SIMPLE_SINGLE_STAGE_SERVICE = "test.DummyLeafService";
+    public static final String SIMPLE_SINGLE_STAGE_ENDPOINT = "test.DummyLeafService";
 
     public static final String TERMINATOR_DEMARCATION_BASICS = "test.Terminator.DemarcationBasics";
 
@@ -109,7 +109,7 @@ public class Test_DemarcationBasics {
         @Inject
         private MatsFuturizer _matsFuturizer;
 
-        @MatsMapping(SIMPLE_SINGLE_STAGE_SERVICE)
+        @MatsMapping(SIMPLE_SINGLE_STAGE_ENDPOINT)
         String simpleService(String incoming) {
             return incoming + ":DummyLeafService";
         }
@@ -262,7 +262,7 @@ public class Test_DemarcationBasics {
             _matsFuturizer.futurize(
                     MatsTestHelp.traceId(),
                     MatsTestHelp.from("TheFuture"),
-                    SIMPLE_SINGLE_STAGE_SERVICE,
+                    SIMPLE_SINGLE_STAGE_ENDPOINT,
                     5, TimeUnit.SECONDS,
                     Void.class,
                     "TheRequest",
@@ -410,7 +410,7 @@ public class Test_DemarcationBasics {
          * proxy".
          */
         public void insertRowNonTransactional() {
-            log.info("SERVICE-METHOD: insertRowNonTransactional()");
+            log.info("ENDPOINT-METHOD: insertRowNonTransactional()");
             // This is no magic lazy proxy.
             Assert.assertTrue(isActualConnection(_dataSource));
             _simpleJdbcInsert.execute(Collections.singletonMap("data", "insertRowNonTransactional"));
@@ -422,7 +422,7 @@ public class Test_DemarcationBasics {
          * proxy".
          */
         public void insertRowNonTransactionalThrow() {
-            log.info("SERVICE-METHOD: insertRowNonTransactionalThrow()");
+            log.info("ENDPOINT-METHOD: insertRowNonTransactionalThrow()");
             // This is no magic lazy proxy.
             Assert.assertTrue(isActualConnection(_dataSource));
             _simpleJdbcInsert.execute(Collections.singletonMap("data", "insertRowNonTransactionalThrow"));
@@ -435,7 +435,7 @@ public class Test_DemarcationBasics {
          */
         @Transactional
         public void forceInitializationOfDeferredFetchConnectionProxyDataSourceWrapper() throws SQLException {
-            log.info("SERVICE-METHOD: Force init of DeferredFetchConnectionProxyDataSourceWrapper");
+            log.info("ENDPOINT-METHOD: Force init of DeferredFetchConnectionProxyDataSourceWrapper");
             // Fetches the Connection through DataSourceUtils, to ensure that we get it from the lazy-DS-wrapper
             Connection con = DataSourceUtils.getConnection(_dataSource);
             // Run a method that forces initialization, prepareStatement(..) is one of those.
@@ -453,7 +453,7 @@ public class Test_DemarcationBasics {
          */
         @Transactional
         public void insertRowTransactional() {
-            log.info("SERVICE-METHOD: insertRowTransactional()");
+            log.info("ENDPOINT-METHOD: insertRowTransactional()");
             // ::This actually ends up being a "magic lazy proxy", even though we supply the DataSource directly from
             // the Spring context, which is not proxied.
             // - At this point the lazy proxy has not gotten the connection yet.
@@ -470,7 +470,7 @@ public class Test_DemarcationBasics {
          */
         @Transactional
         public void insertRowTransactionalThrow() {
-            log.info("SERVICE-METHOD: insertRowTransactionalThrow()");
+            log.info("ENDPOINT-METHOD: insertRowTransactionalThrow()");
             // ::This actually ends up being a "magic lazy proxy", even though we supply the DataSource directly from
             // the Spring context, which is not proxied.
             // - At this point the lazy proxy has not gotten the connection yet.

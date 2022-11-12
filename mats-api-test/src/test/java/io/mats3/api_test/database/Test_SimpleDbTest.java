@@ -37,12 +37,12 @@ public class Test_SimpleDbTest {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.createWithDb();
 
-    private static final String SERVICE = MatsTestHelp.endpointId("Service");
+    private static final String ENDPOINT = MatsTestHelp.endpoint("Service");
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     Optional<Connection> connectionAttribute = context.getAttribute(Connection.class);
                     if (!connectionAttribute.isPresent()) {
@@ -83,7 +83,7 @@ public class Test_SimpleDbTest {
         StateTO sto = new StateTO(420, 420.024);
         String randomData = UUID.randomUUID().toString();
 
-        // :: Insert into 'datatable' and send the request to SERVICE.
+        // :: Insert into 'datatable' and send the request to ENDPOINT.
         MATS.getMatsInitiator().initiateUnchecked(
                 (init) -> {
                     // :: Assert that SQL Connection is in places where it should be
@@ -107,7 +107,7 @@ public class Test_SimpleDbTest {
                     // :: Send the request
                     init.traceId(MatsTestHelp.traceId())
                             .from(MatsTestHelp.from("checkThatDataSourceWorks"))
-                            .to(SERVICE)
+                            .to(ENDPOINT)
                             .replyTo(TERMINATOR, sto)
                             .request(dto);
                 });

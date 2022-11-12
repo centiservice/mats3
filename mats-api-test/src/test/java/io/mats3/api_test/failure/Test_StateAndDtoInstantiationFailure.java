@@ -20,7 +20,7 @@ public class Test_StateAndDtoInstantiationFailure  {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
 
     public static class MissingNoArgsConstructor {
         public MissingNoArgsConstructor(String test) {
@@ -41,35 +41,35 @@ public class Test_StateAndDtoInstantiationFailure  {
 
     @Test(expected = CannotInstantiateClassException.class)
     public void missingNoArgs_Endpoint_Reply() {
-        MATS.getMatsFactory().single(SERVICE, MissingNoArgsConstructor.class, String.class, (processContext,
+        MATS.getMatsFactory().single(ENDPOINT, MissingNoArgsConstructor.class, String.class, (processContext,
                 incomingDto) -> null);
     }
 
     @Test(expected = CannotInstantiateClassException.class)
     public void exceptionInConstructor_Endpoint_Reply() {
-        MATS.getMatsFactory().single(SERVICE, ExceptionInConstructor.class, String.class, (processContext,
+        MATS.getMatsFactory().single(ENDPOINT, ExceptionInConstructor.class, String.class, (processContext,
                 incomingDto) -> null);
     }
 
     @Test(expected = CannotInstantiateClassException.class)
     public void missingNoArgs_Stage_Incoming() {
-        MATS.getMatsFactory().single(SERVICE, String.class, MissingNoArgsConstructor.class, (processContext,
+        MATS.getMatsFactory().single(ENDPOINT, String.class, MissingNoArgsConstructor.class, (processContext,
                 incomingDto) -> null);
     }
 
     @Test(expected = CannotInstantiateClassException.class)
     public void exceptionInConstructor_Stage_Incoming() {
-        MATS.getMatsFactory().single(SERVICE, String.class, ExceptionInConstructor.class, (processContext,
+        MATS.getMatsFactory().single(ENDPOINT, String.class, ExceptionInConstructor.class, (processContext,
                 incomingDto) -> null);
     }
 
     @Test(expected = CannotInstantiateClassException.class)
     public void missingNoArgs_Endpoint_State() {
-        MATS.getMatsFactory().staged(SERVICE, String.class, MissingNoArgsConstructor.class);
+        MATS.getMatsFactory().staged(ENDPOINT, String.class, MissingNoArgsConstructor.class);
     }
 
     @Test(expected = CannotInstantiateClassException.class)
     public void exceptionInConstructor_Stage_State() {
-        MATS.getMatsFactory().staged(SERVICE, String.class, ExceptionInConstructor.class);
+        MATS.getMatsFactory().staged(ENDPOINT, String.class, ExceptionInConstructor.class);
     }
 }

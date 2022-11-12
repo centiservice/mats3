@@ -38,7 +38,7 @@ public class Test_C_PieceTogetherNeededAppComponents_Auto {
         SpringTestDataTO dto = new SpringTestDataTO(number, string);
         CompletableFuture<Reply<SpringTestDataTO>> future = _matsFuturizer.futurizeNonessential(MatsTestHelp.traceId(),
                 MatsTestHelp.from("testX"),
-                AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINSERVICE,
+                AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINENDPOINT,
                 SpringTestDataTO.class, dto);
 
         SpringTestDataTO reply;

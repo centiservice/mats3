@@ -282,9 +282,9 @@ public class LocalHtmlInspect_TestJettyServer {
 
             MatsFuturizer matsFuturizer = (MatsFuturizer) req.getServletContext().getAttribute("matsFuturizer1");
 
-            futurizeSingle(out, SetupTestMatsEndpoints.SERVICE, matsFuturizer, "INTERACTIVE_To_Main", true);
-            futurizeSingle(out, SetupTestMatsEndpoints.SERVICE_MID, matsFuturizer, "INTERACTIVE_To_Mid", true);
-            futurizeSingle(out, SetupTestMatsEndpoints.SERVICE_LEAF, matsFuturizer, "INTERACTIVE_To_Leaf", true);
+            futurizeSingle(out, SetupTestMatsEndpoints.ENDPOINT, matsFuturizer, "INTERACTIVE_To_Main", true);
+            futurizeSingle(out, SetupTestMatsEndpoints.ENDPOINT_MID, matsFuturizer, "INTERACTIVE_To_Mid", true);
+            futurizeSingle(out, SetupTestMatsEndpoints.ENDPOINT_LEAF, matsFuturizer, "INTERACTIVE_To_Leaf", true);
 
             out.println("\n.. Futurizations done.\n");
 
@@ -316,11 +316,11 @@ public class LocalHtmlInspect_TestJettyServer {
                     .to(SERVICE_ORDER + SetupTestMatsEndpoints.SUBSCRIPTION_TERMINATOR)
                     .publish(directDto));
 
-            futurizeSingle(out, SetupTestMatsEndpoints.SERVICE, matsFuturizer, "INTERACTIVE_To_Main", true);
-            futurizeSingle(out, SetupTestMatsEndpoints.SERVICE_MID, matsFuturizer, "INTERACTIVE_To_Mid", true);
-            futurizeSingle(out, SetupTestMatsEndpoints.SERVICE_LEAF, matsFuturizer, "INTERACTIVE_To_Leaf", true);
+            futurizeSingle(out, SetupTestMatsEndpoints.ENDPOINT, matsFuturizer, "INTERACTIVE_To_Main", true);
+            futurizeSingle(out, SetupTestMatsEndpoints.ENDPOINT_MID, matsFuturizer, "INTERACTIVE_To_Mid", true);
+            futurizeSingle(out, SetupTestMatsEndpoints.ENDPOINT_LEAF, matsFuturizer, "INTERACTIVE_To_Leaf", true);
 
-            futurizeSingle(out, SetupTestMatsEndpoints.SERVICE, matsFuturizer, "normal_To_Main", false);
+            futurizeSingle(out, SetupTestMatsEndpoints.ENDPOINT, matsFuturizer, "normal_To_Main", false);
 
             long nanosTaken_TotalProcess = System.nanoTime() - nanosAsStart_entireProcedure;
             out.println("\nAll done - time taken: " + (nanosTaken_TotalProcess / 1_000_000d) + " ms.\n");
@@ -339,7 +339,7 @@ public class LocalHtmlInspect_TestJettyServer {
                                         .keepTrace(KeepTrace.MINIMAL)
                                         .nonPersistent()
                                         .from("init_to_" + applicationName)
-                                        .to(applicationName + SetupTestMatsEndpoints.SERVICE)
+                                        .to(applicationName + SetupTestMatsEndpoints.ENDPOINT)
                                         .replyTo(applicationName + SetupTestMatsEndpoints.TERMINATOR, sto)
                                         .request(dto);
                             }

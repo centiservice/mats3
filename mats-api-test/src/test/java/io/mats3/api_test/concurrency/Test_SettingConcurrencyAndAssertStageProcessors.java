@@ -27,8 +27,8 @@ public class Test_SettingConcurrencyAndAssertStageProcessors {
     @ClassRule
     public static Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String ENDPOINT1 = MatsTestHelp.endpointId("endpoint1");
-    private static final String ENDPOINT2 = MatsTestHelp.endpointId("endpoint2");
+    private static final String ENDPOINT1 = MatsTestHelp.endpoint("endpoint1");
+    private static final String ENDPOINT2 = MatsTestHelp.endpoint("endpoint2");
 
     @BeforeClass
     public static void setupEndpoints() {

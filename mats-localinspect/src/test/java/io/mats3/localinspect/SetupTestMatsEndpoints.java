@@ -18,14 +18,14 @@ public class SetupTestMatsEndpoints {
         setupSubscriptionTerminator(matsFactory, baseService);
     }
 
-    final static String SERVICE = ".service";
-    final static String SERVICE_MID = ".service.Mid";
-    final static String SERVICE_LEAF = ".service.Leaf";
+    final static String ENDPOINT = ".service";
+    final static String ENDPOINT_MID = ".service.Mid";
+    final static String ENDPOINT_LEAF = ".service.Leaf";
     final static String TERMINATOR = ".terminator";
     final static String SUBSCRIPTION_TERMINATOR = ".subscriptionTerminator";
 
     public void setupLeafService(MatsFactory matsFactory, String baseService, int baseConcurrency) {
-        MatsEndpoint<DataTO, Void> single = matsFactory.single(baseService + SERVICE_LEAF, DataTO.class, DataTO.class,
+        MatsEndpoint<DataTO, Void> single = matsFactory.single(baseService + ENDPOINT_LEAF, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     // Use the 'multiplier' in the request to formulate the reply.. I.e. multiply the number..!
                     return new DataTO(dto.number * dto.multiplier, dto.string + ":FromLeafService");
@@ -34,7 +34,7 @@ public class SetupTestMatsEndpoints {
     }
 
     public void setupMidMultiStagedService(MatsFactory matsFactory, String baseService, int baseConcurrency) {
-        MatsEndpoint<DataTO, StateTO> ep = matsFactory.staged(baseService + SERVICE_MID, DataTO.class,
+        MatsEndpoint<DataTO, StateTO> ep = matsFactory.staged(baseService + ENDPOINT_MID, DataTO.class,
                 StateTO.class);
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(0, 0), sto);
@@ -42,7 +42,7 @@ public class SetupTestMatsEndpoints {
             sto.number1 = dto.multiplier;
             // Add an important number to state..!
             sto.number2 = Math.PI;
-            context.request(baseService + SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall", 2));
+            context.request(baseService + ENDPOINT_LEAF, new DataTO(dto.number, dto.string + ":LeafCall", 2));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             // Only assert number2, as number1 is differing between calls (it is the multiplier for MidService).
@@ -62,12 +62,12 @@ public class SetupTestMatsEndpoints {
     }
 
     public void setupMainMultiStagedService(MatsFactory matsFactory, String baseService) {
-        MatsEndpoint<DataTO, StateTO> ep = matsFactory.staged(baseService + SERVICE, DataTO.class, StateTO.class);
+        MatsEndpoint<DataTO, StateTO> ep = matsFactory.staged(baseService + ENDPOINT, DataTO.class, StateTO.class);
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(0, 0), sto);
             sto.number1 = Integer.MAX_VALUE;
             sto.number2 = Math.E;
-            context.request(baseService + SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall1", 3));
+            context.request(baseService + ENDPOINT_MID, new DataTO(dto.number, dto.string + ":MidCall1", 3));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MAX_VALUE, Math.E), sto);
@@ -92,7 +92,7 @@ public class SetupTestMatsEndpoints {
             Assert.assertEquals(new StateTO(1, 2), sto);
             sto.number1 = Integer.MIN_VALUE;
             sto.number2 = Math.E * 2;
-            context.request(baseService + SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall2", 7));
+            context.request(baseService + ENDPOINT_MID, new DataTO(dto.number, dto.string + ":MidCall2", 7));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE, Math.E * 2), sto);
@@ -103,14 +103,14 @@ public class SetupTestMatsEndpoints {
                 context.next(new DataTO(dto.number, dto.string + ":LeafCall1", 4));
             }
             else {
-                context.request(baseService + SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall1", 4));
+                context.request(baseService + ENDPOINT_LEAF, new DataTO(dto.number, dto.string + ":LeafCall1", 4));
             }
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE / 2, Math.E / 2), sto);
             sto.number1 = Integer.MIN_VALUE / 4;
             sto.number2 = Math.E / 4;
-            context.request(baseService + SERVICE_LEAF, new DataTO(dto.number, dto.string + ":LeafCall2", 6));
+            context.request(baseService + ENDPOINT_LEAF, new DataTO(dto.number, dto.string + ":LeafCall2", 6));
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MIN_VALUE / 4, Math.E / 4), sto);
@@ -121,14 +121,14 @@ public class SetupTestMatsEndpoints {
                 context.reply(new DataTO(dto.number, dto.string + ":EarlyReturn_FromMasterService", 4));
             }
             else {
-                context.request(baseService + SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall3", 8));
+                context.request(baseService + ENDPOINT_MID, new DataTO(dto.number, dto.string + ":MidCall3", 8));
             }
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MAX_VALUE / 2, Math.PI / 2), sto);
             sto.number1 = Integer.MAX_VALUE / 4;
             sto.number2 = Math.PI / 4;
-            context.request(baseService + SERVICE_MID, new DataTO(dto.number, dto.string + ":MidCall4", 9));
+            context.request(baseService + ENDPOINT_MID, new DataTO(dto.number, dto.string + ":MidCall4", 9));
         });
         ep.lastStage(DataTO.class, (context, sto, dto) -> {
             Assert.assertEquals(new StateTO(Integer.MAX_VALUE / 4, Math.PI / 4), sto);

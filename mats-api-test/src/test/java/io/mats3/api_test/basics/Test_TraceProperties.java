@@ -34,8 +34,7 @@ public class Test_TraceProperties {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
-    private static final String SECOND_SERVICE = MatsTestHelp.endpointId("second_service");
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     private static String _stringProp_service;
@@ -50,13 +49,13 @@ public class Test_TraceProperties {
     private static DataTO _objectPropFromService_terminator_initiatedWithinService;
     private static DataTO _objectPropFromService_terminator_initiatedWithinService_setInInitiation;
 
-    private static final String TERMINATOR_FOR_MESSAGE_INITIATED_WITHIN_SERVICE = TERMINATOR+"-ForMessageInitiatedInService";
+    private static final String TERMINATOR_FOR_MESSAGE_INITIATED_WITHIN_ENDPOINT = TERMINATOR+"-ForMessageInitiatedInService";
 
     private static final MatsTestLatch _secondLatch = new MatsTestLatch();
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     // Get the String prop
                     _stringProp_service = context.getTraceProperty("stringProp", String.class);
@@ -70,7 +69,7 @@ public class Test_TraceProperties {
                     context.initiate(msg -> {
                         msg.traceId(MatsTestHelp.traceId())
                                 .from(MatsTestHelp.from("inner_initiate"))
-                                .to(TERMINATOR_FOR_MESSAGE_INITIATED_WITHIN_SERVICE)
+                                .to(TERMINATOR_FOR_MESSAGE_INITIATED_WITHIN_ENDPOINT)
                                 .setTraceProperty("objectPropInitiatedWithinService", new DataTO(Math.exp(5), "123"))
                                 .send(new DataTO(13.14, "qwerty"), new StateTO(42, 420.024));
                     });
@@ -99,7 +98,7 @@ public class Test_TraceProperties {
 
     @BeforeClass
     public static void setupTerminatorForMessageInitiatedWithinService() {
-        MATS.getMatsFactory().terminator(TERMINATOR_FOR_MESSAGE_INITIATED_WITHIN_SERVICE, StateTO.class, DataTO.class,
+        MATS.getMatsFactory().terminator(TERMINATOR_FOR_MESSAGE_INITIATED_WITHIN_ENDPOINT, StateTO.class, DataTO.class,
                 (context, sto, dto) -> {
                     // Get the String prop
                     _stringProp_terminator_initiatedWithinService = context.getTraceProperty("stringProp", String.class);
@@ -125,7 +124,7 @@ public class Test_TraceProperties {
         MATS.getMatsInitiator().initiateUnchecked(
                 msg -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .setTraceProperty("objectProp", new DataTO(Math.E, "abc"))
                         .setTraceProperty("stringProp", "xyz")

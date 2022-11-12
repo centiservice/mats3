@@ -45,7 +45,7 @@ public class Test_ThrowExceptionsInServiceShouldDlq {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     private static volatile AtomicInteger _serviceInvocations;
@@ -56,7 +56,7 @@ public class Test_ThrowExceptionsInServiceShouldDlq {
 
     @BeforeClass
     public static void setupServiceAndTerminator() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     _serviceInvocations.incrementAndGet();
                     if (dto.string.equals(THROW_RUNTIME)) {
@@ -107,15 +107,15 @@ public class Test_ThrowExceptionsInServiceShouldDlq {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 
         // ?: Should we expect this test to DLQ?
         if (expectDlq) {
             // Wait for the DLQ
-            MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(SERVICE);
-            Assert.assertEquals(SERVICE, dlqMessage.getTo());
+            MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(ENDPOINT);
+            Assert.assertEquals(ENDPOINT, dlqMessage.getTo());
 
             // Assert that we got the expected number of invocations
             /*

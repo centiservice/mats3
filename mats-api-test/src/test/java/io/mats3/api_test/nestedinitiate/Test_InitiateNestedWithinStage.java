@@ -38,7 +38,7 @@ public class Test_InitiateNestedWithinStage {
     private static final int NAP_TIME = 1000;
 
     // The endpoint which performs initiations whose ordering we want to test
-    private static final String ENDPOINT_INITIATING = MatsTestHelp.service();
+    private static final String ENDPOINT_INITIATING = MatsTestHelp.endpoint();
 
     private static final String TERMINATOR0 = MatsTestHelp.terminator("0");
     private static final String TERMINATOR1 = MatsTestHelp.terminator("1");

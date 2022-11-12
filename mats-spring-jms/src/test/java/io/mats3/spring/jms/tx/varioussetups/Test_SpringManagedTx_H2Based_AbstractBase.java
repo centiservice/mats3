@@ -66,8 +66,8 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
 
     private static final Logger log = LoggerFactory.getLogger(Test_SpringManagedTx_H2Based_AbstractBase.class);
 
-    public static final String SERVICE = "mats.spring.SpringManagedTx_H2Based";
-    public static final String TERMINATOR = SERVICE + ".TERMINATOR";
+    public static final String ENDPOINT = "mats.spring.SpringManagedTx_H2Based";
+    public static final String TERMINATOR = ENDPOINT + ".TERMINATOR";
 
     private static final int MULTIPLE_COUNT = 75;
 
@@ -148,19 +148,19 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
          * Setting up the single-stage endpoint that will store a row in the database, but which will throw if the
          * request DTO says so.
          */
-        @MatsMapping(endpointId = SERVICE)
+        @MatsMapping(endpointId = ENDPOINT)
         public SpringTestDataTO springMatsSingleEndpoint(ProcessContext<SpringTestDataTO> context,
                 SpringTestDataTO msg) {
-            log.info("Incoming message for '" + SERVICE + "': DTO:[" + msg + "], context:\n" + context);
+            log.info("Incoming message for '" + ENDPOINT + "': DTO:[" + msg + "], context:\n" + context);
 
             // :: Perform an INSERT using Spring JDBC:
-            String valueSpringJdbc = SERVICE + '[' + msg.string + "]-SpringJdbc";
-            log.info("SERVICE: Inserting row in database, data='" + valueSpringJdbc + "'");
+            String valueSpringJdbc = ENDPOINT + '[' + msg.string + "]-SpringJdbc";
+            log.info("ENDPOINT: Inserting row in database, data='" + valueSpringJdbc + "'");
             // (using "update" to perform INSERT..)
             _jdbcTemplate.update("INSERT INTO datatable VALUES (?)", valueSpringJdbc);
 
             // :: Perform an INSERT using pure JDBC
-            String valuePlainJdbc = SERVICE + '[' + msg.string + "]-PlainJdbc";
+            String valuePlainJdbc = ENDPOINT + '[' + msg.string + "]-PlainJdbc";
             // Note how we're using DataSourceUtils to get the Spring Managed Transactional Connection.
             // .. and do NOT close it afterwards, but use DataSourceUtils.releaseConnection instead
             // Notice how this is exactly like JdbcTemplate.execute() does it.
@@ -257,7 +257,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
     public void test_Good() throws SQLException {
         SpringTestDataTO dto = new SpringTestDataTO(27, GOOD);
         String traceId = "testGood_TraceId:" + RandomString.randomCorrelationId();
-        sendMessage(SERVICE, dto, traceId);
+        sendMessage(ENDPOINT, dto, traceId);
 
         // Wait for the message that appears on TERMINATOR
         log.info("TEST: Waiting for latching, latch is: "+_latch);
@@ -269,8 +269,8 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
         List<String> expected = new ArrayList<>(2);
         // Add in expected order based on "ORDER BY data"
         expected.add(TERMINATOR + '[' + GOOD + ']');
-        expected.add(SERVICE + '[' + GOOD + "]-PlainJdbc");
-        expected.add(SERVICE + '[' + GOOD + "]-SpringJdbc");
+        expected.add(ENDPOINT + '[' + GOOD + "]-PlainJdbc");
+        expected.add(ENDPOINT + '[' + GOOD + "]-SpringJdbc");
 
         Assert.assertEquals(expected, getDataFromDataTable());
     }
@@ -278,7 +278,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
     @Test
     public void test_MultipleGood() throws SQLException {
         for (int i = 0; i < MULTIPLE_COUNT; i++) {
-            sendMessage(SERVICE, new SpringTestDataTO(i, MULTIPLE + i), RandomString.randomCorrelationId());
+            sendMessage(ENDPOINT, new SpringTestDataTO(i, MULTIPLE + i), RandomString.randomCorrelationId());
         }
 
         // Wait for the message that appears on TERMINATOR that runs the count down to 0
@@ -290,8 +290,8 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
         SortedSet<String> expected = new TreeSet<>();
         for (int i = 0; i < MULTIPLE_COUNT; i++) {
             expected.add(TERMINATOR + '[' + MULTIPLE + i + "]");
-            expected.add(SERVICE + '[' + MULTIPLE + i + "]-PlainJdbc");
-            expected.add(SERVICE + '[' + MULTIPLE + i + "]-SpringJdbc");
+            expected.add(ENDPOINT + '[' + MULTIPLE + i + "]-PlainJdbc");
+            expected.add(ENDPOINT + '[' + MULTIPLE + i + "]-SpringJdbc");
         }
         Assert.assertEquals(new ArrayList<>(expected), getDataFromDataTable());
     }
@@ -300,10 +300,10 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
     public void test_ThrowsShouldRollback() throws SQLException {
         SpringTestDataTO dto = new SpringTestDataTO(13, THROW);
         String traceId = "testBad_TraceId:" + RandomString.randomCorrelationId();
-        sendMessage(SERVICE, dto, traceId);
+        sendMessage(ENDPOINT, dto, traceId);
 
-        // :: This should result in a DLQ, since the SERVICE throws.
-        MatsMessageRepresentation dlqMessage = _matsTestBrokerInterface.getDlqMessage(SERVICE);
+        // :: This should result in a DLQ, since the ENDPOINT throws.
+        MatsMessageRepresentation dlqMessage = _matsTestBrokerInterface.getDlqMessage(ENDPOINT);
         // There should be a DLQ
         Assert.assertNotNull(dlqMessage);
         // The DTO and TraceId of the DLQ'ed message should be the one we sent.
@@ -312,7 +312,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
         Assert.assertEquals(traceId, dlqMessage.getTraceId());
 
         // There should be zero rows in the database, since the RuntimeException should have rolled back processing
-        // of SERVICE, and thus TERMINATOR should not have gotten a message either (and thus not inserted row).
+        // of ENDPOINT, and thus TERMINATOR should not have gotten a message either (and thus not inserted row).
         List<String> dataFromDatabase = getDataFromDataTable();
         Assert.assertEquals(0, dataFromDatabase.size());
     }

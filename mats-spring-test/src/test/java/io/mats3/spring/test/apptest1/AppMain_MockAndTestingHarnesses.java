@@ -52,9 +52,9 @@ import io.mats3.util.MatsFuturizer;
 @ComponentScan
 public class AppMain_MockAndTestingHarnesses {
     private static final String ENDPOINT_ID_BASE = "TestApp_TwoMf";
-    public static final String ENDPOINT_ID_MAINSERVICE = ENDPOINT_ID_BASE + ".mainService";
-    public static final String ENDPOINT_ID_LEAFSERVICE1 = ENDPOINT_ID_BASE + ".leafService1";
-    public static final String ENDPOINT_ID_LEAFSERVICE2 = ENDPOINT_ID_BASE + ".leafService2";
+    public static final String ENDPOINT_ID_MAINENDPOINT = ENDPOINT_ID_BASE + ".mainService";
+    public static final String ENDPOINT_ID_LEAFENDPOINT1 = ENDPOINT_ID_BASE + ".leafService1";
+    public static final String ENDPOINT_ID_LEAFENDPOINT2 = ENDPOINT_ID_BASE + ".leafService2";
 
     private static final Logger log = LoggerFactory.getLogger(AppMain_MockAndTestingHarnesses.class);
 

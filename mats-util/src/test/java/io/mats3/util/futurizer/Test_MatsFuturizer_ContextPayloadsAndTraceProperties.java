@@ -32,7 +32,7 @@ public class Test_MatsFuturizer_ContextPayloadsAndTraceProperties {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
 
     private static final byte[] BYTE_ARRAY = new byte[1024];
 
@@ -40,22 +40,22 @@ public class Test_MatsFuturizer_ContextPayloadsAndTraceProperties {
         new Random(-3).nextBytes(BYTE_ARRAY);
     }
 
-    private static final String SERVICE_MESSAGE_APPEND = ":appendedAtService";
+    private static final String ENDPOINT_MESSAGE_APPEND = ":appendedAtService";
     private static final String KEY_ATTACHED_STRING = "attachedString";
     private static final String KEY_ATTACHED_BYTES = "attachedBytes";
     private static final String KEY_TRACE_PROPERTY = "traceProperty";
-    private static final String KEY_TRACE_PROPERTY_FROM_SERVICE = "tracePropertyFromService";
+    private static final String KEY_TRACE_PROPERTY_FROM_ENDPOINT = "tracePropertyFromService";
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, String.class, String.class, (context, incomingMessage) -> {
+        MATS.getMatsFactory().single(ENDPOINT, String.class, String.class, (context, incomingMessage) -> {
             // Pass the attached string and bytes back to the invoker.
             context.addString(KEY_ATTACHED_STRING, context.getString(KEY_ATTACHED_STRING) + ":xyz");
             context.addBytes(KEY_ATTACHED_BYTES, context.getBytes(KEY_ATTACHED_BYTES));
 
             // Add a trace property
-            context.setTraceProperty(KEY_TRACE_PROPERTY_FROM_SERVICE, new TestDto("XYZ", Math.E));
-            return incomingMessage + SERVICE_MESSAGE_APPEND;
+            context.setTraceProperty(KEY_TRACE_PROPERTY_FROM_ENDPOINT, new TestDto("XYZ", Math.E));
+            return incomingMessage + ENDPOINT_MESSAGE_APPEND;
         });
     }
 
@@ -67,7 +67,7 @@ public class Test_MatsFuturizer_ContextPayloadsAndTraceProperties {
         MatsFuturizer futurizer = MATS.getMatsFuturizer();
 
         CompletableFuture<Reply<String>> future = futurizer.futurize(
-                traceId, "futureGet", SERVICE, 1000, TimeUnit.MILLISECONDS, String.class, request,
+                traceId, "futureGet", ENDPOINT, 1000, TimeUnit.MILLISECONDS, String.class, request,
                 msg -> {
                     msg.addString(KEY_ATTACHED_STRING, "attached_String");
                     msg.addBytes(KEY_ATTACHED_BYTES, BYTE_ARRAY);
@@ -76,7 +76,7 @@ public class Test_MatsFuturizer_ContextPayloadsAndTraceProperties {
         Reply<String> reply = future.get(1, TimeUnit.SECONDS);
 
         // Assert that we got the expected reply.
-        Assert.assertEquals(request + SERVICE_MESSAGE_APPEND, reply.getReply());
+        Assert.assertEquals(request + ENDPOINT_MESSAGE_APPEND, reply.getReply());
 
         // :: Assert that the attached String and Byte Array, and 2 x Trace Properties, are present on the context.
         DetachedProcessContext context = reply.getContext();
@@ -85,7 +85,7 @@ public class Test_MatsFuturizer_ContextPayloadsAndTraceProperties {
         Assert.assertEquals(new TestDto("DTO", Math.PI),
                 context.getTraceProperty(KEY_TRACE_PROPERTY, TestDto.class));
         Assert.assertEquals(new TestDto("XYZ", Math.E),
-                context.getTraceProperty(KEY_TRACE_PROPERTY_FROM_SERVICE, TestDto.class));
+                context.getTraceProperty(KEY_TRACE_PROPERTY_FROM_ENDPOINT, TestDto.class));
     }
 
     private static class TestDto {

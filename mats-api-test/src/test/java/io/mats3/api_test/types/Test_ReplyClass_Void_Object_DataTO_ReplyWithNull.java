@@ -23,25 +23,25 @@ public class Test_ReplyClass_Void_Object_DataTO_ReplyWithNull {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
 
     @BeforeClass
     public static void setupService_ReplyClass_Void() {
-        MATS.getMatsFactory().single(SERVICE + ".ReplyClass_Void", Void.TYPE, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT + ".ReplyClass_Void", Void.TYPE, DataTO.class,
                 (context, dto) -> null);
     }
 
     @BeforeClass
     public static void setupService_ReplyClass_Object() {
-        MATS.getMatsFactory().single(SERVICE + ".ReplyClass_Object", Object.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT + ".ReplyClass_Object", Object.class, DataTO.class,
                 (context, dto) -> null);
     }
 
     @BeforeClass
     public static void setupService_ReplyClass_DataTO() {
-        MATS.getMatsFactory().single(SERVICE + ".ReplyClass_DataTO", DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT + ".ReplyClass_DataTO", DataTO.class, DataTO.class,
                 (context, dto) -> null);
     }
 
@@ -61,7 +61,7 @@ public class Test_ReplyClass_Void_Object_DataTO_ReplyWithNull {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.randomId())
                         .from(MatsTestHelp.from(toService))
-                        .to(SERVICE + "." + toService)
+                        .to(ENDPOINT + "." + toService)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 

@@ -27,12 +27,12 @@ public class Test_RemoveEndpoint {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, dto) -> new DataTO(dto.number * 2, dto.string + ":FromService"));
     }
 
@@ -53,12 +53,12 @@ public class Test_RemoveEndpoint {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("first_run"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 
         // Wait synchronously for terminator to finish.
-        // NOTICE: The SERVICE endpoint multiplies by
+        // NOTICE: The ENDPOINT endpoint multiplies by
         Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
         Assert.assertEquals(sto, result.getState());
         Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), result.getData());
@@ -68,7 +68,7 @@ public class Test_RemoveEndpoint {
         long nanos_StartRemove = System.nanoTime();
 
         // First find it
-        Optional<MatsEndpoint<?, ?>> endpoint = MATS.getMatsFactory().getEndpoint(SERVICE);
+        Optional<MatsEndpoint<?, ?>> endpoint = MATS.getMatsFactory().getEndpoint(ENDPOINT);
         if (!endpoint.isPresent()) {
             throw new AssertionError("Didn't find endpoint!");
         }
@@ -78,7 +78,7 @@ public class Test_RemoveEndpoint {
         double msRemoveTaken = (System.nanoTime() - nanos_StartRemove) / 1_000_000d;
 
         // .. register a new one:
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, msg) -> new DataTO(msg.number * 4, msg.string + ":FromService"));
 
         double msRemoveAndAddTaken = (System.nanoTime() - nanos_StartRemove) / 1_000_000d;
@@ -90,7 +90,7 @@ public class Test_RemoveEndpoint {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("second_run"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 

@@ -18,7 +18,7 @@ public class AppEndpoint_MainService {
     /**
      * Test Multi-Stage @MatsClassMapping endpoint.
      */
-    @MatsClassMapping(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINSERVICE)
+    @MatsClassMapping(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINENDPOINT)
     static class MultiEndPoint {
         @Inject
         private AppServiceCalculator _calculator;
@@ -36,20 +36,20 @@ public class AppEndpoint_MainService {
             // Set the initial number
             _initialNumber = in.number;
 
-            _context.request(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFSERVICE1, new SpringTestDataTO(in.number,
+            _context.request(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFENDPOINT1, new SpringTestDataTO(in.number,
                     in.string + ":(π=" + _calculator.multiplyByΠ(1) + ')'));
         }
 
         @Stage(10)
         void secondStage(SpringTestDataTO in) {
-            _context.request(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFSERVICE2, new SpringTestDataTO(in.number,
+            _context.request(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFENDPOINT2, new SpringTestDataTO(in.number,
                     in.string + ":(φ=" + _calculator.multiplyByΦ(1) + ')'));
         }
 
         @Stage(20)
         SpringTestDataTO lastStage(SpringTestDataTO in) {
             return new SpringTestDataTO(in.number * _initialNumber,
-                    in.string + ':' + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINSERVICE);
+                    in.string + ':' + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINENDPOINT);
         }
     }
 }

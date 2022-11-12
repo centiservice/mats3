@@ -29,7 +29,7 @@ public class Test_ServiceInvokedWithDifferentClass {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     /**
@@ -58,7 +58,7 @@ public class Test_ServiceInvokedWithDifferentClass {
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DifferentDTO.class, DifferentDTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DifferentDTO.class, DifferentDTO.class,
                 (context, dto) -> new DifferentDTO(dto.number * 2,
                         dto.string + ":TimesTwo",
                         dto.string + ":FromService"));
@@ -81,7 +81,7 @@ public class Test_ServiceInvokedWithDifferentClass {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.randomId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 

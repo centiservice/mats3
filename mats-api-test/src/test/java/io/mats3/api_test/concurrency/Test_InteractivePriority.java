@@ -33,7 +33,7 @@ public class Test_InteractivePriority {
     @ClassRule
     public static Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
 
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
@@ -46,7 +46,7 @@ public class Test_InteractivePriority {
         MATS.getMatsFactory().getFactoryConfig().setConcurrency(10);
 
         // :: Service
-        MatsEndpoint<DataTO, Void> single = MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MatsEndpoint<DataTO, Void> single = MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (ctx, msg) -> {
                     MatsTestHelp.takeNap(25);
                     return msg;
@@ -87,7 +87,7 @@ public class Test_InteractivePriority {
                     for (int inner = 0; inner < innerStandardMax; inner++) {
                         init.traceId("Standard" + MatsTestHelp.traceId())
                                 .from(MatsTestHelp.from("standard"))
-                                .to(SERVICE)
+                                .to(ENDPOINT)
                                 .setTraceProperty(MatsLoggingInterceptor.SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, true)
                                 .replyTo(TERMINATOR, new StateTO(outerF * inner, Math.E))
                                 .request(new DataTO(Math.PI, "" + inner + "" + outerF));
@@ -119,7 +119,7 @@ public class Test_InteractivePriority {
                         init.traceId("Interactive" + MatsTestHelp.traceId())
                                 .from(MatsTestHelp.from("interactive"))
                                 .interactive()
-                                .to(SERVICE)
+                                .to(ENDPOINT)
                                 .setTraceProperty(MatsLoggingInterceptor.SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, true)
                                 .replyTo(TERMINATOR, new StateTO(outerF * inner, Math.E))
                                 .request(new DataTO(Math.PI, "" + inner + "" + outerF));

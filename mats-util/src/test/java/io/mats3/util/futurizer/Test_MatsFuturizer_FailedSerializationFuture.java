@@ -28,11 +28,11 @@ public class Test_MatsFuturizer_FailedSerializationFuture {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
 
     @BeforeClass
     public static void setupServiceEndpoint() {
-        MATS.getMatsFactory().single(SERVICE, DtoWeSend.class, String.class,
+        MATS.getMatsFactory().single(ENDPOINT, DtoWeSend.class, String.class,
                 (context, incomingMsg) -> new DtoWeSend(incomingMsg));
     }
 
@@ -49,7 +49,7 @@ public class Test_MatsFuturizer_FailedSerializationFuture {
 
         CompletableFuture<Reply<DtoWeExpect>> future = matsFuturizer.futurizeNonessential(traceId,
                 "futureGet",
-                SERVICE,
+                ENDPOINT,
                 DtoWeExpect.class, "NOK");
         try {
             Reply<DtoWeExpect> reply = future.get();
@@ -76,7 +76,7 @@ public class Test_MatsFuturizer_FailedSerializationFuture {
         DtoWeExpect r = matsFuturizer.futurizeNonessential(
                 traceId,
                 "futureGet",
-                SERVICE,
+                ENDPOINT,
                 DtoWeExpect.class,
                 "NOK")
                 .thenApply(Reply::getReply)

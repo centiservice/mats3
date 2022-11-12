@@ -31,7 +31,7 @@ public class Test_MultiLevelStash {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     // Stash Stage0
@@ -48,7 +48,7 @@ public class Test_MultiLevelStash {
 
     @BeforeClass
     public static void setupStagedService() {
-        MatsEndpoint<DataTO, StateTO> staged = MATS.getMatsFactory().staged(SERVICE, DataTO.class, StateTO.class);
+        MatsEndpoint<DataTO, StateTO> staged = MATS.getMatsFactory().staged(ENDPOINT, DataTO.class, StateTO.class);
         staged.stage(DataTO.class, ((context, state, incomingDto) -> {
             _stash_stage0 = context.stash();
             _stashLatch_Stage0.resolve(context, state, incomingDto);
@@ -66,7 +66,7 @@ public class Test_MultiLevelStash {
 
     @BeforeClass
     public static void setupService() {
-        MatsEndpoint<DataTO, StateTO> staged = MATS.getMatsFactory().staged(SERVICE + ".Leaf", DataTO.class,
+        MatsEndpoint<DataTO, StateTO> staged = MATS.getMatsFactory().staged(ENDPOINT + ".Leaf", DataTO.class,
                 StateTO.class);
         // Cannot employ a single-stage, since that requires a reply (by returning something, even null).
         // Thus, employing multistage, with only one stage, where we do not invoke context.reply(..)
@@ -97,32 +97,32 @@ public class Test_MultiLevelStash {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(traceId)
                         .from(from)
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 
-        // ### STASHED AT SERVICE (stage0) - Wait synchronously for stash to appear
+        // ### STASHED AT ENDPOINT (stage0) - Wait synchronously for stash to appear
         Result<StateTO, DataTO> stashContext_stage0 = _stashLatch_Stage0.waitForResult();
 
         Assert.assertEquals(from, stashContext_stage0.getContext().getFromStageId());
-        Assert.assertEquals(SERVICE, stashContext_stage0.getContext().getEndpointId());
-        Assert.assertEquals(SERVICE, stashContext_stage0.getContext().getStageId());
+        Assert.assertEquals(ENDPOINT, stashContext_stage0.getContext().getEndpointId());
+        Assert.assertEquals(ENDPOINT, stashContext_stage0.getContext().getStageId());
 
         // Unstash!
         MATS.getMatsInitiator().initiateUnchecked(initiate -> initiate.unstash(_stash_stage0,
                 DataTO.class, StateTO.class, DataTO.class, (context, state, incomingDto) -> {
                     state.number1 = 1337;
                     state.number2 = Math.PI;
-                    context.request(SERVICE + ".Leaf", new DataTO(incomingDto.number * 2, incomingDto.string
+                    context.request(ENDPOINT + ".Leaf", new DataTO(incomingDto.number * 2, incomingDto.string
                             + ":RequestToLeaf"));
                 }));
 
         // ### STASHED AT LEAF - Wait synchronously for stash to appear
         Result<StateTO, DataTO> stashContext_leaf = _stashLatch_leaf.waitForResult();
 
-        Assert.assertEquals(SERVICE, stashContext_leaf.getContext().getFromStageId());
-        Assert.assertEquals(SERVICE + ".Leaf", stashContext_leaf.getContext().getEndpointId());
-        Assert.assertEquals(SERVICE + ".Leaf", stashContext_leaf.getContext().getStageId());
+        Assert.assertEquals(ENDPOINT, stashContext_leaf.getContext().getFromStageId());
+        Assert.assertEquals(ENDPOINT + ".Leaf", stashContext_leaf.getContext().getEndpointId());
+        Assert.assertEquals(ENDPOINT + ".Leaf", stashContext_leaf.getContext().getStageId());
 
         byte[][] restash = new byte[1][];
         // Unstash!
@@ -133,12 +133,12 @@ public class Test_MultiLevelStash {
                     context.reply(new DataTO(incomingDto.number * 3, incomingDto.string + ":FromLeaf"));
                 }));
 
-        // ### STASHED AT SERVICE.stage1 - Wait synchronously for stash to appear
+        // ### STASHED AT ENDPOINT.stage1 - Wait synchronously for stash to appear
         Result<StateTO, DataTO> stashContext_stage1 = _stashLatch_Stage1.waitForResult();
 
-        Assert.assertEquals(SERVICE + ".Leaf", stashContext_stage1.getContext().getFromStageId());
-        Assert.assertEquals(SERVICE, stashContext_stage1.getContext().getEndpointId());
-        Assert.assertEquals(SERVICE + ".stage1", stashContext_stage1.getContext().getStageId());
+        Assert.assertEquals(ENDPOINT + ".Leaf", stashContext_stage1.getContext().getFromStageId());
+        Assert.assertEquals(ENDPOINT, stashContext_stage1.getContext().getEndpointId());
+        Assert.assertEquals(ENDPOINT + ".stage1", stashContext_stage1.getContext().getStageId());
         Assert.assertEquals(1337, stashContext_stage1.getState().number1);
         Assert.assertEquals(Math.PI, stashContext_stage1.getState().number2, 0d);
         // Check that the restash is the same as the stash (which with current impl is true)
@@ -167,7 +167,7 @@ public class Test_MultiLevelStash {
         Assert.assertEquals(new DataTO(dto.number * 2 * 3 * 5, dto.string + ":RequestToLeaf:FromLeaf:FromService"),
                 result.getData());
 
-        // :: USING STASH FROM SERVICE.stage1 AGAIN TO UNSTASH TWICE - the terminator will get its answer once more.
+        // :: USING STASH FROM ENDPOINT.stage1 AGAIN TO UNSTASH TWICE - the terminator will get its answer once more.
 
         // Unstash AGAIN!
         MATS.getMatsInitiator().initiateUnchecked(initiate -> initiate.unstash(_stash_stage1,

@@ -17,14 +17,7 @@ public class MatsTestHelp {
         return LoggerFactory.getLogger(getCallerClassNameAndMethod()[0]);
     }
 
-    /**
-     * <b>DEPRECATED!</b>
-     *
-     * TODO: Remove v > 0.18
-     *
-     * @return a String <code>"{CallerClassSimpleName.method}.{name}"</code>.
-     */
-    public static String endpointId(String name) {
+    private static String internal(String name) {
         return getCallerClassSimpleName() + '.' + name;
     }
 
@@ -32,39 +25,28 @@ public class MatsTestHelp {
      * @return a String <code>"{CallerClassSimpleName.method}.Endpoint"</code>.
      */
     public static String endpoint() {
-        return endpointId("Endpoint");
+        return internal("Endpoint");
     }
 
     /**
      * @return a String <code>"{CallerClassSimpleName.method}.Endpoint.{what}"</code>.
      */
     public static String endpoint(String what) {
-        return endpointId("Endpoint." + what);
-    }
-
-    /**
-     * <b>DEPRECATED!</b>
-     *
-     * TODO: Remove v > 0.18
-     *
-     * @return a String <code>"{CallerClassSimpleName.method}.Endpoint"</code>.
-     */
-    public static String service() {
-        return endpointId("Endpoint");
+        return internal("Endpoint." + what);
     }
 
     /**
      * @return a String <code>"{CallerClassSimpleName.method}.Terminator"</code>.
      */
     public static String terminator() {
-        return endpointId("Terminator");
+        return internal("Terminator");
     }
 
     /**
      * @return a String <code>"{CallerClassSimpleName.method}.Terminator"</code>.
      */
     public static String terminator(String what) {
-        return endpointId("Terminator." + what);
+        return internal("Terminator." + what);
     }
 
     /**
@@ -143,5 +125,4 @@ public class MatsTestHelp {
         }
         throw new AssertionError("Could not determine calling class.");
     }
-
 }

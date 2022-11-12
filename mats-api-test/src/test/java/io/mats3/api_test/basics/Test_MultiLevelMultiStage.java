@@ -45,15 +45,15 @@ public class Test_MultiLevelMultiStage {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE_MAIN = MatsTestHelp.endpointId("MAIN");
-    private static final String SERVICE_MID = MatsTestHelp.endpointId("MID");
-    private static final String SERVICE_LEAF = MatsTestHelp.endpointId("LEAF");
+    private static final String ENDPOINT_MAIN = MatsTestHelp.endpoint("MAIN");
+    private static final String ENDPOINT_MID = MatsTestHelp.endpoint("MID");
+    private static final String ENDPOINT_LEAF = MatsTestHelp.endpoint("LEAF");
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
     public static void setupLeafService() {
         // Create single-stage "Leaf" endpoint. Single stage, thus the processor is defined directly.
-        MATS.getMatsFactory().single(SERVICE_LEAF, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT_LEAF, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     // Returns a Reply to the calling service with a alteration of incoming message
                     return new DataTO(dto.number * 2, dto.string + ":FromLeafService");
@@ -64,7 +64,7 @@ public class Test_MultiLevelMultiStage {
     public static void setupMidMultiStagedService() {
         // Create two-stage "Mid" endpoint
         MatsEndpoint<DataTO, StateTO> ep = MATS.getMatsFactory()
-                .staged(SERVICE_MID, DataTO.class, StateTO.class);
+                .staged(ENDPOINT_MID, DataTO.class, StateTO.class);
 
         // Initial stage, receives incoming message to this "Mid" service
         ep.stage(DataTO.class, (context, sto, dto) -> {
@@ -75,7 +75,7 @@ public class Test_MultiLevelMultiStage {
             sto.number1 = 10;
             sto.number2 = Math.PI;
             // Perform request to "Leaf" Service...
-            context.request(SERVICE_LEAF, dto);
+            context.request(ENDPOINT_LEAF, dto);
         });
 
         // Next, and last, stage, receives replies from the "Leaf" service, and returns a Reply
@@ -92,7 +92,7 @@ public class Test_MultiLevelMultiStage {
     public static void setupMainMultiStagedService() {
         // Create three-stage "Main" endpoint
         MatsEndpoint<DataTO, StateTO> ep = MATS.getMatsFactory()
-                .staged(SERVICE_MAIN, DataTO.class, StateTO.class);
+                .staged(ENDPOINT_MAIN, DataTO.class, StateTO.class);
 
         // Initial stage, receives incoming message to this "Main" service
         ep.stage(DataTO.class, (context, sto, dto) -> {
@@ -103,7 +103,7 @@ public class Test_MultiLevelMultiStage {
             sto.number1 = Integer.MAX_VALUE;
             sto.number2 = Math.E;
             // Perform request to "Mid" Service...
-            context.request(SERVICE_MID, dto);
+            context.request(ENDPOINT_MID, dto);
         });
         ep.stage(DataTO.class, (context, sto, dto) -> {
             // .. "continuing" after the "Mid" Service has replied.
@@ -114,7 +114,7 @@ public class Test_MultiLevelMultiStage {
             sto.number1 = Integer.MIN_VALUE;
             sto.number2 = Math.E * 2;
             // Perform request to "Leaf" Service...
-            context.request(SERVICE_LEAF, dto);
+            context.request(ENDPOINT_LEAF, dto);
         });
         ep.lastStage(DataTO.class, (context, sto, dto) -> {
             // .. "continuing" after the "Leaf" Service has replied.
@@ -151,7 +151,7 @@ public class Test_MultiLevelMultiStage {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE_MAIN)
+                        .to(ENDPOINT_MAIN)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 

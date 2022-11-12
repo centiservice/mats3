@@ -33,8 +33,8 @@ import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE;
  * <ol>
  * <li>An initiator does a request to the service, setting replyTo(Terminator) - which should result in all FIVE
  * Terminators getting its message</li>
- * <li>An initiator does a request to the service, setting replyTo(Terminator), <b>BUT DIRECTS THE SERVICE TO THROW
- * after it has done all the in-stage initiations</b>. This shall result in the message to the SERVICE going to DLQ, and
+ * <li>An initiator does a request to the service, setting replyTo(Terminator), <b>BUT DIRECTS THE ENDPOINT TO THROW
+ * after it has done all the in-stage initiations</b>. This shall result in the message to the ENDPOINT going to DLQ, and
  * all the In-stage initiated messages should NOT be sent - EXCEPT for the one using Non-Default Initiator, which do not
  * participate in the Stage-specific transactional demarcation.</li>
  * </ol>
@@ -55,7 +55,7 @@ public class Test_InitiateWithinStage {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     private static final MatsTestLatch matsTestLath = new MatsTestLatch();
@@ -79,7 +79,7 @@ public class Test_InitiateWithinStage {
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     // Fire off two new initiations to the two Terminators
                     context.initiate(
@@ -229,7 +229,7 @@ public class Test_InitiateWithinStage {
         MATS.getMatsInitiator().initiateUnchecked(
                 msg -> msg.traceId(traceId)
                         .from(MatsTestHelp.from("serviceCompletesSuccessfully"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 
@@ -278,15 +278,15 @@ public class Test_InitiateWithinStage {
         MATS.getMatsInitiator().initiateUnchecked(
                 msg -> msg.traceId(traceId)
                         .from(MatsTestHelp.from("serviceThrowsAndOnlyNonDefaultInitiatorShouldPersevere"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 
         // The the messages sent to the service should appear in the DLQ!
 
-        MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(SERVICE);
+        MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(ENDPOINT);
         Assert.assertEquals(traceId, dlqMessage.getTraceId());
-        Assert.assertEquals(SERVICE, dlqMessage.getTo());
+        Assert.assertEquals(ENDPOINT, dlqMessage.getTo());
 
         // NOTE NOTE! The SINGLE message sent with the NON-default initiator should come through!
 

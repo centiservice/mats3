@@ -31,9 +31,9 @@ public class Test_NestedInInitiate {
 
     private static final int NAP_TIME = 1000;
 
-    private static final String TERMINATOR0 = MatsTestHelp.endpointId("terminator0");
-    private static final String TERMINATOR1 = MatsTestHelp.endpointId("terminator1");
-    private static final String TERMINATOR2 = MatsTestHelp.endpointId("terminator2");
+    private static final String TERMINATOR0 = MatsTestHelp.endpoint("terminator0");
+    private static final String TERMINATOR1 = MatsTestHelp.endpoint("terminator1");
+    private static final String TERMINATOR2 = MatsTestHelp.endpoint("terminator2");
 
     private static final MatsTestLatch __latch0 = new MatsTestLatch();
     private static final MatsTestLatch __latch1 = new MatsTestLatch();

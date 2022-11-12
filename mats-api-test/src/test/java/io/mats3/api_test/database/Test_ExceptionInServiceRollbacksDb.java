@@ -35,12 +35,12 @@ public class Test_ExceptionInServiceRollbacksDb {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.createWithDb();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     // Insert the data into the datatable
                     TestH2DataSource.insertDataIntoDataTable(context.getAttribute(Connection.class).get(),
@@ -66,24 +66,24 @@ public class Test_ExceptionInServiceRollbacksDb {
     }
 
     /**
-     * Tests the infrastructure for checking that SERVICE's SQL inserts are rolled back upon RTE, by sending a message
+     * Tests the infrastructure for checking that ENDPOINT's SQL inserts are rolled back upon RTE, by sending a message
      * using the same path (but with no RTE) which we assert that we DO receive, and where the data is inserted!
      */
     @Test
     public void checkTestInfrastructre() {
         String randomData = UUID.randomUUID().toString();
 
-        // Request that the SERVICE do NOT throw, providing the randomData to insert into the 'datatable'
+        // Request that the ENDPOINT do NOT throw, providing the randomData to insert into the 'datatable'
         DataTO dto = new DataTO(0, randomData);
         StateTO sto = new StateTO(420, 420.024);
 
-        // :: Send the request to SERVICE.
+        // :: Send the request to ENDPOINT.
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> {
                     // :: Send the request
                     msg.traceId(MatsTestHelp.traceId())
                             .from(MatsTestHelp.from("checkTestInfrastructre"))
-                            .to(SERVICE)
+                            .to(ENDPOINT)
                             .replyTo(TERMINATOR, sto)
                             .request(dto);
                 });
@@ -93,40 +93,40 @@ public class Test_ExceptionInServiceRollbacksDb {
         Assert.assertEquals(sto, result.getState());
         Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), result.getData());
 
-        // Assert that the data inserted in SERVICE is actually in place.
+        // Assert that the data inserted in ENDPOINT is actually in place.
         List<String> dataFromDataTable = MATS.getDataSource().getDataFromDataTable();
         Assert.assertEquals(1, dataFromDataTable.size());
         Assert.assertEquals("FromService:" + randomData, dataFromDataTable.get(0));
     }
 
     /**
-     * Tests that an SQL INSERT in the SERVICE will rolled back if SERVICE throws a RTE.
+     * Tests that an SQL INSERT in the ENDPOINT will rolled back if ENDPOINT throws a RTE.
      */
     @Test
     public void exceptionInServiceShouldRollbackDb() {
         String randomData = UUID.randomUUID().toString();
 
-        // Request that the SERVICE throws, providing the randomData to insert into the 'datatable'
+        // Request that the ENDPOINT throws, providing the randomData to insert into the 'datatable'
         DataTO dto = new DataTO(1, randomData);
         StateTO sto = new StateTO(420, 420.024);
 
-        // :: Send the request to SERVICE.
+        // :: Send the request to ENDPOINT.
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> {
                     // :: Send the request
                     msg.traceId(MatsTestHelp.traceId())
                             .from(MatsTestHelp.from("exceptionInServiceShouldRollbackDb"))
-                            .to(SERVICE)
+                            .to(ENDPOINT)
                             .replyTo(TERMINATOR, sto)
                             .request(dto);
                 });
 
         // Wait for the DLQ
-        MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(SERVICE);
+        MatsMessageRepresentation dlqMessage = MATS.getMatsTestBrokerInterface().getDlqMessage(ENDPOINT);
 
-        Assert.assertEquals(SERVICE, dlqMessage.getTo());
+        Assert.assertEquals(ENDPOINT, dlqMessage.getTo());
 
-        // Assert that the data inserted in SERVICE is NOT inserted!
+        // Assert that the data inserted in ENDPOINT is NOT inserted!
         Assert.assertEquals("Should NOT have found any data in SQL Table 'datatable'!",
                 0, MATS.getDataSource().getDataFromDataTable().size());
     }

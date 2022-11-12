@@ -21,18 +21,18 @@ public class AppEndpoint_LeafServices {
     /**
      * Test "leaf service 1".
      */
-    @MatsMapping(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFSERVICE1)
+    @MatsMapping(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFENDPOINT1)
     public SpringTestDataTO leafService1(@Dto SpringTestDataTO msg) {
         return new SpringTestDataTO(_calculator.multiplyByΠ(msg.number),
-                msg.string + ':' + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFSERVICE1);
+                msg.string + ':' + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFENDPOINT1);
     }
 
     /**
      * Test "leaf service 2".
      */
-    @MatsMapping(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFSERVICE2)
+    @MatsMapping(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFENDPOINT2)
     public SpringTestDataTO leafService2(@Dto SpringTestDataTO msg) {
         return new SpringTestDataTO(_calculator.multiplyByΦ(msg.number),
-                msg.string + ':' + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFSERVICE2);
+                msg.string + ':' + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFENDPOINT2);
     }
 }

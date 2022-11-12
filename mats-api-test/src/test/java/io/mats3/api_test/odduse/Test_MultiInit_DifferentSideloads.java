@@ -26,10 +26,10 @@ public class Test_MultiInit_DifferentSideloads {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String TERMINATOR1 = MatsTestHelp.endpointId("Term1");
-    private static final String TERMINATOR2 = MatsTestHelp.endpointId("Term2");
+    private static final String TERMINATOR1 = MatsTestHelp.endpoint("Term1");
+    private static final String TERMINATOR2 = MatsTestHelp.endpoint("Term2");
 
-    private static final String SERVICE_SENDING_MSGS = MatsTestHelp.endpointId("ServiceSendingMsgs");
+    private static final String ENDPOINT_SENDING_MSGS = MatsTestHelp.endpoint("ServiceSendingMsgs");
 
     private static final MatsTestLatch _matsTestLatch1 = new MatsTestLatch();
     private static final MatsTestLatch _matsTestLatch2 = new MatsTestLatch();
@@ -103,7 +103,7 @@ public class Test_MultiInit_DifferentSideloads {
 
     @BeforeClass
     public static void setupServiceWhichInitiatesTwoMessages() {
-        MATS.getMatsFactory().terminator(SERVICE_SENDING_MSGS, StateTO.class, DataTO.class,
+        MATS.getMatsFactory().terminator(ENDPOINT_SENDING_MSGS, StateTO.class, DataTO.class,
                 (context, sto, dto) -> {
                     context.initiate((init) -> {
                         init.traceId(MatsTestHelp.traceId())
@@ -132,11 +132,11 @@ public class Test_MultiInit_DifferentSideloads {
                 (init) -> {
                     init.traceId(MatsTestHelp.traceId())
                             .from(MatsTestHelp.from("two_messages_from_stage"))
-                            .to(SERVICE_SENDING_MSGS)
+                            .to(ENDPOINT_SENDING_MSGS)
                             .send(null);
                 });
 
-        // Wait synchronously for SERVICE_SENDING_MSGS to having processed and sent its two messages
+        // Wait synchronously for ENDPOINT_SENDING_MSGS to having processed and sent its two messages
         _serviceTestLatch2.waitForResult();
 
         // Wait synchronously for both flows!

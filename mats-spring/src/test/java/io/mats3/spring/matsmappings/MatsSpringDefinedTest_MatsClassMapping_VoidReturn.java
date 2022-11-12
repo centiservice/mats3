@@ -31,7 +31,7 @@ import io.mats3.test.MatsTestLatch.Result;
 public class MatsSpringDefinedTest_MatsClassMapping_VoidReturn {
     private static final String ENDPOINT_ID = "MatsClassMapping.";
     private static final String MULTI_STAGE_TERMINATOR = "AppMain";
-    private static final String SERVICE_LEAF = "Leaf";
+    private static final String ENDPOINT_LEAF = "Leaf";
     private static final String TERMINATOR = "Terminator";
 
     @Configuration
@@ -79,7 +79,7 @@ public class MatsSpringDefinedTest_MatsClassMapping_VoidReturn {
      * Creating a "Leaf" Single Stage endpoint using @MatsClassMapping.
      */
     @Configuration
-    @MatsClassMapping(ENDPOINT_ID + SERVICE_LEAF)
+    @MatsClassMapping(ENDPOINT_ID + ENDPOINT_LEAF)
     public static class MatsClassMapping_Leaf {
         @Inject
         private SomeSimpleService _someSimpleService;
@@ -88,7 +88,7 @@ public class MatsSpringDefinedTest_MatsClassMapping_VoidReturn {
         public SpringTestDataTO springMatsSingleEndpoint(SpringTestDataTO msg) {
             // Interact with Spring injected service
             _someSimpleService.increaseCounter();
-            return new SpringTestDataTO(msg.number * 2, msg.string + ':' + SERVICE_LEAF);
+            return new SpringTestDataTO(msg.number * 2, msg.string + ':' + ENDPOINT_LEAF);
         }
     }
 
@@ -152,7 +152,7 @@ public class MatsSpringDefinedTest_MatsClassMapping_VoidReturn {
             Assert.assertEquals(new SpringTestStateTO(5, "fem"), _someOtherService);
 
             // Do a request to a service
-            _context.request(ENDPOINT_ID + SERVICE_LEAF, new SpringTestDataTO(in.number, in.string));
+            _context.request(ENDPOINT_ID + ENDPOINT_LEAF, new SpringTestDataTO(in.number, in.string));
         }
 
         @Stage(10)
@@ -217,7 +217,7 @@ public class MatsSpringDefinedTest_MatsClassMapping_VoidReturn {
 
         Result<SpringTestStateTO, SpringTestDataTO> result = _latch.waitForResult();
         Assert.assertEquals(sto, result.getState());
-        Assert.assertEquals(new SpringTestDataTO(dto.number * 2, dto.string + ':' + SERVICE_LEAF), result.getData());
+        Assert.assertEquals(new SpringTestDataTO(dto.number * 2, dto.string + ':' + ENDPOINT_LEAF), result.getData());
 
         // Check that the SomeSimpleService interactions took place
         // Should be 2: multi-stage-terminator itself + Leaf as request of multi-stage-terminator
@@ -234,14 +234,14 @@ public class MatsSpringDefinedTest_MatsClassMapping_VoidReturn {
         _matsInitiator.initiateUnchecked(
                 init -> init.traceId("test_trace_id")
                         .from("FromId")
-                        .to(ENDPOINT_ID + SERVICE_LEAF)
+                        .to(ENDPOINT_ID + ENDPOINT_LEAF)
                         .replyTo(ENDPOINT_ID + MULTI_STAGE_TERMINATOR, sto)
                         .request(dto));
 
         Result<SpringTestStateTO, SpringTestDataTO> result = _latch.waitForResult();
         Assert.assertEquals(sto, result.getState());
         Assert.assertEquals(new SpringTestDataTO(dto.number * 2 * 2,
-                dto.string + ':' + SERVICE_LEAF + ':' + SERVICE_LEAF), result.getData());
+                dto.string + ':' + ENDPOINT_LEAF + ':' + ENDPOINT_LEAF), result.getData());
 
         // Check that the SomeSimpleService interactions took place
         // Should be 3: Leaf + multi-stage-terminator itself + Leaf again as request of multi-stage-terminator

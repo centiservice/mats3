@@ -33,7 +33,7 @@ public class Test_SimplestEndpointRequest {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
@@ -43,7 +43,7 @@ public class Test_SimplestEndpointRequest {
 
     static void javaMatsSingleStageEndpoint(MatsFactory matsFactory) {
         // This service is very simple, where it just returns with an alteration of what it gets input.
-        matsFactory.single(SERVICE, DataTO.class, DataTO.class, (context, dto) -> {
+        matsFactory.single(ENDPOINT, DataTO.class, DataTO.class, (context, dto) -> {
             // Calculate the resulting values
             double resultNumber = dto.number * 2;
             String resultString = dto.string + ":FromService";
@@ -71,7 +71,7 @@ public class Test_SimplestEndpointRequest {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 

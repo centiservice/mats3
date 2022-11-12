@@ -48,7 +48,7 @@ public class Test_A_UseFullApplicationConfiguration {
         SpringTestDataTO dto = new SpringTestDataTO(number, string);
         CompletableFuture<Reply<SpringTestDataTO>> future = _matsFuturizer.futurizeNonessential(MatsTestHelp.traceId(),
                 MatsTestHelp.from("testX"),
-                AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINSERVICE,
+                AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINENDPOINT,
                 SpringTestDataTO.class, dto);
 
         SpringTestDataTO reply;
@@ -69,9 +69,9 @@ public class Test_A_UseFullApplicationConfiguration {
 
     static String expectedString(String from) {
         return from
-                + ":(π=" + AppServiceCalculator.Π + "):" + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFSERVICE1
-                + ":(φ=" + AppServiceCalculator.Φ + "):" + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFSERVICE2
-                + ":" + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINSERVICE;
+                + ":(π=" + AppServiceCalculator.Π + "):" + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFENDPOINT1
+                + ":(φ=" + AppServiceCalculator.Φ + "):" + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_LEAFENDPOINT2
+                + ":" + AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINENDPOINT;
     }
 
     // Running the test a few times, to check that the network "stays up" between tests.

@@ -38,12 +38,12 @@ public class Test_SendAlongStateWithRequest {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
     public static void setupService() {
-        MatsEndpoint<DataTO, StateTO> ep = MATS.getMatsFactory().staged(SERVICE, DataTO.class, StateTO.class);
+        MatsEndpoint<DataTO, StateTO> ep = MATS.getMatsFactory().staged(ENDPOINT, DataTO.class, StateTO.class);
         ep.stage(DataTO.class, (context, sto, dto) -> {
             log.debug("STAGE 0 MatsTrace:\n" + context.toString());
             MATS.getMatsTestLatch().resolve(sto, dto);
@@ -59,7 +59,7 @@ public class Test_SendAlongStateWithRequest {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, null) // TERMINATOR Will never be invoked..
                         .request(requestDto, initialTargetSto));
 

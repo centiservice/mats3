@@ -39,11 +39,11 @@ public class Test_MatsFuturizer_ManyFutures {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, msg) -> new DataTO(msg.number * 2, msg.string + ":FromService"));
     }
 
@@ -53,7 +53,7 @@ public class Test_MatsFuturizer_ManyFutures {
 
         for (int i = 0; i < 200; i++) {
             CompletableFuture<Reply<DataTO>> future = futurizer.futurizeNonessential(
-                    UUID.randomUUID().toString(), "futureGet", SERVICE, DataTO.class,
+                    UUID.randomUUID().toString(), "futureGet", ENDPOINT, DataTO.class,
                     new DataTO(Math.PI, "FutureGet:" + i));
             Reply<DataTO> reply = future.get(2, TimeUnit.SECONDS);
             Assert.assertEquals(new DataTO(Math.PI * 2, "FutureGet:" + i + ":FromService"), reply.getReply());
@@ -70,7 +70,7 @@ public class Test_MatsFuturizer_ManyFutures {
 
         for (int i = 0; i < 200; i++) {
             CompletableFuture<String> future = futurizer.futurizeNonessential(
-                    UUID.randomUUID().toString(), "futureThenApply", SERVICE, DataTO.class,
+                    UUID.randomUUID().toString(), "futureThenApply", ENDPOINT, DataTO.class,
                     new DataTO(Math.E, "FutureThenApply:" + i))
                     .thenApply(reply -> {
                         // !! Runs on 'StowFuturizer completer' thread.

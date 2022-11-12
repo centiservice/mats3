@@ -52,7 +52,7 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager
     private static final Logger log = LoggerFactory.getLogger(
             Test_SpringManagedTx_H2Based_HibernateTransactionManager.class);
 
-    public static final String SERVICE_HIBERNATE = "mats.spring.SpringManagedTx_H2Based_Hibernate";
+    public static final String ENDPOINT_HIBERNATE = "mats.spring.SpringManagedTx_H2Based_Hibernate";
 
     @Configuration
     @EnableMats
@@ -86,24 +86,24 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager
          * Setting up the single-stage endpoint that will store a row in the database using Hibernate, Spring JDBC and
          * Plain JDBC, but which will throw afterwards if the request DTO says so.
          */
-        @MatsMapping(endpointId = SERVICE_HIBERNATE)
+        @MatsMapping(endpointId = ENDPOINT_HIBERNATE)
         public SpringTestDataTO springMatsSingleEndpoint_Hibernate(ProcessContext<SpringTestDataTO> context,
                 SpringTestDataTO msg) {
-            log.info("Incoming message for '" + SERVICE + "': DTO:[" + msg + "], context:\n" + context);
+            log.info("Incoming message for '" + ENDPOINT + "': DTO:[" + msg + "], context:\n" + context);
 
             // :: Insert row in database using Hibernate/JPA
-            String valueHibernate = SERVICE_HIBERNATE + '[' + msg.string + "]-Hibernate";
+            String valueHibernate = ENDPOINT_HIBERNATE + '[' + msg.string + "]-Hibernate";
             DataTableDbo data = new DataTableDbo(valueHibernate);
             // Getting current Hibernate Session (must not close it)
             Session currentSession = _sessionFactory.getCurrentSession();
             currentSession.save(data);
 
             // :: .. and also insert row using Spring JDBC
-            String valueSpringJdbc = SERVICE_HIBERNATE + '[' + msg.string + "]-SpringJdbc";
+            String valueSpringJdbc = ENDPOINT_HIBERNATE + '[' + msg.string + "]-SpringJdbc";
             _jdbcTemplate.update("INSERT INTO datatable VALUES (?)", valueSpringJdbc);
 
             // :: .. and finally insert row using pure JDBC
-            String valuePlainJdbc = SERVICE_HIBERNATE + '[' + msg.string + "]-PlainJdbc";
+            String valuePlainJdbc = ENDPOINT_HIBERNATE + '[' + msg.string + "]-PlainJdbc";
             // Note how we're using DataSourceUtils to get the Spring Managed Transactional Connection.
             // .. and do NOT close it afterwards, but use DataSourceUtils.releaseConnection instead
             // Notice how this is exactly like JdbcTemplate.execute() does it.
@@ -170,7 +170,7 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager
     public void test_Hibernate_Good() throws SQLException {
         SpringTestDataTO dto = new SpringTestDataTO(27, GOOD);
         String traceId = "testGood_TraceId:" + RandomString.randomCorrelationId();
-        sendMessage(SERVICE_HIBERNATE, dto, traceId);
+        sendMessage(ENDPOINT_HIBERNATE, dto, traceId);
 
         Result<SpringTestStateTO, SpringTestDataTO> result = _latch.waitForResult();
         Assert.assertEquals(traceId, result.getContext().getTraceId());
@@ -180,9 +180,9 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager
         List<String> expected = new ArrayList<>(4);
         // Add in expected order based on "ORDER BY data"
         expected.add(TERMINATOR + '[' + GOOD + ']');
-        expected.add(SERVICE_HIBERNATE + '[' + GOOD + "]-Hibernate");
-        expected.add(SERVICE_HIBERNATE + '[' + GOOD + "]-PlainJdbc");
-        expected.add(SERVICE_HIBERNATE + '[' + GOOD + "]-SpringJdbc");
+        expected.add(ENDPOINT_HIBERNATE + '[' + GOOD + "]-Hibernate");
+        expected.add(ENDPOINT_HIBERNATE + '[' + GOOD + "]-PlainJdbc");
+        expected.add(ENDPOINT_HIBERNATE + '[' + GOOD + "]-SpringJdbc");
 
         Assert.assertEquals(expected, getDataFromDataTable());
     }
@@ -191,10 +191,10 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager
     public void test_Hibernate_ThrowsShouldRollback() throws SQLException {
         SpringTestDataTO dto = new SpringTestDataTO(13, THROW);
         String traceId = "testBad_TraceId:" + RandomString.randomCorrelationId();
-        sendMessage(SERVICE_HIBERNATE, dto, traceId);
+        sendMessage(ENDPOINT_HIBERNATE, dto, traceId);
 
-        // :: This should result in a DLQ, since the SERVICE_HIBERNATE throws.
-        MatsMessageRepresentation dlqMessage = _matsTestBrokerInterface.getDlqMessage(SERVICE_HIBERNATE);
+        // :: This should result in a DLQ, since the ENDPOINT_HIBERNATE throws.
+        MatsMessageRepresentation dlqMessage = _matsTestBrokerInterface.getDlqMessage(ENDPOINT_HIBERNATE);
         // There should be a DLQ
         Assert.assertNotNull(dlqMessage);
         // The DTO and TraceId of the DLQ'ed message should be the one we sent.
@@ -203,7 +203,7 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager
         Assert.assertEquals(traceId, dlqMessage.getTraceId());
 
         // There should be zero rows in the database, since the RuntimeException should have rolled back processing
-        // of SERVICE, and thus TERMINATOR should not have gotten a message either (and thus not inserted row).
+        // of ENDPOINT, and thus TERMINATOR should not have gotten a message either (and thus not inserted row).
         List<String> dataFromDatabase = getDataFromDataTable();
         Assert.assertEquals(0, dataFromDatabase.size());
     }

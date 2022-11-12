@@ -28,9 +28,9 @@ public class Test_ExtraState {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String EPID_LEAF1 = MatsTestHelp.endpointId("leaf1");
-    private static final String EPID_LEAF2 = MatsTestHelp.endpointId("leaf2");
-    private static final String EPID_SERVICE = MatsTestHelp.service();
+    private static final String EPID_LEAF1 = MatsTestHelp.endpoint("leaf1");
+    private static final String EPID_LEAF2 = MatsTestHelp.endpoint("leaf2");
+    private static final String EPID_ENDPOINT = MatsTestHelp.endpoint();
     private static final String EPID_TERMINATOR = MatsTestHelp.terminator();
 
     private static DataTO __data1ForTerminator;
@@ -58,7 +58,7 @@ public class Test_ExtraState {
 
         MATS.getMatsFactory().single(EPID_LEAF2, DataTO.class, DataTO.class, (ctx, msg) -> msg);
 
-        MatsEndpoint<DataTO, StateTO> ep_service = MATS.getMatsFactory().staged(EPID_SERVICE, DataTO.class,
+        MatsEndpoint<DataTO, StateTO> ep_service = MATS.getMatsFactory().staged(EPID_ENDPOINT, DataTO.class,
                 StateTO.class);
         ep_service.stage(DataTO.class, (ctx, state, msg) -> ctx.request(EPID_LEAF1, msg));
         ep_service.stage(DataTO.class, (ctx, state, msg) -> ctx.next(msg));
@@ -80,7 +80,7 @@ public class Test_ExtraState {
         MATS.getMatsInitiator().initiateUnchecked(init -> {
             init.traceId(MatsTestHelp.traceId())
                     .from(MatsTestHelp.from("doTest"))
-                    .to(EPID_SERVICE)
+                    .to(EPID_ENDPOINT)
                     .replyTo(EPID_TERMINATOR, new StateTO(42, Math.E))
                     .request(new DataTO(2, "two"));
         });
@@ -131,9 +131,9 @@ public class Test_ExtraState {
 
         @Override
         public void stageInterceptOutgoingMessages(StageInterceptOutgoingMessageContext context) {
-            // If this is SERVICE entry point, add extra state to outgoing
+            // If this is ENDPOINT entry point, add extra state to outgoing
             // NOTE: This should exist for all subsequent stages!
-            if (EPID_SERVICE.equals(context.getStage().getStageConfig().getStageId())) {
+            if (EPID_ENDPOINT.equals(context.getStage().getStageConfig().getStageId())) {
                 // There should only be one message here, as it is the REQUEST up to the Leaf.
                 Assert.assertEquals(1, context.getOutgoingMessages().size());
                 // Fetch it
@@ -147,7 +147,7 @@ public class Test_ExtraState {
             }
 
             // ?: Is this the next-call?
-            if ((EPID_SERVICE + ".stage1").equals(context.getStage().getStageConfig().getStageId())) {
+            if ((EPID_ENDPOINT + ".stage1").equals(context.getStage().getStageConfig().getStageId())) {
                 // -> Yes, this is the next-call
                 // There should only be one message here, as it is the NEXT to the next stage
                 Assert.assertEquals(1, context.getOutgoingMessages().size());

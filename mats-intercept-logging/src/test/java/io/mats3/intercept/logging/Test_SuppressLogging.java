@@ -32,15 +32,15 @@ public class Test_SuppressLogging {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE_DEFAULT = MatsTestHelp.endpointId("default");
-    private static final String TERMINATOR_DEFAULT = MatsTestHelp.endpointId("defaultTerminator");
+    private static final String ENDPOINT_DEFAULT = MatsTestHelp.endpoint("default");
+    private static final String TERMINATOR_DEFAULT = MatsTestHelp.endpoint("defaultTerminator");
 
-    private static final String SERVICE_SUPPRESS_ALLOWED = MatsTestHelp.endpointId("suppressionAllowed");
-    private static final String TERMINATOR_SUPPRESS_ALLOWED = MatsTestHelp.endpointId("terminatorSuppressionAllowed");
+    private static final String ENDPOINT_SUPPRESS_ALLOWED = MatsTestHelp.endpoint("suppressionAllowed");
+    private static final String TERMINATOR_SUPPRESS_ALLOWED = MatsTestHelp.endpoint("terminatorSuppressionAllowed");
 
     @BeforeClass
     public static void setupServiceAndTerminator_Default_SuppressionDisallowed() {
-        MATS.getMatsFactory().single(SERVICE_DEFAULT, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT_DEFAULT, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     log.info("###TEST###: Service Stage Processing: Default_SuppressionDisallowed");
                     return new DataTO(dto.number * 2, dto.string + ":FromService");
@@ -55,7 +55,7 @@ public class Test_SuppressLogging {
 
     @BeforeClass
     public static void setupServiceAndTerminator_AcceptingLogSuppression() {
-        MatsEndpoint<DataTO, Void> service = MATS.getMatsFactory().single(SERVICE_SUPPRESS_ALLOWED,
+        MatsEndpoint<DataTO, Void> service = MATS.getMatsFactory().single(ENDPOINT_SUPPRESS_ALLOWED,
                 DataTO.class, DataTO.class, (context, dto) -> {
                     log.info("###TEST###: Service Stage Processing: AcceptingLogSuppression");
                     return new DataTO(dto.number * 2, dto.string + ":FromService");
@@ -99,7 +99,7 @@ public class Test_SuppressLogging {
             MATS.getMatsInitiator().initiateUnchecked(
                     (msg) -> msg.traceId(MatsTestHelp.traceId())
                             .from(MatsTestHelp.from("not_requesting"))
-                            .to(SERVICE_SUPPRESS_ALLOWED)
+                            .to(ENDPOINT_SUPPRESS_ALLOWED)
                             .replyTo(TERMINATOR_SUPPRESS_ALLOWED, sto)
                             .request(dto));
             log.info("===TEST===: Inited 'not_requesting_suppression_to_suppression_allowing_endpoints'.");
@@ -124,7 +124,7 @@ public class Test_SuppressLogging {
             MATS.getMatsInitiator().initiateUnchecked(
                     (msg) -> msg.traceId(MatsTestHelp.traceId())
                             .from(MatsTestHelp.from("request_allowed"))
-                            .to(SERVICE_SUPPRESS_ALLOWED)
+                            .to(ENDPOINT_SUPPRESS_ALLOWED)
                             // Requesting suppression
                             .setTraceProperty(MatsLoggingInterceptor.SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, true)
                             .replyTo(TERMINATOR_SUPPRESS_ALLOWED, sto)
@@ -153,7 +153,7 @@ public class Test_SuppressLogging {
             MATS.getMatsInitiator().initiateUnchecked(
                     (msg) -> msg.traceId(MatsTestHelp.traceId())
                             .from(MatsTestHelp.from("request_non_allowed"))
-                            .to(SERVICE_DEFAULT)
+                            .to(ENDPOINT_DEFAULT)
                             // Requesting suppression
                             .setTraceProperty(MatsLoggingInterceptor.SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, true)
                             .replyTo(TERMINATOR_DEFAULT, sto)

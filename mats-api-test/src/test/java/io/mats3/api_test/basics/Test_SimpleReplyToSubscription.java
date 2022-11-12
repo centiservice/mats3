@@ -33,12 +33,12 @@ public class Test_SimpleReplyToSubscription {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, dto) -> {
                     log.debug("MatsTrace at service:\n" + context.toString());
                     return new DataTO(dto.number * 2, dto.string + ":FromService");
@@ -63,7 +63,7 @@ public class Test_SimpleReplyToSubscription {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyToSubscription(TERMINATOR + "_Subscription", sto)
                         .request(dto));
 

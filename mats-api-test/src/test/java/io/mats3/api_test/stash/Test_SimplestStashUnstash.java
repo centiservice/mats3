@@ -30,7 +30,7 @@ public class Test_SimplestStashUnstash {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
     private static byte[] _stash;
@@ -38,7 +38,7 @@ public class Test_SimplestStashUnstash {
 
     @BeforeClass
     public static void setupService() {
-        MatsEndpoint<DataTO, StateTO> staged = MATS.getMatsFactory().staged(SERVICE, DataTO.class, StateTO.class);
+        MatsEndpoint<DataTO, StateTO> staged = MATS.getMatsFactory().staged(ENDPOINT, DataTO.class, StateTO.class);
         // Cannot employ a single-stage, since that requires a reply (by returning something, even null).
         // Thus, employing multistage, with only one stage, where we do not invoke context.reply(..)
         staged.stage(DataTO.class, ((context, state, incomingDto) -> {
@@ -65,7 +65,7 @@ public class Test_SimplestStashUnstash {
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> msg.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
-                        .to(SERVICE)
+                        .to(ENDPOINT)
                         .replyTo(TERMINATOR, sto)
                         .request(dto));
 

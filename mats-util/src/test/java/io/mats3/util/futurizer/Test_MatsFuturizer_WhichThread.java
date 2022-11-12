@@ -30,15 +30,15 @@ public class Test_MatsFuturizer_WhichThread {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final String SERVICE = MatsTestHelp.service();
+    private static final String ENDPOINT = MatsTestHelp.endpoint();
 
     private static final String MATSFUTURIZER_COMPLETER_THREAD_NAME_START = "MatsFuturizer completer";
 
     @BeforeClass
     public static void setupService() {
-        MATS.getMatsFactory().single(SERVICE, DataTO.class, DataTO.class,
+        MATS.getMatsFactory().single(ENDPOINT, DataTO.class, DataTO.class,
                 (context, msg) -> {
-                    log.info("Inside SERVICE, context:\n" + context);
+                    log.info("Inside ENDPOINT, context:\n" + context);
                     /*
                      * Nap some millis, just to ensure that the main thread has already gotten to its wait point. The
                      * idea is that we're trying to make sure that .get() is actively holding the main thread so that we
@@ -74,7 +74,7 @@ public class Test_MatsFuturizer_WhichThread {
 
         DataTO dto = new DataTO(42, "TheAnswer");
         CompletableFuture<Reply<DataTO>> future = futurizer.futurizeNonessential(
-                "traceId", "OneSingleMessage", SERVICE, DataTO.class, dto);
+                "traceId", "OneSingleMessage", ENDPOINT, DataTO.class, dto);
 
         // ACT
 
@@ -112,7 +112,7 @@ public class Test_MatsFuturizer_WhichThread {
 
         DataTO dto = new DataTO(42, "TheAnswer");
         CompletableFuture<Reply<DataTO>> future = futurizer.futurizeNonessential(
-                "traceId", "OneSingleMessage", SERVICE, DataTO.class, dto);
+                "traceId", "OneSingleMessage", ENDPOINT, DataTO.class, dto);
 
         // :: ACT
 
@@ -150,7 +150,7 @@ public class Test_MatsFuturizer_WhichThread {
 
         DataTO dto = new DataTO(42, "TheAnswer");
         CompletableFuture<Reply<DataTO>> future = futurizer.futurizeNonessential(
-                "traceId", "OneSingleMessage", SERVICE, DataTO.class, dto);
+                "traceId", "OneSingleMessage", ENDPOINT, DataTO.class, dto);
 
         // :: ACT
 
