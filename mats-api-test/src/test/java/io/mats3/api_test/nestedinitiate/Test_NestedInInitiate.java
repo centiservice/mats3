@@ -30,6 +30,7 @@ public class Test_NestedInInitiate {
     public static final Rule_Mats MATS = Rule_Mats.create();
 
     private static final int NAP_TIME = 1000;
+    private static final int NAP_TIME_COMP = NAP_TIME - 100;
 
     private static final String TERMINATOR0 = MatsTestHelp.endpoint("terminator0");
     private static final String TERMINATOR1 = MatsTestHelp.endpoint("terminator1");
@@ -169,8 +170,8 @@ public class Test_NestedInInitiate {
         Assert.assertTrue("Term2 should have gotten message before Term0", timestamp[0] > timestamp[2]);
         Assert.assertTrue("Term2 should have gotten message before Term1", timestamp[1] > timestamp[2]);
         // Term0 and Term1 shall have taken at least NAP_TIME
-        Assert.assertTrue("Term0 should have taken at least NAP_TIME time.", timestamp[0] - startTime > NAP_TIME);
-        Assert.assertTrue("Term1 should have taken at least NAP_TIME time.", timestamp[1] - startTime > NAP_TIME);
+        Assert.assertTrue("Term0 should have taken at least NAP_TIME time.", timestamp[0] - startTime >= NAP_TIME_COMP);
+        Assert.assertTrue("Term1 should have taken at least NAP_TIME time.", timestamp[1] - startTime >= NAP_TIME_COMP);
     }
 
     // ======================================================================================================
@@ -378,8 +379,8 @@ public class Test_NestedInInitiate {
         Assert.assertTrue("Term2 should have gotten message before Term0", timestamp[0] > timestamp[2]);
         Assert.assertTrue("Term2 should have gotten message before Term1", timestamp[1] > timestamp[2]);
         // Term0 and Term1 shall have taken at least NAP_TIME
-        Assert.assertTrue("Term0 should have taken at least NAP_TIME time.", timestamp[0] - startTime > NAP_TIME);
-        Assert.assertTrue("Term1 should have taken at least NAP_TIME time.", timestamp[1] - startTime > NAP_TIME);
+        Assert.assertTrue("Term0 should have taken at least NAP_TIME time.", timestamp[0] - startTime >= NAP_TIME_COMP);
+        Assert.assertTrue("Term1 should have taken at least NAP_TIME time.", timestamp[1] - startTime >= NAP_TIME_COMP);
     }
 
     // ======================================================================================================
