@@ -138,6 +138,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         }
         // If it starts with the old "plain" or "deflate", then we handle it, as well as if it is the new identification
         // "MatsTrace_JSON_v1".
+        // TODO: When everybody >v0.19.1, the old "plain" or "deflate" can be removed.
         return meta.startsWith(COMPRESS_DEFLATE) || meta.startsWith(COMPRESS_PLAIN) | meta.startsWith(IDENTIFICATION);
     }
 
@@ -169,12 +170,12 @@ public class MatsSerializerJson implements MatsSerializer<String> {
                 resultBytes = compress(serializedBytes);
                 nanosTaken_Compression = System.nanoTime() - nanosAtStart_Compression;
                 // Add the uncompressed size, for precise buffer allocation for decompression.
-                meta = COMPRESS_DEFLATE + DECOMPRESSED_SIZE_ATTRIBUTE + serializedBytes.length;
+                meta = IDENTIFICATION + ':' + COMPRESS_DEFLATE + DECOMPRESSED_SIZE_ATTRIBUTE + serializedBytes.length;
             }
             else {
                 resultBytes = serializedBytes;
                 nanosTaken_Compression = 0;
-                meta = COMPRESS_PLAIN;
+                meta = IDENTIFICATION + ':' + COMPRESS_PLAIN;
             }
 
             return new SerializedMatsTraceImpl(resultBytes, meta, serializedBytes.length, nanosTaken_Serialization,
@@ -245,9 +246,6 @@ public class MatsSerializerJson implements MatsSerializer<String> {
             // ?: Is there a colon in the meta string?
             if (meta.indexOf(':') != -1) {
                 // -> Yes, there is. This is the identification-meta, so chop off everything before it.
-                // NOTICE: It is currently not added as prefix, as another implementation of the Mats-concepts are using
-                // an older version of MatsSerializer, which does not handle it.
-                // TODO: When "everybody" is at-or-above 0.16.0, it can be added.
                 meta = meta.substring(meta.indexOf(':') + 1);
             }
 
