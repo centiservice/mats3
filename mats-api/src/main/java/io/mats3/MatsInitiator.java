@@ -189,6 +189,10 @@ public interface MatsInitiator extends Closeable {
         }
     }
 
+    /**
+     * {@link FunctionalInterface @FunctionalInterface} for the "initiate lambda" - what you supply to the
+     * {@link #initiate(InitiateLambda) initiate} method.
+     */
     @FunctionalInterface
     interface InitiateLambda {
         void initiate(MatsInitiate init);

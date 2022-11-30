@@ -106,8 +106,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
 
     /**
      * Specialization of {@link MatsEndpoint.ProcessLambda ProcessLambda} which does not have a state, and have the same
-     * return-semantics as {@link MatsEndpoint.ProcessReturnLambda ProcessLambda} - used for single-stage endpoints as
-     * these does not have multiple stages to transfer state between.
+     * return-semantics as {@link MatsEndpoint.ProcessReturnLambda ProcessReturnLambda} - used for single-stage
+     * endpoints as these does not have multiple stages to transfer state between.
      * <p/>
      * However, since it is possible to send state along with the request, one may still use the
      * {@link MatsEndpoint.ProcessReturnLambda ProcessReturnLambda} for single-stage endpoints, but in this case you

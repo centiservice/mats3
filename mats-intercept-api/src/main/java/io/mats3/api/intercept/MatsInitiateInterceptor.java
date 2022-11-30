@@ -8,7 +8,8 @@ import io.mats3.MatsInitiator.InitiateLambda;
 import io.mats3.MatsInitiator.MatsInitiate;
 
 /**
- * <b>EXPERIMENTAL!!</b> (Will probably change. Implementation started 2020-01-08)
+ * <b>Implement this interface to intercept Initiations</b>, then register with
+ * {@link MatsInterceptable#addInitiationInterceptor(MatsInitiateInterceptor)}.
  * <p />
  * Meant for intercepting initiations with ability to modify the initiation, and to implement extra logging and metrics
  * gathering.
@@ -113,7 +114,7 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * <p />
  * To catch initiations "from the inside", you will employ a {@link MatsStageInterceptor}.
  *
- * @author Endre Stølsvik - 2021-01-08 - http://endre.stolsvik.com
+ * @author Endre Stølsvik - 2020-01-08 - http://endre.stolsvik.com
  */
 public interface MatsInitiateInterceptor {
 

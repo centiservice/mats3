@@ -21,9 +21,10 @@ import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator;
 import io.mats3.spring.EnableMats;
 import io.mats3.spring.test.MatsTestContext.MatsSimpleTestInfrastructureContextInitializer;
+import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.MatsTestLatch;
-import io.mats3.util.MatsFuturizer;
 import io.mats3.test.broker.MatsTestBroker;
+import io.mats3.util.MatsFuturizer;
 
 /**
  * One-stop-shop for making <i>simple</i> Spring-based integration/unit tests of Mats endpoints (NOT utilizing SQL
@@ -31,9 +32,9 @@ import io.mats3.test.broker.MatsTestBroker;
  * {@link MatsTestInfrastructureConfiguration}. This annotation can be put on a test-class, or on a
  * {@literal @Configuration} class (typically a nested static class within the test-class).
  * <p />
- * <i>Observe: If this "kitchen sink" annotation doesn't serve your needs, an alternative for
- * quickly putting a {@link MatsFactory} into a Spring test context is to utilize the methods in
- * {@link TestSpringMatsFactoryProvider} within a <code>{@literal @Bean}</code> factory method.</i>
+ * <i>Observe: If this "kitchen sink" annotation doesn't serve your needs, an alternative for quickly putting a
+ * {@link MatsFactory} into a Spring test context is to utilize the methods in {@link TestSpringMatsFactoryProvider}
+ * within a <code>{@literal @Bean}</code> factory method.</i>
  * <p />
  * The annotation, mostly via {@link MatsTestInfrastructureConfiguration}, sets up the following:
  * <ul>
@@ -49,6 +50,8 @@ import io.mats3.test.broker.MatsTestBroker;
  * {@link TestSpringMatsFactoryProvider}.</li>
  * <li>The <code>MatsFactory</code>'s {@link MatsFactory#getDefaultInitiator() default} {@link MatsInitiator} to
  * initiate messages with.</li>
+ * <li>A {@link MatsTestBrokerInterface} that "hooks in" to the underlying MQ instance, providing (for now) DLQ
+ * access.</li>
  * <li>A lazy-initialized {@link MatsFuturizer}, since this is often handy in tests.</li>
  * <li>A {@link MatsTestLatch} instance in the Spring Context, since when you need it, you need it both in the
  * {@literal @Configuration} class, and in the test-class - nice to already have an instance defined.</li>
@@ -57,15 +60,16 @@ import io.mats3.test.broker.MatsTestBroker;
  * For some more background on the Context Caching: <a href=
  * "http://docs.spring.io/spring/docs/current/spring-framework-reference/html/integration-testing.html#testcontext-ctx-management-caching">
  * Read the Spring doc about Context Caching</a> and <a href="https://jira.spring.io/browse/SPR-7377">read a "wont-fix"
- * bug report describing how the contexts aren't destroyed due to caching</a>. Since we're setting up message queue
- * consumers on a (potentially) global Message Queue broker, the different contexts would mess each other up, the old
- * consumers still consuming messages that the new test setup expected its consumers to take. For the in-memory broker
- * case, a solution would be to set up a new message broker (with a new name) for each context (each instantiation of a
- * new Spring context), but this would not solve the situation where we ran the tests against an actual external MQ
- * (which {@link MatsTestBroker} supports, read its JavaDoc!). Had there been some "deactivate"/"reactivate" events
- * that could be picked, we could have stopped the endpoints in one context (put in the cache) when firing up a new
- * context, and the restarted them when the context was reused from the cache. Since such a solution does not seem to be
- * viable, the only solution seems to be dirtying of the context, this stopping it from being cached.
+ * bug report describing how the contexts aren't destroyed due to caching</a>. Since we're setting up active message
+ * queue consumers with their own threads on a (potentially) global Message Queue broker, the different contexts would
+ * mess each other up: The old consumers would still consume messages that the new test setup expected its consumers to
+ * take. For the in-memory broker case, a solution would be to set up a new message broker (with a new name) for each
+ * context (each instantiation of a new Spring context), but this would not solve the situation where we ran the tests
+ * against a process-external MQ (which {@link MatsTestBroker} supports, read its JavaDoc!). Had there been some
+ * "deactivate"/"reactivate" events that could be hooked, we could have stopped the endpoints for the to-be-cached
+ * Spring test context, before firing up a new Spring test context, and the restarted them when the context was picked
+ * up and reused from the cache. Since such a solution does not seem to be viable, the only solution seems to be
+ * dirtying of the context, thereby stopping it from being cached.
  *
  * @see TestSpringMatsFactoryProvider
  * @see MatsTestDbContext

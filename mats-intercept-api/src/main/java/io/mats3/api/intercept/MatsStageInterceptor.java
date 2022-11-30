@@ -16,12 +16,13 @@ import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.ProcessResult;
 
 /**
- * <b>EXPERIMENTAL!!</b> (Will probably change. Implementation started 2020-01-08)
+ * <b>Implement this interface to intercept Stage Processing</b>, then register with
+ * {@link MatsInterceptable#addStageInterceptor(MatsStageInterceptor)}.
  * <p />
- * Meant for intercepting stage processors with ability to modify the stage processing, and implement extra logging and
- * metrics gathering.
+ * Intercepts stage processors with ability to modify the stage processing, and implement extra logging and metrics
+ * gathering.
  *
- * @author Endre Stølsvik - 2021-01-08 - http://endre.stolsvik.com
+ * @author Endre Stølsvik - 2020-01-08 - http://endre.stolsvik.com
  */
 public interface MatsStageInterceptor {
 
@@ -151,6 +152,8 @@ public interface MatsStageInterceptor {
     }
 
     /**
+     * Common context elements for stage interception, including all the incoming message/envelope data and metadata.
+     * <p/>
      * <b>Remember: There are also lots of properties on the ProcessContext!</b>
      */
     interface StageCommonContext extends StageInterceptContext {
@@ -360,8 +363,8 @@ public interface MatsStageInterceptor {
         ProcessResult getProcessResult();
 
         /**
-         * The main result of the Stage Processing - <b>which do not include any initiation, look at
-         * {@link #getStageInitiatedMessages()} for that.</b>
+         * The main result of the Stage Processing - if the stage also initiated messages, this will be known by
+         * {@link #getStageInitiatedMessages()} being non-empty.
          */
         enum ProcessResult {
             REQUEST,
@@ -392,9 +395,9 @@ public interface MatsStageInterceptor {
              * If the messaging or processing system failed, this will be either
              * {@link io.mats3.MatsInitiator.MatsBackendException MatsBackendException} (messaging handling or db
              * commit), or {@link io.mats3.MatsInitiator.MatsMessageSendException MatsMessageSendException} (which is
-             * the "VERY BAD!" scenario where db is committed, whereupon the messaging commit failed - which most
-             * probably is a "notify the humans!"-situation, unless the user code is crafted very specifically to handle
-             * such a situation).
+             * the "VERY BAD!" scenario where db is committed, whereupon the messaging commit failed - which quite
+             * possibly is a "notify the humans!"-situation, unless the user code is crafted to handle such a
+             * situation by being idempotent).
              */
             SYSTEM_EXCEPTION
         }
@@ -402,18 +405,18 @@ public interface MatsStageInterceptor {
         /**
          * @return the Reply, Next or Goto outgoing message, it this was the {@link ProcessResult ProcessingResult}.
          *         Otherwise, <code>Optional.empty()</code>. The message will be of {@link DispatchType#STAGE
-         *         ProcessType.STAGE}.
+         *         DispatchType.STAGE}.
          */
         Optional<MatsSentOutgoingMessage> getStageResultMessage();
 
         /**
          * @return the outgoing Requests, if this was the {@link ProcessResult}. Otherwise, an empty list. The messages
-         *         will be of {@link DispatchType#STAGE ProcessType.STAGE}.
+         *         will be of {@link DispatchType#STAGE DispatchType.STAGE}.
          */
         List<MatsSentOutgoingMessage> getStageRequestMessages();
 
         /**
-         * @return all stage-initiated messages, which are of {@link DispatchType#STAGE_INIT ProcessType.STAGE_INIT}.
+         * @return all stage-initiated messages, which are of {@link DispatchType#STAGE_INIT DispatchType.STAGE_INIT}.
          */
         List<MatsSentOutgoingMessage> getStageInitiatedMessages();
     }
