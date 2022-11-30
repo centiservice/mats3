@@ -9,7 +9,7 @@ import javax.jms.MessageConsumer;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
 
 /**
- * This is an internal context object, for execution of initiations and stage processing in JMS-MATS - one instance is
+ * This is an internal context object, for execution of initiations and stage processing in JMS-Mats - one instance is
  * made per initiation and per message reception. This is used to communicate back and forth between JmsMats proper, the
  * {@link JmsMatsJmsSessionHandler} and {@link JmsMatsTransactionManager}.
  *

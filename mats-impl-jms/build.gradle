@@ -1,13 +1,13 @@
 // mats-impl-jms
 
 dependencies {
-    // This project is the JMS implementation of the MATS API.
+    // This project is the JMS implementation of the Mats API.
     api project(":mats-api")
 
     // It implements the "Mats Intercept API"
     api project(":mats-intercept-api")
 
-    // The JMS implementation of MATS relies on the MatsTrace and MatsSerializer "implementation utility".
+    // The JMS implementation of Mats relies on the MatsTrace and MatsSerializer "implementation utility".
     api project(":mats-serial")
 
     // JMS spec 1.1-rev-1

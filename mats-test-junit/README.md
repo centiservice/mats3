@@ -3,11 +3,11 @@
 To simplify testing of MATS related code one can utilize the following tools which provides a simple test harness to
 execute unit tests as well as test where one would have a spring context available. 
 
-* **Rule_Mats**: @ClassRule which provides a full MATS harness for unit testing by creating MatsFactory utilizing an
-in-vm Active MQ broker.. Utilizes the default serializer provided by MATS.
+* **Rule_Mats**: @ClassRule which provides a full Mats harness for unit testing by creating MatsFactory utilizing an
+in-vm Active MQ broker.. Utilizes the default serializer provided by Mats.
 * **Rule_MatsGeneric**: @ClassRule similar to Rule_Mats, however this rule can be utilized if one has a MatsSerializer
 which does not serialize to the type of String.
-* **Rule_MatsEndpoint**: @Rule which creates a "mock" endpoint, useful to when testing a MATS flow which relies on
+* **Rule_MatsEndpoint**: @Rule which creates a "mock" endpoint, useful to when testing a Mats flow which relies on
 replies from endpoints outside of your application. One can thus utilize this rule to mock the response of these 
 "external" resources. The big point of this special type of method is twofold: You can change the ProcessLambda
 dynamically, i.e. for each @Test method, it can answer with a different Reply, thus enabling to test the different
@@ -17,9 +17,9 @@ By utilizing either Rule_Mats or Rule_MatsGeneric in combination with Rule_MatsE
 covered testing different scenarios for your service's Endpoints. Note that Rule_MatsEndpoint also works alone in
 a Spring environment where you typically set up the MatsFactory in the Spring context; Read more shortly.
 
-* **Rule_MatsWithDb**: Provides a H2 Database DataSource, and a JmsAndJdbc MATS Transaction Manager, in addition to
+* **Rule_MatsWithDb**: Provides a H2 Database DataSource, and a JmsAndJdbc Mats Transaction Manager, in addition to
 features from {@link Rule_MatsGeneric}. This enables testing of combined JMS and JDBC scenarios - in particularly
-used for testing of the MATS library itself (check that commits and rollbacks work as expected).
+used for testing of the Mats library itself (check that commits and rollbacks work as expected).
 
 ###With spring
 Rule_MatsEndpoint can also be utilized for tests utilizing a spring context where there is a MatsFactory created and put

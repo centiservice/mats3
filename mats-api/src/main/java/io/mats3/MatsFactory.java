@@ -17,11 +17,11 @@ import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.MatsStage.StageConfig;
 
 /**
- * The start point for all interaction with MATS - you need to get hold of an instance of this interface to be able to
- * code and configure MATS endpoints, and to perform initiations (i.e. send a message, perform a request, publish a
+ * The start point for all interaction with Mats - you need to get hold of an instance of this interface to be able to
+ * code and configure Mats endpoints, and to perform initiations (i.e. send a message, perform a request, publish a
  * message). This is an implementation specific feature (you might want a JMS-specific {@link MatsFactory}, backed by a
  * ActiveMQ-specific JMS ConnectionFactory). <i>An alternative is to use the SpringConfig "mats-spring" integration,
- * where you do not explicitly use the MatsFactory to code and configure MATS endpoints. Employing SpringConfig of Mats,
+ * where you do not explicitly use the MatsFactory to code and configure Mats endpoints. Employing SpringConfig of Mats,
  * you'll need to get an instance of MatsFactory into the Spring context.</i>
  * <p/>
  * It is worth realizing that all of the methods {@link #staged(String, Class, Class, Consumer) staged(...config)};

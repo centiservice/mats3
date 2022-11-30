@@ -98,8 +98,8 @@ public interface MatsTrace<Z> {
 
     /**
      * Specifies how the MatsTrace will handle historic values that are present just for debugging. Notice the annoyance
-     * that this is effectively specified twice, once in the MATS API, and once here. That is better, IMHO, than this
-     * package depending on the MATS API only for that enum.
+     * that this is effectively specified twice, once in the Mats API, and once here. That is better, IMHO, than this
+     * package depending on the Mats API only for that enum.
      */
     enum KeepMatsTrace {
         /**

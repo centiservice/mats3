@@ -9,8 +9,8 @@ import io.mats3.impl.jms.JmsMatsException.JmsMatsJmsException;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
 
 /**
- * Transactional aspects of the JMS MATS implementation. (It is the duty of the MATS implementation to ensure that the
- * transactional principles of MATS are honored).
+ * Transactional aspects of the JMS Mats implementation. (It is the duty of the Mats implementation to ensure that the
+ * transactional principles of Mats are honored).
  * <p>
  * The reason for this being an interface, is that the transactional aspects can be implemented through different means.
  * Specifically, there is a direct implementation, and the intention is to also have a Spring-specific implementation.

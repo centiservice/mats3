@@ -88,7 +88,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
              */
             catch (MatsRefuseMessageException | JmsMatsOverflowRuntimeException e) {
                 /*
-                 * Special exception allowed from the MATS API from the MatsStage lambda, denoting that one wants
+                 * Special exception allowed from the Mats API from the MatsStage lambda, denoting that one wants
                  * immediate refusal of the message. (This is just a hint/wish, as e.g. the JMS specification does
                  * not provide such a mechanism).
                  */
@@ -127,7 +127,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                  */
                 String msg = LOG_PREFIX + "ROLLBACK JMS: Got a " + JmsMatsJmsException.class.getSimpleName()
                         + " while transacting " + stageOrInit(_txContextKey)
-                        + ", indicating that the MATS JMS implementation had problems performing"
+                        + ", indicating that the Mats JMS implementation had problems performing"
                         + " some operation. Rolling back JMS Session, throwing on to get new JMS Connection.";
                 if (internalExecutionContext.isUserLambdaExceptionLogged()) {
                     log.error(msg);
@@ -142,7 +142,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
             }
             catch (RuntimeException | Error e) {
                 /*
-                 * Should only be user code, as errors from "ourselves" (the JMS MATS impl) should throw
+                 * Should only be user code, as errors from "ourselves" (the JMS Mats impl) should throw
                  * JmsMatsJmsException, and are caught earlier (see above).
                  */
                 log.error(LOG_PREFIX + "ROLLBACK JMS: Got a " + e.getClass().getSimpleName() + " while transacting "
@@ -210,12 +210,12 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                         + "VERY BAD! " + stageOrInit(_txContextKey) + " " + sqlEmployed
                         + " After processing finished correctly, and"
                         + " any external, potentially state changing operations have committed OK, we could not"
-                        + " commit the JMS Session! If this happened within a MATS message initiation, the state"
+                        + " commit the JMS Session! If this happened within a Mats message initiation, the state"
                         + " changing operations (e.g. database insert/update) have been committed, while the message"
                         + " was not sent. If this is not caught by the initiation code ('manually' rolling back the"
                         + " state change), the global state is probably out of sync (i.e. the order-row is marked"
                         + " 'processing started', while the corresponding process-order message was not sent). However,"
-                        + " if this happened within a MATS Stage (inside an endpoint), this will most probably "
+                        + " if this happened within a Mats Stage (inside an endpoint), this will most probably "
                         + " lead to a redelivery (as in 'double delivery'), which should be handled by your endpoint's"
                         + " idempotent handling of incoming messages. Do note that this might be a problem if the stage"
                         + " also sends an outgoing message in the normal flow: If you just check your database at the"

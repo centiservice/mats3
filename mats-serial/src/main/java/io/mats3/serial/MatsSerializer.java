@@ -8,7 +8,7 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
 /**
  * Defines the operations needed serialize and deserialize {@link MatsTrace}s to and from byte arrays (e.g. UTF-8
  * encoded JSON or XML, or some binary serialization protocol), and STOs and DTOs to and from type Z, where Z can e.g.
- * be byte arrays or Strings. This is separated out from the MATS communication implementation (i.e. JMS or RabbitMQ),
+ * be byte arrays or Strings. This is separated out from the Mats communication implementation (i.e. JMS or RabbitMQ),
  * as it is a separate aspect, i.e. both the JMS and RabbitMQ implementation can utilize the same serializer.
  * <p />
  * There are two levels of serialization needed: For the DTOs and STOs that the Mats API expose to the "end user", and
@@ -48,7 +48,7 @@ public interface MatsSerializer<Z> {
     }
 
     /**
-     * Used when initiating a new MATS flow. Since the {@link MatsTrace} implementation is dependent on the
+     * Used when initiating a new Mats flow. Since the {@link MatsTrace} implementation is dependent on the
      * serialization mechanism in use, we need a way provided by the serializer to instantiate new instances of the
      * implementation of MatsTrace. A {@link Call} must be added before it is good to be sent.
      *

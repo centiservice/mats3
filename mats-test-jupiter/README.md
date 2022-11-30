@@ -3,11 +3,11 @@
 Introduction context..
 
 ### 
-* **Extension_Mats**: Extension which provides a full MATS harness for unit testing by creating MatsFactory utilizing an
-in-vm Active MQ broker. Utilizes the default serializer provided by MATS.
+* **Extension_Mats**: Extension which provides a full Mats harness for unit testing by creating MatsFactory utilizing an
+in-vm Active MQ broker. Utilizes the default serializer provided by Mats.
 * **Extension_MatsGeneric**: Extension similar to Extension_Mats, however this rule can be utilized if one has a MatsSerializer
 which does not serialize to the type of String.
-* **Extension_MatsEndpoint**: Extension which creates a "mock" endpoint, useful to when testing a MATS flow which relies on
+* **Extension_MatsEndpoint**: Extension which creates a "mock" endpoint, useful to when testing a Mats flow which relies on
 replies from endpoints outside of your application. One can thus utilize this rule to mock the response of these 
 "external" resources.
 

@@ -16,7 +16,7 @@ import io.mats3.MatsInitiator.MessageReference;
 import io.mats3.MatsStage.StageConfig;
 
 /**
- * Represents a MATS Endpoint - you create instances from the {@link MatsFactory} (or use the Spring integration).
+ * Represents a Mats Endpoint - you create instances from the {@link MatsFactory} (or use the Spring integration).
  * <p/>
  * <i>Implementation Note: It shall be possible to use instances of <code>MatsEndpoint</code> as keys in a
  * <code>HashMap</code>, i.e. their equals and hashCode should remain stable throughout the life of the MatsFactory -

@@ -227,7 +227,7 @@ public interface MatsInitiator extends Closeable {
          * <p />
          * Since this is very important when doing distributed and asynchronous architectures, it is mandatory.
          * <p />
-         * The traceId follows a MATS processing from the initiation until it is finished, usually in a Terminator.
+         * The traceId follows a Mats processing from the initiation until it is finished, usually in a Terminator.
          * <p />
          * It should be a world-unique Id, preferably set all the way back when some actual person performed some event.
          * E.g. in a "new order" situation, the Id would best be set when the user clicked the "place order" button on

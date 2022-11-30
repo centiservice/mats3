@@ -709,7 +709,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                         else if (throwableProcessResult == ProcessResult.USER_EXCEPTION) {
                             log.info(LOG_PREFIX + "Got [" + throwableResult.getClass().getName()
                                     + "] inside transactional message processing, which most probably originated from"
-                                    + " user code. The situation shall have been handled by the MATS TransactionManager"
+                                    + " user code. The situation shall have been handled by the Mats TransactionManager"
                                     + " (rollback). Looping to fetch next message.");
                         }
                         else if (throwableProcessResult == ProcessResult.SYSTEM_EXCEPTION) {
@@ -945,7 +945,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         // Assert that this is indeed a JMS MapMessage.
         if (!(message instanceof MapMessage)) {
             String reason = "Got some JMS Message that is not instanceof JMS MapMessage"
-                    + " - cannot be a MATS message! Refusing this message!";
+                    + " - cannot be a Mats message! Refusing this message!";
             MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason);
             invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
                     startedInstant, StagePreprocessAndDeserializeError.WRONG_MESSAGE_TYPE, up, reason, message);

@@ -14,7 +14,7 @@ import io.mats3.test.TestH2DataSource;
 import io.mats3.test.abstractunit.AbstractMatsTest;
 
 /**
- * {@link ClassRule} which provides a full MATS harness for unit testing by creating {@link JmsMatsFactory MatsFactory}
+ * {@link ClassRule} which provides a full Mats harness for unit testing by creating {@link JmsMatsFactory MatsFactory}
  * utilizing an in-vm Active MQ broker, and optionally a {@link TestH2DataSource} for database tests.
  * <p/>
  * <b>Notice: If you are in a Spring-context, this is probably not what you are looking for</b>, as the MatsFactory then
@@ -69,7 +69,7 @@ public class Rule_Mats extends AbstractMatsTest<String> implements TestRule {
     }
 
     /**
-     * Creates a {@link Rule_Mats} utilizing the {@link MatsSerializerJson MATS default serializer}
+     * Creates a {@link Rule_Mats} utilizing the {@link MatsSerializerJson Mats default serializer}
      */
     public static Rule_Mats create() {
         return new Rule_Mats(MatsSerializerJson.create());

@@ -16,7 +16,7 @@ publishing {
         mavenJava(MavenPublication) {
             pom {
                 name = 'Mats^3 Intercept API'
-                description = 'Extension API to the Mats^3 API which adds interception capabilities.'
+                description = 'Extension to the Mats^3 API which adds interception capabilities.'
             }
         }
     }

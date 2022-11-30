@@ -65,7 +65,7 @@ subprojects {
 
     jar {
         manifest {
-            attributes 'Implementation-Title': 'MATS3',
+            attributes 'Implementation-Title': 'Mats3',
                     'Implementation-Version': archiveVersion
         }
     }

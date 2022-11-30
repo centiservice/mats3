@@ -152,7 +152,7 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
              * identical Stages (i.e. listeners) on a MatsFactory for a given Topic makes zero sense.
              *
              * (Optimizations along the line of using a thread pool for the actual work of the processor must be done in
-             * user code, as the MATS framework must acknowledge (commit/rollback) each message, and cannot decide what
+             * user code, as the Mats framework must acknowledge (commit/rollback) each message, and cannot decide what
              * code could potentially be done concurrently.. Such a thread pool is for example used in the
              * "MatsFuturizer" tool)
              */

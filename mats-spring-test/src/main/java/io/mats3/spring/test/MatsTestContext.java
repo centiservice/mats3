@@ -26,7 +26,7 @@ import io.mats3.util.MatsFuturizer;
 import io.mats3.test.broker.MatsTestBroker;
 
 /**
- * One-stop-shop for making <i>simple</i> Spring-based integration/unit tests of MATS endpoints (NOT utilizing SQL
+ * One-stop-shop for making <i>simple</i> Spring-based integration/unit tests of Mats endpoints (NOT utilizing SQL
  * Connections), automatically importing the configuration . The configuration is done in
  * {@link MatsTestInfrastructureConfiguration}. This annotation can be put on a test-class, or on a
  * {@literal @Configuration} class (typically a nested static class within the test-class).
@@ -93,7 +93,7 @@ public @interface MatsTestContext {
      * to it with "classes=..") is as follows: Spring's testing integration has this feature where any static
      * inner @Configuration class of the test class is automatically loaded. If we specify specify classes= or
      * location=, this default will be thwarted.
-     * 
+     *
      * @see <a href=
      *      "https://docs.spring.io/spring-framework/docs/current/reference/html/testing.html#testcontext-ctx-management-javaconfig">
      *      Context Configuration with Component Classes</a>.

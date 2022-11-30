@@ -9,7 +9,7 @@ dependencies {
 
     // :: TEST
 
-    // The MATS JMS Impl
+    // The Mats JMS Impl
     testImplementation project(':mats-impl-jms')
     // We need an implementation of the MatsSerializer, the MatsSerializerJson
     testImplementation project(':mats-serial-json')

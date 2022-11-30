@@ -102,7 +102,7 @@ public interface MatsConfig {
     boolean isInteractiveConcurrencyDefault();
 
     /**
-     * @return whether the MATS entity has been started and not stopped. For the {@link MatsFactory}, it returns true if
+     * @return whether the Mats entity has been started and not stopped. For the {@link MatsFactory}, it returns true if
      *         any of the endpoints return true (which also implies that if there are no Endpoints registered, it will
      *         return <code>false</code>). For {@link MatsEndpoint}s, it returns true if any stage is running.
      */

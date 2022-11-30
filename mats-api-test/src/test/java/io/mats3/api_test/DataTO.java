@@ -5,7 +5,7 @@ import java.util.Objects;
 /**
  * A <i>Data Transfer Object</i> meant for unit tests.
  * <p>
- * Note about DTOs in general: The DTOs used in MATS endpoints are to be considered their public interface, and
+ * Note about DTOs in general: The DTOs used in Mats endpoints are to be considered their public interface, and
  * should be documented thoroughly.
  */
 public class DataTO {

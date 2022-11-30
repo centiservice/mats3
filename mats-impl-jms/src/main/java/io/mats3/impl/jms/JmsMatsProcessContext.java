@@ -33,7 +33,7 @@ import io.mats3.serial.MatsTrace.Call.MessagingModel;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
 
 /**
- * The JMS MATS implementation of {@link ProcessContext}. Instantiated for each incoming JMS message that is processed,
+ * The JMS Mats implementation of {@link ProcessContext}. Instantiated for each incoming JMS message that is processed,
  * given to the {@link MatsStage}'s process lambda.
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
