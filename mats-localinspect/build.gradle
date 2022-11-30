@@ -57,8 +57,8 @@ publishing {
         mavenJava(MavenPublication) {
             pom {
                 name = 'Mats^3 Introspector and Local Statistics'
-                description = 'Mats^3 tool that can output a HTML page describing a MatsFactory and all its endpoints,' +
-                        ' as well as "local statistics", gathered using a Mats Interceptor.'
+                description = 'Mats^3 tool that can output an embeddable HTML describing a MatsFactory and all its' +
+                        ' endpoints, as well as "local statistics", gathered using a Mats Interceptor.'
             }
         }
     }
