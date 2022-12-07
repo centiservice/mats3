@@ -3,7 +3,7 @@ package io.mats3.api_test.stdexampleflow;
 import io.mats3.MatsFactory;
 
 /**
- * Mats Endpoint which calculates <code>a/b</code>.
+ * Mats single-stage Endpoint which calculates <code>a/b</code>.
  *
  * @author Endre Stølsvik 2021-09-26 19:33 - http://stolsvik.com/, endre@stolsvik.com
  */

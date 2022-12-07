@@ -4,7 +4,7 @@ import io.mats3.MatsEndpoint;
 import io.mats3.MatsFactory;
 
 /**
- * Mats Endpoint which calculates <code>a/b + c</code>.
+ * Mats two-stage Endpoint which calculates <code>a/b + c</code>.
  * <p />
  * Utilizes EndpointD which can calculate <code>a/b</code>.
 

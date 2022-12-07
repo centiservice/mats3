@@ -4,6 +4,8 @@ import io.mats3.MatsFactory;
 import io.mats3.test.MatsTestLatch;
 
 /**
+ * A Terminator is a Mats Endpoint which does not produce any new Flow messages (i.e. no request, return, next).
+ *
  * @author Endre Stølsvik 2021-09-26 19:34 - http://stolsvik.com/, endre@stolsvik.com
  */
 public class Terminator {
@@ -35,7 +37,6 @@ public class Terminator {
     }
 
     // ===== Imported DTOs for EndpointA
-
 
     static class _EndpointAReplyDTO {
         double result;
