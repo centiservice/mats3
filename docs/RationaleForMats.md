@@ -8,9 +8,9 @@ services. The golden hammer for such communication is REST-ish services employin
 
 *(A note here: The arguments here are for service-mesh internal IPC/RPC communications. For e.g. REST endpoints facing
 the user/client, there is a "synchronous-2-Mats-bridge" called
-the [MatsFuturizer](mats-util/src/main/java/io/mats3/util/MatsFuturizer.java), from which you can perform a Mats Request
+the [MatsFuturizer](https://mats3.io/docs/sync-async-bridge/), from which you can perform a Mats Request
 initiation which returns a Future, which will be resolved when the final Reply message comes back to the same node.
-There is also the library [MatsSockets](https://github.com/centiservice/matssocket) that is built on top of Mats and
+There is also the library [MatsSockets](https://matssocket.io) that is built on top of Mats and
 WebSockets, which pulls the asynchronousness of Mats all the way out to the end-user client, with client libraries
 available for JavaScript and Dart/Flutter)*
 

@@ -66,7 +66,7 @@ import io.mats3.spring.MatsClassMapping.Stage;
 
 /**
  * The {@link BeanPostProcessor}-class specified by the {@link EnableMats @EnableMats} annotation.
- * <p />
+ * <p/>
  * It checks all Spring beans in the current Spring {@link ApplicationContext} for whether their classes are annotated
  * with {@link MatsClassMapping @MatsClassMapping}, or if they have methods annotated with
  * {@link MatsMapping @MatsMapping} or {@link MatsEndpointSetup @MatsEndpointSetup}, and if so configures Mats endpoints
@@ -75,16 +75,16 @@ import io.mats3.spring.MatsClassMapping.Stage;
  * the endpoints, and then {@link MatsFactory#start() MatsFactory.start()} as late as possible in the startup procedure.
  * Upon Spring context shutdown, it invokes {@link MatsFactory#stop(int) MatsFactory.stop(..)} as early as possible in
  * the shutdown procedure.
- *
- * <h3>This is the startup procedure:</h3>
+ * <p/>
+ * <h3>Startup procedure:</h3>
  * <ol>
  * <li>The {@link MatsSpringAnnotationRegistration} (which is a <code>BeanPostProcessor</code>) will have each bean in
  * the Spring ApplicationContext presented:
  * <ol>
  * <li>Each {@link MatsFactory} bean will have their {@link MatsFactory#holdEndpointsUntilFactoryIsStarted()} method
  * invoked.</li>
- * <li>Each bean which will have all their methods searched for the relevant annotations. Such annotated methods will be
- * put in a list.</li>
+ * <li>Each bean, and each method of each bean, will be searched for the relevant annotations. Such annotated methods
+ * will be put in a list.</li>
  * </ol>
  * </li>
  * <li>Upon {@link ContextRefreshedEvent}:
@@ -99,22 +99,35 @@ import io.mats3.spring.MatsClassMapping.Stage;
  * </ol>
  * </li>
  * </ol>
- * Do notice that <i>all</i> MatsFactories in the Spring ApplicationContext are started, regardless of whether they had
+ * <p>
+ * Notice: {@code ContextRefreshedEvent} is invoked late in the Spring ApplicationContext startup procedure. This means
+ * that all beans have been fully injected, and any {@code @PostConstruct} and lifecycle events have been run. Thus, if
+ * the Endpoint depends on any bean/service, it is now running. This is important as the Endpoint's Stage Processors
+ * will start picking messages of the queue pretty much immediately. And this is important again if you have any cache
+ * that takes time to be populated - it might be of interest to instead use programmatic registration and implement
+ * delayed start for Endpoints which depends on caches that take a substantial time to load.
+ * </p>
+ * <p>
+ * Notice: <i>All</i> MatsFactories found in the Spring ApplicationContext are started, regardless of whether they had
  * any Mats endpoints registered using the Mats SpringConfig. This implies that if you register any Mats endpoints
- * programmatically using e.g. <code>@PostConstruct</code> or similar functionality, these will also be started.
- * <p />
- * <h3>This is the shutdown procedure:</h3>
+ * programmatically using e.g. <code>@PostConstruct</code> or similar functionality, these will also be started - unless
+ * they have not had their {@link MatsEndpoint#finishSetup()} method invoked, ref. "delayed start" mentioned above.
+ * </p>
+ * <p/>
+ * <h3>Shutdown procedure:</h3>
  * <ol>
  * <li>Upon {@link ContextClosedEvent}, all MatsFactories in the ApplicationContext will have their
  * {@link MatsFactory#stop(int) stop()} method invoked.
  * <li>This causes all registered Mats Endpoints to be {@link MatsEndpoint#stop(int) stopped}, which releases the
  * connection to the underlying MQ and stops the stage processor threads.
  * </ol>
- * Notice: ContextClosedEvent is fired rather early in the Spring ApplicationContext shutdown procedure. When running in
- * integration testing mode, which typically will involve starting an in-vm ActiveMQ in the same JVM as the endpoints,
- * this early stopping and releasing of connections is beneficial so that when the in-vm ActiveMQ is stopped somewhat
- * later, one won't get a load of connection failures from the Mats endpoints which otherwise would have their
+ * <p>
+ * Notice: {@code ContextClosedEvent} is fired rather early in the Spring ApplicationContext shutdown procedure. When
+ * running in integration testing mode, which typically will involve starting an in-vm ActiveMQ in the same JVM as the
+ * endpoints, this early stopping and releasing of connections is beneficial so that when the in-vm ActiveMQ is stopped
+ * somewhat later, one won't get a load of connection failures from the Mats endpoints which otherwise would have their
  * connections shut down under their feet.
+ * <p/>
  *
  * @author Endre Stølsvik - 2016-05-21 - http://endre.stolsvik.com
  */
@@ -1242,7 +1255,8 @@ public class MatsSpringAnnotationRegistration implements
                 boolean annotationMetaPresent = AnnotationUtils
                         .isAnnotationMetaPresent(annotation.annotationType(), Qualifier.class);
                 if (annotationMetaPresent) {
-                    // -> Yes, @Qualifier-meta-annotated annotation - get the correct MatsFactory also annotated with this
+                    // -> Yes, @Qualifier-meta-annotated annotation - get the correct MatsFactory also annotated with
+                    // this
                     specifiedMatsFactories.add(getMatsFactoryByCustomQualifier(forWhat, annotation.annotationType(),
                             annotation));
                     numberOfQualifications++;

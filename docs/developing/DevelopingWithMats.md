@@ -5,7 +5,7 @@ _Then read [MatsFactory](MatsFactory.md)!_
 _Then also read [Endpoints and Initiations](EndpointsAndInitiations.md) before reading further!_
 
 _You might also want to read [Transactions and Redeliveries](TransactionsAndRedeliveries.md), as that explains how Mats
-currently have JMS-only, and JMS-plus-JDBC transaction handling._
+currently have JMS-only, JMS-plus-JDBC and JMS-plus-SpringTX transaction handling._
 
 Mats is a clean Java library, the API having no dependencies. The JMS implementation only depends on the JMS v1.1 API,
 and SLF4j for logging.

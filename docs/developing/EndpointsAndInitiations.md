@@ -266,9 +266,9 @@ class ShippingEndpointClass {
     }
 
     @Stage(1)
-    ShippingCostReply calculate(OrderServiceTotalValueReply orderServiceReply) {
+    ShippingCostReply calculate(OrderTotalValueReply orderTotalValueReply) {
         // Based on OrderService's response, we'll give rebate or not.
-        return orderServiceResponse.getValue() > 1000
+        return orderTotalValueReply.getValue() > 1000
                 ? shippingService.rebated(_orderLines)
                 : shippingService.standard(_orderLines);
     }
@@ -394,7 +394,7 @@ public class Test_SimplestSendReceive {
 So, to initiate a Mats Flow, you need to specify:
 
 1. `TraceId` for the new flow. This should be a unique and descriptive String for this Mats Flow.
-2. The `InitiatorId` of this flow, i.e. _where_ this Mats Flow was initiated. It represents the "0th Stage" of the Flow.
+2. The `InitiatorId` of this flow, i.e. _where_ this Mats Flow was initiated. It represents the "0th Call" of the Flow.
 3. Which Mats `EndpointId` it targets.
 4. What operation you want (`send(..)`), and include the message to the endpoint.
 
@@ -531,7 +531,7 @@ public class Test_MatsFuturizer_Basics {
                 "traceId", "initiatorId", "Test.endpoint", TestReply.class, dto);
 
         // Immediately wait for result:
-        Reply<TestReply> result = future.get(1, TimeUnit.SECONDS);
+        Reply<TestReply> result = future.get(30, TimeUnit.SECONDS);
 
         Assert.assertEquals(new TestReply(dto.number * 2, dto.string + ":FromService"), result.reply);
     }
@@ -553,7 +553,7 @@ about this [here](MatsComposition.md).
 
 ### Advanced server-client bridging: MatsSocket
 
-There's a sister project called _MatsSocket_ which brings the asynchronous nature of Mats all the way out to the client,
-by way of Websockets. Compared to the immediate understandability of the above MatsFuturizer, this is a bit more
-involved. But the rewards, after having set up the framework with authentication, are pretty substantial. Please read
-up!
+There's a sister project called [_MatsSocket_](https://matssocket.io) which brings the asynchronous nature of Mats all
+the way out to the client, by way of Websockets. Compared to the immediate understandability of the above MatsFuturizer,
+this is a bit more involved. But the rewards, after having set up the framework with authentication, are pretty
+substantial. Please read up!

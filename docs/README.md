@@ -25,12 +25,12 @@ Endpoints. Terminators. Initiation of Mats Flows. How to perform synchronous Mat
 You need an implementation of `MatsFactory` both for creating Mats Endpoints, and initiating Mats Flows. How to handle
 this for the different environments your code must work in: Development, testing, pre-prod / staging, production.
 
-### [Developing with Mats](developing/DevelopingWithMats.md)
+### [Developing with Mats](developing/DevelopingWithMats.md) - WIP
 
 * Handling MatsFactory when in development mode (in-vm broker, classpath)
 * Mocking of external dependencies, also classpath
 
-### [Testing with Mats](developing/TestingWithMats.md)
+### [Testing with Mats](developing/TestingWithMats.md) - WIP
 
 * Handling MatsFactory when in testing mode (Mats_Rule, Mats_Extension, Spring annotations)
 
