@@ -18,38 +18,39 @@ import io.mats3.spring.MatsClassMapping.MatsClassMappings;
 
 /**
  * A class annotated with this repeatable annotation will become a Mats Endpoint, where an instance of the class itself
- * is the State (STO) object for the Endpoint, and each method on the class is a stage of the Endpoint. This annotation
- * is meta-annotated with @{@link Service}, and is thus also a Spring bean. This singleton Spring bean acts as a
- * "template" for the State, and any wired (injected/autowired) fields will be available for the stage-methods, but will
- * not be regarded as part of the State when serialized and sent on the wire. In addition, if a field is of type
- * {@link ProcessContext}, it will be injected by the machinery before a stage-method is invoked.
+ * is the State (STO) object for the Endpoint, and each @{@link Stage Stage}-annotated method on the class is a stage of
+ * the Endpoint. This annotation is meta-annotated with @{@link Service Service}, and is thus also a Spring bean. This
+ * singleton Spring bean acts as a "template" for the State, and any wired (injected/autowired) fields will be available
+ * for the stage-methods, but will not be regarded as part of the State when serialized and sent on the wire. In
+ * addition, if a field is of type {@link ProcessContext}, it will be injected by the machinery before a stage-method is
+ * invoked.
  * <p />
- * All methods that are annotated with @{@link Stage} is regarded as a stage of the Mats Endpoint. To know the order of
- * the stages, and ordinal must be assigned to the Stage - read its JavaDoc. The initial stage is the method annotated
- * with <code>@Stage(0)</code> (The constant {@link Stage#INITIAL Stage.INITIAL} is conveniently available), and the
- * subsequent stages are the ordered list of these stage-methods. The last stage must have a return type, and no other
- * stage can have a return type (but it is still possible to return early if needed, by using context.reply(..)). Any
- * methods that are not annotated with <code>@Stage</code> is ignored, thus you may structure and divide your code into
- * sub methods as you see fit.
+ * All methods that are annotated with @{@link Stage Stage} is regarded as a stage of the Mats Endpoint. To know the
+ * order of the stages, and ordinal must be assigned to the Stage - read its JavaDoc. The initial stage is the method
+ * annotated with <code>@Stage(0)</code> (The constant {@link Stage#INITIAL Stage.INITIAL} is conveniently available),
+ * and the subsequent stages are the ordered list of these stage-methods. The last stage must have a return type, and no
+ * other stage can have a return type (but it is still possible to return early if needed, by using context.reply(..)).
+ * Any methods that are not annotated with <code>@Stage</code> are ignored, thus you may structure and divide your code
+ * into sub methods as you see fit.
  * <p />
  * Each stage-method can take zero, one, two or many arguments. The machinery looks for a ProcessContext and an incoming
  * DTO argument. Neither ProcessContext nor an incoming DTO is required. The rationale for taking more than the required
- * arguments is that you could potentially want to invoke it differently in a testing scenario (however, that is
- * probably a bit dirty testing style).
+ * arguments is that you could potentially want to invoke it differently in a testing scenario (depending on how you
+ * feel towards testing).
  * <ul>
  * <li>0: No ProcessContext nor incoming DTO.</li>
  * <li>1: Either it is a ProcessContext, otherwise it must be the incoming DTO.</li>
  * <li>2: If one is a ProcessContext, the other must be the incoming DTO.</li>
- * <li>3+: One may be the ProcessContext, and the others are searched for the @{@link Dto} annotation, and if one is
+ * <li>2+: One may be the ProcessContext, and the others are searched for the @{@link Dto} annotation, and if one is
  * found, this is the incoming DTO.</li>
  * </ul>
  * <p />
  * The logic to determine which fields are state, and which fields are injected, is as follows: When Mats SpringConfig
  * gets the bean, injection is already performed by Spring. Any fields that are non-null is thus assumed to be injected
- * by Spring and not part of the State, <i>unless</i> the field is <i>also</i> non-null when simply instantiated using
- * the current Mats serialization mechanism of creating an "empty State object" (the rationale is that such fields must
- * be default initialized, like e.g. <code>List&lt;Car&gt; cars = new ArrayList&lt;&gt;()</code>). A field of type
- * ProcessContext is not a state field.
+ * by Spring and not part of the State, <i>unless</i> the field is <i>also</i> non-null when simply instantiated as a
+ * new object, using the current Mats serialization mechanism of creating an "empty State object" (the rationale is that
+ * such fields must be default initialized, like e.g. <code>List&lt;Car&gt; cars = new ArrayList&lt;&gt;()</code>). A
+ * field of type ProcessContext is not a state field.
  * <p />
  * It is worth noting that the singleton Spring-constructed bean instance is never actually employed outside of being
  * inspected at start up: Its class is inspected to set up the MatsEndpoint and its stages, and the instance is used as

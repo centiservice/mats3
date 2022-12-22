@@ -10,6 +10,7 @@ import io.mats3.MatsConfig.StartStoppable;
 import io.mats3.MatsEndpoint.EndpointConfig;
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsEndpoint.ProcessLambda;
+import io.mats3.MatsEndpoint.ProcessReturnLambda;
 import io.mats3.MatsEndpoint.ProcessSingleLambda;
 import io.mats3.MatsEndpoint.ProcessTerminatorLambda;
 import io.mats3.MatsInitiator.InitiateLambda;
@@ -18,23 +19,29 @@ import io.mats3.MatsStage.StageConfig;
 
 /**
  * The start point for all interaction with Mats - you need to get hold of an instance of this interface to be able to
- * code and configure Mats endpoints, and to perform initiations (i.e. send a message, perform a request, publish a
- * message). This is an implementation specific feature (you might want a JMS-specific {@link MatsFactory}, backed by a
- * ActiveMQ-specific JMS ConnectionFactory). <i>An alternative is to use the SpringConfig "mats-spring" integration,
- * where you do not explicitly use the MatsFactory to code and configure Mats endpoints. Employing SpringConfig of Mats,
- * you'll need to get an instance of MatsFactory into the Spring context.</i>
+ * code and configure Mats endpoints, and to perform {@link #getDefaultInitiator() initiations} like sending a message,
+ * perform a request and publish a message. Getting hold of a MatsFactory is an implementation specific feature: The
+ * <code>JmsMatsFactory</code> is the standard, providing static factory methods, and can be backed by an ActiveMQ- or
+ * Artemis-specific JMS ConnectionFactory.
  * <p/>
- * It is worth realizing that all of the methods {@link #staged(String, Class, Class, Consumer) staged(...config)};
- * {@link #single(String, Class, Class, ProcessSingleLambda) single(...)} and
- * {@link #single(String, Class, Class, Consumer, Consumer, ProcessSingleLambda) single(...configs)};
- * {@link #terminator(String, Class, Class, ProcessTerminatorLambda) terminator(...)} and
- * {@link #terminator(String, Class, Class, Consumer, Consumer, ProcessTerminatorLambda) terminator(...configs)} are
- * just convenience methods to the one {@link #staged(String, Class, Class) staged(...)}. They could just as well have
- * resided in a utility-class. They are included in the API since these relatively few methods seem to cover most
- * scenarios. <i>(Exception to this are the two
- * {@link #subscriptionTerminator(String, Class, Class, ProcessTerminatorLambda) subscriptionTerminator(...)} and
- * {@link #subscriptionTerminator(String, Class, Class, Consumer, Consumer, ProcessTerminatorLambda)
- * subscriptionTerminator(...Consumers)}, as they have different semantics, read the JavaDoc).</i>
+ * <i>An alternative to Java-based programmatic creation of Mats Endpoints is using Mats SpringConfig integration where
+ * you use annotations like <code>@EnableMats</code>, <code>@MatsMapping</code> and <code>@MatsClassMapping</code>.
+ * Employing Mats SpringConfig, you'll need to get an instance of MatsFactory into the Spring context. The module is
+ * called "mats-spring".</i>
+ * <p/>
+ * It is worth realizing that all of the methods {@link #staged(String, Class, Class) staged(..., config)},
+ * {@link #single(String, Class, Class, ProcessSingleLambda) single(...)} +
+ * {@link #single(String, Class, Class, Consumer, Consumer, ProcessSingleLambda) w/configs};
+ * {@link #terminator(String, Class, Class, ProcessTerminatorLambda) terminator(...)} +
+ * {@link #terminator(String, Class, Class, Consumer, Consumer, ProcessTerminatorLambda) w/configs} are just convenience
+ * methods to the main {@link #staged(String, Class, Class) staged(...)}. These specializations could just as well have
+ * resided in a utility class. They are included in the API since these relatively few methods seem to cover most
+ * scenarios.
+ * <p/>
+ * <i>(Exception to this are the {@link #subscriptionTerminator(String, Class, Class, ProcessTerminatorLambda)
+ * subscriptionTerminator(...)} +
+ * {@link #subscriptionTerminator(String, Class, Class, Consumer, Consumer, ProcessTerminatorLambda) w/configs}, as they
+ * have different semantics, read the JavaDoc).</i>
  * <p/>
  * Regarding order of the Reply Message, State and Incoming Message, which can be a bit annoying to remember when
  * creating endpoints, and when writing {@link ProcessLambda process lambdas}: They are always ordered like this: <b>R,
@@ -43,18 +50,30 @@ import io.mats3.MatsStage.StageConfig;
  * remember that Mats is created to enable you to write messaging oriented endpoints that <i>look like</i> they are
  * methods, then it might stick! The process lambda thus has args (context, state, incomingMsg), unless it lacks state.
  * Even if it lacks state, the context is always first, and the incoming message is always last.<br/>
- * Examples:
  * <ul>
- * <li>In a Terminator, you have an incoming message, and state (which the initiator set) - a terminator doesn't reply.
- * The params of the {@link #terminator(String, Class, Class, ProcessTerminatorLambda) terminator}-method of MatsFactory
- * is thus [EndpointId, State Class, Incoming Class, process lambda]. The lambda params of the terminator will be:
- * [Context, State, Incoming]</li>
+ * <li>For a MultiStage endpoint, you will have all of reply message type, state type, and incoming message type. The
+ * params of the {@link #staged(String, Class, Class) staged(..)}-method of MatsFactory is [EndpointId, <b>Reply</b>
+ * Class, <b>State</b> Class] - and each of the added {@link MatsEndpoint#stage(Class, ProcessLambda) stages} specifies
+ * their own <b>Incoming</b> class and stage process lambda. The {@link ProcessLambda stage lambda} params will then be:
+ * [Context, <b>State</b>, <b>Incoming</b>]. If you employ the {@link MatsEndpoint#lastStage(Class, ProcessReturnLambda)
+ * lastStage(..)}, its {@link ProcessReturnLambda process return lambda} will have the reply type as its return
+ * type.</li>
  * <li>For a SingleStage endpoint, you will have incoming message, and reply message - there is no state, since that is
  * an object that traverses between the stages in a multi-stage endpoint, and this endpoint is just a single stage. The
- * params of the {@link #single(String, Class, Class, ProcessSingleLambda)} single stage}-method of MatsFactory is thus
- * [EndpointId, Reply Class, Incoming Class, process lambda]. The lambda params will then be: [Context, Incoming] - the
- * reply type is the the return type of the process lambda.</li>
+ * params of the {@link #single(String, Class, Class, ProcessSingleLambda) single(..)}-method of MatsFactory is thus
+ * [EndpointId, <b>Reply</b> Class, <b>Incoming</b> Class, process lambda] - you specify the process lambda directly.
+ * The {@link ProcessSingleLambda process single lambda} params are: [Context, <b>Incoming</b>] - the reply type is the
+ * the return type of the lambda.</li>
+ * <li>In a Terminator, you have an incoming message, and state (which the initiator set), but no Reply, as a terminator
+ * doesn't reply. The params of the {@link #terminator(String, Class, Class, ProcessTerminatorLambda)
+ * terminator(..)}-method of MatsFactory is thus [EndpointId, <b>State</b> Class, <b>Incoming</b> Class, process lambda]
+ * - also here specifying the process lambda directly. The lambda params of the {@link ProcessTerminatorLambda process
+ * terminator lambda} are: [Context, <b>State</b>, <b>Incoming</b>]</li>
  * </ul>
+ * <p/>
+ * All these type arguments and lambdas and whatnot in the JavaDoc can seem a bit overwhelming at first, but when
+ * actually coding Mats Endpoints, it clicks into place and hopefully gives a smooth experience.
+ * <p/>
  * Note: It should be possible to use instances of <code>MatsFactory</code> as keys in a <code>HashMap</code>, i.e.
  * their equals and hashCode should remain stable throughout the life of the MatsFactory. Depending on the
  * implementation, instance equality may be sufficient. Note that the {@link MatsFactoryWrapper} is implemented to

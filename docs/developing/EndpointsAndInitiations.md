@@ -227,7 +227,8 @@ being able to rely on the standard Java stack machinery (or, in case of lambda-u
 capturing of variables).
 
 The `ep.lastStage(..)` is a convenience, and is exactly equivalent to adding the stage using `ep.stage(..)`, sending the
-reply using `context.reply(..)`, **and then after adding that final stage, invoking `ep.finishSetup()`**.
+lamda's returned value using `context.reply(..)`, **and then after adding that final stage,
+invoking `ep.finishSetup()`**.
 
 Setup using Mats' SpringConfig:
 
@@ -247,7 +248,7 @@ class ShippingEndpointClass {
     // This is the state field
     List<OrderLine> _orderLines;
 
-    @Stage(Stage.INITIAL)
+    @Stage(0)
     void initialStage(ProcessContext<ShippingCostReply> context,
             ShippingCostRequest msg) {
         // Check if this is one of our special customers
