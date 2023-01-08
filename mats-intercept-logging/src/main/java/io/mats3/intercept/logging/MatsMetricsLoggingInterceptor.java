@@ -70,11 +70,11 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <ul>
  * <li><b>{@link #MDC_MATS_INITIATE_COMPLETED "mats.InitiateCompleted"}</b>: Present <i>on a single logline</i> per
  * completed initiation - <i>can be used to count initiations</i>. The value is same as
- * {@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"}, see below. Assuming each initiation produces one message,
- * and hence one flow, this count should be identical to the count of {@link #MDC_MATS_FLOW_COMPLETED}. However, an
- * initiation can produce multiple messages (or zero), as described in {@link #MDC_MATS_COMPLETE_QUANTITY_OUT}, thus if
- * you sum the quantity value of lines that have this property set, the result should actually be identical to flows
- * completed.</li>
+ * {@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"}, see Metrics below. Assuming each initiation produces one
+ * message, and hence one flow, this count should be identical to the count of {@link #MDC_MATS_FLOW_COMPLETED}.
+ * However, an initiation can produce multiple messages (or zero), as described in
+ * {@link #MDC_MATS_COMPLETE_QUANTITY_OUT}, thus if you sum the quantity value of lines that have this property set, the
+ * result should actually be identical to flows completed.</li>
  * <li><b>{@link #MDC_INIT_OR_STAGE_ID "mats.InitOrStageId"}</b>: The <i>initiatorId</i> ("fromId") from the first
  * (typically sole) message in an initiation. It should be common that all messages in a single initiation have the same
  * initiatorId. If there are no sent messages, the value for an initiation will be
@@ -129,7 +129,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <li><b>{@link #MDC_MATS_MESSAGE_RECEIVED "mats.MessageReceived"}</b>: Present <i>on a single logline</i> per received
  * message - <i>can be used to count received messages</i>. This count should be identical to the count of
  * {@link #MDC_MATS_STAGE_COMPLETED}. The value is the same as {@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL
- * "mats.in.TotalPreprocDeserial.ms"}, see below.</li>
+ * "mats.in.TotalPreprocDeserial.ms"}, see Metrics below.</li>
  * <li><code><b>"mats.StageId"</b></code>: Always set on the Processor threads for a stage, so any logline output inside
  * a Mats stage will have this set.</li>
  * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: The Mats flow's traceId, set from the initiation.</li>
@@ -205,10 +205,10 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  *
  * <h2>MDC Properties for Stage Complete:</h2> Notice: Stage Complete is rather similar to Initiate Complete.
  * <ul>
- * <li><b>{@link #MDC_MATS_STAGE_COMPLETED "mats.StageCompleted"}</b>: 'true' on a single logline per completed stage -
+ * <li><b>{@link #MDC_MATS_STAGE_COMPLETED "mats.StageCompleted"}</b>: Present on a single logline per completed stage -
  * <i>can be used to count stage processings</i>. This count should be identical to the count of
  * {@link #MDC_MATS_MESSAGE_RECEIVED}. The value is same as {@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"},
- * see below.</li>
+ * see Metrics below.</li>
  * <li><code><b>"mats.StageId"</b></code>: Always set on the Processor threads for a stage, so any logline output inside
  * a Mats stage will have this set.</li>
  * <li><b>{@link #MDC_MATS_PROCESS_RESULT "mats.ProcessResult"}</b>: the ProcessResult enum</li>
