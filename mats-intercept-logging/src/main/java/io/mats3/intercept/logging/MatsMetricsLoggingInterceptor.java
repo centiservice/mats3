@@ -1014,7 +1014,19 @@ public class MatsMetricsLoggingInterceptor
             String extraResult, Logger logger, List<MatsSentOutgoingMessage> outgoingMessages, String messageSenderName,
             String extraBreakdown, long extraNanosBreakdown, Map<String, String> completedMDC) {
 
-        String what = ctx instanceof InitiateCompletedContext ? "INIT" : "STAGE";
+        String what;
+        if (ctx instanceof InitiateCompletedContext) {
+            what = "INIT";
+        }
+        else if (completedMDC.containsKey(MDC_MATS_FLOW_COMPLETED)) {
+            what = "STAGE/ENDPOINT/FLOW";
+        }
+        else if (completedMDC.containsKey(MDC_MATS_ENDPOINT_COMPLETED)) {
+            what = "STAGE/ENDPOINT";
+        }
+        else {
+            what = "STAGE";
+        }
 
         // ?: Do we have a Throwable, indicating that processing (stage or init) failed?
         if (ctx.getThrowable().isPresent()) {
