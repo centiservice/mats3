@@ -2,9 +2,13 @@
 
 *Introducing "MOARPC" - Message-Oriented Asynchronous Remote Procedure Calls!*
 
-*Mats* is a Java library that facilitates the development of asynchronous, stateless (or stateful, depending on your
-point of view), multi-stage, message-based services. Mats Endpoints immediately provide all the benefits you get from a
-fully asynchronous messaging-based architecture, while being *almost* as simple to code as blocking, synchronous
+Webpage: https://mats3.io/
+
+<img src="docs/img/Mats3Logo-text-to-path.svg" alt="Mats3 logo" width="100"/>
+
+*Mats<sup>3</sup>* is a Java library that facilitates the development of asynchronous, stateless (or stateful, depending
+on your point of view), multi-stage, message-based services. Mats Endpoints immediately provide all the benefits you get
+from a fully asynchronous messaging-based architecture, while being *almost* as simple to code as blocking, synchronous
 JSON-over-HTTP "REST" endpoints.
 
 *Currently, to play around with the library, the simplest option is to clone it and run `./gradlew clean check`. After
