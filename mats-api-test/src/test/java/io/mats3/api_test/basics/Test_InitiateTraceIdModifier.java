@@ -68,6 +68,23 @@ public class Test_InitiateTraceIdModifier {
         MDC.clear();
     }
 
+
+    /**
+     * Dynamic TraceId modifier, using existing MDC to pick out traceId. This makes for a recursion problem, since the
+     * new traceId is also set back on the MDC. That is, if you initiate multiple messages, you could get this method
+     * invoked on top of the existing. Mats should avoid this.
+     */
+    private void setTraceIdModifier_UsingExistingMdcTraceId() {
+        MATS.getMatsFactory().getFactoryConfig().setInitiateTraceIdModifier((origTraceId) -> {
+            String mdcTraceId = MDC.get("traceId");
+            if (mdcTraceId != null) {
+                return mdcTraceId + "|" + origTraceId;
+            }
+            // E-> No MDC
+            return origTraceId;
+        });
+    }
+
     @Test
     public void simpleModifyTraceId() {
         // :: Arrange
@@ -96,39 +113,46 @@ public class Test_InitiateTraceIdModifier {
         // :: Arrange
         MATS.getMatsFactory().getFactoryConfig().setInitiateTraceIdModifier((origTraceId) -> "Prefixed|" + origTraceId);
 
-        // Create a single-stage service
+        // :: Create a single-stage Terminator, which sends a new message (now with an already modified MDC)
         String sendingTerminator = MatsTestHelp.endpoint();
         MATS.getMatsFactory().terminator(sendingTerminator, StateTO.class, DataTO.class, (ctx, state, msg) -> {
             ctx.initiate(init -> init.traceId("WithinStage").to(TERMINATOR).send(msg, state));
         });
 
         // :: Act
-        StateTO sto = new StateTO(7, 3.14);
-        DataTO dto = new DataTO(42, "TheAnswer");
-        String origTraceId = MatsTestHelp.traceId();
-        MATS.getMatsInitiator().initiateUnchecked(
-                (init) -> init
-                        .traceId(origTraceId)
-                        .from(MatsTestHelp.from("test"))
-                        .to(sendingTerminator)
-                        .send(dto, sto));
+        try {
+            StateTO sto = new StateTO(7, 3.14);
+            DataTO dto = new DataTO(42, "TheAnswer");
+            String origTraceId = MatsTestHelp.traceId();
+            MATS.getMatsInitiator().initiateUnchecked(
+                    (init) -> init
+                            .traceId(origTraceId)
+                            .from(MatsTestHelp.from("test"))
+                            .to(sendingTerminator)
+                            .send(dto, sto));
 
-        // :: Assert
-        Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
-        Assert.assertEquals(dto, result.getData());
-        Assert.assertEquals(sto, result.getState());
+            // :: Assert
+            Result<StateTO, DataTO> result = MATS.getMatsTestLatch().waitForResult();
+            Assert.assertEquals(dto, result.getData());
+            Assert.assertEquals(sto, result.getState());
 
-        // NOTE: The TraceId was prefixed with "Prefixed|" at the "from the outside" initiation, but NOT when
-        // initiated new message within Stage (otherwise, there would be 2x the prefix).
-        Assert.assertEquals("Prefixed|" + origTraceId + "|WithinStage", result.getContext().getTraceId());
+            // NOTE: The TraceId was prefixed with "Prefixed|" at the "from the outside" initiation, but NOT when
+            // initiated new message within Stage (otherwise, there would be 2x the prefix).
+            Assert.assertEquals("Prefixed|" + origTraceId + "|WithinStage", result.getContext().getTraceId());
+        }
+        finally {
+            // Remove the special endpoint we made
+            MATS.getMatsFactory().getEndpoint(sendingTerminator)
+                    .orElseThrow(() -> new AssertionError("Endpoint not present"))
+                    .remove(1000);
+        }
     }
 
     @Test
     public void usingExistingMdcTraceIdToModify_set() {
-        MDC.put("traceId", "Prefixed");
-
         // :: Arrange
         setTraceIdModifier_UsingExistingMdcTraceId();
+        MDC.put("traceId", "Prefixed");
 
         // :: Act
         StateTO sto = new StateTO(7, 3.14);
@@ -153,6 +177,7 @@ public class Test_InitiateTraceIdModifier {
     public void usingExistingMdcTraceIdToModify_null() {
         // :: Arrange
         setTraceIdModifier_UsingExistingMdcTraceId();
+        // !Not setting MDC.traceId
 
         // :: Act
         StateTO sto = new StateTO(7, 3.14);
@@ -175,14 +200,13 @@ public class Test_InitiateTraceIdModifier {
 
     @Test
     public void usingExistingMdcTraceIdToModify_manyMessages_mdcSet() throws InterruptedException {
+        // :: Arrange
+        setTraceIdModifier_UsingExistingMdcTraceId();
         MDC.put("traceId", "Prefixed");
 
         int numMessages = 20;
         _countDownLatch = new CountDownLatch(20);
         _traceIdsWithinMats = new CopyOnWriteArrayList<>();
-
-        // :: Arrange
-        setTraceIdModifier_UsingExistingMdcTraceId();
 
         // :: Act
         StateTO sto = new StateTO(7, 3.14);
@@ -218,12 +242,13 @@ public class Test_InitiateTraceIdModifier {
 
     @Test
     public void usingExistingMdcTraceIdToModify_manyMessages_mdcNull() throws InterruptedException {
+        // :: Arrange
+        setTraceIdModifier_UsingExistingMdcTraceId();
+        // !Not setting MDC.traceId
+
         int numMessages = 20;
         _countDownLatch = new CountDownLatch(20);
         _traceIdsWithinMats = new CopyOnWriteArrayList<>();
-
-        // :: Arrange
-        setTraceIdModifier_UsingExistingMdcTraceId();
 
         // :: Act
         StateTO sto = new StateTO(7, 3.14);
@@ -255,16 +280,5 @@ public class Test_InitiateTraceIdModifier {
                 .sorted()
                 .collect(Collectors.toList());
         Assert.assertEquals(expectedTraceIds, _traceIdsWithinMats);
-    }
-
-    private void setTraceIdModifier_UsingExistingMdcTraceId() {
-        MATS.getMatsFactory().getFactoryConfig().setInitiateTraceIdModifier((origTraceId) -> {
-            String mdcTraceId = MDC.get("traceId");
-            if (mdcTraceId != null) {
-                return mdcTraceId + "|" + origTraceId;
-            }
-            // E-> No MDC
-            return origTraceId;
-        });
     }
 }
