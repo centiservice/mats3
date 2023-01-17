@@ -121,8 +121,11 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
     }
 
     /**
-     * Returns a JmsMatsJmsSessionHandler which employs a single JMS Connection for everything: Initiations, and all
-     * Stages (consumers and producers).
+     * Returns a JmsMatsJmsSessionHandler which uses the {@link PoolingKeyInitiator#INITIATOR INITIATOR} pooling key for
+     * Intitiators (i.e. a JMS Connection per Initiator), and {@link PoolingKeyStageProcessor#STAGE STAGE} pooling key
+     * for Endpoints (i.e. a JMS Connection per Stage). This seems to be an OK middle way between just one JMS
+     * Connection for the entire MatsFactory, and one per Stage Processor which results in a pretty intense number of
+     * Connections.
      *
      * @param jmsConnectionFactory
      *            the JMS {@link ConnectionFactory} to get JMS Connections from.
@@ -130,8 +133,8 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
      *         consumers.
      */
     public static JmsMatsJmsSessionHandler_Pooling create(ConnectionFactory jmsConnectionFactory) {
-        return new JmsMatsJmsSessionHandler_Pooling(jmsConnectionFactory, PoolingKeyInitiator.FACTORY,
-                PoolingKeyStageProcessor.FACTORY);
+        return new JmsMatsJmsSessionHandler_Pooling(jmsConnectionFactory, PoolingKeyInitiator.INITIATOR,
+                PoolingKeyStageProcessor.STAGE);
     }
 
     /**
