@@ -203,6 +203,10 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         }
     }
 
+    public void useSeparateQueueForInteractiveNonPersistent(boolean separate) {
+        /* no-op - not yet implemented */
+    }
+
     private final List<JmsMatsEndpoint<?, ?, Z>> _createdEndpoints = new ArrayList<>();
     private final List<JmsMatsInitiator<Z>> _createdInitiators = new ArrayList<>();
 
