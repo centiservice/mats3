@@ -304,10 +304,14 @@ public interface MatsTestBroker {
              * multiple StageProcessors per Stage, on multiple instances/replicas of the services. Lowering this
              * considerably to instead focus on lower memory usage, good distribution, and if one consumer by any chance
              * gets hung, it won't allocate so many of the messages into a "void". This can be set on client side, but
-             * if not set there, it gets the defaults from server, AFAIU.
+             * if not set there, it gets the defaults from server.
+             *
+             * Update 2023-01-17: When both persistent and non-persistent messages goes to the same queue, ActiveMQ
+             * seems to handle this rather bad - effectively the non-persistent get lower priority. This is not resolved
+             * until the messages arrive at the client, where it is sorted according to sequence (?) and priority.
              */
-            allQueuesPolicy.setQueuePrefetch(16);
-            allTopicsPolicy.setTopicPrefetch(100);
+            allQueuesPolicy.setQueuePrefetch(250);
+            allTopicsPolicy.setTopicPrefetch(250);
 
             // .. create the PolicyMap containing the two destination policies
             PolicyMap policyMap = new PolicyMap();
