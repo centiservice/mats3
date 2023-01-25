@@ -108,6 +108,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
      */
     @PostConstruct
     public void postConstruct() {
+        log.info(LOG_PREFIX + SpringJmsMatsFactoryWrapper.class.getSimpleName() + " got @PostConstructed.");
         @SuppressWarnings("deprecation") // Supporting Spring 4 still
         boolean matsTestProfileActive = _environment.acceptsProfiles(MatsProfiles.PROFILE_MATS_TEST);
         handleMatsTestBrokerInterfacePopulation(matsTestProfileActive);
@@ -130,6 +131,8 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
      * @see #postConstruct()
      */
     public void postConstructForFactoryBean(Environment environment, ApplicationContext applicationContext) {
+        log.info(LOG_PREFIX + SpringJmsMatsFactoryWrapper.class.getSimpleName() + " got invoked"
+                + " postConstructForFactoryBean(env, appContext).");
         _environment = environment;
         _applicationContext = applicationContext;
         @SuppressWarnings("deprecation") // Supporting Spring 4 still
@@ -139,9 +142,6 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
     }
 
     protected void handleMatsTestBrokerInterfacePopulation(boolean matsTestProfileActive) {
-        AutowireCapableBeanFactory autowireCapableBeanFactory = _applicationContext.getAutowireCapableBeanFactory();
-        log.info(LOG_PREFIX + SpringJmsMatsFactoryWrapper.class.getSimpleName() + " got @PostConstructed.");
-
         if (_matsTestBrokerInterfaceClass == null) {
             if (matsTestProfileActive) {
                 log.warn(LOG_PREFIX + " \\- Class '" + MATS_TEST_BROKER_INTERFACE_CLASSNAME
@@ -158,6 +158,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
             return;
         }
 
+        AutowireCapableBeanFactory autowireCapableBeanFactory = _applicationContext.getAutowireCapableBeanFactory();
         Object matsTestBrokerInterface;
         try {
             matsTestBrokerInterface = autowireCapableBeanFactory.getBean(_matsTestBrokerInterfaceClass);
@@ -200,9 +201,6 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
     }
 
     protected void handleMatsFactoryConcurrencyForTestAndDevelopment(boolean matsTestPofileActive) {
-
-        // ?: Is the Concurrency already set to something specific?
-
         // ?: Are we in explicit testing profile? (i.e. Spring Profile 'mats-test' is active)
         if (matsTestPofileActive) {
             // -> Yes, mats-test profile active, so set concurrency low.
@@ -210,7 +208,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
             if (unwrap().getFactoryConfig().isConcurrencyDefault()) {
                 // -> Yes, default concurrency - so set it to 2 since testing.
                 log.info(LOG_PREFIX + "We're in Spring Profile '" + MatsProfiles.PROFILE_MATS_TEST
-                        + "', so set concurrency to 2.");
+                        + "', so set concurrency to 2 to avoid dozens of threads and messy logs.");
                 unwrap().getFactoryConfig().setConcurrency(2);
             }
             else {
@@ -233,11 +231,11 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
                     // -> Yes, so assume development - set concurrency low.
                     // ?: Are we in default concurrency?
                     if (unwrap().getFactoryConfig().isConcurrencyDefault()) {
-                        // -> Yes, default concurrency - so set it to 1 since testing.
+                        // -> Yes, default concurrency - so set it to 2 since testing.
                         log.info(LOG_PREFIX + "The supplied ConnectionFactory was created with MatsScenario.LOCALVM,"
                                 + " so we assume this is a development situation (or testing where the user forgot to"
-                                + " add the Spring active profile 'mats-test' as with @MatsTestProfile), and set the"
-                                + " concurrency to a low 2.");
+                                + " add the Spring active profile 'mats-test' as with @MatsTestProfile), and thus set"
+                                + " the concurrency to 2 to avoid dozens of threads and messy logs.");
                         unwrap().getFactoryConfig().setConcurrency(2);
                     }
                     else {

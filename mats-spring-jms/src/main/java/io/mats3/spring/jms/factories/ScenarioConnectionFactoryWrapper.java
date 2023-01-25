@@ -105,7 +105,7 @@ public class ScenarioConnectionFactoryWrapper
          * such scenarios.
          */
         if (_targetConnectionFactory == null) {
-            log.info(LOG_PREFIX + "Whoops! TargetConnectionFactory is null! - perform lazy-init!");
+            log.info(LOG_PREFIX + "TargetConnectionFactory is null upon unwrap() - perform lazy-init.");
             synchronized (this) {
                 if (_targetConnectionFactory == null) {
                     createTargetConnectionFactoryBasedOnScenarioDecider();
@@ -120,9 +120,18 @@ public class ScenarioConnectionFactoryWrapper
      *         {@link #unwrap()}.
      */
     public MatsScenario getMatsScenarioUsedToMakeConnectionFactory() {
-        // Ensure lazy-init if we're in such scenario (lazy-init of entire Spring factory, comments in invoked method).
-        unwrap();
-        // Now return whatever decision was used to make the ConnectionFactory.
+        return getOrDecideScenario();
+    }
+
+    private MatsScenario getOrDecideScenario() {
+        if (_matsScenarioDecision == null) {
+            synchronized (this) {
+                if (_matsScenarioDecision == null) {
+                    _matsScenarioDecision = _scenarioDecider.decision(_environment);
+                }
+            }
+            log.info(LOG_PREFIX + "Decided MatsScenario: " + _matsScenarioDecision);
+        }
         return _matsScenarioDecision;
     }
 
@@ -132,7 +141,7 @@ public class ScenarioConnectionFactoryWrapper
             return;
         }
         ConnectionFactoryProvider provider;
-        _matsScenarioDecision = _scenarioDecider.decision(_environment);
+        _matsScenarioDecision = getOrDecideScenario();
         switch (_matsScenarioDecision) {
             case REGULAR:
                 provider = _regularConnectionFactoryProvider;

@@ -139,7 +139,7 @@ public class AppMain_TwoMatsFactories {
                 // NOTE: I WOULD ADVISE AGAINST THIS IN REAL SETTINGS!
                 // ... - I believe production should be a specific environment selected with some system property.
                 .withDefaultScenario(MatsScenario.REGULAR)
-                .build();
+                .createConnectionFactory();
     }
 
     @Bean
@@ -200,7 +200,7 @@ public class AppMain_TwoMatsFactories {
                 // NOTE: I WOULD ADVISE AGAINST THIS IN REAL SETTINGS!
                 // ... - I believe production should be a specific environment selected with some system property.
                 .withDefaultScenario(MatsScenario.REGULAR)
-                .build();
+                .createConnectionFactory();
     }
 
     @Bean
