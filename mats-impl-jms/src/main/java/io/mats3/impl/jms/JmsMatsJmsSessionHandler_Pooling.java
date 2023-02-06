@@ -122,10 +122,13 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
 
     /**
      * Returns a JmsMatsJmsSessionHandler which uses the {@link PoolingKeyInitiator#INITIATOR INITIATOR} pooling key for
-     * Intitiators (i.e. a JMS Connection per Initiator), and {@link PoolingKeyStageProcessor#STAGE STAGE} pooling key
-     * for Endpoints (i.e. a JMS Connection per Stage). This seems to be an OK middle way between just one JMS
-     * Connection for the entire MatsFactory, and one per Stage Processor which results in a pretty intense number of
-     * Connections.
+     * Intitiators (i.e. a JMS Connection per Initiator), and {@link PoolingKeyStageProcessor#FACTORY FACTORY} pooling
+     * key for Endpoints (i.e. a JMS Connection per Endpoint).
+     * <p/>
+     * Note that is seems like ActiveMQ is not all that great at multiplexing multiple sessions and consumers over the
+     * same connection. You get lower latency by using {@link PoolingKeyStageProcessor#STAGE STAGE} and even better with
+     * {@link PoolingKeyStageProcessor#STAGE_PROCESSOR STAGE_PROCESSOR}, but when your set of services using Mats gets
+     * large, this results in an awful lot of connections.
      *
      * @param jmsConnectionFactory
      *            the JMS {@link ConnectionFactory} to get JMS Connections from.
@@ -134,7 +137,7 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
      */
     public static JmsMatsJmsSessionHandler_Pooling create(ConnectionFactory jmsConnectionFactory) {
         return new JmsMatsJmsSessionHandler_Pooling(jmsConnectionFactory, PoolingKeyInitiator.INITIATOR,
-                PoolingKeyStageProcessor.STAGE);
+                PoolingKeyStageProcessor.FACTORY);
     }
 
     /**
