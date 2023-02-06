@@ -7,7 +7,7 @@ wrapper {
 
 allprojects {
     group = 'io.mats3'
-    version = '0.19.2-2023-01-18'
+    version = '0.19.3-2023-02-06'
 
     project.buildDir = 'build-gradle'
 }
