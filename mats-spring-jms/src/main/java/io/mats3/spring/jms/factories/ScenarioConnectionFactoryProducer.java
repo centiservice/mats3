@@ -263,11 +263,21 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
 
         @Override
         public ConnectionFactory start(String beanName) {
-            // Creating MatsTestBroker as lazy as possible
-            // Set System property to get MatsTestBroker to connect to external localhost broker, default ActiveMQ
-            System.setProperty(MatsTestBroker.SYSPROP_MATS_TEST_BROKERURL,
+            // :: Creating MatsTestBroker as lazy as possible
+            // Set System property to get MatsTestBroker to connect to external localhost broker, default ActiveMQ.
+            // This is a dodgy "temp use" of system properties, but will probably work in 100% of actual situations,
+            // since this is just meant for testing. A ThreadLocal solution would have been better.
+            String previous = System.setProperty(MatsTestBroker.SYSPROP_MATS_TEST_BROKERURL,
                     MatsTestBroker.SYSPROP_MATS_TEST_BROKERURL_VALUE_LOCALHOST);
+            // Make the MatsTestBroker - now being affected by the set system property.
             _matsTestBroker = MatsTestBroker.create();
+            // Reset the system property
+            if (previous == null) {
+                System.clearProperty(MatsTestBroker.SYSPROP_MATS_TEST_BROKERURL);
+            }
+            else {
+                System.setProperty(MatsTestBroker.SYSPROP_MATS_TEST_BROKERURL, previous);
+            }
             return _matsTestBroker.getConnectionFactory();
         }
 
