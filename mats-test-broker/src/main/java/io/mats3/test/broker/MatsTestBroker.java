@@ -3,6 +3,8 @@ package io.mats3.test.broker;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.concurrent.ThreadLocalRandom;
 
 import javax.jms.ConnectionFactory;
@@ -186,27 +188,65 @@ public interface MatsTestBroker {
     void close();
 
     /**
-     * <b>Note: This is most probably not what you want to use in a testing scenario - for this you want to use the
-     * method {@link #create()}. This method is publicly available for examples and experiments, and provide a way to
-     * create an ActiveMQ broker with some Mats optimizations, with a single method call.
-     *
-     * @return
+     * Feature flags for the method {@link #newActiveMqBroker(ActiveMq...)} - which you probably shouldn't do unless you
+     * are experimenting with the "mats-examples". For testing of your code, use the {@link MatsTestBroker} class
+     * directly.
      */
-    static BrokerService newActiveMqBroker(boolean localhostConnectorEnabled, boolean persistent) {
+    enum ActiveMq {
+        /**
+         * Add a Localhost <code>TransportConnector</code>, so that the broker is available on
+         * <code>localhost:61616</code> in addition to in-vm connector.
+         */
+        LOCALHOST,
+
+        /**
+         * Enable broker persistence, using KahaDB.
+         */
+        PERSISTENT,
+
+        /**
+         * Add a shutdown hook, to cleanly shut down the broker upon JVM shutdown, i.e. Ctrl-C or IDE stop.
+         */
+        SHUTDOWNHOOK,
+
+        /**
+         * Enable the JMX support, via {@link BrokerService#setUseJmx(boolean)}.
+         */
+        JMX,
+
+        /**
+         * Enable the advisory topics, via {@link BrokerService#setAdvisorySupport(boolean)} and
+         * {@link BrokerService#setAnonymousProducerAdvisorySupport(boolean)}. I've never used them, but hey.
+         */
+        ADVISORY;
+    }
+
+    /**
+     * <b>Note: This is most probably not what you want to use in a testing scenario - for this you want to use the
+     * method {@link MatsTestBroker} class directly, using its {@link #create()} method.</b>
+     * <p/>
+     * This method is publicly available for examples and experiments, and provide a way to create an ActiveMQ broker
+     * with some Mats optimizations, with a single method call.
+     *
+     * @return a new ActiveMQ Broker instance.
+     */
+    static BrokerService newActiveMqBroker(ActiveMq... features) {
+        HashSet<ActiveMq> feats = new HashSet<>(Arrays.asList(features));
         Logger log = LoggerFactory.getLogger(MatsTestBroker.class);
 
         String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        StringBuilder brokername = new StringBuilder(10);
+        StringBuilder brokername = new StringBuilder(6);
         brokername.append("MatsTestActiveMQ_");
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 6; i++) {
             brokername.append(ALPHABET.charAt(ThreadLocalRandom.current().nextInt(ALPHABET.length())));
+        }
 
-        log.info("Setting up in-vm ActiveMQ BrokerService '" + brokername + "'.");
+        log.info("Setting up ActiveMQ BrokerService '" + brokername + "'.");
         BrokerService broker = new BrokerService();
         broker.setBrokerName(brokername.toString());
 
         // ?: Should we make a localhost connector, so that another process can connect to it.
-        if (localhostConnectorEnabled) {
+        if (feats.contains(ActiveMq.LOCALHOST)) {
             try {
                 TransportConnector connector = new TransportConnector();
                 connector.setUri(new URI("nio://localhost:61616"));
@@ -217,28 +257,37 @@ public interface MatsTestBroker {
             }
         }
 
-        broker.setPersistent(persistent);
-        if (persistent) {
+        // Defaulting to no persistence.
+        broker.setPersistent(false);
+
+        // ?: Do we want this broker persistent?
+        if (feats.contains(ActiveMq.PERSISTENT)) {
+            // -> Yes, persistent, so we'll manually add persistence adapter, using default Kaha.
             String kahaClassname = "org.apache.activemq.store.kahadb.KahaDBPersistenceAdapter";
             Class<?> kahaClass = null;
             try {
                 kahaClass = Class.forName(kahaClassname);
             }
             catch (ClassNotFoundException e) {
-                log.error("Missing class '" + kahaClassname + "', so cannot enable persistence."
+                log.error("Missing class '" + kahaClassname + "' (separate ActiveMQ dep), so cannot enable persistence."
                         + " Ignoring, running without.");
             }
             if (kahaClass != null) {
+                log.info("Enabling persistence on BrokerService [" + broker + "].");
+                broker.setPersistent(true);
+                // Read below comment about this property
+                System.setProperty("org.apache.activemq.kahaDB.files.skipMetadataUpdate", "true");
                 try {
                     // NOTE: Good KahaDB docs from RedHat:
                     // https://access.redhat.com/documentation/en-us/red_hat_amq/6.3/html/configuring_broker_persistence/kahadbconfiguration
                     KahaDBPersistenceAdapter kahaDBPersistenceAdapter = new KahaDBPersistenceAdapter();
-                    kahaDBPersistenceAdapter.setJournalDiskSyncStrategy(JournalDiskSyncStrategy.PERIODIC.name());
-                    // NOTE: This following value is default 1000, i.e. sync interval of 1 sec.
+                    // :: Use Periodic sync strategy - potentially loosing messages if the server crashes.
+                    // NOTE: The default sync interval is default 1000, i.e. 1 second.
                     // Interestingly, setting it to a much lower value, e.g. 10 or 25, seemingly doesn't severely impact
                     // performance of the PERIODIC strategy. Thus, instead of potentially losing a full second's worth
                     // of messages if someone literally pulled the power cord of the ActiveMQ instance, you'd lose much
                     // less.
+                    kahaDBPersistenceAdapter.setJournalDiskSyncStrategy(JournalDiskSyncStrategy.PERIODIC.name());
                     kahaDBPersistenceAdapter.setJournalDiskSyncInterval(25);
                     broker.setPersistenceAdapter(kahaDBPersistenceAdapter);
                 }
@@ -248,15 +297,30 @@ public interface MatsTestBroker {
             }
         }
 
-        // :: Disable a bit of stuff for testing:
-        // No need for JMX registry; We won't control nor monitor it over JMX in tests
-        broker.setUseJmx(false);
-        // No need for Advisory Messages; We won't be needing those events in tests.
-        broker.setAdvisorySupport(false);
-        // No need for shutdown hook; We'll shut it down ourselves in the tests.
+        // Disable built-in shutdown hook
         broker.setUseShutdownHook(false);
-        // No need for scheduler support, since we won't be using (the bad) broker-side redelivery plugin.
-        broker.setSchedulerSupport(false); // default is false.
+
+        // ?: Asking for Shutdownhook?
+        if (feats.contains(ActiveMq.SHUTDOWNHOOK)) {
+            // -> Yes, make a shutdownhook.
+            // Note that I find the ActiveMQ built-in shutdownhook strange in that it always ends up with an exception
+            // on log, thus we make one ourselves.
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    broker.stop();
+                }
+                catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }));
+        }
+
+        // :: Disable a bit of stuff for testing, unless asked for
+        // No need for JMX registry; We won't control nor monitor it over JMX in tests
+        broker.setUseJmx(feats.contains(ActiveMq.JMX));
+        // No need for Advisory Messages; We won't be needing those events in tests.
+        broker.setAdvisorySupport(feats.contains(ActiveMq.ADVISORY));
+        broker.setAnonymousProducerAdvisorySupport(feats.contains(ActiveMq.ADVISORY));
 
         // ::: Add features that we would want in prod.
 
@@ -351,11 +415,11 @@ public interface MatsTestBroker {
 
         // :: Memory: Override available system memory. (The default is 1GB, which feels small for prod.)
         // For production, you'd probably want to tune this, possibly using some calculation based on
-        // 'Runtime.getRuntime().maxMemory()', e.g. 'all - some fixed amount for the JVM and ActiveMQ'
-        // There's also a 'setPercentOfJvmHeap(..)' instead of 'setLimit(..)'
-        broker.getSystemUsage()
-                .getMemoryUsage()
-                .setLimit(1024L * 1024 * 1024); // 1 GB, which is the default. This is a test-broker!!
+        // 'Runtime.getRuntime().maxMemory()', e.g. 'all - some fixed amount for ActiveMQ itself'
+        // There's also a 'setPercentOfJvmHeap(..)' instead of 'setLimit(..)', but this doesn't make that much sense
+        // if you have a large heap, as the broker mainly uses a fixed amount.
+        broker.getSystemUsage().getMemoryUsage().setLimit(1024L * 1024 * 1024); // 1 GB, which is the default. This is a
+                                                                                // test-broker!!
         /*
          * .. by default, ActiveMQ shares the memory between producers and consumers. We've encountered issues where the
          * AMQ enters a state where the producers are unable to produce messages while consumers are also unable to
@@ -412,7 +476,7 @@ public interface MatsTestBroker {
         }
 
         protected static BrokerService createInVmActiveMqBroker() {
-            return newActiveMqBroker(false, false);
+            return newActiveMqBroker();
         }
 
         protected static ConnectionFactory createActiveMQConnectionFactory(String brokerUrl) {
@@ -423,6 +487,9 @@ public interface MatsTestBroker {
             // We don't need in-order, so just deliver other messages while waiting for redelivery.
             // NOTE: This is NOT possible to use until https://issues.apache.org/jira/browse/AMQ-8617 is fixed!!
             // conFactory.setNonBlockingRedelivery(true);
+
+            // :: We won't be needing Topic Advisories (we don't use temp queues/topics), so don't subscribe to them.
+            conFactory.setWatchTopicAdvisories(false);
 
             // :: RedeliveryPolicy
             RedeliveryPolicy redeliveryPolicy = conFactory.getRedeliveryPolicy();
