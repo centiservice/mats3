@@ -27,6 +27,8 @@ both of which you may start from your IDE.*
 To use Mats in a project, fetch [`mats-impl-jms`](https://mvnrepository.com/artifact/io.mats3/mats-impl-jms)
 from [Maven Central](https://mvnrepository.com/artifact/io.mats3).
 
+Runs on Java 8, 11, 17+. _(Developed with 8, runs in prod on 11 and 17)_
+
 License: [Polyform Perimeter 1.0.0 with examples](LICENSE.md)
 
 If you find Mats interesting, you might want to check out the "companion
