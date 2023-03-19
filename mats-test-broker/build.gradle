@@ -6,6 +6,8 @@ dependencies {
     // we don't want the broker by default being included in "production" classpath, thus must be included specifically
     // by users of this testing-tool in their test compile paths.
     compileOnly "org.apache.activemq:activemq-broker:$activeMqVersion"
+    // ..ActiveMQ Kaha - not needed for ordinary tests, but when using MatsTestBroker for setup for examples.
+    compileOnly "org.apache.activemq:activemq-kahadb-store:$activeMqVersion"
     // The Apache ActiveMQ Artemis client and server.
     compileOnly "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
     compileOnly "org.apache.activemq:artemis-server:$artemisMqVersion"

@@ -1,6 +1,8 @@
 package io.mats3.test.broker;
 
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
 import java.util.concurrent.ThreadLocalRandom;
 
 import javax.jms.ConnectionFactory;
@@ -16,12 +18,15 @@ import org.apache.activemq.artemis.core.server.embedded.EmbeddedActiveMQ;
 import org.apache.activemq.artemis.core.settings.impl.AddressSettings;
 import org.apache.activemq.broker.BrokerPlugin;
 import org.apache.activemq.broker.BrokerService;
+import org.apache.activemq.broker.TransportConnector;
 import org.apache.activemq.broker.region.policy.IndividualDeadLetterStrategy;
 import org.apache.activemq.broker.region.policy.PolicyEntry;
 import org.apache.activemq.broker.region.policy.PolicyMap;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.command.ActiveMQTopic;
 import org.apache.activemq.plugin.StatisticsBrokerPlugin;
+import org.apache.activemq.store.kahadb.KahaDBPersistenceAdapter;
+import org.apache.activemq.store.kahadb.disk.journal.Journal.JournalDiskSyncStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,7 +103,7 @@ public interface MatsTestBroker {
     String SYSPROP_MATS_TEST_BROKERURL_VALUE_LOCALHOST = "localhost";
 
     /**
-     * @return a MatsTestBroker implementation respecting the system properties set. // TODO: Better JavaDoc.
+     * @return a MatsTestBroker implementation respecting the system properties set (defaults are probably good!).
      */
     static MatsTestBroker create() {
         String sysprop_broker = System.getProperty(SYSPROP_MATS_TEST_BROKER);
@@ -180,6 +185,205 @@ public interface MatsTestBroker {
      */
     void close();
 
+    /**
+     * <b>Note: This is most probably not what you want to use in a testing scenario - for this you want to use the
+     * method {@link #create()}. This method is publicly available for examples and experiments, and provide a way to
+     * create an ActiveMQ broker with some Mats optimizations, with a single method call.
+     *
+     * @return
+     */
+    static BrokerService newActiveMqBroker(boolean localhostConnectorEnabled, boolean persistent) {
+        Logger log = LoggerFactory.getLogger(MatsTestBroker.class);
+
+        String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        StringBuilder brokername = new StringBuilder(10);
+        brokername.append("MatsTestActiveMQ_");
+        for (int i = 0; i < 10; i++)
+            brokername.append(ALPHABET.charAt(ThreadLocalRandom.current().nextInt(ALPHABET.length())));
+
+        log.info("Setting up in-vm ActiveMQ BrokerService '" + brokername + "'.");
+        BrokerService broker = new BrokerService();
+        broker.setBrokerName(brokername.toString());
+
+        // ?: Should we make a localhost connector, so that another process can connect to it.
+        if (localhostConnectorEnabled) {
+            try {
+                TransportConnector connector = new TransportConnector();
+                connector.setUri(new URI("nio://localhost:61616"));
+                broker.addConnector(connector);
+            }
+            catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        broker.setPersistent(persistent);
+        if (persistent) {
+            String kahaClassname = "org.apache.activemq.store.kahadb.KahaDBPersistenceAdapter";
+            Class<?> kahaClass = null;
+            try {
+                kahaClass = Class.forName(kahaClassname);
+            }
+            catch (ClassNotFoundException e) {
+                log.error("Missing class '" + kahaClassname + "', so cannot enable persistence."
+                        + " Ignoring, running without.");
+            }
+            if (kahaClass != null) {
+                try {
+                    // NOTE: Good KahaDB docs from RedHat:
+                    // https://access.redhat.com/documentation/en-us/red_hat_amq/6.3/html/configuring_broker_persistence/kahadbconfiguration
+                    KahaDBPersistenceAdapter kahaDBPersistenceAdapter = new KahaDBPersistenceAdapter();
+                    kahaDBPersistenceAdapter.setJournalDiskSyncStrategy(JournalDiskSyncStrategy.PERIODIC.name());
+                    // NOTE: This following value is default 1000, i.e. sync interval of 1 sec.
+                    // Interestingly, setting it to a much lower value, e.g. 10 or 25, seemingly doesn't severely impact
+                    // performance of the PERIODIC strategy. Thus, instead of potentially losing a full second's worth
+                    // of messages if someone literally pulled the power cord of the ActiveMQ instance, you'd lose much
+                    // less.
+                    kahaDBPersistenceAdapter.setJournalDiskSyncInterval(25);
+                    broker.setPersistenceAdapter(kahaDBPersistenceAdapter);
+                }
+                catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        }
+
+        // :: Disable a bit of stuff for testing:
+        // No need for JMX registry; We won't control nor monitor it over JMX in tests
+        broker.setUseJmx(false);
+        // No need for Advisory Messages; We won't be needing those events in tests.
+        broker.setAdvisorySupport(false);
+        // No need for shutdown hook; We'll shut it down ourselves in the tests.
+        broker.setUseShutdownHook(false);
+        // No need for scheduler support, since we won't be using (the bad) broker-side redelivery plugin.
+        broker.setSchedulerSupport(false); // default is false.
+
+        // ::: Add features that we would want in prod.
+
+        // NOTICE: When using KahaDB, then you most probably want to have "skipMetadataUpdate=true":
+        // org.apache.activemq.kahaDB.files.skipMetadataUpdate=true
+        // https://access.redhat.com/documentation/en-us/red_hat_amq/6.3/html/tuning_guide/perstuning-kahadb
+
+        // NOTICE: All programmatic config here can be set via standalone broker config file 'conf/activemq.xml'.
+
+        // :: Purge inactive destinations
+        // Some usages of Mats ends up using "host-specific topics", e.g. MatsFuturizer from 'util' does this.
+        // When using e.g. Kubernetes, hostnames will change when deploying new versions of your services.
+        // Therefore, you'll end up with many dead topics. Thus, we want to scavenge these after some inactivity.
+        // Both the Broker needs to be configured, as well as DestinationPolicies.
+        broker.setSchedulePeriodForDestinationPurge(60_123); // Every 1 minute
+
+        // :: Plugins
+
+        // .. Statistics, since that is what we want people to do in production, and so that an
+        // ActiveMQ instance created with this tool can be used by 'matsbrokermonitor'.
+        StatisticsBrokerPlugin statisticsBrokerPlugin = new StatisticsBrokerPlugin();
+        // .. add the plugins to the BrokerService
+        broker.setPlugins(new BrokerPlugin[] { statisticsBrokerPlugin });
+
+        // :: Set Individual DLQ - which you most definitely should do in production.
+        // Hear, hear: https://users.activemq.apache.narkive.com/H7400Mn1/policymap-api-is-really-bad
+        IndividualDeadLetterStrategy individualDeadLetterStrategy = new IndividualDeadLetterStrategy();
+        individualDeadLetterStrategy.setQueuePrefix("DLQ.");
+        individualDeadLetterStrategy.setTopicPrefix("DLQ.");
+        // .. Send expired messages to DLQ (Note: true is default)
+        individualDeadLetterStrategy.setProcessExpired(true);
+        // .. Also DLQ non-persistent messages
+        individualDeadLetterStrategy.setProcessNonPersistent(true);
+        individualDeadLetterStrategy.setUseQueueForTopicMessages(true); // true is also default
+        individualDeadLetterStrategy.setUseQueueForQueueMessages(true); // true is also default.
+
+        // :: Create destination policy entry for QUEUES:
+        PolicyEntry allQueuesPolicy = new PolicyEntry();
+        allQueuesPolicy.setDestination(new ActiveMQQueue(">")); // all queues
+        // .. add the IndividualDeadLetterStrategy
+        allQueuesPolicy.setDeadLetterStrategy(individualDeadLetterStrategy);
+        // .. we do use prioritization, and this should ensure that priority information is handled in queue, and
+        // persisted to store. Store JavaDoc: "A hint to the store to try recover messages according to priority"
+        allQueuesPolicy.setPrioritizedMessages(true);
+        // Purge inactive Queues. The set of Queues should really be pretty stable. We only want to eventually
+        // get rid of queues for Endpoints which are taken out of the codebase.
+        allQueuesPolicy.setGcInactiveDestinations(true);
+        allQueuesPolicy.setInactiveTimeoutBeforeGC(2 * 24 * 60 * 60 * 1000); // Two full days.
+
+        // :: Create policy entry for TOPICS:
+        PolicyEntry allTopicsPolicy = new PolicyEntry();
+        allTopicsPolicy.setDestination(new ActiveMQTopic(">")); // all topics
+        // .. add the IndividualDeadLetterStrategy, not sure if that is ever relevant for plain Topics.
+        allTopicsPolicy.setDeadLetterStrategy(individualDeadLetterStrategy);
+        // .. and prioritization, not sure if that is ever relevant for Topics.
+        allTopicsPolicy.setPrioritizedMessages(true);
+        // Purge inactive Topics. The names of Topics will often end up being host-specific. The utility
+        // MatsFuturizer uses such logic. When using Kubernetes, the pods will change name upon redeploy of
+        // services. Get rid of the old pretty fast. But we want to see them in destination browsers like
+        // MatsBrokerMonitor, so not too fast.
+        allTopicsPolicy.setGcInactiveDestinations(true);
+        allTopicsPolicy.setInactiveTimeoutBeforeGC(2 * 60 * 60 * 1000); // 2 hours.
+        // .. note: Not leveraging the SubscriptionRecoveryPolicy features, as we do not have evidence of this being
+        // a problem, and using it does incur a cost wrt. memory and time.
+        // Would probably have used a FixedSizedSubscriptionRecoveryPolicy, with setUseSharedBuffer(true).
+        // To actually get subscribers to use this, one would have to also set the client side (consumer) to be
+        // 'Retroactive Consumer' i.e. new ActiveMQTopic("TEST.Topic?consumer.retroactive=true"); This is not
+        // done by the JMS impl of Mats.
+        // https://activemq.apache.org/retroactive-consumer
+
+        /*
+         * .. chill the prefetch a bit, from Queue:1000 and Topic:Short.MAX_VALUE (!), which is very much when used with
+         * Mats and its transactional logic of "consume a message, produce a message, commit", as well as multiple
+         * StageProcessors per Stage, on multiple instances/replicas of the services. Lowering this considerably to
+         * instead focus on lower memory usage, good distribution, and if one consumer by any chance gets hung, it won't
+         * allocate so many of the messages into a "void". This can be set on client side, but if not set there, it gets
+         * the defaults from server.
+         *
+         * Update 2023-01-17: When both persistent and non-persistent messages goes to the same queue, ActiveMQ seems to
+         * handle this rather bad - effectively the non-persistent get lower priority. This is not resolved until the
+         * messages arrive at the client, where it is sorted according to sequence (?) and priority.
+         */
+        allQueuesPolicy.setQueuePrefetch(250);
+        allTopicsPolicy.setTopicPrefetch(250);
+
+        // .. create the PolicyMap containing the two destination policies
+        PolicyMap policyMap = new PolicyMap();
+        policyMap.put(allQueuesPolicy.getDestination(), allQueuesPolicy);
+        policyMap.put(allTopicsPolicy.getDestination(), allTopicsPolicy);
+        // .. set this PolicyMap containing our PolicyEntry on the broker.
+        broker.setDestinationPolicy(policyMap);
+
+        // :: Memory: Override available system memory. (The default is 1GB, which feels small for prod.)
+        // For production, you'd probably want to tune this, possibly using some calculation based on
+        // 'Runtime.getRuntime().maxMemory()', e.g. 'all - some fixed amount for the JVM and ActiveMQ'
+        // There's also a 'setPercentOfJvmHeap(..)' instead of 'setLimit(..)'
+        broker.getSystemUsage()
+                .getMemoryUsage()
+                .setLimit(1024L * 1024 * 1024); // 1 GB, which is the default. This is a test-broker!!
+        /*
+         * .. by default, ActiveMQ shares the memory between producers and consumers. We've encountered issues where the
+         * AMQ enters a state where the producers are unable to produce messages while consumers are also unable to
+         * consume due to the fact that there is no more memory to be had, effectively deadlocking the system (since a
+         * Mats Stage typically reads one message and produces one message). Default behaviour for ActiveMq is that both
+         * producers and consumers share the main memory pool of the application. By dividing this into two sections,
+         * and providing the producers with a large piece of the pie, it should ensure that the producers will always be
+         * able to produce messages while the consumers will always have some memory available to consume messages.
+         * Consumers do not use a lot of memory, in fact they use almost nothing. Therefore we've elected to override
+         * the default values of AMQ (60/40 P/C) and enforce a 95/5 P/C split instead.
+         *
+         * Source: ActiveMQ: Understanding Memory Usage
+         * http://blog.christianposta.com/activemq/activemq-understanding-memory-usage/
+         */
+        broker.setSplitSystemUsageForProducersConsumers(true);
+        broker.setProducerSystemUsagePortion(95);
+        broker.setConsumerSystemUsagePortion(5);
+
+        // :: Start the broker.
+        try {
+            broker.start();
+        }
+        catch (Exception e) {
+            throw new AssertionError("Could not start ActiveMQ BrokerService '" + brokername + "'.", e);
+        }
+        return broker;
+    }
+
     // --- IMPLEMENTATIONS
 
     /**
@@ -208,152 +412,7 @@ public interface MatsTestBroker {
         }
 
         protected static BrokerService createInVmActiveMqBroker() {
-            String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-            StringBuilder brokername = new StringBuilder(10);
-            brokername.append("MatsTestActiveMQ_");
-            for (int i = 0; i < 10; i++)
-                brokername.append(ALPHABET.charAt(ThreadLocalRandom.current().nextInt(ALPHABET.length())));
-
-            log.info("Setting up in-vm ActiveMQ BrokerService '" + brokername + "'.");
-            BrokerService broker = new BrokerService();
-            broker.setBrokerName(brokername.toString());
-            // :: Disable a bit of stuff for testing:
-            // No need for JMX registry; We won't control nor monitor it over JMX in tests
-            broker.setUseJmx(false);
-            // No need for persistence; No need for persistence across reboots, and don't want KahaDB dirs and files.
-            broker.setPersistent(false);
-            // No need for Advisory Messages; We won't be needing those events in tests.
-            broker.setAdvisorySupport(false);
-            // No need for shutdown hook; We'll shut it down ourselves in the tests.
-            broker.setUseShutdownHook(false);
-            // Need scheduler support for redelivery plugin
-            broker.setSchedulerSupport(true);
-
-            // ::: Add features that we would want in prod.
-
-            // NOTICE: When using KahaDB, then you most probably want to have "skipMetadataUpdate=true":
-            // org.apache.activemq.kahaDB.files.skipMetadataUpdate=true
-            // https://access.redhat.com/documentation/en-us/red_hat_amq/6.3/html/tuning_guide/perstuning-kahadb
-
-            // NOTICE: All programmatic config here can be set via standalone broker config file 'conf/activemq.xml'.
-
-            // :: Purge inactive destinations
-            // Some usages of Mats ends up using "host-specific topics", e.g. MatsFuturizer from 'util' does this.
-            // When using e.g. Kubernetes, hostnames will change when deploying new versions of your services.
-            // Therefore, you'll end up with many dead topics. Thus, we want to scavenge these after some inactivity.
-            // Both the Broker needs to be configured, as well as DestinationPolicies.
-            broker.setSchedulePeriodForDestinationPurge(60_123); // Every 1 minute
-
-            // :: Plugins
-
-            // .. Statistics, since that is what we want people to do in production, and so that an
-            // ActiveMQ instance created with this tool can be used by 'matsbrokermonitor'.
-            StatisticsBrokerPlugin statisticsBrokerPlugin = new StatisticsBrokerPlugin();
-            // .. add the plugins to the BrokerService
-            broker.setPlugins(new BrokerPlugin[] { statisticsBrokerPlugin });
-
-            // :: Set Individual DLQ - which you most definitely should do in production.
-            // Hear, hear: https://users.activemq.apache.narkive.com/H7400Mn1/policymap-api-is-really-bad
-            IndividualDeadLetterStrategy individualDeadLetterStrategy = new IndividualDeadLetterStrategy();
-            individualDeadLetterStrategy.setQueuePrefix("DLQ.");
-            individualDeadLetterStrategy.setTopicPrefix("DLQ.");
-            // .. Send expired messages to DLQ (Note: true is default)
-            individualDeadLetterStrategy.setProcessExpired(true);
-            // .. Also DLQ non-persistent messages
-            individualDeadLetterStrategy.setProcessNonPersistent(true);
-            individualDeadLetterStrategy.setUseQueueForTopicMessages(true); // true is also default
-            individualDeadLetterStrategy.setUseQueueForQueueMessages(true); // true is also default.
-
-            // :: Create destination policy entry for QUEUES:
-            PolicyEntry allQueuesPolicy = new PolicyEntry();
-            allQueuesPolicy.setDestination(new ActiveMQQueue(">")); // all queues
-            // .. add the IndividualDeadLetterStrategy
-            allQueuesPolicy.setDeadLetterStrategy(individualDeadLetterStrategy);
-            // .. we do use prioritization, and this should ensure that priority information is handled in queue, and
-            // persisted to store. Store JavaDoc: "A hint to the store to try recover messages according to priority"
-            allQueuesPolicy.setPrioritizedMessages(true);
-            // Purge inactive Queues. The set of Queues should really be pretty stable. We only want to eventually
-            // get rid of queues for Endpoints which are taken out of the codebase.
-            allQueuesPolicy.setGcInactiveDestinations(true);
-            allQueuesPolicy.setInactiveTimeoutBeforeGC(2 * 24 * 60 * 60 * 1000); // Two full days.
-
-            // :: Create policy entry for TOPICS:
-            PolicyEntry allTopicsPolicy = new PolicyEntry();
-            allTopicsPolicy.setDestination(new ActiveMQTopic(">")); // all topics
-            // .. add the IndividualDeadLetterStrategy, not sure if that is ever relevant for plain Topics.
-            allTopicsPolicy.setDeadLetterStrategy(individualDeadLetterStrategy);
-            // .. and prioritization, not sure if that is ever relevant for Topics.
-            allTopicsPolicy.setPrioritizedMessages(true);
-            // Purge inactive Topics. The names of Topics will often end up being host-specific. The utility
-            // MatsFuturizer uses such logic. When using Kubernetes, the pods will change name upon redeploy of
-            // services. Get rid of the old pretty fast. But we want to see them in destination browsers like
-            // MatsBrokerMonitor, so not too fast.
-            allTopicsPolicy.setGcInactiveDestinations(true);
-            allTopicsPolicy.setInactiveTimeoutBeforeGC(2 * 60 * 60 * 1000); // 2 hours.
-            // .. note: Not leveraging the SubscriptionRecoveryPolicy features, as we do not have evidence of this being
-            // a problem, and using it does incur a cost wrt. memory and time.
-            // Would probably have used a FixedSizedSubscriptionRecoveryPolicy, with setUseSharedBuffer(true).
-            // To actually get subscribers to use this, one would have to also set the client side (consumer) to be
-            // 'Retroactive Consumer' i.e. new ActiveMQTopic("TEST.Topic?consumer.retroactive=true"); This is not
-            // done by the JMS impl of Mats.
-            // https://activemq.apache.org/retroactive-consumer
-
-            /*
-             * .. chill the prefetch a bit, from Queue:1000 and Topic:Short.MAX_VALUE (!), which is very much when used
-             * with Mats and its transactional logic of "consume a message, produce a message, commit", as well as
-             * multiple StageProcessors per Stage, on multiple instances/replicas of the services. Lowering this
-             * considerably to instead focus on lower memory usage, good distribution, and if one consumer by any chance
-             * gets hung, it won't allocate so many of the messages into a "void". This can be set on client side, but
-             * if not set there, it gets the defaults from server.
-             *
-             * Update 2023-01-17: When both persistent and non-persistent messages goes to the same queue, ActiveMQ
-             * seems to handle this rather bad - effectively the non-persistent get lower priority. This is not resolved
-             * until the messages arrive at the client, where it is sorted according to sequence (?) and priority.
-             */
-            allQueuesPolicy.setQueuePrefetch(250);
-            allTopicsPolicy.setTopicPrefetch(250);
-
-            // .. create the PolicyMap containing the two destination policies
-            PolicyMap policyMap = new PolicyMap();
-            policyMap.put(allQueuesPolicy.getDestination(), allQueuesPolicy);
-            policyMap.put(allTopicsPolicy.getDestination(), allTopicsPolicy);
-            // .. set this PolicyMap containing our PolicyEntry on the broker.
-            broker.setDestinationPolicy(policyMap);
-
-            // :: Memory: Override available system memory. (The default is 1GB, which feels small for prod.)
-            // For production, you'd probably want to tune this, possibly using some calculation based on
-            // 'Runtime.getRuntime().maxMemory()', e.g. 'all - some fixed amount for the JVM and ActiveMQ'
-            // There's also a 'setPercentOfJvmHeap(..)' instead of 'setLimit(..)'
-            broker.getSystemUsage()
-                    .getMemoryUsage()
-                    .setLimit(1024L * 1024 * 1024); // 1 GB, which is the default. This is a test-broker!!
-            /*
-             * .. by default, ActiveMQ shares the memory between producers and consumers. We've encountered issues where
-             * the AMQ enters a state where the producers are unable to produce messages while consumers are also unable
-             * to consume due to the fact that there is no more memory to be had, effectively deadlocking the system
-             * (since a Mats Stage typically reads one message and produces one message). Default behaviour for ActiveMq
-             * is that both producers and consumers share the main memory pool of the application. By dividing this into
-             * two sections, and providing the producers with a large piece of the pie, it should ensure that the
-             * producers will always be able to produce messages while the consumers will always have some memory
-             * available to consume messages. Consumers do not use a lot of memory, in fact they use almost nothing.
-             * Therefore we've elected to override the default values of AMQ (60/40 P/C) and enforce a 95/5 P/C split
-             * instead.
-             *
-             * Source: ActiveMQ: Understanding Memory Usage
-             * http://blog.christianposta.com/activemq/activemq-understanding-memory-usage/
-             */
-            broker.setSplitSystemUsageForProducersConsumers(true);
-            broker.setProducerSystemUsagePortion(95);
-            broker.setConsumerSystemUsagePortion(5);
-
-            // :: Start the broker.
-            try {
-                broker.start();
-            }
-            catch (Exception e) {
-                throw new AssertionError("Could not start ActiveMQ BrokerService '" + brokername + "'.", e);
-            }
-            return broker;
+            return newActiveMqBroker(false, false);
         }
 
         protected static ConnectionFactory createActiveMQConnectionFactory(String brokerUrl) {
