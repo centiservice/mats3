@@ -436,10 +436,10 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         boolean reuseDeflater = false;
         try {
             deflater.setInput(data);
-            // Hoping for at least 50% reduction, so set "best guess" to half incoming
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream(data.length / 2);
             deflater.finish();
-            byte[] buffer = new byte[2048];
+            // Hoping for at least 50% reduction, so set "best guess" to half incoming
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream_internal(data.length / 2);
+            byte[] buffer = new byte[1024];
             while (!deflater.finished()) {
                 int count = deflater.deflate(buffer);
                 outputStream.write(buffer, 0, count);
@@ -486,9 +486,8 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         boolean reuseInflater = false;
         try {
             inflater.setInput(data, offset, length);
-            // TODO: Optimize: Decompress directly to bytearray: toByteArray() creates a new.
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream(bestGuessDecompressedSize);
-            byte[] buffer = new byte[4096];
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream_internal(bestGuessDecompressedSize);
+            byte[] buffer = new byte[bestGuessDecompressedSize > 32768 ? 4096 : 2048];
             while (!inflater.finished()) {
                 try {
                     int count = inflater.inflate(buffer);
@@ -522,6 +521,24 @@ public class MatsSerializerJson implements MatsSerializer<String> {
                 // Invoke the "end()" method to timely release off-heap resource, thus not depending on finalization.
                 inflater.end();
             }
+        }
+    }
+
+    /**
+     * If the byte array actually is identically sized as the count, then just return the byte array instead of copying
+     * it one time more. This will hopefully always happen for decompression, since we know the target length then.
+     */
+    private static class ByteArrayOutputStream_internal extends ByteArrayOutputStream {
+        ByteArrayOutputStream_internal(int size) {
+            super(size);
+        }
+
+        @Override
+        public byte[] toByteArray() {
+            if (buf.length == count) {
+                return buf;
+            }
+            return super.toByteArray();
         }
     }
 
