@@ -2,8 +2,6 @@ package io.mats3.serial.json;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.DataFormatException;
@@ -383,21 +381,37 @@ public class MatsSerializerJson implements MatsSerializer<String> {
 
     @Override
     public <T> T newInstance(Class<T> clazz) {
-        Constructor<T> noArgsConstructor;
+        // ?: Boolean?
+        if ((Boolean.class == clazz) || (boolean.class == clazz)) {
+            // -> Yes, boolean - deserialize from "false".
+            // Note: Jackson also handles "0" and "1", but this is more general (GSON does not)
+            return deserializeObject("0", clazz);
+        }
+
+        // ?: Is it otherwise a primitive or primitive wrapper class?
+        if (clazz.isPrimitive() // Note: includes character.class
+                || Number.class.isAssignableFrom(clazz)
+                || (Character.class == clazz)) {
+            // -> Yes number or char, so then "0" and "1" works for all.
+            return deserializeObject("0", clazz);
+        }
+
+        if (String.class == clazz) {
+            @SuppressWarnings("unchecked")
+            T t = (T) "";
+            return t;
+        }
+
+        // E-> No special case, so object
+
+        // :: Deserialize from JSON empty object "{}"
+        // Note: Newer Jackson and GSON also handles deserializing any Java Record from "{}".
         try {
-            noArgsConstructor = clazz.getDeclaredConstructor();
+            return deserializeObject("{}", clazz);
         }
-        catch (NoSuchMethodException e) {
-            throw new CannotCreateEmptyInstanceException("Missing no-args constructor on class ["
-                    + clazz.getName() + "].", e);
-        }
-        try {
-            noArgsConstructor.setAccessible(true);
-            return noArgsConstructor.newInstance();
-        }
-        catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            throw new CannotCreateEmptyInstanceException("Couldn't create new empty instance of class ["
-                    + clazz.getName() + "].", e);
+        catch (SerializationException e) {
+            throw new CannotCreateEmptyInstanceException("Could not create an empty object of type [" + clazz + "] by"
+                    + " attempting to deserialize the empty object JSON string \"{}\".", e);
         }
     }
 

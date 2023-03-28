@@ -1,7 +1,5 @@
 package io.mats3.serial;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 import io.mats3.serial.MatsTrace.Call;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
 
@@ -232,7 +230,10 @@ public interface MatsSerializer<Z> {
     <T> T deserializeObject(Z serialized, Class<T> type);
 
     /**
-     * Will return a new instance of the requested type. This is used to instantiate "empty objects" for state (STOs).
+     * Will return a new instance of the requested type. This is used to instantiate "empty objects" for Endpoint State
+     * objects (STOs), and to test, at Endpoint registration, whether it is possible to get hold of instances of the
+     * Request and Reply DTO for an Endpoint (to ensure that it will be possible in runtime).
+     * <p/>
      * The reason for having this in the MatsSerializer is that it is somewhat dependent on the object serializer in
      * use: GSON allows to instantiate private, missing-no-args-constructor classes, while Jackson does not.
      *
