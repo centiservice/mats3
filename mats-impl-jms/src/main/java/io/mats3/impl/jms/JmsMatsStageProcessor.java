@@ -273,10 +273,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         boolean nullFromReceiveThusSessionIsClosed = false;
         // :: OUTER RUN-LOOP, where we'll get a fresh JMS Session, Destination and MessageConsumer.
         OUTER: while (_runFlag) {
-            // :: Clean MDC and set the "static" MDC values, since we just MDC.clear()'ed
+            // :: Putting "static values" into logger MDC (also clearing, if we've come here after failure)
             clearAndSetStaticMdcValues();
-            log.info(LOG_PREFIX + "Getting JMS Session, Destination and Consumer for stage ["
-                    + _jmsMatsStage.getStageId() + "].");
+            log.info(LOG_PREFIX + "Initializing: Getting JMS Session, Destination("
+                    + (_jmsMatsStage.isQueue() ? "Queue" : "Topic")
+                    + ") and MessageConsumer for stage [" + _jmsMatsStage.getStageId() + "].");
 
             { // Local-scope the 'newJmsSessionHolder' variable.
                 JmsSessionHolder newJmsSessionHolder;
@@ -1374,7 +1375,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         else {
             destination = jmsSession.createTopic(destinationName);
         }
-        log.info(LOG_PREFIX + "Created JMS " + (_jmsMatsStage.isQueue() ? "Queue" : "Topic") + ""
+        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Created JMS " + (_jmsMatsStage.isQueue() ? "Queue" : "Topic")
                 + " to receive from: [" + destination + "].");
         return destination;
     }
