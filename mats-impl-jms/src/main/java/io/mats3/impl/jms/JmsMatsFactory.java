@@ -837,7 +837,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
     @Override
     public String idThis() {
-        return id("JmsMatsFactory{" + _name + "}", this);
+        return id("JmsMatsFactory{" + _name + "@" + _appName + ",v." + _appVersion + "}", this);
     }
 
     @Override
@@ -846,7 +846,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     }
 
     private class JmsMatsFactoryConfig implements FactoryConfig {
-        private ConcurrentHashMap<String, Object> _attributes = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, Object> _attributes = new ConcurrentHashMap<>();
 
         @Override
         public FactoryConfig setName(String name) {
