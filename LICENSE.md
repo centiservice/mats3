@@ -1,4 +1,4 @@
-Copyright (c) 2015-2022 Endre Stølsvik, licensed under Polyform Perimeter 1.0.0 with examples
+Copyright (c) 2015-2023 Endre Stølsvik, licensed under Polyform Perimeter 1.0.0 with examples
 
 # Examples of what is NOT allowed to do with the software under this license
 
