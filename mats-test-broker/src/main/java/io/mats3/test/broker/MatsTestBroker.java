@@ -249,7 +249,7 @@ public interface MatsTestBroker {
         if (feats.contains(ActiveMq.LOCALHOST)) {
             try {
                 TransportConnector connector = new TransportConnector();
-                connector.setUri(new URI("nio://localhost:61616"));
+                connector.setUri(new URI("nio://0.0.0.0:61616"));
                 broker.addConnector(connector);
             }
             catch (Exception e) {
