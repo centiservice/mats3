@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
@@ -91,6 +92,21 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         return new MatsSerializerJson(compressionLevel);
     }
 
+    // TODO: Remove once all are > 0.19.8
+    // Make it possible to downgrade Jackson to 2.14.x which misses this class.
+    private final static boolean _jacksonStreamReadConstraintsPresent;
+    static {
+        boolean jacksonStreamReadConstraintsPresent = false;
+        try {
+            Class.forName("com.fasterxml.jackson.core.StreamReadConstraints");
+            jacksonStreamReadConstraintsPresent = true;
+        }
+        catch (ClassNotFoundException e) {
+            /* ignore */
+        }
+        _jacksonStreamReadConstraintsPresent = jacksonStreamReadConstraintsPresent;
+    }
+
     /**
      * Constructs a MatsSerializer, using the specified Compression Level - refer to {@link Deflater}'s constants and
      * levels.
@@ -121,12 +137,41 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         // Handle Optional, OptionalLong, OptionalDouble
         mapper.registerModule(new Jdk8Module());
 
-        // Make specific Reader and Writer for MatsTraceStringImpl (thus possibly caching class structure?)
+        if (_jacksonStreamReadConstraintsPresent) {
+            adjustStreamReadConstraints(mapper);
+        }
+
+        // Allow for configuration in override - which is not recommended, but if you need..
+        extraConfigureObjectMapper(mapper);
+
+        // Make specific Reader and Writer for MatsTraceStringImpl
         _matsTraceJson_Reader = mapper.readerFor(MatsTraceStringImpl.class);
         _matsTraceJson_Writer = mapper.writerFor(MatsTraceStringImpl.class);
-        _objectMapper = mapper;
 
-        // TODO / OPTIMIZE: What about making specific mappers for each new class found, using e.g. ConcurrentHashMap?
+        // Done.
+        _objectMapper = mapper;
+    }
+
+    // TODO: Inline once all are > 0.19.8
+    protected void adjustStreamReadConstraints(ObjectMapper mapper) {
+        // Disable Jackson 2.15.0's new StreamReadConstraints
+        // An effect is that it hits on the reading side of serialized objects, not write. You can thus serialize an
+        // object with an ObjectMapper, but then not deserialize the same object with the same ObjectMapper.
+        // It introduced a problem with Mats's "nested DTOs" within MatsTrace, as those DTOs might be >5M chars.
+        StreamReadConstraints streamReadConstraints = StreamReadConstraints
+                .builder()
+                .maxNestingDepth(10000) // default 1000
+                .maxNumberLength(10000) // default 1000
+                .maxStringLength(Integer.MAX_VALUE)
+                .build();
+        mapper.getFactory().setStreamReadConstraints(streamReadConstraints);
+    }
+
+    /**
+     * Override if you want to change the Jackson ObjectMapper. <b>Not really recommended.</b>
+     */
+    protected void extraConfigureObjectMapper(ObjectMapper mapper) {
+        /* no-op */
     }
 
     @Override
