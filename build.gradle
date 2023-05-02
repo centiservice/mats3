@@ -16,7 +16,7 @@ allprojects {
 ext {
     activeMqVersion = '5.16.6'  // 5.16.6 is the last planned Java 8 version, per 2023-03-19
     artemisMqVersion = '2.19.1' // 2.19.1 is the last planned Java 8 version, per 2023-03-19
-    springVersion = '5.3.26'
+    springVersion = '5.3.27'
     jacksonVersion = '2.15.0'
     slf4jVersion = '1.7.36'
     micrometerVersion = '1.10.5'
