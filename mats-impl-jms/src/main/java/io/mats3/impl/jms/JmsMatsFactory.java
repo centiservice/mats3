@@ -155,7 +155,9 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         installIfPresent(_matsLoggingInterceptor, MatsInterceptable.class);
         installIfPresent(_matsMetricsInterceptor, MatsInterceptableMatsFactory.class);
 
-        log.info(LOG_PREFIX + "Created [" + idThis() + "].");
+        log.info(LOG_PREFIX + "Created [" + idThis() + "],"
+                + " Mats:[" + MATS_IMPLEMENTATION_NAME + ",v" + MATS_IMPLEMENTATION_VERSION + "],"
+                + " App:[" + _appName + ",v" + _appVersion + "]");
     }
 
     // :: Configurable variables:
