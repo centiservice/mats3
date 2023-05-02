@@ -271,7 +271,7 @@ public interface JmsMatsStatics {
                     }
                     catch (Throwable t) {
                         throw new IllegalArgumentException("Could not deserialize the data"
-                                + " contained in MatsObject to class [" + type.getName() + "].");
+                                + " contained in MatsObject to class [" + type.getName() + "].", t);
                     }
                 }
             };
