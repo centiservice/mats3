@@ -11,6 +11,7 @@ import java.util.zip.Inflater;
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -18,6 +19,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.introspect.AnnotatedClass;
+import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
+import com.fasterxml.jackson.databind.introspect.VisibilityChecker;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
@@ -92,19 +97,20 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         return new MatsSerializerJson(compressionLevel);
     }
 
-    // TODO: Remove once all are > 0.19.8
-    // Make it possible to downgrade Jackson to 2.14.x which misses this class.
-    private final static boolean _jacksonStreamReadConstraintsPresent;
+    // TODO: Remove once all are > 0.19.9, and the world has gotten over to Jackson 2.15
+    // Make it possible to run with both Jackson 2.14 and 2.15
+    private final static boolean _jackson2_15;
     static {
-        boolean jacksonStreamReadConstraintsPresent = false;
+        boolean jackson2_15 = false;
         try {
-            Class.forName("com.fasterxml.jackson.core.StreamReadConstraints");
-            jacksonStreamReadConstraintsPresent = true;
+            // If this works, we are on 2.15.+
+            JsonFactory.class.getMethod("setStreamReadConstraints", StreamReadConstraints.class);
+            jackson2_15 = true;
         }
-        catch (ClassNotFoundException e) {
+        catch (Throwable e) {
             /* ignore */
         }
-        _jacksonStreamReadConstraintsPresent = jacksonStreamReadConstraintsPresent;
+        _jackson2_15 = jackson2_15;
     }
 
     /**
@@ -137,8 +143,37 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         // Handle Optional, OptionalLong, OptionalDouble
         mapper.registerModule(new Jdk8Module());
 
-        if (_jacksonStreamReadConstraintsPresent) {
+        // :: Temporary solution for https://github.com/FasterXML/jackson-databind/issues/3906
+        // I.e. actually get records to work again on 2.15.0.
+        if (_jackson2_15) {
+            mapper.registerModule(new SimpleModule() {
+                @Override
+                public void setupModule(SetupContext context) {
+                    super.setupModule(context);
+                    context.insertAnnotationIntrospector(new NopAnnotationIntrospector() {
+                        @Override
+                        public VisibilityChecker<?> findAutoDetectVisibility(AnnotatedClass ac, VisibilityChecker<?> checker) {
+                            if (ac.getType() == null) {
+                                return checker;
+                            }
+                            if (!ac.getType().isRecordType()) {
+                                return checker;
+                            }
+                            // If this is a Record, then increase the "creator" visibility again, so that it is actually
+                            // possible to create records!
+                            return checker.withCreatorVisibility(Visibility.ANY);
+                        }
+                    });
+                }
+            });
+        }
+
+        // :: Heavy-handed hack-solution for handling compatibility with both Jackson 2.14 and 2.15
+        try {
             adjustStreamReadConstraints(mapper);
+        }
+        catch (Throwable t) {
+            // We couldn't adjust the 2.15 constraints, since either StreamReadConstraints or the setter was not there.
         }
 
         // Allow for configuration in override - which is not recommended, but if you need..
@@ -152,10 +187,10 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         _objectMapper = mapper;
     }
 
-    // TODO: Inline once all are > 0.19.8
+    // TODO: Inline once all are > 0.19.9, and the world has gotten over to Jackson 2.15
     protected void adjustStreamReadConstraints(ObjectMapper mapper) {
-        // Disable Jackson 2.15.0's new StreamReadConstraints
-        // An effect is that it hits on the reading side of serialized objects, not write. You can thus serialize an
+        // Effectively disable / heavily adjust Jackson 2.15.0's new StreamReadConstraints, in particular for Strings.
+        // A problem is that it hits on the reading side of serialized objects, not write. You can thus serialize an
         // object with an ObjectMapper, but then not deserialize the same object with the same ObjectMapper.
         // It introduced a problem with Mats's "nested DTOs" within MatsTrace, as those DTOs might be >5M chars.
         StreamReadConstraints streamReadConstraints = StreamReadConstraints
