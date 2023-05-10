@@ -59,10 +59,14 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <li><code><b>"mats.AppName"</b></code>: The app-name which the MatsFactory was created with</li>
  * <li><code><b>"mats.AppVersion"</b></code>: The app-version which the MatsFactory was created with</li>
  * <li>Either, or both, of <code><b>"mats.Init"</b></code> (set to 'true' on initiation enter, and cleared on exit) and
- * <code><b>"mats.Stage"</b></code> (set to constant 'true' for all Mats Stage processors). If initiation within a
- * stage, both are set.</li>
+ * <code><b>"mats.Stage"</b></code> (set fixed to 'true' for all Mats Stage processors). If initiation within a stage,
+ * both are set.</li>
  * <li><code><b>"mats.CallNo"</b></code>: The "Call Number", which starts at 0 for the initiation, and then 1 for first
  * stage processing. (It refers to the "calls", i.e. passed messages.)</li>
+ * <li>For Stage processors: <code><b>"mats.StageId"</b></code>: Set fixed to the stageId for all Mats Stage
+ * processors.</li>
+ * <li>For Stage processors: <code><b>"mats.StageIndex"</b></code>: Set fixed to the stage index for all Mats Stage
+ * processors - '0' for the initial Stage, '1' for stage1 etc.</li>
  * </ul>
  *
  *

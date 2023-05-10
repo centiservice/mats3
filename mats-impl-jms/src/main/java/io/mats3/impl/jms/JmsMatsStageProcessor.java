@@ -1346,6 +1346,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         MDC.put(MDC_MATS_STAGE, "true");
         // Set the "static" values again
         MDC.put(MDC_MATS_STAGE_ID, _jmsMatsStage.getStageId());
+        MDC.put(MDC_MATS_STAGE_INDEX, Integer.toString(_jmsMatsStage.getStageConfig().getStageIndex()));
         MDC.put(MDC_MATS_APP_NAME, getFactory().getFactoryConfig().getAppName());
         MDC.put(MDC_MATS_APP_VERSION, getFactory().getFactoryConfig().getAppVersion());
     }

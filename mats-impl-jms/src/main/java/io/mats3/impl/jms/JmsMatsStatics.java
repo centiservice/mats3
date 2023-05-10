@@ -60,6 +60,7 @@ public interface JmsMatsStatics {
     // :: Stage
 
     String MDC_MATS_STAGE_ID = "mats.StageId"; // "Static" on Stage Processor threads
+    String MDC_MATS_STAGE_INDEX = "mats.StageIndex"; // "Static" on Stage Processor threads
 
     // .. Set by Processor when receiving a message:
     String MDC_MATS_IN_MESSAGE_SYSTEM_ID = "mats.in.MsgSysId";
