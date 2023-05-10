@@ -9,6 +9,11 @@ dependencies {
     // Logging
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+
+    // We want the standard logging, which will be auto-installed by being on the classpath. (autoinstalls)
+    testImplementation project(':mats-intercept-logging')
+    // Also pulling in the metrics, to get a test of it for all types of mats flows. (autoinstalls)
+    testImplementation project(':mats-intercept-micrometer')
 }
 
 publishing {

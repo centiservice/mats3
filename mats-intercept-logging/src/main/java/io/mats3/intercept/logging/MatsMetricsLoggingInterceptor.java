@@ -114,15 +114,16 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Part of total time taken for
  * committing the message system (e.g. <code>jmsSession.commit()</code> for the JMS implementation)</li>
  * </ul>
- * <b>User metrics:</b> Furthermore, any metrics (measurements and timings) set from an initiation or stage will be
- * available as separate log lines, the metric being set on the MDC. The MDC key for timings will be
- * {@link #MDC_MATS_COMPLETE_OPS_TIMING_PREFIX "mats.exec.ops.time."}+{metricId}+"ms" and for measurements
- * {@link #MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX "mats.exec.ops.measure."}+{metricId} + {baseUnit}. If labels/tags are
- * set on a metric, the MDC-key will be {@link #MDC_MATS_COMPLETE_OPS_TIMING_PREFIX
- * "mats.exec.ops.time."}+{metricId}+".tag." + {labelKey} and for measurements
- * {@link #MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX "mats.exec.ops.measure."}+{metricId} + ".tag." + {labelKey}.<br/>
+ * <b>User metrics:</b> Furthermore, any metrics (measurements and timings) set from within an initiation or stage will
+ * be available as separate log lines, the metric being set on the MDC. The MDC-key for timings will be
+ * <code>{@link #MDC_MATS_COMPLETE_OPS_TIMING_PREFIX "mats.exec.ops.time."}+{metricId}+".ms"</code> and for measurements
+ * <code>{@link #MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX "mats.exec.ops.measure."}+{metricId} + '.' + {baseUnit}</code>. If
+ * labels/tags are set on a metric, the MDC-key will be <code>{metric MDC-key} + ".tag." + {labelKey}</code>. The name
+ * of the constructed metric MDC-key is made available as value of the MDC-key {@link #MDC_MATS_COMPLETE_OPS_KEYNAME
+ * "mats.exec.ops.key"}, this so that the metrics keys employed can be found more easily by searching for this static
+ * key (Elastic have no easy way to find key names in an index using the query language itself). The description of the
+ * metric is available under the MDC-key {@link #MDC_MATS_COMPLETE_OPS_DESCRIPTION "mats.exec.ops.description"}.<br/>
  * <br/>
- *
  *
  * <h2>MDC Properties for Message Received:</h2>
  * <ul>
@@ -401,6 +402,8 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_COMPLETE_TIME_DB_COMMIT = "mats.exec.DbCommit.ms";
     public static final String MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT = "mats.exec.MsgSysCommit.ms";
 
+    public static final String MDC_MATS_COMPLETE_OPS_KEYNAME = "mats.exec.ops.key";
+    public static final String MDC_MATS_COMPLETE_OPS_DESCRIPTION = "mats.exec.ops.description";
     public static final String MDC_MATS_COMPLETE_OPS_TIMING_PREFIX = "mats.exec.ops.time.";
     public static final String MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX = "mats.exec.ops.measure.";
 
@@ -962,12 +965,14 @@ public class MatsMetricsLoggingInterceptor
 
     protected void outputMeasurementLogline(Logger logger, String what, String mdcPrefix, String metricId,
             String baseUnit, String measure, String metricDescription, String[] labelKeyValue) {
-        Collection<String> mdcKeysToClear = labelKeyValue.length > 0
+        Collection<String> mdcTagKeysToClear = labelKeyValue.length > 0
                 ? new ArrayList<>()
                 : null;
         String mdcKey = mdcPrefix + metricId + "." + baseUnit;
         try {
             MDC.put(mdcKey, measure);
+            MDC.put(MDC_MATS_COMPLETE_OPS_KEYNAME, mdcKey);
+            MDC.put(MDC_MATS_COMPLETE_OPS_DESCRIPTION, metricDescription);
 
             StringBuilder buf = new StringBuilder(128);
             buf.append(LOG_PREFIX)
@@ -977,16 +982,14 @@ public class MatsMetricsLoggingInterceptor
                     .append(measure)
                     .append(' ')
                     .append(baseUnit)
-                    .append("] (\"")
-                    .append(metricDescription)
-                    .append("\")");
+                    .append(']');
 
             for (int i = 0; i < labelKeyValue.length; i += 2) {
                 String labelKey = labelKeyValue[i];
                 String labelValue = labelKeyValue[i + 1];
-                String mdcLabelKey = mdcPrefix + metricId + ".tag." + labelKey;
+                String mdcLabelKey = mdcKey + ".tag." + labelKey;
                 MDC.put(mdcLabelKey, labelValue);
-                mdcKeysToClear.add(mdcLabelKey);
+                mdcTagKeysToClear.add(mdcLabelKey);
                 buf.append(' ')
                         .append(labelKey)
                         .append(':')
@@ -997,8 +1000,10 @@ public class MatsMetricsLoggingInterceptor
         }
         finally {
             MDC.remove(mdcKey);
-            if (mdcKeysToClear != null) {
-                for (String mdcLabelKey : mdcKeysToClear) {
+            MDC.remove(MDC_MATS_COMPLETE_OPS_KEYNAME);
+            MDC.remove(MDC_MATS_COMPLETE_OPS_DESCRIPTION);
+            if (mdcTagKeysToClear != null) {
+                for (String mdcLabelKey : mdcTagKeysToClear) {
                     MDC.remove(mdcLabelKey);
                 }
             }
