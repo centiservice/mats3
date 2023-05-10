@@ -139,6 +139,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <li><b>{@link #MDC_MATS_IN_MATS_MESSAGE_ID "mats.in.MatsMsgId"}</b>: The messageId the Mats system assigned the
  * message when it was produced on the sender side. Note that it consists of the Mats flow id + an individual part per
  * message in the flow.</li>
+ * <li><b>{@link #MDC_MATS_IN_MESSAGE_TYPE "mats.in.MessageType"}</b>: The {@link MessageType MessageType} of the
+ * incoming message, for example "SEND", "REQUEST" or "REPLY".</li>
  * <li><b>{@link #MDC_MATS_IN_FROM_APP_NAME "mats.in.from.App"}</b>: Which app this incoming message is from.</li>
  * <li><b>{@link #MDC_MATS_IN_FROM_ID "mats.in.from.Id"}</b>: Which initiatorId, endpointId or stageId this message is
  * from.</li>
@@ -434,6 +436,7 @@ public class MatsMetricsLoggingInterceptor
     // NOTICE: NOT using MDC_MATS_IN_TO_APP, as that is identical to MDC_MATS_APP_NAME
     // NOTICE: NOT using MDC_MATS_IN_TO_ID, as that is identical to MDC_MATS_STAGE_ID
     public static final String MDC_MATS_IN_MATS_MESSAGE_ID = "mats.in.MatsMsgId";
+    public static final String MDC_MATS_IN_MESSAGE_TYPE = "mats.in.MessageType";
 
     // ... Metrics:
     // Notice that metric this is susceptible to time skews between nodes.
@@ -775,6 +778,7 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_IN_FROM_APP_NAME, processContext.getFromAppName());
             MDC.put(MDC_MATS_IN_FROM_ID, processContext.getFromStageId());
             MDC.put(MDC_MATS_IN_MATS_MESSAGE_ID, processContext.getMatsMessageId());
+            MDC.put(MDC_MATS_IN_MESSAGE_TYPE, ctx.getIncomingMessageType().toString());
 
             // ::: Metrics
 
@@ -832,6 +836,7 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_IN_FROM_APP_NAME);
             MDC.remove(MDC_MATS_IN_FROM_ID);
             MDC.remove(MDC_MATS_IN_MATS_MESSAGE_ID);
+            MDC.remove(MDC_MATS_IN_MESSAGE_TYPE);
 
             MDC.remove(MDC_MATS_IN_TIME_SINCE_SENT);
             MDC.remove(MDC_MATS_IN_TIME_SINCE_PRECEDING_ENDPOINT_STAGE);
