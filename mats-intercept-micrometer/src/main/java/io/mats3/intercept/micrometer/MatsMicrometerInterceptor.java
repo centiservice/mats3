@@ -973,7 +973,7 @@ public class MatsMicrometerInterceptor
             final String _initiatorName;
             final String _initiatorId;
             final String _stageId;
-            final int _stageIndex; // NO_STAGE_INDEX if initiation
+            final int _stageIndex; // NO_STAGE_INDEX (-1) if initiation
             final String _to;
 
             final int _hashCode;
