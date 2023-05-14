@@ -41,12 +41,12 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * All loglines' message-part is prepended with <code>"#MATSLOG#"</code>.
  *
  * <h2>Log lines and their metadata</h2> There are 5 different type of log lines emitted by this logging interceptor -
- * but note that the "Per Message" log line can be combined with the "Initiate Complete" or "Stage Complete" loglines if
- * the initiation or stage only produce a single message - read more at end.
+ * but note that the "Per Message" log line can be combined with the "Initiate Completed" or "Stage Completed" loglines
+ * if the initiation or stage only produce a single message - read more at end.
  * <ol>
- * <li>Initiate Complete</li>
+ * <li>Initiate Completed</li>
  * <li>Message Received (on Stage)</li>
- * <li>Stage Complete</li>
+ * <li>Stage Completed</li>
  * <li>Per Created/Sent message (both for initiations and stage produced messages)</li>
  * <li>Metrics set from the user lambda during initiation and stages</li>
  * </ol>
@@ -70,7 +70,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * </ul>
  *
  *
- * <h2>MDC Properties for Initiate Complete:</h2> Notice: Initiate Complete is rather similar to Stage Complete.
+ * <h2>MDC Properties for Initiate Completed:</h2> Notice: Initiate Completed is rather similar to Stage Completed.
  * <ul>
  * <li><b>{@link #MDC_MATS_INITIATE_COMPLETED "mats.InitiateCompleted"}</b>: Present <i>on a single logline</i> per
  * completed initiation - <i>can be used to count initiations</i>. The value is same as
@@ -210,7 +210,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * </ul>
  *
  *
- * <h2>MDC Properties for Stage Complete:</h2> Notice: Stage Complete is rather similar to Initiate Complete.
+ * <h2>MDC Properties for Stage Completed:</h2> Notice: Stage Completed is rather similar to Initiate Completed.
  * <ul>
  * <li><b>{@link #MDC_MATS_STAGE_COMPLETED "mats.StageCompleted"}</b>: Present on a single logline per completed stage -
  * <i>can be used to count stage processings</i>. This count should be identical to the count of
@@ -254,8 +254,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * available as separate log lines - same as for initiations.<br/>
  *
  * <br/>
- * <h3>Extra Properties for Endpoint Complete:</h3> When any Stage of an Endpoint (typically the last) either REPLYs, or
- * stops the flow (neither sending a REQUEST, NEXT nor GOTO), the endpoint is completed.
+ * <h3>Extra Properties for Endpoint Completed:</h3> When any Stage of an Endpoint (typically the last) either REPLYs,
+ * or stops the flow (neither sending a REQUEST, NEXT nor GOTO), the endpoint is completed.
  * <ul>
  * <li><b>{@link #MDC_MATS_ENDPOINT_COMPLETED "mats.EndpointCompleted"}</b>: Present on the same single logline as Stage
  * Completed if this also is the endpoint completion. Notice that the span from an initiation REQUEST to the
@@ -264,9 +264,9 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * replyTo-reception on the Terminator). <b>This metric is susceptible to time skews between nodes</b>.</li>
  * </ul>
  *
- * <h3>Extra Properties for Flow Complete:</h3> When a Stage doesn't send any REPLY, REQUEST, NEXT or GOTO, it stops the
- * flow. This is the normal situation for a Terminator, but technically a flow may stop anywhere if the stage doesn't
- * send a flow message.
+ * <h3>Extra Properties for Flow Completed:</h3> When a Stage doesn't send any REPLY, REQUEST, NEXT or GOTO, it stops
+ * the flow. This is the normal situation for a Terminator, but technically a flow may stop anywhere if the stage
+ * doesn't send a flow message.
  * <ul>
  * <li><b>{@link #MDC_MATS_FLOW_COMPLETED "mats.FlowCompleted"}</b>: Present on the same single logline as Stage
  * Completed if this also is flow completion. <i>can be used to count mats flows</i>. This count has a very tight
@@ -341,7 +341,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  *
  * <b>Note:</b> Both Initiation and Stage completed can produce messages. For the very common case where this is just a
  * single message (a single initiated message starting a Mats flow, or a REQUEST or REPLY message from a Stage (in a
- * flow)), the "Per message" log line is combined with the Initiation or Stage Complete log line - on the message part,
+ * flow)), the "Per message" log line is combined with the Initiation or Stage Completed log line - on the message part,
  * the two lines are separated by a "/n", while each of the properties that come with the respective log line either are
  * common - i.e. they have the same name, and would have the same value - or they are differently named, so that the
  * combination does not imply any "overwrite" of a property name. If you search for a property that only occurs on "Per
@@ -473,7 +473,7 @@ public class MatsMetricsLoggingInterceptor
     // Set on a single logline per completed
     public static final String MDC_MATS_PROCESS_RESULT = "mats.ProcessResult";
 
-    // ..... specific Stage complete metric - along with the other ".exec." from the COMMON Init/Stage Complete
+    // ..... specific Stage complete metric - along with the other ".exec." from the COMMON Init/Stage Completed
     // Note that this is the same timing as the MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL
     public static final String MDC_MATS_COMPLETE_TIME_TOTAL_PREPROC_AND_DESERIAL = "mats.exec.TotalPreprocDeserial.ms";
 
@@ -486,7 +486,7 @@ public class MatsMetricsLoggingInterceptor
     // 'true' on a single logline per completed endpoint - it will be on the Stage Completed log lines.
     public static final String MDC_MATS_ENDPOINT_COMPLETED = "mats.EndpointCompleted";
 
-    // ..... specific Endpoint Complete metric. Notice that metric this is susceptible to time skews between nodes.
+    // ..... specific Endpoint Completed metric. Notice that metric this is susceptible to time skews between nodes.
     public static final String MDC_MATS_ENDPOINT_COMPLETE_TIME_TOTAL = "mats.endpoint.Total.ms";
 
     // ============================================================================================================
@@ -497,7 +497,7 @@ public class MatsMetricsLoggingInterceptor
     // 'true' on a single logline per completed flow - it will be on the Stage Completed log lines.
     public static final String MDC_MATS_FLOW_COMPLETED = "mats.FlowCompleted";
 
-    // ..... specific Flow Complete metric. Notice that this metric is susceptible to time skews between nodes.
+    // ..... specific Flow Completed metric. Notice that this metric is susceptible to time skews between nodes.
     public static final String MDC_MATS_FLOW_COMPLETE_TIME_TOTAL = "mats.flow.Total.ms";
 
     // ============================================================================================================
