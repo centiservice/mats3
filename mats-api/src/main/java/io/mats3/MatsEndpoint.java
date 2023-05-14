@@ -577,7 +577,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * <p/>
          * Note: It is illegal to use the same 'metricId' for more than one measurement for a given stage, and this also
          * goes between measurements and {@link #logTimingMeasurement(String, String, long, String...) timing
-         * measurements}.
+         * metrics}.
          * <p/>
          * <b>Inclusion as metric by plugin 'mats-intercept-micrometer'</b>: A new meter will be created (and cached),
          * of type <code>DistributionSummary</code>, with the 'name' set to
@@ -587,8 +587,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * parameter 'labelKeyValue' below.
          * <p/>
          * <b>Inclusion as log line by plugin 'mats-intercept-logging'</b>: A log line will be output by each added
-         * measurement, where the MDC for that log line will have an entry with key
-         * <code>"mats.ops.measure.{metricId}.{baseUnit}"</code>. Read about parameter 'labelKeyValue' below.
+         * measurement, where the MDC for that log line will have an entry with MDC-key
+         * <code>"mats.exec.ops.measure.{metricId}.{baseUnit}"</code>. Read about parameter 'labelKeyValue' below.
          * <p/>
          * It generally makes most sense if the same metrics are added for each processing of a particular Stage, i.e.
          * if the "number of items" are 0, then that should also be recorded along with the "total amount for order in
@@ -598,14 +598,14 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * hierarchical/subdivision layout.
          * <p/>
          * The vararg 'labelKeyValue' is an optional element where the String-array consist of one or several alternate
-         * key, value pairs. <b>Do not employ this feature unless you know what the effects are, and you actually need
-         * it!</b> This will be added as labels/tags to the metric, and added to the SLF4J MDC for the measurement log
-         * line with the key being <code>"mats.ops.measure.{metricId}.{labelKey}"</code> ("measure"-&gt;"time" for
-         * timings). The keys should be constants as explained for the other parameters, while the value can change, but
-         * only between a given set of values (think <code>enum</code>) - using e.g. the 'customerId' as value doesn't
-         * make sense and will blow up your metric cardinality. Notice that if you do employ e.g. two labels, each
-         * having one of three values, <i>you'll effectively create 9 different meters</i>, where your measurement will
-         * go to one of them.
+         * key, value pairs. <b>Do not employ this feature unless you know what the effects are, and only if you
+         * actually need it!</b> This will be added as labels/tags to the metric, and added to the SLF4J MDC for the
+         * measurement log line with the key being <code>"{metricKey}.tag.{labelKey}"</code>. The keys should be
+         * constants as explained for the other parameters, while the value can change, but only between a given set of
+         * values (think <code>enum</code>) - using e.g. the 'customerId' as value doesn't make sense and will blow up
+         * your metric cardinality. Notice that if you do employ e.g. two labels, the first employing three values, and
+         * the second employing values, <i>you'll effectively create 12 different meters, where your measurement will go
+         * to one of them.</i>
          * <p/>
          * <b>NOTICE: If you want to do a timing, then instead use
          * {@link #logTimingMeasurement(String, String, long, String...)}</b>
@@ -631,18 +631,21 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
 
         /**
          * Same as {@link #logMeasurement(String, String, String, double, String...) addMeasurement(..)}, but
-         * specifically for timings - <b>Read that JavaDoc!</b>
+         * specifically for timings - <b>Read that JavaDoc!</b>. (The reason for having timings as a specific method, is
+         * that different "output methods" like Micrometer/Prometheus metrics, and slf4j logging with MDC-based
+         * key/value, employ different magnitudes for the time-based measurements).
          * <p/>
          * Note: It is illegal to use the same 'metricId' for more than one measurement for a given stage, and this also
-         * goes between timing measurements and {@link #logMeasurement(String, String, String, double, String...)
+         * goes between timing metrics and {@link #logMeasurement(String, String, String, double, String...)
          * measurements}.
          * <p/>
-         * For the metrics-plugin 'mats-intercept-micrometer' plugin, the 'baseUnit' argument is deduced to whatever is
-         * appropriate for the receiving metrics system, e.g. for Prometheus it is "seconds", even though you always
-         * record the measurement in nanoseconds using this method.
+         * <b>For the metrics-plugin 'mats-intercept-micrometer' plugin</b>, the 'baseUnit' argument is deduced to
+         * whatever is appropriate for the receiving metrics system, e.g. for Prometheus it is <i>seconds</i>, even
+         * though you always record the measurement in nanoseconds using this method.
          * <p/>
-         * For the logging-plugin 'mats-intercept-logging' plugin, the timing in the log line will be in milliseconds
-         * (with fractions), even though you always record the measurement in nanoseconds using this method.
+         * <b>For the logging-plugin 'mats-intercept-logging' plugin</b>, the timing in the log line will be in
+         * <i>milliseconds</i> (with fractions), even though you always record the measurement in nanoseconds using this
+         * method.
          *
          * @param metricId
          *            constant, short, possibly dot-separated if hierarchical, id for this particular metric, e.g.
@@ -651,7 +654,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          *            constant, textual description for this metric, e.g. "Time taken to execute order query", "Time
          *            taken to calculate profit or loss".
          * @param nanos
-         *            time taken <b>in nanoseconds</b>
+         *            time taken <b>in nanoseconds</b>.
          * @param labelKeyValue
          *            a String-vararg array consisting of alternate key,value pairs which will becomes labels or tags or
          *            entries for the metrics and log lines. Read the JavaDoc at

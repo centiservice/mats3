@@ -408,10 +408,10 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_COMPLETE_TIME_DB_COMMIT = "mats.exec.DbCommit.ms";
     public static final String MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT = "mats.exec.MsgSysCommit.ms";
 
-    public static final String MDC_MATS_COMPLETE_OPS_KEYNAME = "mats.exec.ops.key";
-    public static final String MDC_MATS_COMPLETE_OPS_DESCRIPTION = "mats.exec.ops.description";
     public static final String MDC_MATS_COMPLETE_OPS_TIMING_PREFIX = "mats.exec.ops.time.";
     public static final String MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX = "mats.exec.ops.measure.";
+    public static final String MDC_MATS_COMPLETE_OPS_KEYNAME = "mats.exec.ops.key";
+    public static final String MDC_MATS_COMPLETE_OPS_DESCRIPTION = "mats.exec.ops.description";
 
     // ============================================================================================================
     // ===== For Initiate Completed (..in addition to "COMMON init/stage" above):
