@@ -9,7 +9,7 @@ import org.junit.Test;
 public class Test_TraceId {
 
     @Test
-    public void exampleJavaDoc() {
+    public void exampleFromJavaDoc() {
         String traceId = TraceId.create("Order", "placeOrder", "calcShipping")
                 .add("cid", 123456).add("oid", 654321).toString();
         String nonRandom = traceId.substring(0, traceId.length() - 6);
@@ -17,12 +17,59 @@ public class Test_TraceId {
     }
 
     @Test
-    public void exampleJavaDoc_withBatch() {
+    public void withBatch() {
         String traceId = TraceId.create("Order", "placeOrder", "calcShipping")
                 .add("cid", 123456).add("oid", 654321)
                 .batchId("abcde").toString();
         String nonRandom = traceId.substring(0, traceId.length() - 6);
         Assert.assertEquals("Order.placeOrder:calcShipping[batch=abcde][cid=123456][oid=654321]", nonRandom);
+    }
+
+    @Test
+    public void preventPrepend() {
+        String traceId = TraceId.create("Order", "placeOrder", "calcShipping")
+                .add("cid", 123456).add("oid", 654321)
+                .preventPrepend().toString();
+        String nonRandom = traceId.substring(0, traceId.length() - 6);
+        Assert.assertEquals("|Order.placeOrder:calcShipping[cid=123456][oid=654321]", nonRandom);
+    }
+
+    @Test
+    public void modifyReason() {
+        TraceId traceId = TraceId.create("Order", "placeOrder", "calcShipping")
+                .add("cid", 123456).add("oid", 654321);
+        String nonRandom = traceId.subSequence(0, traceId.length() - 6);
+        Assert.assertEquals("Order.placeOrder:calcShipping[cid=123456][oid=654321]", nonRandom);
+
+        traceId.reason("anotherReason");
+        nonRandom = traceId.subSequence(0, traceId.length() - 6);
+        Assert.assertEquals("Order.placeOrder:anotherReason[cid=123456][oid=654321]", nonRandom);
+    }
+
+    @Test
+    public void modifyKey() {
+        TraceId traceId = TraceId.create("Order", "placeOrder", "calcShipping")
+                .add("cid", 123456).add("oid", 654321);
+        String nonRandom = traceId.subSequence(0, traceId.length() - 6);
+        Assert.assertEquals("Order.placeOrder:calcShipping[cid=123456][oid=654321]", nonRandom);
+
+        traceId.add("cid", 654321);
+        nonRandom = traceId.subSequence(0, traceId.length() - 6);
+        Assert.assertEquals("Order.placeOrder:calcShipping[cid=654321][oid=654321]", nonRandom);
+    }
+
+    @Test
+    public void noKeys() {
+        String traceId = TraceId.create("Order", "placeOrder", "calcShipping").toString();
+        String nonRandom = traceId.substring(0, traceId.length() - 6);
+        Assert.assertEquals("Order.placeOrder:calcShipping_", nonRandom);
+    }
+
+    @Test
+    public void noKeys_noReason() {
+        String traceId = TraceId.create("Order", "placeOrder").toString();
+        String nonRandom = traceId.substring(0, traceId.length() - 6);
+        Assert.assertEquals("Order.placeOrder_", nonRandom);
     }
 
     @Test
