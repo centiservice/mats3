@@ -34,14 +34,15 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * An instance of this class acts as a bridge service between the synchronous world of e.g. a HTTP request, and the
  * asynchronous world of Mats. In a given project, you typically create a single instance of this class upon startup,
  * and employ it for all such scenarios. In short, in a HTTP service handler, you initialize a Mats flow using
- * {@link #futurizeNonessential(String, String, String, Class, Object) singletonFuturizer.futurizeNonessential(...)} (or
- * {@link #futurize(String, String, String, int, TimeUnit, Class, Object, InitiateLambda) futurize(...)} for full
+ * {@link #futurizeNonessential(CharSequence, String, String, Class, Object)
+ * singletonFuturizer.futurizeNonessential(...)} (or
+ * {@link #futurize(CharSequence, String, String, int, TimeUnit, Class, Object, InitiateLambda) futurize(...)} for full
  * configurability), specifying which Mats Endpoint to invoke and the request DTO instance, and then you get a
  * {@link CompletableFuture} in return. This future will complete once the invoked Mats Endpoint replies.
  * <p />
  * It is extremely important to understand that this is NOT how you compose multiple Mats Endpoints together! This is
  * ONLY supposed to be used when you are in a synchronous context (e.g. in a Servlet, or a Spring @RequestMapping), and
- * want to interact with the Mats fabric of services.
+ * want to interact with the Mats fabric of endpoints.
  * <p />
  * A question you should ask yourself, is how this works in a multi-node setup? For a Mats flow, it does not matter
  * which node a given stage of a MatsEndpoint is performed, as it is by design totally stateless wrt. the executing
@@ -232,9 +233,9 @@ public class MatsFuturizer implements AutoCloseable {
     /**
      * This exception is raised through the {@link CompletableFuture} if the timeout specified when getting the
      * {@link CompletableFuture} is reached (to get yourself a future, use one of the
-     * {@link #futurizeNonessential(String, String, String, Class, Object) futurizeXYZ(..)} methods). The exception is
-     * passed to the waiter on the future by {@link CompletableFuture#completeExceptionally(Throwable)}, where the
-     * consumer can pick it up with e.g. {@link CompletableFuture#exceptionally(Function)}.
+     * {@link #futurizeNonessential(CharSequence, String, String, Class, Object) futurizeXYZ(..)} methods). The
+     * exception is passed to the waiter on the future by {@link CompletableFuture#completeExceptionally(Throwable)},
+     * where the consumer can pick it up with e.g. {@link CompletableFuture#exceptionally(Function)}.
      */
     public static class MatsFuturizerTimeoutException extends RuntimeException {
         private final long initiationTimestamp;
@@ -263,7 +264,7 @@ public class MatsFuturizer implements AutoCloseable {
      * using.
      * <p/>
      * For a bit more explanation, please read JavaDoc of
-     * {@link #futurizeNonessential(String, String, String, Class, Object) futurizeInteractiveUnreliable(..)}
+     * {@link #futurizeNonessential(CharSequence, String, String, Class, Object) futurizeInteractiveUnreliable(..)}
      *
      * @param traceId
      *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(CharSequence)}
@@ -290,25 +291,25 @@ public class MatsFuturizer implements AutoCloseable {
      * @return a {@link CompletableFuture} which will be resolved with a {@link Reply}-instance that contains both some
      *         meta-data, and the {@link Reply#reply reply} from the requested endpoint.
      */
-    public <T> CompletableFuture<Reply<T>> futurize(String traceId, String from, String to,
+    public <T> CompletableFuture<Reply<T>> futurize(CharSequence traceId, String from, String to,
             int timeout, TimeUnit unit, Class<T> replyClass, Object request, InitiateLambda customInit) {
-        Promise<T> promise = _createPromise(traceId, from, to, replyClass, timeout, unit);
+        Promise<T> promise = _createPromise(traceId.toString(), from, to, replyClass, timeout, unit);
         _assertFuturizerRunning();
         _enqueuePromise(promise);
-        _sendRequestToFulfillPromise(from, to, traceId, request, customInit, promise);
+        _sendRequestToFulfillPromise(from, to, traceId.toString(), request, customInit, promise);
         return promise._future;
     }
 
     /**
      * Convenience-variant of the generic
-     * {@link #futurize(String, String, String, int, TimeUnit, Class, Object, InitiateLambda) futurize(..)} form, where
-     * the timeout is set to 2.5 minutes. To set interactive-, nonPersistent- or noAudit-flags, or to tack on any
+     * {@link #futurize(CharSequence, String, String, int, TimeUnit, Class, Object, InitiateLambda) futurize(..)} form,
+     * where the timeout is set to 2.5 minutes. To set interactive-, nonPersistent- or noAudit-flags, or to tack on any
      * {@link MatsInitiate#addBytes(String, byte[]) "sideloads"} to the outgoing message, use the "customInit"
      * parameter, which directly is the {@link InitiateLambda InitiateLambda} that the MatsFuturizer initiation is
      * using.
      * <p/>
      * For a bit more explanation, please read JavaDoc of
-     * {@link #futurizeNonessential(String, String, String, Class, Object) futurizeInteractiveUnreliable(..)}
+     * {@link #futurizeNonessential(CharSequence, String, String, Class, Object) futurizeInteractiveUnreliable(..)}
      *
      * @param traceId
      *            TraceId of the resulting Mats call flow, see {@link MatsInitiate#traceId(CharSequence)}
@@ -330,7 +331,7 @@ public class MatsFuturizer implements AutoCloseable {
      * @return a {@link CompletableFuture} which will be resolved with a {@link Reply}-instance that contains both some
      *         meta-data, and the {@link Reply#reply reply} from the requested endpoint.
      */
-    public <T> CompletableFuture<Reply<T>> futurize(String traceId, String from, String to, Class<T> replyClass,
+    public <T> CompletableFuture<Reply<T>> futurize(CharSequence traceId, String from, String to, Class<T> replyClass,
             Object request, InitiateLambda customInit) {
         return futurize(traceId, from, to, 150, TimeUnit.SECONDS, replyClass, request, customInit);
     }
@@ -394,10 +395,11 @@ public class MatsFuturizer implements AutoCloseable {
      * @return a {@link CompletableFuture} which will be resolved with a {@link Reply}-instance that contains both some
      *         meta-data, and the {@link Reply#reply reply} from the requested endpoint.
      */
-    public <T> CompletableFuture<Reply<T>> futurizeNonessential(String traceId, String from, String to,
+    public <T> CompletableFuture<Reply<T>> futurizeNonessential(CharSequence traceId, String from, String to,
             Class<T> replyClass, Object request) {
+        // Using 150 seconds (2.5 min) as default timeout, with 180 seconds (3 min) as TTL
         return futurize(traceId, from, to, 150, TimeUnit.SECONDS, replyClass, request,
-                msg -> msg.nonPersistent().interactive().noAudit());
+                msg -> msg.nonPersistent(180_000).interactive().noAudit());
     }
 
     /**
