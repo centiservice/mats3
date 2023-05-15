@@ -1,5 +1,7 @@
 package io.mats3.api_test.nestedinitiate;
 
+import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -9,13 +11,11 @@ import org.slf4j.Logger;
 
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
+import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
-import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.junit.Rule_Mats;
-
-import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE;
 
 /**
  * Tests the initiation within a stage functionality.
@@ -23,8 +23,8 @@ import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE;
  * FIVE Terminators are set up: One for the normal service return, two for the initiations that are done using the
  * service's context.initiate(...), plus one for an initiation done directly on the MatsFactory.getDefaultInitiator()
  * (which when running within a Mats Stage should take part in the Stage's transactional demarcation), plus one more for
- * an initiation done directly on a MatsFactory.getOrCreateInitiator("NON default") from within the Stage (NOT
- * recommended way to code!).
+ * an initiation done directly on a MatsFactory.getOrCreateInitiator(..) from within the Stage (NOT recommended way to
+ * code!).
  * <p/>
  * A single-stage service is set up - which initiates three new messages to the three extra Terminators (2 x initiations
  * on ProcessContext, and 1 initiation directly on the MatsFactory), and returns a result to the normal Terminator.
@@ -34,9 +34,9 @@ import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE;
  * <li>An initiator does a request to the service, setting replyTo(Terminator) - which should result in all FIVE
  * Terminators getting its message</li>
  * <li>An initiator does a request to the service, setting replyTo(Terminator), <b>BUT DIRECTS THE ENDPOINT TO THROW
- * after it has done all the in-stage initiations</b>. This shall result in the message to the ENDPOINT going to DLQ, and
- * all the In-stage initiated messages should NOT be sent - EXCEPT for the one using Non-Default Initiator, which do not
- * participate in the Stage-specific transactional demarcation.</li>
+ * after it has done all the in-stage initiations</b>. This shall result in the message to the ENDPOINT going to DLQ,
+ * and all the In-stage initiated messages should NOT be sent - EXCEPT for the one using Non-Default Initiator, which do
+ * not participate in the Stage-specific transactional demarcation.</li>
  * </ol>
  * <p>
  * ASCII-artsy, it looks like this:

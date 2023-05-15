@@ -224,10 +224,15 @@ public interface MatsInitiator extends Closeable {
      */
     interface MatsInitiate {
         /**
-         * Sets (or appends with a joining "|" in case of {@link ProcessContext#initiate(InitiateLambda) initiation
-         * within a stage}) the supplied <i>Trace Id</i>, which is solely used for logging and debugging purposes. It
-         * should be unique, at least to a degree where it is <u>very</u> unlikely that you will have two identical
-         * traceIds within a couple of years ("guaranteed globally unique through all time" is not relevant).
+         * Sets the supplied <i>Trace Id</i> (or appends with a joining "|" in case of
+         * {@link ProcessContext#initiate(InitiateLambda) initiation within a stage}, unless the first char is a "|"),
+         * which is solely used for logging and debugging purposes. It should be unique, at least to a degree where it
+         * is <u>very</u> unlikely that you will have two identical traceIds within a couple of years ("guaranteed
+         * globally unique through all time" is not relevant).
+         * <p />
+         * If the first character is a "|", it will be removed - in the case that
+         * {@link ProcessContext#initiate(InitiateLambda) initiation within a stage}, this denotes that the TraceId
+         * should not be prepended with the stage's TraceId.
          * <p />
          * Since this is very important when doing distributed and asynchronous architectures, it is mandatory.
          * <p />

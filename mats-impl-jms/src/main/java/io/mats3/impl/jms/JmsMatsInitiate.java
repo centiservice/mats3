@@ -161,14 +161,32 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
     @Override
     public MatsInitiate traceId(CharSequence traceId) {
         // :: Decide how to handle TraceId:
-        // 1. If within Stage, prefix with existing message's traceId
+        // 1. If within Stage, prefix with existing message's traceId (unless started with a pipe)
         // 2. If outside Stage, modify with any configured function
         // 3. Use as is.
 
+        // Start by getting String out of CharSequence
+        String traceIdString = traceId.toString();
+
+        // If first char is pipe, make note and chop it off.
+        boolean startsWithPipe = traceIdString.length() > 0 && traceIdString.charAt(0) == '|';
+        if (startsWithPipe) {
+            traceIdString = traceIdString.substring(1);
+        }
+
         // ?: Are we within a Stage?
         if (_existingMatsTrace != null) {
-            // -> Yes, so use prefixing
-            _traceId = _existingMatsTrace.getTraceId() + "|" + traceId;
+            // -> Yes, so use prefixing, unless started with pipe.
+
+            // ?: Did it start with pipe?
+            if (startsWithPipe) {
+                // -> Yes, started with pipe, so do not prefix with existing TraceId.
+                _traceId = traceIdString;
+            }
+            else {
+                // -> No, didn't start with pipe, so do existing-traceId prefixing (default).
+                _traceId = _existingMatsTrace.getTraceId() + "|" + traceIdString;
+            }
         }
         // ?: Do we have modifier function?
         else if (_parentFactory.getInitiateTraceIdModifier() != null) {
@@ -177,11 +195,11 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
             // (The MDC is set to the calculated traceId in bottom of this function)
             resetMdcTraceId();
             // Now apply the modifier to the incoming traceId.
-            _traceId = _parentFactory.getInitiateTraceIdModifier().apply(traceId.toString());
+            _traceId = _parentFactory.getInitiateTraceIdModifier().apply(traceIdString);
         }
         else {
             // -> No, neither within Stage, nor having modifier function, so use directly.
-            _traceId = traceId.toString();
+            _traceId = traceIdString;
         }
 
         // Also set this on the MDC so that we have it on log lines if it crashes within the initiation lambda
