@@ -169,22 +169,22 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         String traceIdString = traceId.toString();
 
         // If first char is pipe, make note and chop it off.
-        boolean startsWithPipe = traceIdString.length() > 0 && traceIdString.charAt(0) == '|';
-        if (startsWithPipe) {
+        boolean startsWithExclamation = traceIdString.length() > 0 && traceIdString.charAt(0) == '!';
+        if (startsWithExclamation) {
             traceIdString = traceIdString.substring(1);
         }
 
         // ?: Are we within a Stage?
         if (_existingMatsTrace != null) {
-            // -> Yes, so use prefixing, unless started with pipe.
+            // -> Yes, so use prefixing, unless started with exclamation.
 
-            // ?: Did it start with pipe?
-            if (startsWithPipe) {
-                // -> Yes, started with pipe, so do not prefix with existing TraceId.
+            // ?: Did it start with exclamation?
+            if (startsWithExclamation) {
+                // -> Yes, started with exclamation, so do not prefix with existing TraceId.
                 _traceId = traceIdString;
             }
             else {
-                // -> No, didn't start with pipe, so do existing-traceId prefixing (default).
+                // -> No, didn't start with exclamation, so do existing-traceId prefixing (default).
                 _traceId = _existingMatsTrace.getTraceId() + "|" + traceIdString;
             }
         }

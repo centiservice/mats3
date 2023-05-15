@@ -133,8 +133,9 @@ public class TraceId implements CharSequence {
     }
 
     /**
-     * Adds a "|" (pipe) character in front of the TraceId, which tells Mats that it should not prepend with the current
-     * TraceId in a Stage-Initiate setting - note that a leading pipe character will be removed in any case.
+     * Adds a "!" (exclamation) character in front of the TraceId, which tells Mats that it should not prepend with the
+     * current TraceId in a Stage-Initiate setting - note that a leading exclamation character will be removed in any
+     * case.
      */
     public TraceId preventPrepend() {
         _preventPrepend = true;
@@ -188,7 +189,7 @@ public class TraceId implements CharSequence {
         // "Calculate" the resulting TraceId.
         StringBuilder buf = new StringBuilder();
         if (_preventPrepend) {
-            buf.append('|');
+            buf.append('!');
         }
         if (_prefix != null) {
             buf.append(_prefix);

@@ -980,7 +980,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * of the {@link MatsStage} which this method is invoked within. Also, the traceId and from-endpointId is
          * predefined, but it is still recommended to set the traceId, as that will append the new string on the
          * existing traceId (joined with a "|" character), making log tracking (e.g. when debugging) better. Note:
-         * This prepending will not happen if the first char of the TraceId is a "|" character - which will be removed.
+         * This prepending will not happen if the first char of the TraceId is a "!" character - which will be removed.
          * <p/>
          * <b>IMPORTANT NOTICE!!</b> The {@link MatsInitiator} returned from {@link MatsFactory#getDefaultInitiator()
          * MatsFactory.getDefaultInitiator()} is "magic" in that when employed from within a Mats Stage's context

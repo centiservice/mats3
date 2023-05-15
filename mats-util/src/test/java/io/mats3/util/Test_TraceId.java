@@ -31,7 +31,7 @@ public class Test_TraceId {
                 .add("cid", 123456).add("oid", 654321)
                 .preventPrepend().toString();
         String nonRandom = traceId.substring(0, traceId.length() - 6);
-        Assert.assertEquals("|Order.placeOrder:calcShipping[cid=123456][oid=654321]", nonRandom);
+        Assert.assertEquals("!Order.placeOrder:calcShipping[cid=123456][oid=654321]", nonRandom);
     }
 
     @Test
