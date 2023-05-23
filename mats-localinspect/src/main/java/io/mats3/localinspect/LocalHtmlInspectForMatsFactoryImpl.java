@@ -29,7 +29,7 @@ import io.mats3.api.intercept.MatsInitiateInterceptor;
 import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor;
-import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.ProcessResult;
+import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StageProcessResult;
 import io.mats3.localinspect.LocalStatsMatsInterceptor.EndpointStats;
 import io.mats3.localinspect.LocalStatsMatsInterceptor.IncomingMessageRepresentation;
 import io.mats3.localinspect.LocalStatsMatsInterceptor.InitiatorStats;
@@ -715,18 +715,18 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
             out.append("<b>Total stage time:</b> " + formatStats(totExecSnapshot, false) + "<br/>\n");
 
             // :: ProcessingResults
-            SortedMap<ProcessResult, Long> processResultCounts = stageStats.getProcessResultCounts();
+            SortedMap<StageProcessResult, Long> processResultCounts = stageStats.getProcessResultCounts();
             if (processResultCounts.isEmpty()) {
                 out.append("<b>NO processing results!</b><br/>\n");
             }
             else {
                 out.append("<b>Processing results:</b> \n");
                 boolean first = true;
-                for (Entry<ProcessResult, Long> entry : processResultCounts.entrySet()) {
+                for (Entry<StageProcessResult, Long> entry : processResultCounts.entrySet()) {
                     out.append(first ? "" : ", ");
                     first = false;
-                    ProcessResult processResult = entry.getKey();
-                    out.append(formatInt(entry.getValue()) + " x " + formatMsgType(processResult));
+                    StageProcessResult stageProcessResult = entry.getKey();
+                    out.append(formatInt(entry.getValue()) + " x " + formatMsgType(stageProcessResult));
                 }
                 out.append("<br/>\n");
             }

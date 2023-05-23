@@ -45,7 +45,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.MatsStageInterceptOutgoingMes
 import io.mats3.api.intercept.MatsStageInterceptor.MatsStageInterceptUserLambda;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCommonContext;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext;
-import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.ProcessResult;
+import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StageProcessResult;
 import io.mats3.api.intercept.MatsStageInterceptor.StageInterceptOutgoingMessageContext;
 import io.mats3.api.intercept.MatsStageInterceptor.StageInterceptUserLambdaContext;
 import io.mats3.api.intercept.MatsStageInterceptor.StagePreprocessAndDeserializeErrorContext;
@@ -402,7 +402,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                     boolean preprocessOrDeserializeError = false;
                     Throwable throwableResult = null;
-                    ProcessResult throwableProcessResult = null;
+                    StageProcessResult throwableStageProcessResult = null;
 
                     @SuppressWarnings({ "unchecked", "rawtypes" })
                     JmsMatsProcessContext<R, S, Z>[] processContext = new JmsMatsProcessContext[1];
@@ -545,7 +545,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                             nanosTaken_totalEnvelopeSerAndComp[0], nanosTaken_totalMsgSysProdAndSend[0],
                                             null, processContext[0], nanosTaken_TotalStartReceiveToFinished,
                                             stageMessagesProduced, null, Collections.emptyList(),
-                                            stageMessagesProduced, ProcessResult.NEXT_DIRECT);
+                                            stageMessagesProduced, StageProcessResult.NEXT_DIRECT);
 
                                     // Change timestamps for "received" and sameHeightOutgoingTimestamp.
                                     nanos_Received[0] = System.nanoTime();
@@ -659,7 +659,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 + " potentially committed other resources, typically database.", e);
                         // Record for interceptor
                         throwableResult = exceptionForInterceptor;
-                        throwableProcessResult = ProcessResult.SYSTEM_EXCEPTION;
+                        throwableStageProcessResult = StageProcessResult.SYSTEM_EXCEPTION;
                         // Throw on (the original exception) to crash the JMS Session
                         throw e;
                     }
@@ -676,14 +676,14 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 + " problems talking with our backend, which is a JMS Broker.", e);
                         // Record for interceptor
                         throwableResult = exceptionForInterceptor;
-                        throwableProcessResult = ProcessResult.SYSTEM_EXCEPTION;
+                        throwableStageProcessResult = StageProcessResult.SYSTEM_EXCEPTION;
                         // Throw on (the original exception) to crash the JMS Session
                         throw e;
                     }
                     catch (JmsMatsUndeclaredCheckedExceptionRaisedRuntimeException e) {
                         // Just record this for interceptor - but take the cause, since that is the actual exception.
                         throwableResult = e.getCause();
-                        throwableProcessResult = ProcessResult.USER_EXCEPTION;
+                        throwableStageProcessResult = StageProcessResult.USER_EXCEPTION;
                         // .. This is handled by transaction manager (rollback), so we should just continue.
                         continue;
                     }
@@ -691,7 +691,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     catch (MatsRefuseMessageException | RuntimeException | AssertionError e) {
                         // Just record this for interceptor..
                         throwableResult = e;
-                        throwableProcessResult = ProcessResult.USER_EXCEPTION;
+                        throwableStageProcessResult = StageProcessResult.USER_EXCEPTION;
                         // .. These are handled by transaction manager (rollback), so we should just continue.
                         continue;
                     }
@@ -708,13 +708,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     + " handled by the Mats TransactionManager, or it will \"crash\" the JMS Session"
                                     + " and recreate the connectivity - look at log message above.");
                         }
-                        else if (throwableProcessResult == ProcessResult.USER_EXCEPTION) {
+                        else if (throwableStageProcessResult == StageProcessResult.USER_EXCEPTION) {
                             log.info(LOG_PREFIX + "Got [" + throwableResult.getClass().getName()
                                     + "] inside transactional message processing, which most probably originated from"
                                     + " user code. The situation shall have been handled by the Mats TransactionManager"
                                     + " (rollback). Looping to fetch next message.");
                         }
-                        else if (throwableProcessResult == ProcessResult.SYSTEM_EXCEPTION) {
+                        else if (throwableStageProcessResult == StageProcessResult.SYSTEM_EXCEPTION) {
                             log.info(LOG_PREFIX + "Got [" + throwableResult.getClass().getName()
                                     + "] inside transactional message processing which seems to come from the messaging"
                                     + " system - this probably means that the JMS Connectivity have gone to bits,"
@@ -768,12 +768,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         .filter(m -> m.getDispatchType() == DispatchType.STAGE_INIT)
                                         .collect(Collectors.toList());
 
-                                ProcessResult processResult;
+                                StageProcessResult stageProcessResult;
                                 // Throwable "overrides" any messages (they haven't been sent)
                                 // ?: Did we have a throwableProcessingResult?
-                                if (throwableProcessResult != null) {
+                                if (throwableStageProcessResult != null) {
                                     // -> Yes, and then this is it.
-                                    processResult = throwableProcessResult;
+                                    stageProcessResult = throwableStageProcessResult;
                                 }
                                 // ?: No throwable, did we get a "result message"?
                                 else if (resultMessage != null) {
@@ -781,13 +781,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     // ?: Which type is it?
                                     switch (resultMessage.getMessageType()) {
                                         case REPLY:
-                                            processResult = ProcessResult.REPLY;
+                                            stageProcessResult = StageProcessResult.REPLY;
                                             break;
                                         case NEXT:
-                                            processResult = ProcessResult.NEXT;
+                                            stageProcessResult = StageProcessResult.NEXT;
                                             break;
                                         case GOTO:
-                                            processResult = ProcessResult.GOTO;
+                                            stageProcessResult = StageProcessResult.GOTO;
                                             break;
                                         default:
                                             // This shalln't happen, see code above where we only pick out those three.
@@ -798,19 +798,19 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 // ?: No "result message", did we get any requests?
                                 else if (!requests.isEmpty()) {
                                     // -> Yes, request(s)
-                                    processResult = ProcessResult.REQUEST;
+                                    stageProcessResult = StageProcessResult.REQUEST;
                                 }
                                 else {
                                     // -> There was neither throwable, "result message", nor requests - thus there
                                     // was no process result. This is thus a Mats Flow stop.
-                                    processResult = ProcessResult.NONE;
+                                    stageProcessResult = StageProcessResult.NONE;
                                 }
 
                                 invokeStageCompletedInterceptors(internalExecutionContext, stageCommonContext[0],
                                         interceptorsForStage[0], nanosTaken_UserLambda[0],
                                         nanosTaken_totalEnvelopeSerAndComp[0], nanosTaken_totalMsgSysProdAndSend[0],
                                         throwableResult, processContext[0], nanosTaken_TotalStartReceiveToFinished,
-                                        stageMessagesProduced, resultMessage, requests, initiations, processResult);
+                                        stageMessagesProduced, resultMessage, requests, initiations, stageProcessResult);
                             }
                         }
                     }
@@ -1250,10 +1250,10 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             JmsMatsProcessContext<R, S, Z> processContext, long nanosTaken_TotalStartReceiveToFinished,
             List<? extends MatsSentOutgoingMessage> messagesToSend, MatsSentOutgoingMessage resultMessage,
             List<? extends MatsSentOutgoingMessage> requests, List<? extends MatsSentOutgoingMessage> initiations,
-            ProcessResult processResult) {
+            StageProcessResult stageProcessResult) {
         StageCompletedContextImpl stageCompletedContext = new StageCompletedContextImpl(
                 stageCommonContext,
-                processResult,
+                stageProcessResult,
                 nanosTaken_UserLambda,
                 processContext.getMeasurements(),
                 processContext.getTimingMeasurements(),
@@ -1271,7 +1271,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         // Go through interceptors backwards for this exit-style intercept stage
         for (int i = interceptorsForStage.size() - 1; i >= 0; i--) {
             try {
-                if (processResult == ProcessResult.NEXT_DIRECT) {
+                if (stageProcessResult == StageProcessResult.NEXT_DIRECT) {
                     interceptorsForStage.get(i).stageCompletedNextDirect(stageCompletedContext);
                 }
                 else {
@@ -1854,7 +1854,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
      * Implementation of {@link StageCompletedContext}.
      */
     private static class StageCompletedContextImpl extends StageBaseContextImpl implements StageCompletedContext {
-        private final ProcessResult _processResult;
+        private final StageProcessResult _stageProcessResult;
 
         private final long _userLambdaNanos;
         private final List<MatsMeasurement> _measurements;
@@ -1873,7 +1873,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
         public StageCompletedContextImpl(
                 StageCommonContext stageCommonContext,
-                ProcessResult processResult,
+                StageProcessResult stageProcessResult,
 
                 long userLambdaNanos,
                 List<MatsMeasurement> measurements,
@@ -1890,7 +1890,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 List<MatsSentOutgoingMessage> requests,
                 List<MatsSentOutgoingMessage> initiations) {
             super(stageCommonContext);
-            _processResult = processResult;
+            _stageProcessResult = stageProcessResult;
 
             _userLambdaNanos = userLambdaNanos;
             _measurements = measurements;
@@ -1909,8 +1909,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         @Override
-        public ProcessResult getProcessResult() {
-            return _processResult;
+        public StageProcessResult getStageProcessResult() {
+            return _stageProcessResult;
         }
 
         @Override

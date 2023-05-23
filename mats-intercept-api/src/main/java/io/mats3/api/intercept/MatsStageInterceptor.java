@@ -13,7 +13,7 @@ import io.mats3.api.intercept.MatsOutgoingMessage.DispatchType;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsEditableOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
-import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.ProcessResult;
+import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StageProcessResult;
 
 /**
  * <b>Implement this interface to intercept Stage Processing</b>, then register with
@@ -32,7 +32,7 @@ public interface MatsStageInterceptor {
      * be invoked. Conversely, this method will not be invoked in normal situations: If the normal user lambda throws,
      * or database or messaging system fails, this will result in the {@link StageCompletedContext} of the
      * {@link #stageCompleted(StageCompletedContext) stageCompleted(..)} call describe the problem and contain the
-     * cause, see {@link ProcessResult#USER_EXCEPTION} and {@link ProcessResult#SYSTEM_EXCEPTION}.
+     * cause, see {@link StageProcessResult#USER_EXCEPTION} and {@link StageProcessResult#SYSTEM_EXCEPTION}.
      * <p />
      * <b>Note: This should really never be triggered. It would be prudent to "notify the humans" if it ever did.</b>
      */
@@ -188,8 +188,8 @@ public interface MatsStageInterceptor {
 
         /**
          * Returns the timestamp when the initial stage of the Endpoint which this Stage belongs to, was entered. Use to
-         * calculate <i>total endpoint time</i>: If the result of a stage is {@link ProcessResult#REPLY} or
-         * {@link ProcessResult#NONE}, then the endpoint is finished, and the current time vs. endpoint entered
+         * calculate <i>total endpoint time</i>: If the result of a stage is {@link StageProcessResult#REPLY} or
+         * {@link StageProcessResult#NONE}, then the endpoint is finished, and the current time vs. endpoint entered
          * timestamp (this method) is the total time this endpoint used.
          * <p/>
          * <b>Note that this is susceptible to time skews between nodes: If the initial stage was run on node A, while
@@ -360,13 +360,13 @@ public interface MatsStageInterceptor {
          * @return The type of the main result of the Stage Processing - <b>which do not include any stage-initiations,
          *         look at {@link #getStageInitiatedMessages()} for that.</b>
          */
-        ProcessResult getProcessResult();
+        StageProcessResult getStageProcessResult();
 
         /**
          * The main result of the Stage Processing - if the stage also initiated messages, this will be known by
          * {@link #getStageInitiatedMessages()} being non-empty.
          */
-        enum ProcessResult {
+        enum StageProcessResult {
             REQUEST,
 
             REPLY,
@@ -403,14 +403,14 @@ public interface MatsStageInterceptor {
         }
 
         /**
-         * @return the Reply, Next or Goto outgoing message, it this was the {@link ProcessResult ProcessingResult}.
+         * @return the Reply, Next or Goto outgoing message, it this was the {@link StageProcessResult ProcessingResult}.
          *         Otherwise, <code>Optional.empty()</code>. The message will be of {@link DispatchType#STAGE
          *         DispatchType.STAGE}.
          */
         Optional<MatsSentOutgoingMessage> getStageResultMessage();
 
         /**
-         * @return the outgoing Requests, if this was the {@link ProcessResult}. Otherwise, an empty list. The messages
+         * @return the outgoing Requests, if this was the {@link StageProcessResult}. Otherwise, an empty list. The messages
          *         will be of {@link DispatchType#STAGE DispatchType.STAGE}.
          */
         List<MatsSentOutgoingMessage> getStageRequestMessages();

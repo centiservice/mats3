@@ -32,7 +32,7 @@ import io.mats3.api.intercept.MatsOutgoingMessage.MatsEditableOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor.MatsStageInterceptOutgoingMessages;
-import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.ProcessResult;
+import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StageProcessResult;
 
 /**
  * Interceptor that collects "local stats" for Initiators and Stages of Endpoints, which can be used in conjunction with
@@ -171,7 +171,7 @@ public class LocalStatsMatsInterceptor
 
         NavigableMap<IncomingMessageRepresentation, Long> getIncomingMessageCounts();
 
-        NavigableMap<ProcessResult, Long> getProcessResultCounts();
+        NavigableMap<StageProcessResult, Long> getProcessResultCounts();
 
         NavigableMap<OutgoingMessageRepresentation, Long> getOutgoingMessageCounts();
     }
@@ -470,12 +470,12 @@ public class LocalStatsMatsInterceptor
         stageStats.recordStageTotalExecutionTimeNanos(context.getTotalExecutionNanos());
 
         // :: COUNT PROCESS RESULTS:
-        ProcessResult processResult = context.getProcessResult();
-        stageStats.recordProcessResult(processResult);
+        StageProcessResult stageProcessResult = context.getStageProcessResult();
+        stageStats.recordProcessResult(stageProcessResult);
 
         // :: TIME ENDPOINT TOTAL PROCESSING:
         // ?: Is this a "finishing process result", i.e. either REPLY (service) or NONE (terminator/terminating flow)?
-        if (processResult == ProcessResult.REPLY || (processResult == ProcessResult.NONE)) {
+        if (stageProcessResult == StageProcessResult.REPLY || (stageProcessResult == StageProcessResult.NONE)) {
             // -> Yes, "exiting process result" - record endpoint total processing time
             // ?: Is this the initial stage?
             if (stageStats.isInitial()) {
@@ -714,7 +714,7 @@ public class LocalStatsMatsInterceptor
         private final AtomicInteger _numberOfOutgoingMessageCounts = new AtomicInteger(0);
         private final ConcurrentHashMap<OutgoingMessageRepresentation, AtomicLong> _outgoingMessageCounts = new ConcurrentHashMap<>();
 
-        private final ConcurrentHashMap<ProcessResult, AtomicLong> _processResultCounts = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<StageProcessResult, AtomicLong> _processResultCounts = new ConcurrentHashMap<>();
 
         public StageStatsImpl(int sampleReservoirSize, int index) {
             _spentQueueTimeNanos = new RingBuffer_Long(sampleReservoirSize);
@@ -761,8 +761,8 @@ public class LocalStatsMatsInterceptor
             count.incrementAndGet();
         }
 
-        private void recordProcessResult(ProcessResult processResult) {
-            AtomicLong count = _processResultCounts.computeIfAbsent(processResult, x -> new AtomicLong());
+        private void recordProcessResult(StageProcessResult stageProcessResult) {
+            AtomicLong count = _processResultCounts.computeIfAbsent(stageProcessResult, x -> new AtomicLong());
             count.incrementAndGet();
         }
 
@@ -829,8 +829,8 @@ public class LocalStatsMatsInterceptor
         }
 
         @Override
-        public NavigableMap<ProcessResult, Long> getProcessResultCounts() {
-            NavigableMap<ProcessResult, Long> ret = new TreeMap<>();
+        public NavigableMap<StageProcessResult, Long> getProcessResultCounts() {
+            NavigableMap<StageProcessResult, Long> ret = new TreeMap<>();
             _processResultCounts.forEach((k, v) -> ret.put(k, v.get()));
             return ret;
         }

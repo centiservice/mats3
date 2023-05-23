@@ -30,7 +30,7 @@ import io.mats3.api.intercept.MatsInterceptable.MatsMetricsInterceptor;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor;
-import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.ProcessResult;
+import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StageProcessResult;
 
 /**
  * A logging interceptor that writes loglines to two SLF4J loggers, including multiple pieces of information on the MDC
@@ -882,8 +882,8 @@ public class MatsMetricsLoggingInterceptor
         if (ctx.getInterceptContextAttribute(SUPPRESS_LOGGING_INTERCEPT_CONTEXT_ATTRIBUTE) == Boolean.TRUE) {
             // -> Yes, suppress - the "aggregate suppression stats" is already done in stageReceived(..).
             // HOWEVER, if this was a "bad result", then log anyway
-            boolean badResult = ctx.getProcessResult() == ProcessResult.USER_EXCEPTION
-                    || ctx.getProcessResult() == ProcessResult.SYSTEM_EXCEPTION;
+            boolean badResult = ctx.getStageProcessResult() == StageProcessResult.USER_EXCEPTION
+                    || ctx.getStageProcessResult() == StageProcessResult.SYSTEM_EXCEPTION;
             // ?: Was it not a bad result?
             if (!badResult) {
                 // -> Yes, not bad result (i.e. good!) - so suppress.
@@ -908,10 +908,10 @@ public class MatsMetricsLoggingInterceptor
         long extraNanosBreakdown = ctx.getTotalPreprocessAndDeserializeNanos();
         completedMDC.put(MDC_MATS_EXEC_TIME_TOTAL_PREPROC_AND_DESERIAL, totalPreprocessAndDeserializeNanosString);
 
-        completedMDC.put(MDC_MATS_PROCESS_RESULT, ctx.getProcessResult().toString());
+        completedMDC.put(MDC_MATS_PROCESS_RESULT, ctx.getStageProcessResult().toString());
 
         // ?: Has the endpoint completed with this stage?
-        if ((ctx.getProcessResult() == ProcessResult.REPLY) || (ctx.getProcessResult() == ProcessResult.NONE)) {
+        if ((ctx.getStageProcessResult() == StageProcessResult.REPLY) || (ctx.getStageProcessResult() == StageProcessResult.NONE)) {
             // -> Yes, either it REPLYed, or it didn't send any outgoing message (as if a Terminator)
             // This means that the Mats Endpoint has completed.
             String totalEndpointTimeString = "0";
@@ -926,7 +926,7 @@ public class MatsMetricsLoggingInterceptor
 
         // ?: Has the flow completed with this stage?
         DetachedProcessContext processContext = ctx.getProcessContext();
-        if (ctx.getProcessResult() == ProcessResult.NONE) {
+        if (ctx.getStageProcessResult() == StageProcessResult.NONE) {
             // -> Yes, there was no outgoing flow message (REQUEST,REPLY,NEXT,GOTO)
             // This means the Mats Flow has completed
             long initiationTimestamp = processContext.getInitiatingTimestamp().toEpochMilli();
@@ -948,7 +948,7 @@ public class MatsMetricsLoggingInterceptor
         boolean interactive = processContext.isInteractive();
 
         commonStageAndInitiateCompleted(ctx, matsVersion, stageId, initiatingAppName, initiatorId, interactive,
-                " with result " + ctx.getProcessResult(), log_stage, outgoingMessages, messageSenderName,
+                " with result " + ctx.getStageProcessResult(), log_stage, outgoingMessages, messageSenderName,
                 extraBreakdown, extraNanosBreakdown, completedMDC);
     }
 
