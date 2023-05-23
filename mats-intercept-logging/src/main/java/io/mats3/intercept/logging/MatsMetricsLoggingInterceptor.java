@@ -74,11 +74,11 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <ul>
  * <li><b>{@link #MDC_MATS_INITIATE_COMPLETED "mats.InitiateCompleted"}</b>: Present <i>on a single logline</i> per
  * completed initiation - <i>can be used to count initiations</i>. The value is same as
- * {@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"}, see Metrics below. Assuming each initiation produces one
- * message, and hence one flow, this count should be identical to the count of {@link #MDC_MATS_FLOW_COMPLETED}.
+ * {@link #MDC_MATS_EXEC_TIME_TOTAL "mats.exec.Total.ms"}, see Metrics below. <i>(Assuming each initiation produces
+ * one message, and hence one flow, this count should be identical to the count of {@link #MDC_MATS_FLOW_COMPLETED}.
  * However, an initiation can produce multiple messages (or zero), as described in
- * {@link #MDC_MATS_COMPLETE_QUANTITY_OUT}, thus if you sum the quantity value of lines that have this property set, the
- * result should actually be identical to flows completed.</li>
+ * {@link #MDC_MATS_EXEC_QUANTITY_OUT}, thus if you sum the quantity value of lines that have this property set, the
+ * result should actually be identical to flows completed.)</i></li>
  * <li><b>{@link #MDC_INIT_OR_STAGE_ID "mats.InitOrStageId"}</b>: The <i>initiatorId</i> ("fromId") from the first
  * (typically sole) message in an initiation. It should be common that all messages in a single initiation have the same
  * initiatorId. If there are no sent messages, the value for an initiation will be
@@ -100,40 +100,40 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <ul>
  * <li><b>{@link #MDC_MATS_VERSION "mats.Version"}</b>: Mats implementation version, as gotten by
  * {@link FactoryConfig#getMatsImplementationVersion()}.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"}</b>: Total time taken for the initiation to
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_TOTAL "mats.exec.Total.ms"}</b>: Total time taken for the initiation to
  * complete - including both user code and all system code including commits. The same value is present on
  * {@link #MDC_MATS_INITIATE_COMPLETED "mats.InitiateCompleted"}, see above.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Part of total time taken for the
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Part of total time taken for the
  * actual user lambda, including e.g. any external IO like DB, but excluding all system code, in particular message
  * creation, and commits.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_OUT "mats.exec.Out.ms"}</b>: Part of total time taken for the creation and
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_OUT "mats.exec.Out.ms"}</b>: Part of total time taken for the creation and
  * serialization of Mats messages, and production <i>and sending</i> of "message system messages" (e.g. creating and
  * populating JMS Message plus <code>jmsProducer.send(..)</code> for the JMS implementation).</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Number of messages sent in this
+ * <li><b>{@link #MDC_MATS_EXEC_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Number of messages sent in this
  * initiation. Should most often be 1, but can be multiple, and also zero.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE "mats.exec.Out.TotalWire.bytes"}</b>: The sum of
+ * <li><b>{@link #MDC_MATS_EXEC_SIZE_OUT_TOTAL_WIRE "mats.exec.Out.TotalWire.bytes"}</b>: The sum of
  * {@link #MDC_MATS_OUT_SIZE_TOTAL_WIRE} for all messages sent in this initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Part of total time taken for committing
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Part of total time taken for committing
  * DB.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Part of total time taken for
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_MSGSYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Part of total time taken for
  * committing the message system (e.g. <code>jmsSession.commit()</code> for the JMS implementation)</li>
  * </ul>
  * <b>User metrics:</b> Furthermore, any metrics (measurements and timings) set from within an initiation or stage will
  * be available as separate log lines, the metric being set on the MDC. The MDC-key for timings will be
- * <code>{@link #MDC_MATS_COMPLETE_OPS_TIMING_PREFIX "mats.exec.ops.time."}+{metricId}+".ms"</code> and for measurements
- * <code>{@link #MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX "mats.exec.ops.measure."}+{metricId} + '.' + {baseUnit}</code>. If
+ * <code>{@link #MDC_MATS_EXEC_OPS_TIMING_PREFIX "mats.exec.ops.time."}+{metricId}+".ms"</code> and for measurements
+ * <code>{@link #MDC_MATS_EXEC_OPS_MEASURE_PREFIX "mats.exec.ops.measure."}+{metricId} + '.' + {baseUnit}</code>. If
  * labels/tags are set on a metric, the MDC-key will be <code>{metric MDC-key} + ".tag." + {labelKey}</code>. The name
- * of the constructed metric MDC-key is made available as value of the MDC-key {@link #MDC_MATS_COMPLETE_OPS_KEYNAME
+ * of the constructed metric MDC-key is made available as value of the MDC-key {@link #MDC_MATS_EXEC_OPS_KEYNAME
  * "mats.exec.ops.key"}, this so that the metrics keys employed can be found more easily by searching for this static
  * key (Elastic have no easy way to find key names in an index using the query language itself). The description of the
- * metric is available under the MDC-key {@link #MDC_MATS_COMPLETE_OPS_DESCRIPTION "mats.exec.ops.description"}.<br/>
+ * metric is available under the MDC-key {@link #MDC_MATS_EXEC_OPS_DESCRIPTION "mats.exec.ops.description"}.<br/>
  * <br/>
  *
  * <h2>MDC Properties for Message Received:</h2>
  * <ul>
  * <li><b>{@link #MDC_MATS_MESSAGE_RECEIVED "mats.MessageReceived"}</b>: Present <i>on a single logline</i> per received
- * message - <i>can be used to count received messages</i>. This count should be identical to the count of
- * {@link #MDC_MATS_STAGE_COMPLETED}. The value is the same as {@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL
+ * message - <i>can be used to count received messages</i>. <i>(This count should be identical to the count of
+ * {@link #MDC_MATS_STAGE_COMPLETED})</i>. The value is the same as {@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL
  * "mats.in.TotalPreprocDeserial.ms"}, see Metrics below.</li>
  * <li><code><b>"mats.StageId"</b></code>: Always set on the Processor threads for a stage, so any logline output inside
  * a Mats stage will have this set.</li>
@@ -213,8 +213,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * <h2>MDC Properties for Stage Completed:</h2> Notice: Stage Completed is rather similar to Initiate Completed.
  * <ul>
  * <li><b>{@link #MDC_MATS_STAGE_COMPLETED "mats.StageCompleted"}</b>: Present on a single logline per completed stage -
- * <i>can be used to count stage processings</i>. This count should be identical to the count of
- * {@link #MDC_MATS_MESSAGE_RECEIVED}. The value is same as {@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"},
+ * <i>can be used to count stage processings</i>. <i>(This count should be identical to the count of
+ * {@link #MDC_MATS_MESSAGE_RECEIVED}.)</i> The value is same as {@link #MDC_MATS_EXEC_TIME_TOTAL "mats.exec.Total.ms"},
  * see Metrics below.</li>
  * <li><code><b>"mats.StageId"</b></code>: Always set on the Processor threads for a stage, so any logline output inside
  * a Mats stage will have this set.</li>
@@ -235,20 +235,20 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.Process
  * metrics for the reception of a message):
  * <ul>
  * <li><b>{@link #MDC_MATS_VERSION "mats.Version"}</b>: Same as for initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL "mats.exec.Total.ms"}</b>: Total time taken for the stage to complete -
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_TOTAL "mats.exec.Total.ms"}</b>: Total time taken for the stage to complete -
  * including both user code and all system code including commits. The same value is present on
  * {@link #MDC_MATS_STAGE_COMPLETED "mats.StageCompleted"}, see above.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.exec.TotalPreprocDeserial.ms"}</b>: Part of
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.exec.TotalPreprocDeserial.ms"}</b>: Part of
  * the total time taken for the preprocessing and deserialization of the incoming message, same as the message received
  * logline's {@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.in.TotalPreprocDeserial.ms"}, as that piece is
  * also part of the stage processing.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Same as for initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_OUT "mats.exec.Out.ms"}</b>: Same as for initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Same as for initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE "mats.exec.Out.TotalWire.bytes"}</b>: Same as for
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Same as for initiation.</li>
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_OUT "mats.exec.Out.ms"}</b>: Same as for initiation.</li>
+ * <li><b>{@link #MDC_MATS_EXEC_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Same as for initiation.</li>
+ * <li><b>{@link #MDC_MATS_EXEC_SIZE_OUT_TOTAL_WIRE "mats.exec.Out.TotalWire.bytes"}</b>: Same as for
  * initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Same as for initiation.</li>
- * <li><b>{@link #MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Same as for initiation</li>
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Same as for initiation.</li>
+ * <li><b>{@link #MDC_MATS_EXEC_TIME_MSGSYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Same as for initiation</li>
  * </ul>
  * <b>User metrics:</b> Furthermore, any metrics (measurements and timings) set from an initiation or stage will be
  * available as separate log lines - same as for initiations.<br/>
@@ -400,18 +400,18 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_INIT_OR_STAGE_ID = "mats.InitOrStageId";
 
     // ... Metrics:
-    public static final String MDC_MATS_COMPLETE_TIME_TOTAL = "mats.exec.Total.ms";
-    public static final String MDC_MATS_COMPLETE_TIME_USER_LAMBDA = "mats.exec.UserLambda.ms";
-    public static final String MDC_MATS_COMPLETE_TIME_OUT = "mats.exec.Out.ms";
-    public static final String MDC_MATS_COMPLETE_QUANTITY_OUT = "mats.exec.Out.quantity";
-    public static final String MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE = "mats.exec.Out.TotalWire.bytes";
-    public static final String MDC_MATS_COMPLETE_TIME_DB_COMMIT = "mats.exec.DbCommit.ms";
-    public static final String MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT = "mats.exec.MsgSysCommit.ms";
+    public static final String MDC_MATS_EXEC_TIME_TOTAL = "mats.exec.Total.ms";
+    public static final String MDC_MATS_EXEC_TIME_USER_LAMBDA = "mats.exec.UserLambda.ms";
+    public static final String MDC_MATS_EXEC_TIME_OUT = "mats.exec.Out.ms";
+    public static final String MDC_MATS_EXEC_QUANTITY_OUT = "mats.exec.Out.quantity";
+    public static final String MDC_MATS_EXEC_SIZE_OUT_TOTAL_WIRE = "mats.exec.Out.TotalWire.bytes";
+    public static final String MDC_MATS_EXEC_TIME_DB_COMMIT = "mats.exec.DbCommit.ms";
+    public static final String MDC_MATS_EXEC_TIME_MSGSYS_COMMIT = "mats.exec.MsgSysCommit.ms";
 
-    public static final String MDC_MATS_COMPLETE_OPS_TIMING_PREFIX = "mats.exec.ops.time.";
-    public static final String MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX = "mats.exec.ops.measure.";
-    public static final String MDC_MATS_COMPLETE_OPS_KEYNAME = "mats.exec.ops.key";
-    public static final String MDC_MATS_COMPLETE_OPS_DESCRIPTION = "mats.exec.ops.description";
+    public static final String MDC_MATS_EXEC_OPS_TIMING_PREFIX = "mats.exec.ops.time.";
+    public static final String MDC_MATS_EXEC_OPS_MEASURE_PREFIX = "mats.exec.ops.measure.";
+    public static final String MDC_MATS_EXEC_OPS_KEYNAME = "mats.exec.ops.key";
+    public static final String MDC_MATS_EXEC_OPS_DESCRIPTION = "mats.exec.ops.description";
 
     // ============================================================================================================
     // ===== For Initiate Completed (..in addition to "COMMON init/stage" above):
@@ -420,7 +420,8 @@ public class MatsMetricsLoggingInterceptor
     // MDC_MATS_CALL_NO = "mats.CallNo" // The Call Number, at 0 for initiations.
     // MDC_TRACE_ID = "traceId" // Set as soon as the user code sets it on the initialization.
 
-    // 'true' on a single logline per completed initiation:
+    // Set on a single logline per completed initiation, value is the number of millis taken
+    // (same value as MDC_MATS_EXEC_TIME_TOTAL)
     public static final String MDC_MATS_INITIATE_COMPLETED = "mats.InitiateCompleted";
 
     // ============================================================================================================
@@ -462,42 +463,48 @@ public class MatsMetricsLoggingInterceptor
     // ============================================================================================================
     // ===== For Stage Completed (..in addition to "COMMON init/stage" above):
     // !!! Note that these MDCs are already set by JmsMats core: !!!
-    // MDC_MATS_STAGE = "mats.Stage"; // 'true' on Stage Processor threads (set fixed on the consumer thread)
-    // MDC_MATS_STAGE_ID = "mats.StageId";
-    // MDC_MATS_IN_MESSAGE_SYSTEM_ID = "mats.in.MsgSysId";
-    // MDC_MATS_CALL_NO = "mats.CallNo" // The Call Number, first stage of flow is 1, then increases with calls.
     // MDC_TRACE_ID = "traceId"
+    // MDC_MATS_STAGE = "mats.Stage"; // 'true' on Stage Processor threads (set fixed on the consumer thread)
+    // MDC_MATS_STAGE_ID = "mats.StageId"; // set fixed on the consumer thread
+    // MDC_MATS_STAGE_INDEX = "mats.StageIndex" // set fixed on the consumer thread
+    // MDC_MATS_IN_MESSAGE_SYSTEM_ID = "mats.in.MsgSysId";
+    // MDC_MATS_CALL_NUMBER = "mats.CallNo" // The Call Number, init=0, first_stage=1, then increases with calls.
 
-    // 'true' on a single logline per completed stage
+    // Set on a single logline per completed stage, value is the number of millis taken
+    // (same value as MDC_MATS_EXEC_TIME_TOTAL)
     public static final String MDC_MATS_STAGE_COMPLETED = "mats.StageCompleted";
     // Set on a single logline per completed
     public static final String MDC_MATS_PROCESS_RESULT = "mats.ProcessResult";
 
     // ..... specific Stage complete metric - along with the other ".exec." from the COMMON Init/Stage Completed
     // Note that this is the same timing as the MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL
-    public static final String MDC_MATS_COMPLETE_TIME_TOTAL_PREPROC_AND_DESERIAL = "mats.exec.TotalPreprocDeserial.ms";
+    public static final String MDC_MATS_EXEC_TIME_TOTAL_PREPROC_AND_DESERIAL = "mats.exec.TotalPreprocDeserial.ms";
 
     // ============================================================================================================
     // ===== For Endpoint Completed - i.e. a stage of ep that either REPLY or stop the flow (no REQ,NEXT,GOTO)
-    // !! NOTE: These are /in addition/ to the Stage Completed above, e.g. MDC_MATS_COMPLETE_PROCESS_RESULT
+    // !! NOTE: These are /in addition/ to the Stage Completed above, e.g. MDC_MATS_EXEC_PROCESS_RESULT
     // !! NOTE: This will also be set on a Terminator, but that will only be for the Terminator endpoint itself, not
     // for initiator-to-terminator timings.
 
-    // 'true' on a single logline per completed endpoint - it will be on the Stage Completed log lines.
+    // Set on a single logline per completed endpoint - it will be on the Stage Completed log lines.
+    // value is the number of millis taken.
     public static final String MDC_MATS_ENDPOINT_COMPLETED = "mats.EndpointCompleted";
 
     // ..... specific Endpoint Completed metric. Notice that metric this is susceptible to time skews between nodes.
+    // DEPRECATED - use the above. TODO: Remove in 2024.
     public static final String MDC_MATS_ENDPOINT_COMPLETE_TIME_TOTAL = "mats.endpoint.Total.ms";
 
     // ============================================================================================================
     // ===== For Flow Completed - i.e. a stage in a flow that does not send any outgoing flow msg (REPLY,REQ,NEXT,GOTO)
     // ===== (Typically at a Terminator, i.e. endpoint that have void as outgoing message)
-    // !! NOTE: These are /in addition/ to the Stage Completed above, e.g. MDC_MATS_COMPLETE_PROCESS_RESULT
+    // !! NOTE: These are /in addition/ to the Stage Completed above, e.g. MDC_MATS_EXEC_PROCESS_RESULT
 
-    // 'true' on a single logline per completed flow - it will be on the Stage Completed log lines.
+    // Set on a single logline per completed mats flow - it will be on the Stage Completed log lines.
+    // value is the number of millis taken.
     public static final String MDC_MATS_FLOW_COMPLETED = "mats.FlowCompleted";
 
     // ..... specific Flow Completed metric. Notice that this metric is susceptible to time skews between nodes.
+    // DEPRECATED - use the above. TODO: Remove in 2024.
     public static final String MDC_MATS_FLOW_COMPLETE_TIME_TOTAL = "mats.flow.Total.ms";
 
     // ============================================================================================================
@@ -899,7 +906,7 @@ public class MatsMetricsLoggingInterceptor
         String totalPreprocessAndDeserializeNanosString = msS(ctx.getTotalPreprocessAndDeserializeNanos());
         String extraBreakdown = " totPreprocAndDeserial:[" + totalPreprocessAndDeserializeNanosString + " ms],";
         long extraNanosBreakdown = ctx.getTotalPreprocessAndDeserializeNanos();
-        completedMDC.put(MDC_MATS_COMPLETE_TIME_TOTAL_PREPROC_AND_DESERIAL, totalPreprocessAndDeserializeNanosString);
+        completedMDC.put(MDC_MATS_EXEC_TIME_TOTAL_PREPROC_AND_DESERIAL, totalPreprocessAndDeserializeNanosString);
 
         completedMDC.put(MDC_MATS_PROCESS_RESULT, ctx.getProcessResult().toString());
 
@@ -955,7 +962,7 @@ public class MatsMetricsLoggingInterceptor
             String measure = msS(measurement.getNanos());
             String baseUnit = "ms";
 
-            outputMeasurementLogline(logger, "TIMING ", MDC_MATS_COMPLETE_OPS_TIMING_PREFIX, metricId,
+            outputMeasurementLogline(logger, "TIMING ", MDC_MATS_EXEC_OPS_TIMING_PREFIX, metricId,
                     baseUnit, measure, metricDescription, labelKeyValue);
         }
         // :: Measurements
@@ -967,7 +974,7 @@ public class MatsMetricsLoggingInterceptor
             String measure = Double.toString(measurement.getMeasure());
             String baseUnit = measurement.getBaseUnit();
 
-            outputMeasurementLogline(logger, "MEASURE ", MDC_MATS_COMPLETE_OPS_MEASURE_PREFIX, metricId,
+            outputMeasurementLogline(logger, "MEASURE ", MDC_MATS_EXEC_OPS_MEASURE_PREFIX, metricId,
                     baseUnit, measure, metricDescription, labelKeyValue);
         }
     }
@@ -980,8 +987,8 @@ public class MatsMetricsLoggingInterceptor
         String mdcKey = mdcPrefix + metricId + "." + baseUnit;
         try {
             MDC.put(mdcKey, measure);
-            MDC.put(MDC_MATS_COMPLETE_OPS_KEYNAME, mdcKey);
-            MDC.put(MDC_MATS_COMPLETE_OPS_DESCRIPTION, metricDescription);
+            MDC.put(MDC_MATS_EXEC_OPS_KEYNAME, mdcKey);
+            MDC.put(MDC_MATS_EXEC_OPS_DESCRIPTION, metricDescription);
 
             StringBuilder buf = new StringBuilder(128);
             buf.append(LOG_PREFIX)
@@ -1009,8 +1016,8 @@ public class MatsMetricsLoggingInterceptor
         }
         finally {
             MDC.remove(mdcKey);
-            MDC.remove(MDC_MATS_COMPLETE_OPS_KEYNAME);
-            MDC.remove(MDC_MATS_COMPLETE_OPS_DESCRIPTION);
+            MDC.remove(MDC_MATS_EXEC_OPS_KEYNAME);
+            MDC.remove(MDC_MATS_EXEC_OPS_DESCRIPTION);
             if (mdcTagKeysToClear != null) {
                 for (String mdcLabelKey : mdcTagKeysToClear) {
                     MDC.remove(mdcLabelKey);
@@ -1147,13 +1154,13 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_INIT_ID, initiatorId);
             MDC.put(MDC_MATS_INTERACTIVE, Boolean.valueOf(interactive).toString());
 
-            MDC.put(MDC_MATS_COMPLETE_TIME_TOTAL, msS(ctx.getTotalExecutionNanos()));
-            MDC.put(MDC_MATS_COMPLETE_TIME_USER_LAMBDA, msS(nanosTaken_UserLambdaAlone));
-            MDC.put(MDC_MATS_COMPLETE_TIME_OUT, msS(nanosTaken_SumMessageOutHandling));
-            MDC.put(MDC_MATS_COMPLETE_QUANTITY_OUT, String.valueOf(outgoingMessages.size()));
-            MDC.put(MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE, String.valueOf(totalWireSize));
-            MDC.put(MDC_MATS_COMPLETE_TIME_DB_COMMIT, msS(ctx.getDbCommitNanos()));
-            MDC.put(MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT, msS(ctx.getMessageSystemCommitNanos()));
+            MDC.put(MDC_MATS_EXEC_TIME_TOTAL, msS(ctx.getTotalExecutionNanos()));
+            MDC.put(MDC_MATS_EXEC_TIME_USER_LAMBDA, msS(nanosTaken_UserLambdaAlone));
+            MDC.put(MDC_MATS_EXEC_TIME_OUT, msS(nanosTaken_SumMessageOutHandling));
+            MDC.put(MDC_MATS_EXEC_QUANTITY_OUT, String.valueOf(outgoingMessages.size()));
+            MDC.put(MDC_MATS_EXEC_SIZE_OUT_TOTAL_WIRE, String.valueOf(totalWireSize));
+            MDC.put(MDC_MATS_EXEC_TIME_DB_COMMIT, msS(ctx.getDbCommitNanos()));
+            MDC.put(MDC_MATS_EXEC_TIME_MSGSYS_COMMIT, msS(ctx.getMessageSystemCommitNanos()));
 
             String msg = logPrefix
                     + ", " + numMessagesText
@@ -1189,13 +1196,13 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_INIT_ID);
             MDC.remove(MDC_MATS_INTERACTIVE);
 
-            MDC.remove(MDC_MATS_COMPLETE_TIME_TOTAL);
-            MDC.remove(MDC_MATS_COMPLETE_TIME_USER_LAMBDA);
-            MDC.remove(MDC_MATS_COMPLETE_TIME_OUT);
-            MDC.remove(MDC_MATS_COMPLETE_QUANTITY_OUT);
-            MDC.remove(MDC_MATS_COMPLETE_SIZE_OUT_TOTAL_WIRE);
-            MDC.remove(MDC_MATS_COMPLETE_TIME_DB_COMMIT);
-            MDC.remove(MDC_MATS_COMPLETE_TIME_MSGSYS_COMMIT);
+            MDC.remove(MDC_MATS_EXEC_TIME_TOTAL);
+            MDC.remove(MDC_MATS_EXEC_TIME_USER_LAMBDA);
+            MDC.remove(MDC_MATS_EXEC_TIME_OUT);
+            MDC.remove(MDC_MATS_EXEC_QUANTITY_OUT);
+            MDC.remove(MDC_MATS_EXEC_SIZE_OUT_TOTAL_WIRE);
+            MDC.remove(MDC_MATS_EXEC_TIME_DB_COMMIT);
+            MDC.remove(MDC_MATS_EXEC_TIME_MSGSYS_COMMIT);
         }
     }
 
