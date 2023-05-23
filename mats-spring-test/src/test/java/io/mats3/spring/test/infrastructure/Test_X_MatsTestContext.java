@@ -44,7 +44,7 @@ public class Test_X_MatsTestContext {
         CompletableFuture<Reply<SpringTestDataTO>> replyFuture = _matsFuturizer
                 .futurizeNonessential("traceId", "FromTest", "Test.endpoint", SpringTestDataTO.class, msg);
 
-        SpringTestDataTO reply = replyFuture.get(2, TimeUnit.SECONDS).reply;
+        SpringTestDataTO reply = replyFuture.get(2, TimeUnit.SECONDS).get();
 
         Assert.assertEquals(msg.number * 2, reply.number, 0d);
         Assert.assertEquals(msg.string + msg.string, reply.string);

@@ -93,9 +93,9 @@ public class Test_MatsFuturizer_WhichThread {
         latch.await(5, TimeUnit.SECONDS);
 
         log.info("The future was completed on thread [" + completedOnThreadName[0] + "} - the latency was "
-                + (System.currentTimeMillis() - reply[0].initiationTimestamp) + " milliseconds");
+                + ((System.nanoTime() - reply[0].getInitiationNanos()) / 1_000_000d) + " milliseconds");
 
-        Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), reply[0].reply);
+        Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), reply[0].get());
 
         // The "thenAccept" should have been executed on the MatsFuturizer thread pool.
         Assert.assertTrue("Completed on thread [" + completedOnThreadName[0]
@@ -124,7 +124,7 @@ public class Test_MatsFuturizer_WhichThread {
         CompletableFuture<DataTO> completeFuture = future.thenApply(r -> {
             completedOnThreadName[0] = Thread.currentThread().getName();
             reply[0] = r;
-            DataTO in = r.reply;
+            DataTO in = r.get();
             return new DataTO(in.number * 3, in.string + ":FromThenApply");
         });
         DataTO replyTo = completeFuture.get(5, TimeUnit.SECONDS);
@@ -132,7 +132,7 @@ public class Test_MatsFuturizer_WhichThread {
         // :: ASSERT
 
         log.info("The future was completed on thread [" + completedOnThreadName[0] + "} - the latency was "
-                + (System.currentTimeMillis() - reply[0].initiationTimestamp) + " milliseconds");
+                + ((System.nanoTime() - reply[0].getInitiationNanos()) / 1_000_000d) + " milliseconds");
 
         Assert.assertEquals(new DataTO(dto.number * 2 * 3, dto.string + ":FromService:FromThenApply"), replyTo);
 
@@ -178,13 +178,13 @@ public class Test_MatsFuturizer_WhichThread {
         // :: ASSERT
 
         log.info("The future was completed on thread [" + completedOnThreadName[0] + "} - the latency was "
-                + (System.currentTimeMillis() - reply[0].initiationTimestamp) + " milliseconds");
+                + ((System.nanoTime() - reply[0].getInitiationNanos()) / 1_000_000d) + " milliseconds");
 
         Assert.assertNotNull(thrown);
 
         Assert.assertEquals(IllegalStateException.class, thrown.getCause().getClass());
 
-        Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), reply[0].reply);
+        Assert.assertEquals(new DataTO(dto.number * 2, dto.string + ":FromService"), reply[0].get());
 
         // The "thenAccept" should have been executed on the MatsFuturizer thread pool.
         Assert.assertTrue("Completed on thread [" + completedOnThreadName[0]

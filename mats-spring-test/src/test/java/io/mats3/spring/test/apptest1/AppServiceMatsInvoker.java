@@ -30,7 +30,7 @@ public class AppServiceMatsInvoker {
                 new SpringTestDataTO(number, string));
 
         try {
-            return completableFuture.get(10, TimeUnit.SECONDS).reply;
+            return completableFuture.get(10, TimeUnit.SECONDS).get();
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
             throw new RuntimeException("Couldn't get result", e);

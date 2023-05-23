@@ -32,54 +32,89 @@ import io.mats3.MatsInitiator.MatsInitiate;
 
 /**
  * An instance of this class acts as a bridge service between the synchronous world of e.g. a HTTP request, and the
- * asynchronous world of Mats. In a given project, you typically create a single instance of this class upon startup,
+ * asynchronous world of Mats. In a given project, you typically create a singleton instance of this class upon startup,
  * and employ it for all such scenarios. In short, in a HTTP service handler, you initialize a Mats flow using
  * {@link #futurizeNonessential(CharSequence, String, String, Class, Object)
  * singletonFuturizer.futurizeNonessential(...)} (or
  * {@link #futurize(CharSequence, String, String, int, TimeUnit, Class, Object, InitiateLambda) futurize(...)} for full
  * configurability), specifying which Mats Endpoint to invoke and the request DTO instance, and then you get a
  * {@link CompletableFuture} in return. This future will complete once the invoked Mats Endpoint replies.
- * <p />
+ * <p/>
  * It is extremely important to understand that this is NOT how you compose multiple Mats Endpoints together! This is
- * ONLY supposed to be used when you are in a synchronous context (e.g. in a Servlet, or a Spring @RequestMapping), and
- * want to interact with the Mats fabric of endpoints.
- * <p />
- * A question you should ask yourself, is how this works in a multi-node setup? For a Mats flow, it does not matter
- * which node a given stage of a MatsEndpoint is performed, as it is by design totally stateless wrt. the executing
- * node, as all state resides in the message. However, for a synchronous situation as in a HTTP request, it definitely
- * matters that the final reply, the one that should complete the returned future, comes in on the same node that issued
- * the request, as this is where the CompletableFuture instance is, and where the waiting TCP connection is connected!
- * The trick here is that the final reply is specified to come in on a node-specific <i>Topic</i>, i.e. it literally has
- * the node name (default being the hostname) as a part of the MatsEndpoint name, and it is a
- * {@link MatsFactory#subscriptionTerminator(String, Class, Class, ProcessTerminatorLambda) SubscriptionTerminator}.
- * <p />
- * Another aspect to understand, is that while Mats "guarantees" that a submitted initiation will flow through the Mats
- * endpoints, no matter what happens with the processing nodes <i>(unless you employ <i>NonPersistent messaging</i>,
- * which futurizeNonessential(..) does!)</i>, nothing can be guaranteed wrt. the completion of the future: This is
- * stateful processing. The node where the MatsFuturizer initiation is performed can crash right after the message has
- * been put on the Mats fabric, and hence the CompletableFuture vanishes along with everything else on that node. The
- * mats flow is however already in motion, and will be executed - but when the Reply comes in on the node-specific
- * Topic, there is no longer any corresponding CompletableFuture to complete. This is also why you should not compose
- * Mats endpoints using this familiar feeling that a CompletableFuture probably gives you: While a multi-stage
- * MatsEndpoint is asynchronous, resilient and highly available and each stage is transactionally performed, with
- * retries and all the goodness that comes with a message oriented architecture, once you rely on a CompletableFuture,
- * you are in a synchronous world where a power outage or a reboot can stop the processing midway. Thus, the
- * MatsFuturizer should always just be employed out the very outer edge facing the actual client - any other processing
- * should be performed using MatsEndpoints, and composition of MatsEndpoints should be done using multi-stage
+ * ONLY supposed to be used when you are in a synchronous context (e.g. in a Servlet, or a Spring @RequestMapping) "on
+ * the edge" of the Mats fabric, and want to interact with the Mats fabric of Endpoints.
+ * <p/>
+ * Another aspect to understand, is that while Mats "guarantees" that a successfully submitted initiation will flow
+ * through the Mats endpoints, no matter what happens with the processing nodes <i>(unless you employ <i>NonPersistent
+ * messaging</i>, which futurizeNonessential(..) does!)</i>, nothing can be guaranteed wrt. the completion of the
+ * future: This is stateful processing. The node where the MatsFuturizer initiation is performed can crash right after
+ * the message has been put on the Mats fabric, and hence the CompletableFuture vanishes along with everything else on
+ * that node. The mats flow is however already in motion, and will be executed - but when the Reply comes in on the
+ * node-specific Topic, there is no longer any corresponding CompletableFuture to complete. This is also why you should
+ * not compose Mats endpoints using this familiar feeling that a CompletableFuture probably gives you: While a
+ * multi-stage MatsEndpoint is asynchronous, resilient and highly available and each stage is transactionally performed,
+ * with retries and all the goodness that comes with a message oriented architecture, once you rely on a
+ * CompletableFuture, you are in a synchronous world where a power outage or a reboot can stop the processing midway.
+ * Thus, the MatsFuturizer should always just be employed out the very outer edge facing the actual client - any other
+ * processing should be performed using MatsEndpoints, and composition of MatsEndpoints should be done using multi-stage
  * MatsEndpoints.
- * <p />
+ * <p/>
  * Note that in the case of pure "GET-style" requests where information is only retrieved and no state in the total
  * system is changed, everything is a bit more relaxed: If a processing fails, the worst thing that happens is a
  * slightly annoyed user. But if this was an "add order" or "move money" instruction from the user, a mid-processing
- * failure is rather bad and could require human intervention to clean up. Thus, the
- * <code>futurizeNonessential(..)</code> method should only be employed for such "GET-style" requests, and any other
- * potentially state changing operations must employ the generic <code>futurize(..)</code> method.
+ * failure is rather bad and could require human intervention to clean up. <b>>Thus, the
+ * <code>futurizeNonessential(..)</code> method should only be employed for such <i>safe</i> "GET-style" requests</b>.
+ * Any other potentially state changing operations must employ the generic <code>futurize(..)</code> method.
+ * <p/>
+ * A question you might have, is how this works in a multi-node setup? For a Mats flow, it does not matter which node a
+ * given stage of a MatsEndpoint is performed, as it is by design totally stateless wrt. the executing node, as all
+ * state resides in the message. However, for a synchronous situation as in a HTTP request, it definitely matters that
+ * the final reply, the one that should complete the returned future, comes in on the same node that issued the request,
+ * as this is where the CompletableFuture instance is, and where the waiting TCP connection is connected! The trick here
+ * is that the final reply is specified to come in on a <i>node-specific topic</i>, i.e. it literally has the node name
+ * (default being the hostname) as a part of the MatsEndpoint name, and it is a
+ * {@link MatsFactory#subscriptionTerminator(String, Class, Class, ProcessTerminatorLambda) SubscriptionTerminator}.
+ * <p/>
+ * <b>Logger MDCs for completion and metrics</b> <i>(on the logger <code>"io.mats3.util.MatsFuturizer.Reply"</code> if
+ * INFO-enabled)</i>:
+ * <ul>
+ * <li><b>{@link #MDC_MATS_FUTURE_COMPLETED "mats.FutureCompleted"}</b>: Present on a single logline per Future
+ * completed, the value is the total time taken from futurization Request was initiated, until the future is
+ * completed.</li>
+ * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: The TraceId the futurization was initiated with.</li>
+ * <li><b>{@link #MDC_MATS_INIT_ID "mats.init.Id"}</b>: The 'from' parameter in the futurization call, i.e. the
+ * initiatorId</li>
+ * <li><b>{@link #MDC_MATS_FUTURE_TIME_RTT "mats.future.rtt.ms"}</b>: Part of the total time used for the Mats3 round
+ * trip from futurization Request was initiated, through the internal SubscriptionTerminator received the Reply, until
+ * the Futurizer's thread pool created the Reply-instance.</li>
+ * <li><b>{@link #MDC_MATS_FUTURE_TIME_COMPLETING "mats.future.completing.ms"}</b>: Part of the total time used to
+ * complete the future. If the calling thread that initiated the futurization directly blocks on the future.get(), this
+ * value will be very close to zero. However, if there are thenApplys and/or thenAccepts involved, those will increase
+ * this time.</li>
+ * </ul>
+ * <b>Logger for MDCs for timeouts:</b>
+ * <ul>
+ * <li><b>{@link #MDC_MATS_FUTURE_TIMEOUT "mats.FutureTimeout"}</b>: Present on a single logline when a Future is
+ * timed out by the MatsFuturizer, for oversitting its specified timeout upon futurization initiation. The value is the
+ * time since it was initiated.</li>
+ * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: Same as completed.</li>
+ * <li><b>{@link #MDC_MATS_INIT_ID "mats.init.Id"}</b>: Same as completed.</li>
+ * </ul>
  *
  * @author Endre Stølsvik 2019-08-25 20:35 - http://stolsvik.com/, endre@stolsvik.com
  */
 public class MatsFuturizer implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(MatsFuturizer.class);
-    private String LOG_PREFIX = "#MATS-UTIL# ";
+    private static final String LOG_PREFIX = "#MATS-UTIL# ";
+
+    public static final String MDC_TRACE_ID = "traceId";
+    public static final String MDC_MATS_INIT_ID = "mats.init.Id"; // matsInitiate.from(initiatorId).
+    public static final String MDC_MATS_FUTURE_COMPLETED = "mats.FutureCompleted";
+    public static final String MDC_MATS_FUTURE_TIME_RTT = "mats.future.rtt.ms";
+    public static final String MDC_MATS_FUTURE_TIME_COMPLETING = "mats.future.completing.ms";
+
+    public static final String MDC_MATS_FUTURE_TIMEOUT = "mats.FutureTimeout";
+
 
     /**
      * Creates a MatsFuturizer, <b>and you should only need one per MatsFactory</b> (which again mostly means one per
@@ -210,23 +245,51 @@ public class MatsFuturizer implements AutoCloseable {
         public final DetachedProcessContext context;
         public final T reply;
         public final long initiationTimestamp;
+        private final Promise<?> _promise;
+        private final long _roundTripNanos;
 
-        public Reply(DetachedProcessContext context, T reply, long initiationTimestamp) {
+        public Reply(DetachedProcessContext context, T reply, Promise<?> promise) {
             this.context = context;
             this.reply = reply;
-            this.initiationTimestamp = initiationTimestamp;
+            this.initiationTimestamp = promise._initiationTimestamp;
+            _promise = promise;
+            _roundTripNanos = System.nanoTime() - promise._initiationNanos;
         }
 
         public DetachedProcessContext getContext() {
             return context;
         }
 
+        /**
+         * SOFT DEPRECATED, use {@link #get()}.
+         */
         public T getReply() {
+            return get();
+        }
+
+        /**
+         * @return the actual Reply DTO from the requested Endpoint
+         */
+        public T get() {
             return reply;
         }
 
         public long getInitiationTimestamp() {
-            return initiationTimestamp;
+            return _promise._initiationTimestamp;
+        }
+
+        public long getInitiationNanos() {
+            return _promise._initiationNanos;
+        }
+
+        /**
+         * @return the number of nanos between the internal Promise was created (and request subsequently sent to
+         *         targeted Endpoint), and when this <code>Reply</code> instance was created by the completion thread
+         *         from the internal completion thread pool (after receiving the Request's Reply on the internal
+         *         <i>SubscriptionTerminator</i>).
+         */
+        public long getRoundTripNanos() {
+            return _roundTripNanos;
         }
     }
 
@@ -340,7 +403,7 @@ public class MatsFuturizer implements AutoCloseable {
      * <b>NOTICE: This variant must <u>only</u> be used for "GET-style" Requests where none of the endpoints the call
      * flow passes will add, remove or alter any state of the system, and where it doesn't matter all that much if a
      * message (and hence the Mats flow) is lost!</b>
-     * <p />
+     * <p/>
      * The goal of this method is to be able to get hold of e.g. account holdings, order statuses etc, for presentation
      * to a user. The thinking is that if such a flow fails where a message of the call flow disappears, this won't make
      * for anything else than a bit annoyed user: No important state change, like the adding, deleting or change of an
@@ -352,7 +415,7 @@ public class MatsFuturizer implements AutoCloseable {
      * stored to permanent storage at any point, while interactive means that it will skip any backlogged queues. In
      * addition, the <i>noAudit</i> flag is set, since it is a waste of storage space to archive the actual contents of
      * Request and Reply messages that do not alter the system.
-     * <p />
+     * <p/>
      * Sets the following properties on the sent Mats message:
      * <ul>
      * <li><b>Non-persistent</b>: Since it is not vitally important that this message is not lost, non-persistent
@@ -423,6 +486,7 @@ public class MatsFuturizer implements AutoCloseable {
     }
 
     // ===== Internal classes and methods, can be overridden if you want to make a customized MatsFuturizer
+    // .. but that is on your own risk - this is not a public API per se, and may change.
 
     protected static class Promise<T> implements Comparable<Promise<?>> {
         public final String _traceId;
@@ -430,17 +494,19 @@ public class MatsFuturizer implements AutoCloseable {
         public final String _from;
         public final String _to;
         public final long _initiationTimestamp;
+        public final long _initiationNanos;
         public final long _timeoutTimestamp;
         public final Class<T> _replyClass;
         public final CompletableFuture<Reply<T>> _future;
 
         public Promise(String traceId, String correlationId, String from, String to, long initiationTimestamp,
-                long timeoutTimestamp, Class<T> replyClass, CompletableFuture<Reply<T>> future) {
+                long initiationNanos, long timeoutTimestamp, Class<T> replyClass, CompletableFuture<Reply<T>> future) {
             _traceId = traceId;
             _correlationId = correlationId;
             _from = from;
             _to = to;
             _initiationTimestamp = initiationTimestamp;
+            _initiationNanos = initiationNanos;
             _timeoutTimestamp = timeoutTimestamp;
             _replyClass = replyClass;
             _future = future;
@@ -501,8 +567,8 @@ public class MatsFuturizer implements AutoCloseable {
         CompletableFuture<Reply<T>> future = new CompletableFuture<>();
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Creating Promise for TraceId [" + traceId + "], from [" + from
                 + "], to [" + to + "], timeout in [" + timeoutMillis + "] millis.");
-        return new Promise<>(traceId, correlationId, from, to, timestamp, timestamp + timeoutMillis, replyClass,
-                future);
+        return new Promise<>(traceId, correlationId, from, to, timestamp, System.nanoTime(), timestamp + timeoutMillis,
+                replyClass, future);
     }
 
     protected <T> void _enqueuePromise(Promise<T> promise) {
@@ -607,7 +673,8 @@ public class MatsFuturizer implements AutoCloseable {
 
         _futureCompleterThreadPool.execute(() -> {
             try {
-                MDC.put("traceId", promise._traceId);
+                MDC.put(MDC_TRACE_ID, promise._traceId);
+                MDC.put(MDC_MATS_INIT_ID, promise._from);
                 // NOTICE! We don't log here, as the SubscriptionTerminator already has logged the ordinary mats lines.
                 if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Completing promise from [" + promise._from + "]: ["
                         + promise + "]");
@@ -625,7 +692,7 @@ public class MatsFuturizer implements AutoCloseable {
                     promise._future.completeExceptionally(e);
                     return;
                 }
-                _uncheckedComplete(context, replyObject, promise);
+                _completeFuture(context, replyObject, promise);
             }
             // NOTICE! This catch will probably never be triggered, as if .thenAccept() and similar throws,
             // the CompletableFuture evidently handles it and completes the future exceptionally.
@@ -635,7 +702,8 @@ public class MatsFuturizer implements AutoCloseable {
                         + "], traceId:[" + context.getTraceId() + "]", t);
             }
             finally {
-                MDC.remove("traceId");
+                // This is a MatsFuturizer thread pool thread, so we own it. Clear MDC.
+                MDC.clear();
             }
         });
     }
@@ -644,10 +712,40 @@ public class MatsFuturizer implements AutoCloseable {
         return matsObject.toClass(toClass);
     }
 
+    private static final Logger log_reply = LoggerFactory.getLogger(MatsFuturizer.class.getName()+".Reply");
+
     @SuppressWarnings("unchecked")
-    protected void _uncheckedComplete(ProcessContext<Void> context, Object replyObject, Promise<?> promise) {
-        Reply<?> tReply = new Reply<>(context, replyObject, promise._initiationTimestamp);
-        promise._future.complete((Reply) tReply);
+    protected void _completeFuture(ProcessContext<Void> context, Object replyObject, Promise<?> promise) {
+        Reply<?> futureReply = new Reply<>(context, replyObject, promise);
+
+        // If special Reply-logger is INFO-enabled, log a line when the getter is invoked.
+        // ?: Is the logger enabled?
+        if (log.isInfoEnabled()) {
+            // -> Yes, logger enabled, so time the future completion, fill the MDC and log a line.
+
+            long nanosAtStart_completing = System.nanoTime();
+            // ::: === Actual Future.complete(..)!
+            promise._future.complete((Reply) futureReply);
+            long nanosNow = System.nanoTime();
+            long nanosTaken_completing = nanosNow - nanosAtStart_completing;
+            long nanosTaken_total = nanosNow - promise._initiationNanos;
+
+            // Microseconds should be plenty resolution.
+            double roundTripMillis = Math.round(futureReply.getRoundTripNanos() / 1000d) / 1000d;
+            double completingMillis = Math.round(nanosTaken_completing / 1000d) / 1000d;
+            double totalMillis = Math.round(nanosTaken_total / 1000d) / 1000d;
+            MDC.put(MDC_MATS_FUTURE_COMPLETED, Double.toString(totalMillis));
+            MDC.put(MDC_MATS_FUTURE_TIME_RTT, Double.toString(roundTripMillis));
+            MDC.put(MDC_MATS_FUTURE_TIME_COMPLETING, Double.toString(completingMillis));
+            log_reply.info(MatsFuturizer.LOG_PREFIX + "Completed Future with ["
+                    + replyObject.getClass().getSimpleName() + "] - Total:[" + totalMillis
+                    + " ms], Mats RTT:[" + roundTripMillis + " ms].");
+        }
+        else {
+            // -> No, logger not enabled, so don't bother timing the future completion either.
+            // ::: === Actual Future.complete(..)!
+            promise._future.complete((Reply) futureReply);
+        }
     }
 
     protected volatile boolean _runFlag = true;
@@ -751,18 +849,23 @@ public class MatsFuturizer implements AutoCloseable {
                 if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Will now timeout [" + promisesToTimeoutCount
                         + "] Promise(s).");
                 for (Promise<?> promise : promisesToTimeout) {
-                    MDC.put("traceId", promise._traceId);
-                    String msg = "The Promise/Future timed out! It was initiated from:[" + promise._from
-                            + "] with traceId:[" + promise._traceId + "], to:[" + promise._to + "]"
-                            + " Initiation was [" + (System.currentTimeMillis()
-                                    - promise._initiationTimestamp) + " ms] ago, and its specified"
-                            + " timeout was:[" + (promise._timeoutTimestamp
-                                    - promise._initiationTimestamp) + "].";
-                    log.warn(LOG_PREFIX + msg);
-                    MDC.remove("traceId");
                     _futureCompleterThreadPool.execute(() -> {
                         try {
-                            MDC.put("traceId", promise._traceId);
+                            double millisSinceInitiation = Math.round((System.nanoTime() - promise._initiationNanos)
+                                    / 1000d) / 1000d;
+
+                            MDC.put(MDC_TRACE_ID, promise._traceId);
+                            MDC.put(MDC_MATS_INIT_ID, promise._from);
+                            MDC.put(MDC_MATS_FUTURE_TIMEOUT, Double.toString(millisSinceInitiation));
+
+                            String msg = "The Promise/Future timed out! It was initiated from:[" + promise._from
+                                    + "] with traceId:[" + promise._traceId + "], to:[" + promise._to + "]"
+                                    + " Initiation was [" + millisSinceInitiation + " ms] ago, and its specified"
+                                    + " timeout was:[" + (promise._timeoutTimestamp - promise._initiationTimestamp)
+                                    + "].";
+                            log.warn(LOG_PREFIX + msg);
+
+                            // Timeout
                             _timeoutCompleteExceptionally(promise, msg);
                         }
                         // NOTICE! This catch will probably never be triggered, as if .thenAccept() and similar throws,
@@ -772,9 +875,14 @@ public class MatsFuturizer implements AutoCloseable {
                                     + promise._from + "] with traceId:[" + promise._traceId + "], ignoring.", t);
                         }
                         finally {
-                            MDC.remove("traceId");
+                            // This is a MatsFuturizer thread pool thread, so we own it. Clear MDC.
+                            MDC.clear();
                         }
                     });
+
+                    // This is a MatsFuturizer timeouter-thread, so we own it. Clear MDC.
+                    MDC.clear();
+
                     /*
                      * Wild hack to get unit tests to pass on annoying MacOS: Both Object.wait(..), and
                      * ReentrantLock.newCondition().await(..) gives wildly bad oversleeping on MacOS, in excess of 200

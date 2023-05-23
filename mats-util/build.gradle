@@ -16,6 +16,8 @@ dependencies {
     testImplementation "junit:junit:$junitVersion"
     // Mats-specific JUnit test classes
     testImplementation project(":mats-test-junit")
+    // We want the standard logging, which will be auto-installed by being on the classpath.
+    testImplementation project(':mats-intercept-logging')
     // Logging
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
