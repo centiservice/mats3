@@ -21,7 +21,7 @@ public class JmsMatsException extends Exception {
      * not happen, but can happen nevertheless due to checked-ness being a compilation-feature, not a JVM feature.
      * Groovy chooses to ignore the concept of checked exceptions - and it is also possible to throw such an Exception
      * with the "sneaky-throws" paradigm in pure Java (Google it) - and therefore, it is possible to get such Checked
-     * Exceptions propagating even though the signature of a method states that is should not be possible.
+     * Exceptions propagating even though the signature of a method states that it should not be possible.
      * <p />
      * Shall cause rollback.
      */

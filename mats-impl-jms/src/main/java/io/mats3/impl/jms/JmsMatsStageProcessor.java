@@ -634,6 +634,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                     catch (JmsMessageReadMatsJmsException e) {
                         // Special case of JmsMatsJmsException indicating that reading from JMS Message failed.
+                        // NOTE: This means we will NOT run the "completed" Interceptors.
                         preprocessOrDeserializeError = true;
                         // Throw on (the original exception) to crash the JMS Session
                         throw e;
@@ -641,6 +642,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     catch (MessageProblemRefuseMessageException e) {
                         // Special case of MatsRefuseMessageException indicating that there are issues with the JMS
                         // message - handled by tx mgr, attempted insta-rollback (refuse).
+                        // NOTE: This means we will NOT run the "completed" Interceptors.
                         preprocessOrDeserializeError = true;
                         // .. This is handled by transaction manager (rollback), so we should just continue.
                         continue;
@@ -732,87 +734,11 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                         // ?: Was there a preprocess/deserialization error? (In which case no "completed")
                         if (!preprocessOrDeserializeError) {
                             // -> No, not preprocess/deserialization error. Normal processing.
-
-                            // ?: Assert that we've come to the actual place in the code where we're running the user
-                            // lambda
-                            if ((stageCommonContext[0] == null)
-                                    || (processContext[0] == null)
-                                    || (interceptorsForStage[0] == null)) {
-                                // -> No, we have evidently not all expected info in place
-                                // This is unexpected: Log this so that we can find it and fix it!
-                                log.error(LOG_PREFIX + "Unexpected situation: Missing StageCommonContext,"
-                                        + " ProcessContext or Interceptors for Stage - won't be able to run"
-                                        + " \"finishing\" interceptors.");
-                            }
-                            else {
-                                // -> We have expected pieces in place
-
-                                // ::: "Calculate" the ProcessingResult based on current throwable/message situation
-
-                                // :: Find any "result" message (REPLY, NEXT, GOTO)
-                                // NOTE! This cannot be NEXT_DIRECT, as that would already have been handled in
-                                // the processing code above.
-                                MatsSentOutgoingMessage resultMessage = stageMessagesProduced.stream()
-                                        .filter(m -> (m.getMessageType() == MessageType.REPLY)
-                                                || (m.getMessageType() == MessageType.NEXT)
-                                                || (m.getMessageType() == MessageType.GOTO))
-                                        .findFirst().orElse(null);
-                                // :: Find any Flow Request messages (note that Requests can be produced both by stage
-                                // and init, and we only want the actual stage Requests (i.e. Flow) - not STAGE_INIT)
-                                List<MatsSentOutgoingMessage> requests = stageMessagesProduced.stream()
-                                        .filter(m -> (m.getMessageType() == MessageType.REQUEST)
-                                                && (m.getDispatchType() == DispatchType.STAGE))
-                                        .collect(Collectors.toList());
-                                // :: Find any initiations performed within the stage (ProcessType.STAGE_INIT - these
-                                // can be REQUEST, SEND and PUBLISH)
-                                List<MatsSentOutgoingMessage> initiations = stageMessagesProduced.stream()
-                                        .filter(m -> m.getDispatchType() == DispatchType.STAGE_INIT)
-                                        .collect(Collectors.toList());
-
-                                StageProcessResult stageProcessResult;
-                                // Throwable "overrides" any messages (they haven't been sent)
-                                // ?: Did we have a throwableProcessingResult?
-                                if (throwableStageProcessResult != null) {
-                                    // -> Yes, and then this is it.
-                                    stageProcessResult = throwableStageProcessResult;
-                                }
-                                // ?: No throwable, did we get a "result message"?
-                                else if (resultMessage != null) {
-                                    // -> Yes, result message
-                                    // ?: Which type is it?
-                                    switch (resultMessage.getMessageType()) {
-                                        case REPLY:
-                                            stageProcessResult = StageProcessResult.REPLY;
-                                            break;
-                                        case NEXT:
-                                            stageProcessResult = StageProcessResult.NEXT;
-                                            break;
-                                        case GOTO:
-                                            stageProcessResult = StageProcessResult.GOTO;
-                                            break;
-                                        default:
-                                            // This shalln't happen, see code above where we only pick out those three.
-                                            throw new AssertionError("Unknown result message type [" + resultMessage
-                                                    .getMessageType() + "].");
-                                    }
-                                }
-                                // ?: No "result message", did we get any requests?
-                                else if (!requests.isEmpty()) {
-                                    // -> Yes, request(s)
-                                    stageProcessResult = StageProcessResult.REQUEST;
-                                }
-                                else {
-                                    // -> There was neither throwable, "result message", nor requests - thus there
-                                    // was no process result. This is thus a Mats Flow stop.
-                                    stageProcessResult = StageProcessResult.NONE;
-                                }
-
-                                invokeStageCompletedInterceptors(internalExecutionContext, stageCommonContext[0],
-                                        interceptorsForStage[0], nanosTaken_UserLambda[0],
-                                        nanosTaken_totalEnvelopeSerAndComp[0], nanosTaken_totalMsgSysProdAndSend[0],
-                                        throwableResult, processContext[0], nanosTaken_TotalStartReceiveToFinished,
-                                        stageMessagesProduced, resultMessage, requests, initiations, stageProcessResult);
-                            }
+                            invokeFinalStageCompletedInterceptors(internalExecutionContext, stageMessagesProduced,
+                                    stageCommonContext[0], interceptorsForStage[0], nanosTaken_UserLambda[0],
+                                    nanosTaken_totalEnvelopeSerAndComp[0], nanosTaken_totalMsgSysProdAndSend[0],
+                                    throwableResult, throwableStageProcessResult, processContext[0],
+                                    nanosTaken_TotalStartReceiveToFinished);
                         }
                     }
 
@@ -1243,6 +1169,97 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
     }
 
+    private void invokeFinalStageCompletedInterceptors(JmsMatsInternalExecutionContext internalExecutionContext,
+            List<JmsMatsMessage<Z>> stageMessagesProduced, StageCommonContextImpl<Z> stageCommonContext,
+            List<MatsStageInterceptor> interceptorsForStage, long nanosTaken_UserLambda,
+            long nanosTaken_totalEnvelopeSerAndComp, long nanosTaken_totalMsgSysProdAndSend,
+            Throwable throwableResult, StageProcessResult throwableStageProcessResult,
+            JmsMatsProcessContext<R, S, Z> processContext, long nanosTaken_TotalStartReceiveToFinished) {
+        // ?: Assert that we've come to the actual place in the code where we're running the user
+        // lambda
+        if ((stageCommonContext == null)
+                || (processContext == null)
+                || (interceptorsForStage == null)) {
+            // -> No, we have evidently not all expected info in place
+            // This is unexpected: Log this so that we can find it and fix it!
+            log.error(LOG_PREFIX + "Unexpected situation: Missing StageCommonContext,"
+                    + " ProcessContext or Interceptors for Stage - won't be able to run"
+                    + " \"finishing\" interceptors.");
+        }
+        else {
+            // -> We have expected pieces in place
+
+            // ::: "Calculate" the ProcessingResult based on current throwable/message situation
+
+            // :: Find any "result" message (REPLY, NEXT, GOTO)
+            // NOTE! This cannot be NEXT_DIRECT, as that would already have been handled in
+            // the processing code above.
+            MatsSentOutgoingMessage resultMessage = stageMessagesProduced.stream()
+                    .filter(m -> (m.getMessageType() == MessageType.REPLY)
+                            || (m.getMessageType() == MessageType.NEXT)
+                            || (m.getMessageType() == MessageType.GOTO))
+                    .findFirst().orElse(null);
+            // :: Find any Flow Request messages (note that Requests can be produced both by stage
+            // and init, and we only want the actual stage Requests (i.e. Flow) - not STAGE_INIT)
+            List<MatsSentOutgoingMessage> requests = stageMessagesProduced.stream()
+                    .filter(m -> (m.getMessageType() == MessageType.REQUEST)
+                            && (m.getDispatchType() == DispatchType.STAGE))
+                    .collect(Collectors.toList());
+            // :: Find any initiations performed within the stage (ProcessType.STAGE_INIT - these
+            // can be REQUEST, SEND and PUBLISH)
+            List<MatsSentOutgoingMessage> initiations = stageMessagesProduced.stream()
+                    .filter(m -> m.getDispatchType() == DispatchType.STAGE_INIT)
+                    .collect(Collectors.toList());
+
+            StageProcessResult stageProcessResult;
+            // Throwable "overrides" any messages (they haven't been sent)
+            // ?: Did we have a throwableProcessingResult?
+            if (throwableStageProcessResult != null) {
+                // -> Yes, and then this is it.
+                stageProcessResult = throwableStageProcessResult;
+            }
+            // ?: No throwable, did we get a "result message"?
+            else if (resultMessage != null) {
+                // -> Yes, result message
+                // ?: Which type is it?
+                switch (resultMessage.getMessageType()) {
+                    case REPLY:
+                        stageProcessResult = StageProcessResult.REPLY;
+                        break;
+                    case NEXT:
+                        stageProcessResult = StageProcessResult.NEXT;
+                        break;
+                    case GOTO:
+                        stageProcessResult = StageProcessResult.GOTO;
+                        break;
+                    default:
+                        // This shalln't happen, see code above where we only pick out those three.
+                        throw new AssertionError("Unknown result message type [" + resultMessage
+                                .getMessageType() + "].");
+                }
+            }
+            // ?: No "result message", did we get any requests?
+            else if (!requests.isEmpty()) {
+                // -> Yes, request(s)
+                stageProcessResult = StageProcessResult.REQUEST;
+            }
+            else {
+                // -> There was neither throwable, "result message", nor requests - thus there
+                // was no process result. This is thus a Mats Flow stop.
+                stageProcessResult = StageProcessResult.NONE;
+            }
+
+            invokeStageCompletedInterceptors(internalExecutionContext, stageCommonContext,
+                    interceptorsForStage, nanosTaken_UserLambda,
+                    nanosTaken_totalEnvelopeSerAndComp, nanosTaken_totalMsgSysProdAndSend,
+                    throwableResult, processContext, nanosTaken_TotalStartReceiveToFinished,
+                    stageMessagesProduced, resultMessage, requests, initiations, stageProcessResult);
+        }
+    }
+
+    /**
+     * Both for NEXT_DIRECT, and when exiting processor.
+     */
     private static <R, S, Z> void invokeStageCompletedInterceptors(
             JmsMatsInternalExecutionContext internalExecutionContext,
             StageCommonContextImpl<Z> stageCommonContext, List<MatsStageInterceptor> interceptorsForStage,
@@ -1272,6 +1289,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         // Go through interceptors backwards for this exit-style intercept stage
         for (int i = interceptorsForStage.size() - 1; i >= 0; i--) {
             try {
+                // ?: Choose between NEXT_DIRECT stage completed, and ordinary (final) stage completed.
                 if (stageProcessResult == StageProcessResult.NEXT_DIRECT) {
                     interceptorsForStage.get(i).stageCompletedNextDirect(stageCompletedContext);
                 }
