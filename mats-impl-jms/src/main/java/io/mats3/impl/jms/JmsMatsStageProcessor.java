@@ -602,9 +602,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 // (commit is performed when it exits the transaction lambda)
 
                                 long nanosAtStart_totalEnvelopeSerialization = System.nanoTime();
-                                long nowMillis = System.currentTimeMillis();
                                 for (JmsMatsMessage<Z> matsMessage : allMessagesToSend) {
-                                    matsMessage.serializeAndCacheMatsTrace(nowMillis);
+                                    matsMessage.serializeAndCacheMatsTrace();
                                 }
                                 long nowNanos = System.nanoTime();
                                 nanosTaken_totalEnvelopeSerAndComp[0] = nowNanos
