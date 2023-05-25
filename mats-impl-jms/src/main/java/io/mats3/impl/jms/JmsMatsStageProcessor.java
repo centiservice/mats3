@@ -732,7 +732,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                         // ?: Was there a preprocess/deserialization error? (In which case no "completed")
                         if (!preprocessOrDeserializeError) {
-                            // -> No, not reprocess/deserialization error. Normal processing.
+                            // -> No, not preprocess/deserialization error. Normal processing.
 
                             // ?: Assert that we've come to the actual place in the code where we're running the user
                             // lambda
@@ -758,12 +758,14 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                                 || (m.getMessageType() == MessageType.NEXT)
                                                 || (m.getMessageType() == MessageType.GOTO))
                                         .findFirst().orElse(null);
-                                // :: Find any Request messages (note that Reqs can be produced both by stage and init)
+                                // :: Find any Flow Request messages (note that Requests can be produced both by stage
+                                // and init, and we only want the actual stage Requests (i.e. Flow) - not STAGE_INIT)
                                 List<MatsSentOutgoingMessage> requests = stageMessagesProduced.stream()
                                         .filter(m -> (m.getMessageType() == MessageType.REQUEST)
                                                 && (m.getDispatchType() == DispatchType.STAGE))
                                         .collect(Collectors.toList());
-                                // :: Find any initiations performed within the stage (ProcessType.STAGE_INIT)
+                                // :: Find any initiations performed within the stage (ProcessType.STAGE_INIT - these
+                                // can be REQUEST, SEND and PUBLISH)
                                 List<MatsSentOutgoingMessage> initiations = stageMessagesProduced.stream()
                                         .filter(m -> m.getDispatchType() == DispatchType.STAGE_INIT)
                                         .collect(Collectors.toList());
