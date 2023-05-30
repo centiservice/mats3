@@ -57,7 +57,7 @@ public class AppEndpoints {
             + ".single", matsFactoryQualifierValue = "matsFactoryY")
     static class SingleEndpointUsingMatsClassMapping {
         @Inject
-        private AtomicInteger _atomicInteger;
+        private transient AtomicInteger _atomicInteger;
 
         @Stage(0)
         SpringTestDataTO initialStage(SpringTestDataTO in) {
@@ -84,7 +84,7 @@ public class AppEndpoints {
     @TestCustomQualifier(region = "SouthWest") // This is the same as "matsFactoryX", the first.
     static class MultiEndPoint {
         @Inject
-        private AtomicInteger _atomicInteger;
+        private transient AtomicInteger _atomicInteger;
 
         private ProcessContext<SpringTestDataTO> _context;
 

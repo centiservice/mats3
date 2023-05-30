@@ -16,7 +16,7 @@ import io.mats3.spring.test.SpringTestDataTO;
 public class AppEndpoint_LeafServices {
 
     @Inject
-    private AppServiceCalculator _calculator;
+    private transient AppServiceCalculator _calculator;
 
     /**
      * Test "leaf service 1".

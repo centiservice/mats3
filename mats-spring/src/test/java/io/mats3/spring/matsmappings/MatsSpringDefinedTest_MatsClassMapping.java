@@ -62,7 +62,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
     @Configuration
     public static class SimpleEndpointsConfig {
         @Inject
-        private MatsTestLatch _latch;
+        private transient MatsTestLatch _latch;
 
         @MatsMapping(ENDPOINT_ID + TERMINATOR)
         public void springMatsTerminatorEndpoint(ProcessContext<Void> context,
@@ -80,7 +80,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
         @MatsClassMapping(ENDPOINT_ID + ENDPOINT_LEAF)
         public static class MatsClassMapping_Leaf {
             @Inject
-            private SomeSimpleService _someSimpleService;
+            private transient SomeSimpleService _someSimpleService;
 
             @Stage(Stage.INITIAL)
             public SpringTestDataTO springMatsSingleEndpoint(SpringTestDataTO msg) {
@@ -98,15 +98,15 @@ public class MatsSpringDefinedTest_MatsClassMapping {
         // === DEPENDENCIES INJECTED BY SPRING
 
         @Inject
-        private SomeSimpleService _someSimpleService;
+        private transient SomeSimpleService _someSimpleService;
 
         @Inject
         // Think of this as a @Service or @Repository or something. I don't have much smart to inject.
-        private SpringTestDataTO _someService;
+        private transient SpringTestDataTO _someService;
 
         @Inject
         // Think of this as a @Service or @Repository or something. I don't have much smart to inject.
-        private SpringTestStateTO _someOtherService;
+        private transient SpringTestStateTO _someOtherService;
 
         // === MATS' ProcessContext FOR CURRENT MESSAGE INJECTED BY MATS' "SpringConfig" LIBRARY
 

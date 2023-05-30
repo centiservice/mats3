@@ -59,7 +59,7 @@ public class Issue_64_ReplyToMatsClassMappingWithNullReplyState {
             public String cuerda;
 
             @Inject
-            private MatsTestLatch _latch;
+            private transient MatsTestLatch _latch;
 
             @Stage(Stage.INITIAL)
             void singeStage(SpringTestDataTO msg) {

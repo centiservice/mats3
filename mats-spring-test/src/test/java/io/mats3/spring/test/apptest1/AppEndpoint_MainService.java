@@ -21,7 +21,7 @@ public class AppEndpoint_MainService {
     @MatsClassMapping(AppMain_MockAndTestingHarnesses.ENDPOINT_ID_MAINENDPOINT)
     static class MultiEndPoint {
         @Inject
-        private AppServiceCalculator _calculator;
+        private transient AppServiceCalculator _calculator;
 
         private ProcessContext<SpringTestDataTO> _context;
 

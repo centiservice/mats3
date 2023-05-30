@@ -865,7 +865,8 @@ public class MatsSpringAnnotationRegistration implements
         }
         catch (RuntimeException e) {
             throw new MatsSpringConfigException("Could not create endpoint for @MatsClassMapping endpoint at class '"
-                    + classNameWithoutPackage(bean) + "'", e);
+                    + classNameWithoutPackage(bean) + "' - NOTE! A common problem is that you have forgotten"
+                    + " 'transient' on fields that are injected by Spring.", e);
         }
         ep.getEndpointConfig()
                 .setOrigin("@MatsClassMapping " + matsClass.getSimpleName() + ";" + matsClass.getName());
@@ -956,6 +957,14 @@ public class MatsSpringAnnotationRegistration implements
             log.info(LOG_PREFIX + " - Field [" + name + "] of Spring bean is non-null: Assuming Spring Dependency"
                     + "Injection has set it - storing as template. (Type:[" + field.getGenericType() + "], Value:["
                     + value + "])");
+
+            // Check that 'transient' is set. Currently (2023-05-30) we just log, later we'll throw.
+            if (!Modifier.isTransient(field.getModifiers())) {
+                log.error(LOG_PREFIX + " !! MISSING 'transient' MODIFIER ON INJECTED FIELD [" + name + "] of class"
+                        + " [" + classNameWithoutPackage(bean) + "]. Please add this. In some later Mats version, we'll"
+                        + " throw here!");
+            }
+
             templateFields.put(field, value);
         });
 
