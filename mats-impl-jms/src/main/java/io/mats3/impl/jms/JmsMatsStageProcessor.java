@@ -632,14 +632,14 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                     // ===== CATCH: HANDLE THE DIFFERENT ERROR SITUATIONS =====
 
-                    catch (JmsMessageReadMatsJmsException e) {
+                    catch (JmsMessageReadFailure_JmsMatsJmsException e) {
                         // Special case of JmsMatsJmsException indicating that reading from JMS Message failed.
                         // NOTE: This means we will NOT run the "completed" Interceptors.
                         preprocessOrDeserializeError = true;
-                        // Throw on (the original exception) to crash the JMS Session
+                        // Throw on to crash the JMS Session
                         throw e;
                     }
-                    catch (MessageProblemRefuseMessageException e) {
+                    catch (JmsMessageProblem_RefuseMessageException e) {
                         // Special case of MatsRefuseMessageException indicating that there are issues with the JMS
                         // message - handled by tx mgr, attempted insta-rollback (refuse).
                         // NOTE: This means we will NOT run the "completed" Interceptors.
@@ -850,26 +850,39 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
     }
 
-    private static class MessageProblemRefuseMessageException extends MatsRefuseMessageException {
-        public MessageProblemRefuseMessageException(String message) {
-            super(message);
-        }
-
-        public MessageProblemRefuseMessageException(String message, Throwable cause) {
-            super(message, cause);
+    /**
+     * Special case of JmsMatsJmsException indicating that reading from JMS Message failed, i.e. caused a JMSException.
+     * This shall "crash" the JmsSessionHolder
+     *
+     * NOTE: This means we will NOT run the "completed" Interceptors.
+     */
+    private static class JmsMessageReadFailure_JmsMatsJmsException extends JmsMatsJmsException {
+        JmsMessageReadFailure_JmsMatsJmsException(String msg, JMSException cause) {
+            super(msg, cause);
         }
     }
 
-    private static class JmsMessageReadMatsJmsException extends JmsMatsJmsException {
-        public JmsMessageReadMatsJmsException(String msg, JMSException cause) {
-            super(msg, cause);
+    /**
+     * Special case of MatsRefuseMessageException indicating that there are issues with the contents of the JMS message
+     * (not MapMessage, missing data, wrong stage etc): Handled by tx mgr, attempted insta-rollback (refuse). Note:
+     * There was not a JMS problem here, but the contents of the message was wrong/unexpected.
+     *
+     * NOTE: This means we will NOT run the "completed" Interceptors.
+     */
+    private static class JmsMessageProblem_RefuseMessageException extends MatsRefuseMessageException {
+        JmsMessageProblem_RefuseMessageException(String message) {
+            super(message);
+        }
+
+        JmsMessageProblem_RefuseMessageException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 
     private static <R, S, Z> PreprocessAndDeserializeData<S, Z> preprocessAndDeserializeData(
             JmsMatsFactory<Z> matsFactory, JmsMatsStage<R, S, ?, Z> jmsMatsStage,
             long startedNanos, Instant startedInstant,
-            Message[] messageA) throws MessageProblemRefuseMessageException, JmsMessageReadMatsJmsException {
+            Message[] messageA) throws JmsMessageProblem_RefuseMessageException, JmsMessageReadFailure_JmsMatsJmsException {
         long nanosAtStart_DeconstructMessage = System.nanoTime();
 
         String jmsMessageId;
@@ -885,7 +898,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
         catch (JMSException e) {
             String reason = "Got JMSException when doing msg.getJMSMessageID() or msg.getStringProperty('traceId').";
-            JmsMessageReadMatsJmsException up = new JmsMessageReadMatsJmsException(reason, e);
+            JmsMessageReadFailure_JmsMatsJmsException up = new JmsMessageReadFailure_JmsMatsJmsException(reason, e);
             invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
                     startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, "[unknown]");
             throw up;
@@ -895,7 +908,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         if (!(messageA[0] instanceof MapMessage)) {
             String reason = "Got some JMS Message that is not instanceof JMS MapMessage"
                     + " - cannot be a Mats message! Refusing this message!";
-            MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason);
+            JmsMessageProblem_RefuseMessageException up = new JmsMessageProblem_RefuseMessageException(reason);
             invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
                     startedInstant, StagePreprocessAndDeserializeError.WRONG_MESSAGE_TYPE, up, reason, jmsMessageId);
             throw up;
@@ -922,7 +935,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 String reason = "Got some JMS Message that is missing MatsTrace byte array"
                         + " or MatsTraceMeta String on JMS MapMessage key '" + matsTraceKey +
                         "' - cannot be a MATS message! Refusing this message!";
-                MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason);
+                JmsMessageProblem_RefuseMessageException up = new JmsMessageProblem_RefuseMessageException(reason);
                 invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
                         startedInstant, StagePreprocessAndDeserializeError.MISSING_CONTENTS, up, reason, jmsMessageId);
                 throw up;
@@ -931,7 +944,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         catch (JMSException e) {
             String reason = "Got JMSException when getting the MatsTrace from the JMS MapMessage by using"
                     + " mapMessage.get[Bytes|String](..). Pretty crazy.";
-            JmsMessageReadMatsJmsException up = new JmsMessageReadMatsJmsException(reason, e);
+            JmsMessageReadFailure_JmsMatsJmsException up = new JmsMessageReadFailure_JmsMatsJmsException(reason, e);
             invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
                     startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, jmsMessageId);
             throw up;
@@ -968,7 +981,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         catch (JMSException e) {
             String reason = "Got JMSException when getting 'sideloads' from the JMS MapMessage by using"
                     + " mapMessage.get[Bytes|String](..). Pretty crazy.";
-            JmsMessageReadMatsJmsException up = new JmsMessageReadMatsJmsException(reason, e);
+            JmsMessageReadFailure_JmsMatsJmsException up = new JmsMessageReadFailure_JmsMatsJmsException(reason, e);
             invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
                     startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, jmsMessageId);
             throw up;
@@ -991,7 +1004,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
         catch (Throwable t) {
             String reason = "Could not deserialize the MatsTrace from the JMS Message.";
-            MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason, t);
+            JmsMessageProblem_RefuseMessageException up = new JmsMessageProblem_RefuseMessageException(reason, t);
             invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
                     startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, jmsMessageId);
             throw up;
@@ -1008,7 +1021,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         if (!jmsMatsStage.getStageId().equals(currentCall.getTo().getId())) {
             String reason = "The incoming MATS message is not to this Stage! this:["
                     + jmsMatsStage.getStageId() + "], msg:[" + currentCall.getTo() + "]. Refusing this message!";
-            MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason);
+            JmsMessageProblem_RefuseMessageException up = new JmsMessageProblem_RefuseMessageException(reason);
             invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
                     startedInstant, StagePreprocessAndDeserializeError.WRONG_STAGE, up, reason, jmsMessageId);
             throw up;
@@ -1024,7 +1037,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
         catch (Throwable t) {
             String reason = "Could not deserialize the current state (STO) from the MatsTrace from the JMS Message.";
-            MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason, t);
+            JmsMessageProblem_RefuseMessageException up = new JmsMessageProblem_RefuseMessageException(reason, t);
             invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
                     startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, jmsMessageId);
             throw up;
@@ -1038,7 +1051,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
         catch (Throwable t) {
             String reason = "Could not deserialize the current state (STO) from the MatsTrace from the JMS Message.";
-            MessageProblemRefuseMessageException up = new MessageProblemRefuseMessageException(reason, t);
+            JmsMessageProblem_RefuseMessageException up = new JmsMessageProblem_RefuseMessageException(reason, t);
             invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, startedNanos,
                     startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up, reason, jmsMessageId);
             throw up;
