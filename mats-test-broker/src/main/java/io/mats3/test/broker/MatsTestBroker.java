@@ -491,6 +491,9 @@ public interface MatsTestBroker {
             // :: We won't be needing Topic Advisories (we don't use temp queues/topics), so don't subscribe to them.
             conFactory.setWatchTopicAdvisories(false);
 
+            // :: We're using message priorities
+            conFactory.setMessagePrioritySupported(true);
+
             // :: RedeliveryPolicy
             RedeliveryPolicy redeliveryPolicy = conFactory.getRedeliveryPolicy();
             redeliveryPolicy.setInitialRedeliveryDelay(500);
