@@ -11,18 +11,11 @@ on your point of view), multi-stage, message-based services. Mats Endpoints imme
 from a fully asynchronous messaging-based architecture, while being *almost* as simple to code as blocking, synchronous
 JSON-over-HTTP "REST" endpoints.
 
-*Currently, to play around with the library, the simplest option is to clone it and run `./gradlew clean check`. After
-this pans out, fire up your IDE and head over to the unit/integration tests of
-[API](mats-api-test/src/test/java/io/mats3/api_test), [Spring](mats-spring/src/test/java/io/mats3/spring),
-[MatsFuturizer](mats-util/src/test/java/io/mats3/util/futurizer), and tests of the testing tools for
-[JUnit](mats-test-junit/src/test/java/io/mats3/test/junit) /
-[Jupiter](mats-test-jupiter/src/test/java/io/mats3/test/jupiter) /
-[Spring](mats-spring-test/src/test/java/io/mats3/spring/test). There's also a very rudimentary "dev area" for the
-Metrics Interceptor
-[MatsMetrics_TestJettyServer](mats-intercept-micrometer/src/test/java/io/mats3/test/metrics/MatsMetrics_TestJettyServer.java),
-and same for Local Introspector
-[LocalHtmlInspect_TestJettyServer](mats-localinspect/src/test/java/io/mats3/localinspect/LocalHtmlInspect_TestJettyServer.java), 
-both of which you may start from your IDE.*
+*To explore the library, check out the [Explore Mats<sup>3</sup>](https://mats3.io/explore/) page. In particular, there
+is [tooling for Mats<sup>3</sup> using JBang](https://mats3.io/explore/jbang-mats/): JBang makes it possible to make
+small self-executable source files. With the all-in-one `mats-jbangkit` dependency, you can literally pull up a Mats
+Endpoints in 10 lines, and start an ActiveMQ instance with a single command: `jbang activemq@centiservice`. Also, the
+source is a good place to learn about Mats<sup>3</sup>, explained [here](https://mats3.io/explore/mats-source-code/).*
 
 To use Mats in a project, fetch [`mats-impl-jms`](https://mvnrepository.com/artifact/io.mats3/mats-impl-jms)
 from [Maven Central](https://mvnrepository.com/artifact/io.mats3).
@@ -36,12 +29,12 @@ project" [MatsSocket](https://github.com/centiservice/matssocket).
 
 # Documentation
 
-Go to the [docs](docs/) folder.
+Go to the [Documentation](https://mats3.io/docs/) page of [mats3.io](https://mats3.io/).
 
 # What is Mats?
 
-There's a document going into details [here](docs/WhatIsMats.md), and for the rationale behind
-Mats [here](docs/RationaleForMats.md).
+There's a document going into details [here](https://mats3.io/background/what-is-mats/), and for the rationale behind
+Mats [here](https://mats3.io/background/rationale-for-mats/).
 
 Description of what Mats is, in multiple short forms, from several different angles:
 
