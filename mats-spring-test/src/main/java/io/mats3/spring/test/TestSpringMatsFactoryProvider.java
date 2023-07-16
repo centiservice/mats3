@@ -3,7 +3,6 @@ package io.mats3.spring.test;
 import java.sql.Connection;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.jms.ConnectionFactory;
 import javax.sql.DataSource;
 
 import org.slf4j.Logger;
@@ -193,10 +192,10 @@ public class TestSpringMatsFactoryProvider {
         String appName = getAppNamePrefix().replaceAll("[^a-zA-Z0-9._\\-:]", ".")
                 + "_" + _sequence.getAndIncrement();
         MatsTestBroker inVmActiveMq = MatsTestBroker.create();
-        ConnectionFactory jmsConnectionFactory = inVmActiveMq.getConnectionFactory();
         // :: Create the JMS and Spring DataSourceTransactionManager-backed JMS MatsFactory.
         // JmsSessionHandler (pooler)
-        JmsMatsJmsSessionHandler jmsSessionHandler = JmsMatsJmsSessionHandler_Pooling.create(jmsConnectionFactory);
+        JmsMatsJmsSessionHandler jmsSessionHandler = JmsMatsJmsSessionHandler_Pooling.create(
+                inVmActiveMq.getConnectionFactory());
         // The MatsFactory itself, supplying the JmsSessionHandler and MatsTransactionManager.
         JmsMatsFactory<?> matsFactory = JmsMatsFactory
                 .createMatsFactory(appName, "#testing#", jmsSessionHandler, springSqlTxMgr, matsSerializer);

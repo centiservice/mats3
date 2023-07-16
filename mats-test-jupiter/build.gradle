@@ -27,6 +27,9 @@ dependencies {
     // ..Removed in Java 11
     testImplementation "javax.annotation:javax.annotation-api:$javaxAnnotationVersion"
 
+    // JMS API - to "handle" the ConnectionFactory - provided by 'mats-test' via 'implementation'.
+    testCompileOnly "$jmsApiDependency"
+
     // Logging
     testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"

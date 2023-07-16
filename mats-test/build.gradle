@@ -19,9 +19,11 @@ dependencies {
     // client), even though we'll probably only be using one of them, and that is probably ActiveMQ due to the test
     // tooling defaulting to this.)
     implementation project(':mats-test-broker')
-    // .. therefore, also pull in ActiveMQ Broker with Client
+    // .. therefore, also pull in ActiveMQ Client and broker (actually, broker brings in client, but to be explicit)
+    implementation "org.apache.activemq:activemq-client:$activeMqVersion"
     implementation "org.apache.activemq:activemq-broker:$activeMqVersion"
     // .. and pull in The Artemis (Apache ActiveMQ Artemis) Client and Server, since you can choose to test with it.
+    // .. (note that Artemis has always used JMS 2.0.)
     implementation "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
     implementation "org.apache.activemq:artemis-server:$artemisMqVersion"
 

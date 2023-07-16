@@ -12,8 +12,8 @@ dependencies {
     testImplementation project(":mats-serial-json")
     // Some test uses the MatsTestBroker directly.
     testImplementation project(':mats-test-broker')
-    // JMS spec 1.1-rev-1: Some tests "hack" the JMS API.
-    testImplementation "javax.jms:jms-api:$jmsApiVersion"
+    // JMS API: Some tests "hack" the JMS API.
+    testCompileOnly "$jmsApiDependency"
     // H2 Database, for the database tests
     testImplementation "com.h2database:h2:$h2Version"
     // Logging

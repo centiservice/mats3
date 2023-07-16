@@ -21,6 +21,9 @@ dependencies {
     testImplementation "org.springframework:spring-context:$springVersion"
     testImplementation "org.springframework:spring-tx:$springVersion"
 
+    // JMS API - to "handle" the ConnectionFactory - provided by 'mats-test' via 'implementation'.
+    testCompileOnly "$jmsApiDependency"
+
     // Logging.
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"

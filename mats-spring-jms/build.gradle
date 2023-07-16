@@ -15,6 +15,8 @@ dependencies {
     // The ScenarioConnectionFactoryProducer employs the MatsTestBroker if in testing
     // Don't want this in any production classpath, so bring your own to the testing classpath of your project.
     compileOnly project(":mats-test-broker")
+    // JMS API - since you must pull in a JMS Client, which thus provides the JMS API, we use compileOnly.
+    compileOnly "$jmsApiDependency"
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
 
@@ -35,6 +37,9 @@ dependencies {
     testImplementation "junit:junit:$junitVersion"
     // Using H2 for testing of database tx.
     testImplementation "com.h2database:h2:$h2Version"
+
+    // JMS API - to "handle" the ConnectionFactory - provided by 'mats-test' via 'implementation'.
+    testCompileOnly "$jmsApiDependency"
 
     // Spring: compileOnly above - we need it to run
     // Annotation

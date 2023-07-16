@@ -16,8 +16,8 @@ dependencies {
 
     // Bring in JUnit
     testImplementation "junit:junit:$junitVersion"
-    // JMS spec 1.1-rev-1
-    testImplementation "javax.jms:jms-api:$jmsApiVersion"
+    // JMS API - to "handle" the ConnectionFactory - provided by 'mats-test' via 'implementation'.
+    testCompileOnly "$jmsApiDependency"
     // Logging
     testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"

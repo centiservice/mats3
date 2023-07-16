@@ -20,7 +20,6 @@ ext {
     jacksonVersion = '2.15.0'
     slf4jVersion = '2.0.7'
     micrometerVersion = '1.10.5'
-    jmsApiVersion = '1.1-rev-1'
     javaxInjectVersion = '1'
     javaxAnnotationVersion = '1.3.2'
 
@@ -36,6 +35,16 @@ ext {
     jettyVersion = '9.4.51.v20230217'
     hibernateVersion = '5.6.15.Final'
     remockVersion = '2.0.0'
+
+    // Need the JMS API to build several modules, but ONLY on 'compileOnly' and 'testCompileOnly'!
+    // We want to depend on the JMS API javax.jms v1.1-rev-1, i.e. the old JMS API - but we also want be able to run
+    // with javax.jms 2.0, and jakarta.jms v2.0.3 (the latter is still using the javax.jms package namespace)
+    //
+    // On runtime, the JMS API will be provided by the user, or for tests, by 'mats-test' which includes ActiveMQ &
+    // Artemis Clients, which depends on the jakarta version.
+    // However, IntelliJ has a bug: https://youtrack.jetbrains.com/issue/IDEA-247645
+    jmsApiDependency = 'javax.jms:jms-api:1.1-rev-1'
+    // jmsApiDependency = 'jakarta.jms:jakarta.jms-api:2.0.3'
 }
 
 // :: Note: Two different subproject-blocks, one for all common elements, and one for publishing.

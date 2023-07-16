@@ -25,6 +25,9 @@ dependencies {
     // H2 Database, for database tests - but we do not want to make this dependency transitive, so compileOnly.
     compileOnly "com.h2database:h2:$h2Version"
 
+    // JMS API - since you must pull in a JMS Client, which thus provides the JMS API, we use compileOnly.
+    compileOnly "$jmsApiDependency"
+
     // :: TEST
 
     // @Inject
@@ -48,6 +51,9 @@ dependencies {
 
     // H2: compileOnly above - now we need it to run
     testImplementation "com.h2database:h2:$h2Version"
+
+    // JMS API - to "handle" the ConnectionFactory - provided by 'mats-test' via 'implementation'.
+    testCompileOnly "$jmsApiDependency"
 
     // Rule_MatsEndpoint
     testImplementation project(":mats-test-junit")
