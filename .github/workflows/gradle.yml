@@ -17,10 +17,10 @@ permissions:
   contents: read
 
 jobs:
-  gradle:
+  java_versions:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
         javaversion: [11, 17]
 
     runs-on: ${{ matrix.os }}
@@ -39,3 +39,49 @@ jobs:
       with:
         arguments: clean build
         cache-disabled: true
+
+  alternative_os:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+        javaversion: [11]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Set up JDK ${{ matrix.javaversion }}
+        uses: actions/setup-java@v3
+        with:
+          java-version: ${{ matrix.javaversion }}
+          distribution: 'temurin'
+
+      - name: Build with Gradle, JDK ${{ matrix.javaversion }}
+        uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
+        with:
+          arguments: clean build
+          cache-disabled: true
+
+  with_artemis:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        javaversion: [11]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Set up JDK ${{ matrix.javaversion }}
+        uses: actions/setup-java@v3
+        with:
+          java-version: ${{ matrix.javaversion }}
+          distribution: 'temurin'
+
+      - name: Build with Gradle, JDK ${{ matrix.javaversion }}
+        uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
+        with:
+          arguments: -Pmats.test.broker=artemis clean build
+          cache-disabled: true
