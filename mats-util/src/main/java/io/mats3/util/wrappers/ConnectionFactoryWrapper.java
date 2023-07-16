@@ -4,6 +4,7 @@ import io.mats3.MatsFactory.MatsWrapper;
 
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
+import javax.jms.JMSContext;
 import javax.jms.JMSException;
 
 /**
@@ -77,5 +78,25 @@ public class ConnectionFactoryWrapper implements ConnectionFactory, MatsWrapper<
     @Override
     public Connection createConnection(String userName, String password) throws JMSException {
         return unwrap().createConnection(userName, password);
+    }
+
+    @Override
+    public JMSContext createContext() {
+        return unwrap().createContext();
+    }
+
+    @Override
+    public JMSContext createContext(String userName, String password) {
+        return unwrap().createContext(userName, password);
+    }
+
+    @Override
+    public JMSContext createContext(String userName, String password, int sessionMode) {
+        return unwrap().createContext(userName, password, sessionMode);
+    }
+
+    @Override
+    public JMSContext createContext(int sessionMode) {
+        return unwrap().createContext(sessionMode);
     }
 }

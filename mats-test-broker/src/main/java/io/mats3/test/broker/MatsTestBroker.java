@@ -623,7 +623,7 @@ public interface MatsTestBroker {
                 config.addAcceptorConfiguration("in-vm", brokerUrl);
 
                 // :: Configuring for common DLQs (since we can't get individual DLQs to work!!)
-                config.addAddressesSetting("#",
+                config.addAddressSetting("#",
                         new AddressSettings()
                                 .setDeadLetterAddress(SimpleString.toSimpleString("DLQ"))
                                 .setExpiryAddress(SimpleString.toSimpleString("ExpiryQueue"))
@@ -696,7 +696,7 @@ public interface MatsTestBroker {
                 // Note: Searching through logs for "has exceeded max delivery attempts" yields information.
 
                 // :: Configuring for separate DLQs, with pattern (which is default) "DLQ." as prefix.
-                config.addAddressesSetting("#",
+                config.addAddressSetting("#",
                         new AddressSettings()
                                 .setExpiryAddress(SimpleString.toSimpleString("ExpiryQueue"))
                                 .setDeadLetterAddress(SimpleString.toSimpleString("DLQ"))

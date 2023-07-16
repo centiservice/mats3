@@ -233,6 +233,16 @@ public class Test_InitiationElideJmsCommit {
         }
 
         @Override
+        public Session createSession(int sessionMode) throws JMSException {
+            return unwrap().createSession(sessionMode);
+        }
+
+        @Override
+        public Session createSession() throws JMSException {
+            return unwrap().createSession();
+        }
+
+        @Override
         public String getClientID() throws JMSException {
             return unwrap().getClientID();
         }
@@ -279,10 +289,24 @@ public class Test_InitiationElideJmsCommit {
         }
 
         @Override
+        public ConnectionConsumer createSharedConnectionConsumer(Topic topic, String subscriptionName,
+                String messageSelector, ServerSessionPool sessionPool, int maxMessages) throws JMSException {
+            return unwrap().createSharedConnectionConsumer( topic,  subscriptionName,
+                     messageSelector,  sessionPool,  maxMessages);
+        }
+
+        @Override
         public ConnectionConsumer createDurableConnectionConsumer(Topic topic, String subscriptionName,
                 String messageSelector, ServerSessionPool sessionPool, int maxMessages) throws JMSException {
             return unwrap().createDurableConnectionConsumer(topic, subscriptionName, messageSelector, sessionPool,
                     maxMessages);
+        }
+
+        @Override
+        public ConnectionConsumer createSharedDurableConnectionConsumer(Topic topic, String subscriptionName,
+                String messageSelector, ServerSessionPool sessionPool, int maxMessages) throws JMSException {
+            return unwrap().createSharedDurableConnectionConsumer( topic,  subscriptionName,
+                     messageSelector,  sessionPool,  maxMessages);
         }
     }
 
@@ -416,6 +440,17 @@ public class Test_InitiationElideJmsCommit {
         }
 
         @Override
+        public MessageConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName) throws JMSException {
+            return unwrap().createSharedConsumer(topic, sharedSubscriptionName);
+        }
+
+        @Override
+        public MessageConsumer createSharedConsumer(Topic topic, String sharedSubscriptionName,
+                String messageSelector) throws JMSException {
+            return unwrap().createSharedConsumer(topic, sharedSubscriptionName, messageSelector);
+        }
+
+        @Override
         public Queue createQueue(String queueName) throws JMSException {
             return unwrap().createQueue(queueName);
         }
@@ -434,6 +469,28 @@ public class Test_InitiationElideJmsCommit {
         public TopicSubscriber createDurableSubscriber(Topic topic, String name, String messageSelector,
                 boolean noLocal) throws JMSException {
             return unwrap().createDurableSubscriber(topic, name, messageSelector, noLocal);
+        }
+
+        @Override
+        public MessageConsumer createDurableConsumer(Topic topic, String name) throws JMSException {
+            return unwrap().createDurableConsumer(topic, name);
+        }
+
+        @Override
+        public MessageConsumer createDurableConsumer(Topic topic, String name, String messageSelector,
+                boolean noLocal) throws JMSException {
+            return unwrap().createDurableConsumer(topic, name, messageSelector, noLocal);
+        }
+
+        @Override
+        public MessageConsumer createSharedDurableConsumer(Topic topic, String name) throws JMSException {
+            return unwrap().createSharedDurableConsumer(topic, name);
+        }
+
+        @Override
+        public MessageConsumer createSharedDurableConsumer(Topic topic, String name,
+                String messageSelector) throws JMSException {
+            return unwrap().createSharedDurableConsumer(topic, name, messageSelector);
         }
 
         @Override
