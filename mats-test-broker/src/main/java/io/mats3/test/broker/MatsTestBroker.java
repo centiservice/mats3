@@ -105,6 +105,17 @@ public interface MatsTestBroker {
     String SYSPROP_MATS_TEST_BROKERURL_VALUE_LOCALHOST = "localhost";
 
     /**
+     * In test-setting, the default total delivery attempts is 2. For ActiveMQ, this means 1 delivery + 1 redelivery.
+     * For Artemis, it sets the maximumRedeliveries to 2.
+     */
+    int TEST_TOTAL_DELIVERY_ATTEMPTS = 2;
+
+    /**
+     * In test-setting, the default redelivery delay is 250 ms.
+     */
+    int TEST_REDELIVERY_DELAY = 250;
+
+    /**
      * @return a MatsTestBroker implementation respecting the system properties set (defaults are probably good!).
      */
     static MatsTestBroker create() {
@@ -275,11 +286,12 @@ public interface MatsTestBroker {
             if (kahaClass != null) {
                 log.info("Enabling persistence on BrokerService [" + broker + "].");
                 broker.setPersistent(true);
-                // Read below comment about this property
+                // NOTE: Good KahaDB docs from RedHat:
+                // https://access.redhat.com/documentation/en-us/red_hat_amq/6.3/html/configuring_broker_persistence/kahadbconfiguration
+                // https://access.redhat.com/documentation/en-us/red_hat_amq/6.3/html/tuning_guide/perstuning-kahadb
+                // Skip update of access times
                 System.setProperty("org.apache.activemq.kahaDB.files.skipMetadataUpdate", "true");
                 try {
-                    // NOTE: Good KahaDB docs from RedHat:
-                    // https://access.redhat.com/documentation/en-us/red_hat_amq/6.3/html/configuring_broker_persistence/kahadbconfiguration
                     KahaDBPersistenceAdapter kahaDBPersistenceAdapter = new KahaDBPersistenceAdapter();
                     // :: Use Periodic sync strategy - potentially loosing messages if the server crashes.
                     // NOTE: The default sync interval is default 1000, i.e. 1 second.
@@ -397,14 +409,10 @@ public interface MatsTestBroker {
          * StageProcessors per Stage, on multiple instances/replicas of the services. Lowering this considerably to
          * instead focus on lower memory usage, good distribution, and if one consumer by any chance gets hung, it won't
          * allocate so many of the messages into a "void". This can be set on client side, but if not set there, it gets
-         * the defaults from server.
-         *
-         * Update 2023-01-17: When both persistent and non-persistent messages goes to the same queue, ActiveMQ seems to
-         * handle this rather bad - effectively the non-persistent get lower priority. This is not resolved until the
-         * messages arrive at the client, where it is sorted according to sequence (?) and priority.
+         * the defaults from server. (Note: If the client has the default prefetches, the server-set kicks in)
          */
-        allQueuesPolicy.setQueuePrefetch(250);
-        allTopicsPolicy.setTopicPrefetch(250);
+        allQueuesPolicy.setQueuePrefetch(25);
+        allTopicsPolicy.setTopicPrefetch(25);
 
         // .. create the PolicyMap containing the two destination policies
         PolicyMap policyMap = new PolicyMap();
@@ -484,26 +492,25 @@ public interface MatsTestBroker {
             org.apache.activemq.ActiveMQConnectionFactory conFactory = new org.apache.activemq.ActiveMQConnectionFactory(
                     brokerUrl);
 
-            // We don't need in-order, so just deliver other messages while waiting for redelivery.
-            // NOTE: This is NOT possible to use until https://issues.apache.org/jira/browse/AMQ-8617 is fixed!!
-            // conFactory.setNonBlockingRedelivery(true);
-
             // :: We won't be needing Topic Advisories (we don't use temp queues/topics), so don't subscribe to them.
             conFactory.setWatchTopicAdvisories(false);
 
-            // :: We're using message priorities
+            // :: Mats don't need in-order, so just deliver other messages while waiting for redelivery.
+            conFactory.setNonBlockingRedelivery(true);
+
+            // :: Mats uses message priorities
             conFactory.setMessagePrioritySupported(true);
 
             // :: RedeliveryPolicy
             RedeliveryPolicy redeliveryPolicy = conFactory.getRedeliveryPolicy();
-            redeliveryPolicy.setInitialRedeliveryDelay(500);
+            redeliveryPolicy.setInitialRedeliveryDelay(TEST_REDELIVERY_DELAY);
             redeliveryPolicy.setRedeliveryDelay(2000); // This is not in use when using exp. backoff and initial != 0
             redeliveryPolicy.setUseExponentialBackOff(true);
             redeliveryPolicy.setBackOffMultiplier(2);
             redeliveryPolicy.setUseCollisionAvoidance(true);
             redeliveryPolicy.setCollisionAvoidancePercent((short) 15);
             // Only need 1 redelivery for testing, totally ignoring the above. Use 6-10 for production.
-            redeliveryPolicy.setMaximumRedeliveries(1);
+            redeliveryPolicy.setMaximumRedeliveries(TEST_TOTAL_DELIVERY_ATTEMPTS - 1);
 
             return conFactory;
         }
@@ -627,7 +634,9 @@ public interface MatsTestBroker {
                         new AddressSettings()
                                 .setDeadLetterAddress(SimpleString.toSimpleString("DLQ"))
                                 .setExpiryAddress(SimpleString.toSimpleString("ExpiryQueue"))
-                                .setMaxDeliveryAttempts(3));
+                                .setRedeliveryDelay(TEST_REDELIVERY_DELAY)
+                                .setRedeliveryMultiplier(2) // No effect since we only have 1 redelivery, just for docs.
+                                .setMaxDeliveryAttempts(TEST_TOTAL_DELIVERY_ATTEMPTS));
                 // :: This is just trying to emulate the default config from default broker.xml - inspired by
                 // Spring Boot which also got problems with default config in embedded mode being a tad lacking.
                 // https://github.com/spring-projects/spring-boot/pull/12680/commits/a252bb52b5106f3fec0d3b2b157507023aa04b2b

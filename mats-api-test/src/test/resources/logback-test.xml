@@ -9,4 +9,9 @@
     <root level="DEBUG">
         <appender-ref ref="STDOUT" />
     </root>
+
+    <!-- Artemis log tuning:  -->
+    <logger name="org.apache.activemq.artemis" level="INFO"/>
+    <logger name="org.apache.activemq.audit.message" level="OFF"/>
+
 </configuration>
