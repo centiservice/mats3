@@ -881,8 +881,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
     private static <R, S, Z> PreprocessAndDeserializeData<S, Z> preprocessAndDeserializeData(
             JmsMatsFactory<Z> matsFactory, JmsMatsStage<R, S, ?, Z> jmsMatsStage,
-            long startedNanos, Instant startedInstant,
-            Message[] messageA) throws JmsMessageProblem_RefuseMessageException, JmsMessageReadFailure_JmsMatsJmsException {
+            long startedNanos, Instant startedInstant, Message[] messageA)
+            throws JmsMessageProblem_RefuseMessageException, JmsMessageReadFailure_JmsMatsJmsException {
         long nanosAtStart_DeconstructMessage = System.nanoTime();
 
         String jmsMessageId;

@@ -918,7 +918,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                     subInitiateThread.interrupt();
                     // Throw out.
                     throw new InterruptedRuntimeException("Got interrupted while waiting for sub-initiate"
-                            + " Thread to complete. (Passed on the interrupt to that Thread).", e);
+                            + " Thread [" + subInitiateThread.getName() + "] to complete."
+                            + " (Passed on the interrupt to that Thread).", e);
                 }
                 if (throwableResult[0] != null) {
                     Throwable t = throwableResult[0];
@@ -953,7 +954,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             // ?: Are we within an existing Mats demarcation?
             if (matsInitiateForNesting.isPresent()) {
                 // -> Evidently within an existing Mats demarcation, so fire up a new subInitiateThread to do the
-                // initiation.
+                // initiation, thus ensuring "new context".
                 Throwable[] throwableResult = new Throwable[1];
                 String threadName = Thread.currentThread().getName() + " StageNested {"
                         + _matsFactory.randomString(5) + '}';
@@ -988,7 +989,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                     subInitiateThread.interrupt();
                     // Throw out.
                     throw new InterruptedRuntimeException("Got interrupted while waiting for sub-initiate"
-                            + " Thread to complete. (Passed on the interrupt to that Thread).", e);
+                            + " Thread [" + subInitiateThread.getName() + "] to complete."
+                            + " (Passed on the interrupt to that Thread).", e);
                 }
                 if (throwableResult[0] != null) {
                     Throwable t = throwableResult[0];
