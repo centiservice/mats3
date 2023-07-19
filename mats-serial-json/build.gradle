@@ -10,11 +10,13 @@ dependencies {
 
     // === Test
 
-    // Need logging system in tests
     // This module is an "extension" of JUnit - and we employ classes from it, so API-level dependency.
     testImplementation "junit:junit:$junitVersion"
-    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
-    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+
+    // Need logging system in tests
+    testCompileOnly "org.slf4j:slf4j-api:$slf4jVersion"
+    testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
 }
 
 publishing {

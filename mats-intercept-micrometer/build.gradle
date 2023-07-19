@@ -5,8 +5,8 @@ dependencies {
     api project(':mats-intercept-api')
     // Micrometer
     api "io.micrometer:micrometer-core:$micrometerVersion"
-    // Logging
-    implementation "org.slf4j:slf4j-api:$slf4jVersion"
+    // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
+    compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
 
     // ===== TEST
 
@@ -35,8 +35,9 @@ dependencies {
     // JMS API - to "handle" the ConnectionFactory - provided by 'mats-test' via 'implementation'.
     testCompileOnly "$jmsApiDependency"
 
-    // Logging
-    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    // Need logging system in tests
+    testCompileOnly "org.slf4j:slf4j-api:$slf4jVersion"
+    testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
 }
 

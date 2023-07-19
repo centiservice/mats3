@@ -15,12 +15,13 @@ dependencies {
     // JMS API: The test 'Test_InitiationElideJmsCommit' "hack" the JMS API.
     testCompileOnly "$jmsApiDependency"
     // ActiveMQ Client: The test 'ActiveMq_AMQ_8617_LotsOfDlqs' needs the ActiveMQConnectionFactory.
-    testImplementation "org.apache.activemq:activemq-client:$activeMqVersion"
+    testCompileOnly "org.apache.activemq:activemq-client:$activeMqVersion"
     // H2 Database, for the database tests
     testImplementation "com.h2database:h2:$h2Version"
-    // Logging
-    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
-    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+    // Need logging system in tests
+    testCompileOnly "org.slf4j:slf4j-api:$slf4jVersion"
+    testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
 
     // We want the standard logging, which will be auto-installed by being on the classpath. (autoinstalls)
     testImplementation project(':mats-intercept-logging')

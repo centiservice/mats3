@@ -40,8 +40,9 @@ dependencies {
     testImplementation project(":mats-intercept-logging")
     testImplementation project(":mats-intercept-micrometer")
 
-    // Logging
-    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    // Need logging system in tests
+    testCompileOnly "org.slf4j:slf4j-api:$slf4jVersion"
+    testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
 
     // Base Jetty Server

@@ -18,9 +18,10 @@ dependencies {
     testImplementation "junit:junit:$junitVersion"
     // JMS API - to "handle" the ConnectionFactory - provided by 'mats-test' via 'implementation'.
     testCompileOnly "$jmsApiDependency"
-    // Logging
-    testImplementation "org.slf4j:log4j-over-slf4j:$slf4jVersion"
-    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
+    // Need logging system in tests
+    testCompileOnly "org.slf4j:slf4j-api:$slf4jVersion"
+    testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
+    testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
 
     // Apache ActiveMQ broker (server), which is the default test backing broker. Also includes the client.
     testImplementation "org.apache.activemq:activemq-broker:$activeMqVersion"
