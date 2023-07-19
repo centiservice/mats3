@@ -21,6 +21,7 @@ import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
 import io.mats3.api.intercept.MatsInitiateInterceptor.InitiateCompletedContext;
+import io.mats3.api.intercept.MatsInitiateInterceptor.InitiateCompletedContext.InitiateProcessResult;
 import io.mats3.api.intercept.MatsInitiateInterceptor.InitiateInterceptContext;
 import io.mats3.api.intercept.MatsInitiateInterceptor.InitiateInterceptOutgoingMessagesContext;
 import io.mats3.api.intercept.MatsInitiateInterceptor.InitiateInterceptUserLambdaContext;
@@ -108,6 +109,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             long[] nanosTaken_totalProduceAndSendMsgSysMessages = { 0L };
 
             Throwable throwableResult = null;
+            InitiateProcessResult throwableInitiateProcessResult = null;
 
             JmsSessionHolder jmsSessionHolder;
             try {
@@ -216,6 +218,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                         nanosTaken_totalEnvelopeSerialization[0] = nowNanos - nanosAtStart_totalEnvelopeSerialization;
 
                         long nanosAtStart_totalProduceAndSendMsgSysMessages = nowNanos;
+
+                        // :: ACTUALLY SEND THE MESSAGES
                         produceAndSendMsgSysMessages(log, jmsSessionHolder, _parentFactory, messagesToSend);
                         nanosTaken_totalProduceAndSendMsgSysMessages[0] = System.nanoTime() -
                                 nanosAtStart_totalProduceAndSendMsgSysMessages;
@@ -237,13 +241,16 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                 // Just record this for interceptor (but the original undeclared Exception, which is the
                 // cause)..
                 throwableResult = e.getCause();
+                throwableInitiateProcessResult = InitiateProcessResult.USER_EXCEPTION;
                 // .. and throw on out
                 throw new JmsMatsInitiationRaisedUndeclaredCheckedException("Undeclared checked Exception"
                         + " [" + e.getCause().getClass().getName() + "] from initiation lambda.", e);
             }
             catch (MatsRefuseMessageException e) {
-                // NOTICE! MatsRefuseMessageException IS NOT DECLARED FOR INITIATION, i.e. "it cannot happen", i.e.
-                // sneaky throws - handle as with undeclared exception above!
+                // NOTICE! MatsRefuseMessageException IS NOT DECLARED FOR INITIATION LAMBDAS (only for stage lambdas),
+                // i.e. "it cannot happen", i.e. sneaky throws. However, since the transaction manager handles both
+                // stages and inits, _it_ will let it pass through (and not wrap it as with the undeclared above).
+                // Therefore, we handle it as with undeclared exception above.
                 //
                 // NOTICE! The special JmsMatsOverflowRuntimeException is NOT relevant to catch here, and it should
                 // rather percolate out, as that can only happen when an initiation is performed within a Stage - there
@@ -254,6 +261,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
                 // Store the original Exception (as we do with JmsMatsUndeclaredCheckedExceptionRaisedRuntimeException)
                 throwableResult = e;
+                throwableInitiateProcessResult = InitiateProcessResult.USER_EXCEPTION;
                 // .. and throw on as a JmsMatsInitiationRaisedUndeclaredCheckedException
                 throw new JmsMatsInitiationRaisedUndeclaredCheckedException("Undeclared checked Exception"
                         + " [" + e.getClass().getSimpleName() + "] from initiation lambda.", e);
@@ -271,6 +279,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                         + " resources, typically database.", e);
                 // Record for interceptor
                 throwableResult = rethrow;
+                throwableInitiateProcessResult = InitiateProcessResult.SYSTEM_EXCEPTION;
                 // Crash the JMS Session
                 jmsSessionHolder.crashed(e);
                 // TODO: Do retries if it fails!
@@ -289,6 +298,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                         + " backend, which is a JMS Broker.", e);
                 // Record for interceptor
                 throwableResult = rethrow;
+                throwableInitiateProcessResult = InitiateProcessResult.SYSTEM_EXCEPTION;
                 // Crash the JMS Session
                 jmsSessionHolder.crashed(e);
                 // .. and throw on out
@@ -297,6 +307,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             catch (RuntimeException | Error e) {
                 // Just record this for interceptor..
                 throwableResult = e;
+                throwableInitiateProcessResult = InitiateProcessResult.USER_EXCEPTION;
                 // .. and throw on out
                 throw e;
             }
@@ -308,7 +319,49 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                 long nanosTaken_TotalStartInitToFinished = System.nanoTime() - nanosAtStart_Init;
 
                 // === Invoke any interceptors, stage "Completed"
+
+                // ::: "Calculate" the ProcessResult based on current throwable/message situation
+
+                InitiateProcessResult initiateProcessResult;
+                // ?: Do we have a caught throwable?
+                if (throwableInitiateProcessResult != null) {
+                    // -> Yes, so use that result
+                    initiateProcessResult = throwableInitiateProcessResult;
+                }
+                // ?: Do we have zero messages?
+                else if (messagesToSend.isEmpty()) {
+                    // -> 'None' messages
+                    initiateProcessResult = InitiateProcessResult.NONE;
+                }
+                // ?: Do we have multiple messages?
+                else if (messagesToSend.size() > 1) {
+                    // -> Multiple messages
+                    initiateProcessResult = InitiateProcessResult.MULTIPLE;
+                }
+                else {
+                    // -> Only a single message
+                    // Fetch the message
+                    MatsSentOutgoingMessage singleMessage = messagesToSend.get(0);
+                    // :: Switch-case on the type of the single message
+                    switch (singleMessage.getMessageType()) {
+                        case REQUEST:
+                            initiateProcessResult = InitiateProcessResult.REQUEST;
+                            break;
+                        case SEND:
+                            initiateProcessResult = InitiateProcessResult.SEND;
+                            break;
+                        case PUBLISH:
+                            initiateProcessResult = InitiateProcessResult.PUBLISH;
+                            break;
+                        default:
+                            log.error(LOG_PREFIX + "UNEXPECTED MESSAGE TYPE IN INITIATION! ["
+                                    + singleMessage.getMessageType() + "] - REPORT BUG! - resolving to MULTIPLE!");
+                            initiateProcessResult = InitiateProcessResult.MULTIPLE;
+                    }
+                }
+
                 InitiateCompletedContextImpl initiateCompletedContext = new InitiateCompletedContextImpl(
+                        initiateProcessResult,
                         interceptContext,
                         nanosTaken_UserLambda[0],
                         init.getMeasurements(),
@@ -320,7 +373,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                         nanosTaken_TotalStartInitToFinished,
                         throwableResult,
                         Collections.unmodifiableList(messagesToSend));
-                // Go through interceptors "backwards" for this exit-style stage
+
+                // Go through interceptors backwards for this exit-style intercept stage
                 for (int i = interceptorsForInitiation.size() - 1; i >= 0; i--) {
                     try {
                         interceptorsForInitiation.get(i).initiateCompleted(initiateCompletedContext);
@@ -638,6 +692,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     }
 
     static class InitiateCompletedContextImpl implements InitiateCompletedContext {
+        private final InitiateProcessResult _initiateProcessResult;
+
         private final InitiateInterceptContextImpl _initiateInterceptContext;
 
         private final long _userLambdaNanos;
@@ -652,6 +708,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         private final List<MatsSentOutgoingMessage> _messages;
 
         public InitiateCompletedContextImpl(
+                InitiateProcessResult initiateProcessResult,
                 InitiateInterceptContextImpl initiateInterceptContext,
 
                 long userLambdaNanos,
@@ -665,6 +722,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
                 Throwable throwable,
                 List<MatsSentOutgoingMessage> messages) {
+            _initiateProcessResult = initiateProcessResult;
+
             _initiateInterceptContext = initiateInterceptContext;
 
             _userLambdaNanos = userLambdaNanos;
@@ -678,6 +737,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
             _throwable = throwable;
             _messages = messages;
+        }
+
+        @Override
+        public InitiateProcessResult getInitiateProcessResult() {
+            return _initiateProcessResult;
         }
 
         @Override

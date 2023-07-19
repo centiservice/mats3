@@ -1198,76 +1198,75 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             log.error(LOG_PREFIX + "Unexpected situation: Missing StageCommonContext,"
                     + " ProcessContext or Interceptors for Stage - won't be able to run"
                     + " \"finishing\" interceptors.");
+            return;
+        }
+        // -> We have expected pieces in place
+
+        // ::: "Calculate" the ProcessResult based on current throwable/message situation
+
+        // :: Find any "result" message (REPLY, NEXT, GOTO)
+        // NOTE! This cannot be NEXT_DIRECT, as that would already have been handled in the processing code above.
+        MatsSentOutgoingMessage resultMessage = stageMessagesProduced.stream()
+                .filter(m -> (m.getMessageType() == MessageType.REPLY)
+                        || (m.getMessageType() == MessageType.NEXT)
+                        || (m.getMessageType() == MessageType.GOTO))
+                .findFirst().orElse(null);
+        // :: Find any Flow Request messages (note that Requests can be produced both by stage and init, and we only
+        // want the actual stage Requests (i.e. Flow) - not STAGE_INIT)
+        List<MatsSentOutgoingMessage> flowRequests = stageMessagesProduced.stream()
+                .filter(m -> (m.getMessageType() == MessageType.REQUEST)
+                        && (m.getDispatchType() == DispatchType.STAGE))
+                .collect(Collectors.toList());
+        // :: Find any initiations performed within the stage (ProcessType.STAGE_INIT - these can be REQUEST, SEND and
+        // PUBLISH)
+        List<MatsSentOutgoingMessage> initiations = stageMessagesProduced.stream()
+                .filter(m -> m.getDispatchType() == DispatchType.STAGE_INIT)
+                .collect(Collectors.toList());
+
+        StageProcessResult stageProcessResult;
+        // Throwable "overrides" any messages (they haven't been sent)
+        // ?: Did we have a throwableProcessingResult?
+        if (throwableStageProcessResult != null) {
+            // -> Yes, and then this is it.
+            stageProcessResult = throwableStageProcessResult;
+        }
+        // ?: No throwable, did we get a "result message"?
+        else if (resultMessage != null) {
+            // -> Yes, result message
+            // ?: Which type is it?
+            switch (resultMessage.getMessageType()) {
+                case REPLY:
+                    stageProcessResult = StageProcessResult.REPLY;
+                    break;
+                case NEXT:
+                    stageProcessResult = StageProcessResult.NEXT;
+                    break;
+                case GOTO:
+                    stageProcessResult = StageProcessResult.GOTO;
+                    break;
+                default:
+                    // NOTE: NEXT_DIRECT is handled directly in the processing code, read comment at start!
+                    // This shalln't happen, see code above where we only pick out those three.
+                    throw new AssertionError("Unknown result message type [" + resultMessage
+                            .getMessageType() + "].");
+            }
+        }
+        // ?: No "result message", did we get any requests?
+        else if (!flowRequests.isEmpty()) {
+            // -> Yes, request(s)
+            stageProcessResult = StageProcessResult.REQUEST;
         }
         else {
-            // -> We have expected pieces in place
-
-            // ::: "Calculate" the ProcessingResult based on current throwable/message situation
-
-            // :: Find any "result" message (REPLY, NEXT, GOTO)
-            // NOTE! This cannot be NEXT_DIRECT, as that would already have been handled in
-            // the processing code above.
-            MatsSentOutgoingMessage resultMessage = stageMessagesProduced.stream()
-                    .filter(m -> (m.getMessageType() == MessageType.REPLY)
-                            || (m.getMessageType() == MessageType.NEXT)
-                            || (m.getMessageType() == MessageType.GOTO))
-                    .findFirst().orElse(null);
-            // :: Find any Flow Request messages (note that Requests can be produced both by stage
-            // and init, and we only want the actual stage Requests (i.e. Flow) - not STAGE_INIT)
-            List<MatsSentOutgoingMessage> requests = stageMessagesProduced.stream()
-                    .filter(m -> (m.getMessageType() == MessageType.REQUEST)
-                            && (m.getDispatchType() == DispatchType.STAGE))
-                    .collect(Collectors.toList());
-            // :: Find any initiations performed within the stage (ProcessType.STAGE_INIT - these
-            // can be REQUEST, SEND and PUBLISH)
-            List<MatsSentOutgoingMessage> initiations = stageMessagesProduced.stream()
-                    .filter(m -> m.getDispatchType() == DispatchType.STAGE_INIT)
-                    .collect(Collectors.toList());
-
-            StageProcessResult stageProcessResult;
-            // Throwable "overrides" any messages (they haven't been sent)
-            // ?: Did we have a throwableProcessingResult?
-            if (throwableStageProcessResult != null) {
-                // -> Yes, and then this is it.
-                stageProcessResult = throwableStageProcessResult;
-            }
-            // ?: No throwable, did we get a "result message"?
-            else if (resultMessage != null) {
-                // -> Yes, result message
-                // ?: Which type is it?
-                switch (resultMessage.getMessageType()) {
-                    case REPLY:
-                        stageProcessResult = StageProcessResult.REPLY;
-                        break;
-                    case NEXT:
-                        stageProcessResult = StageProcessResult.NEXT;
-                        break;
-                    case GOTO:
-                        stageProcessResult = StageProcessResult.GOTO;
-                        break;
-                    default:
-                        // This shalln't happen, see code above where we only pick out those three.
-                        throw new AssertionError("Unknown result message type [" + resultMessage
-                                .getMessageType() + "].");
-                }
-            }
-            // ?: No "result message", did we get any requests?
-            else if (!requests.isEmpty()) {
-                // -> Yes, request(s)
-                stageProcessResult = StageProcessResult.REQUEST;
-            }
-            else {
-                // -> There was neither throwable, "result message", nor requests - thus there
-                // was no process result. This is thus a Mats Flow stop.
-                stageProcessResult = StageProcessResult.NONE;
-            }
-
-            invokeStageCompletedInterceptors(internalExecutionContext, stageCommonContext,
-                    interceptorsForStage, nanosTaken_UserLambda,
-                    nanosTaken_totalEnvelopeSerAndComp, nanosTaken_totalMsgSysProdAndSend,
-                    throwableResult, processContext, nanosTaken_TotalStartReceiveToFinished,
-                    stageMessagesProduced, resultMessage, requests, initiations, stageProcessResult);
+            // -> There was neither throwable, "result message", nor requests - thus there
+            // was no process result. This is thus a Mats Flow stop.
+            stageProcessResult = StageProcessResult.NONE;
         }
+
+        invokeStageCompletedInterceptors(internalExecutionContext, stageCommonContext,
+                interceptorsForStage, nanosTaken_UserLambda,
+                nanosTaken_totalEnvelopeSerAndComp, nanosTaken_totalMsgSysProdAndSend,
+                throwableResult, processContext, nanosTaken_TotalStartReceiveToFinished,
+                stageMessagesProduced, resultMessage, flowRequests, initiations, stageProcessResult);
     }
 
     /**

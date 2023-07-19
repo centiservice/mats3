@@ -2,6 +2,7 @@ package io.mats3.api.intercept;
 
 import java.time.Instant;
 
+import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator;
 import io.mats3.MatsInitiator.InitiateLambda;
@@ -169,6 +170,7 @@ public interface MatsInitiateInterceptor {
 
         /**
          * @return when the initiation was started, as {@link System#nanoTime()}, i.e. when
+         *         {@link MatsInitiator#initiate(InitiateLambda)} was invoked.
          */
         long getStartedNanoTime();
     }
@@ -186,5 +188,42 @@ public interface MatsInitiateInterceptor {
     }
 
     interface InitiateCompletedContext extends InitiateInterceptContext, CommonCompletedContext {
+
+        /**
+         * @return the result of the initiation - returns NONE if there was no outgoing messages, REQUEST, SEND or
+         *         PUBLISH if it was a single message, and MULTIPLE if it was more than one message (Note: also if those
+         *         multiple were all of the same kind).
+         */
+        InitiateProcessResult getInitiateProcessResult();
+
+        enum InitiateProcessResult {
+            NONE,
+
+            REQUEST,
+
+            SEND,
+
+            PUBLISH,
+
+            MULTIPLE,
+
+            /**
+             * Any exception thrown in the user lambda, causing rollback of the processing. This may both be code
+             * failures (e.g. {@link NullPointerException}, explicit validation failures (which probably should result
+             * in {@link MatsRefuseMessageException}), and database access or other types of external communication
+             * failures.
+             */
+            USER_EXCEPTION,
+
+            /**
+             * If the messaging or processing system failed, this will be either
+             * {@link io.mats3.MatsInitiator.MatsBackendException MatsBackendException} (messaging handling or db
+             * commit), or {@link io.mats3.MatsInitiator.MatsMessageSendException MatsMessageSendException} (which is
+             * the "VERY BAD!" scenario where db is committed, whereupon the messaging commit failed - which quite
+             * possibly is a "notify the humans!"-situation, unless the user code is crafted to handle such a
+             * situation by being idempotent).
+             */
+            SYSTEM_EXCEPTION
+        }
     }
 }
