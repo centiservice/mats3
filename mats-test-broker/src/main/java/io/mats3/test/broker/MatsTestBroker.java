@@ -233,11 +233,14 @@ public interface MatsTestBroker {
     }
 
     /**
-     * <b>Note: This is most probably not what you want to use in a testing scenario - for this you want to use the
+     * <b>Note: This is most probably NOT what you want to use in a testing scenario - for this you want to use the
      * method {@link MatsTestBroker} class directly, using its {@link #create()} method.</b>
      * <p/>
      * This method is publicly available for examples and experiments, and provide a way to create an ActiveMQ broker
      * with some Mats optimizations, with a single method call.
+     * <p/>
+     * Note: The Broker gets a random name. If you want to connect to a in-vm broker, you must provide this name, check
+     * JavaDoc of method {@link #newActiveMqConnectionFactory(String)} for info.
      *
      * @return a new ActiveMQ Broker instance.
      */
@@ -328,15 +331,15 @@ public interface MatsTestBroker {
         }
 
         // :: Disable a bit of stuff for testing, unless asked for
-        // No need for JMX registry; We won't control nor monitor it over JMX in tests
+        // JMX registry; We won't control nor monitor it over JMX in tests
         broker.setUseJmx(feats.contains(ActiveMq.JMX));
-        // No need for Advisory Messages; We won't be needing those events in tests.
+        // Advisory Messages; We won't be needing those events in tests (nor prod for that matter).
         broker.setAdvisorySupport(feats.contains(ActiveMq.ADVISORY));
         broker.setAnonymousProducerAdvisorySupport(feats.contains(ActiveMq.ADVISORY));
 
         // ::: Add features that we would want in prod.
 
-        // NOTICE: When using KahaDB, then you most probably want to have "skipMetadataUpdate=true":
+        // NOTICE: When using KahaDB, then you most probably want to have "skipMetadataUpdate=true", read in code above.
         // org.apache.activemq.kahaDB.files.skipMetadataUpdate=true
         // https://access.redhat.com/documentation/en-us/red_hat_amq/6.3/html/tuning_guide/perstuning-kahadb
 
@@ -358,7 +361,6 @@ public interface MatsTestBroker {
         broker.setPlugins(new BrokerPlugin[] { statisticsBrokerPlugin });
 
         // :: Set Individual DLQ - which you most definitely should do in production.
-        // Hear, hear: https://users.activemq.apache.narkive.com/H7400Mn1/policymap-api-is-really-bad
         IndividualDeadLetterStrategy individualDeadLetterStrategy = new IndividualDeadLetterStrategy();
         individualDeadLetterStrategy.setQueuePrefix("DLQ.");
         individualDeadLetterStrategy.setTopicPrefix("DLQ.");
@@ -412,12 +414,32 @@ public interface MatsTestBroker {
          * the defaults from server. (Note: If the client has the default prefetches, the server-set kicks in)
          */
         allQueuesPolicy.setQueuePrefetch(25);
-        allTopicsPolicy.setTopicPrefetch(25);
+        // Topics are not the main use in Mats, but MatsFuturizer uses them, and insta-moves the result over to a thread
+        // pool, thus receiving very fast. Also, for queues we fire up a set of consumers on each node, thus the
+        // low value above is really multiplied by concurrency x nodes. However, for topics we only have 1 consumer per
+        // node, and if it is node-specific (as for MatsFuturizer), there is only this one single consumer. Results from
+        // futures are typically not massive, so use a larger prefetch here. BUT, topics are also used for caches, and
+        // you should make sure to not overwhelm receivers of cache updates with many fast large messages; Chunk your
+        // massive update, and include a delay between each.
+        allTopicsPolicy.setTopicPrefetch(250);
 
-        // .. create the PolicyMap containing the two destination policies
+        // Make special case for the Topics that the ActiveMQ-specific MatsBrokerMonitor impl uses as 'replyTo' address,
+        // as ActiveMQ hammers out a single message per destination in response to the statistics queries. (Should
+        // really be improved, but here we are)
+        // ERROR loglines otherwise: "TopicSubscription: consumer=ID: ... : has twice its prefetch limit pending,
+        // without an ack; it appears to be slow: tcp://..." (notice the missing destination name, severely limiting
+        // usefulness of that logline)
+        PolicyEntry mbmTopicsPolicy = new PolicyEntry();
+        mbmTopicsPolicy.setDestination(new ActiveMQTopic("matsbrokermonitor.>"));
+        // Each message is ~2k, so 25k messages will be ~50MB of prefetched data: Okay.
+        // If your Mats Fabric is as large as 25k different endpoints&stages, then you can afford 50MB for monitoring.
+        mbmTopicsPolicy.setTopicPrefetch(25_000);
+
+        // .. create the PolicyMap containing the destination policies
         PolicyMap policyMap = new PolicyMap();
         policyMap.put(allQueuesPolicy.getDestination(), allQueuesPolicy);
         policyMap.put(allTopicsPolicy.getDestination(), allTopicsPolicy);
+        policyMap.put(mbmTopicsPolicy.getDestination(), mbmTopicsPolicy);
         // .. set this PolicyMap containing our PolicyEntry on the broker.
         broker.setDestinationPolicy(policyMap);
 
@@ -437,7 +459,7 @@ public interface MatsTestBroker {
          * and providing the producers with a large piece of the pie, it should ensure that the producers will always be
          * able to produce messages while the consumers will always have some memory available to consume messages.
          * Consumers do not use a lot of memory, in fact they use almost nothing. Therefore we've elected to override
-         * the default values of AMQ (60/40 P/C) and enforce a 95/5 P/C split instead.
+         * the default values of AMQ (60/40 P/C) and set a 95/5 P/C split instead.
          *
          * Source: ActiveMQ: Understanding Memory Usage
          * http://blog.christianposta.com/activemq/activemq-understanding-memory-usage/
@@ -454,6 +476,55 @@ public interface MatsTestBroker {
             throw new AssertionError("Could not start ActiveMQ BrokerService '" + brokername + "'.", e);
         }
         return broker;
+    }
+
+    /**
+     * <b>Note: This is most probably NOT what you want to use in a testing scenario - for this you want to use the
+     * method {@link MatsTestBroker} class directly, using its {@link #create()} method.</b>
+     * <p/>
+     * This method is publicly available for examples and experiments, and provide a way to create an ActiveMQ
+     * ConnectionFactory with some Mats optimizations, with a single method call.
+     *
+     * @param brokerUrl
+     *            to connect to an in-vm broker instance, use a URL like:
+     *            <code>"vm://" + brokerService.getBrokerName() + "?create=false"</code>. To connect to a broker
+     *            instance over TCP on default port, use: <code>"tcp://localhost:61616"</code>.
+     * @return a new ActiveMQ ConnectionFactory.
+     */
+    static ConnectionFactory newActiveMqConnectionFactory(String brokerUrl) {
+        org.apache.activemq.ActiveMQConnectionFactory conFactory = new org.apache.activemq.ActiveMQConnectionFactory(
+                brokerUrl);
+
+        // Note: All these are relevant for production setups, but more maximum redeliveries.
+
+        // :: We won't be needing Topic Advisories (we don't use temp queues/topics), so don't subscribe to them.
+        conFactory.setWatchTopicAdvisories(false);
+
+        // :: Mats don't need in-order, so just deliver other messages while waiting for redelivery.
+        conFactory.setNonBlockingRedelivery(true);
+
+        // :: Mats JMS impl uses message priorities
+        conFactory.setMessagePrioritySupported(true);
+
+        // :: RedeliveryPolicy
+        RedeliveryPolicy redeliveryPolicy = conFactory.getRedeliveryPolicy();
+        redeliveryPolicy.setInitialRedeliveryDelay(TEST_REDELIVERY_DELAY);
+        redeliveryPolicy.setRedeliveryDelay(2000); // This is not in use when using exp. backoff and initial != 0
+        redeliveryPolicy.setUseExponentialBackOff(true);
+        redeliveryPolicy.setBackOffMultiplier(2);
+        redeliveryPolicy.setUseCollisionAvoidance(true);
+        redeliveryPolicy.setCollisionAvoidancePercent((short) 15);
+        // Only need 1 redelivery for testing, totally ignoring the above. Use 6-10 for production.
+        redeliveryPolicy.setMaximumRedeliveries(TEST_TOTAL_DELIVERY_ATTEMPTS - 1);
+
+        // NOTE! We will not be setting prefetch values here, instead relying on those set on the server.
+        // However, default values for prefetch are very high: 1000 for queues, and Short.MAX_VALUE for topics.
+        // In a prod setting, you should decide how you handle this - either set it on server, or on the client
+        // ConnectionFactory. Implementation-strangeness: If the ConnectionFactory has not had these values set,
+        // thus they are default - OR if they are *set* to the default (!) - the server-set kicks in! The server-set
+        // have the same defaults. However, in this file, the server has reduced them, see 'newActiveMqBroker(..)'.
+
+        return conFactory;
     }
 
     // --- IMPLEMENTATIONS
@@ -488,31 +559,7 @@ public interface MatsTestBroker {
         }
 
         protected static ConnectionFactory createActiveMQConnectionFactory(String brokerUrl) {
-            log.info("Setting up ActiveMQ ConnectionFactory to brokerUrl: [" + brokerUrl + "].");
-            org.apache.activemq.ActiveMQConnectionFactory conFactory = new org.apache.activemq.ActiveMQConnectionFactory(
-                    brokerUrl);
-
-            // :: We won't be needing Topic Advisories (we don't use temp queues/topics), so don't subscribe to them.
-            conFactory.setWatchTopicAdvisories(false);
-
-            // :: Mats don't need in-order, so just deliver other messages while waiting for redelivery.
-            conFactory.setNonBlockingRedelivery(true);
-
-            // :: Mats uses message priorities
-            conFactory.setMessagePrioritySupported(true);
-
-            // :: RedeliveryPolicy
-            RedeliveryPolicy redeliveryPolicy = conFactory.getRedeliveryPolicy();
-            redeliveryPolicy.setInitialRedeliveryDelay(TEST_REDELIVERY_DELAY);
-            redeliveryPolicy.setRedeliveryDelay(2000); // This is not in use when using exp. backoff and initial != 0
-            redeliveryPolicy.setUseExponentialBackOff(true);
-            redeliveryPolicy.setBackOffMultiplier(2);
-            redeliveryPolicy.setUseCollisionAvoidance(true);
-            redeliveryPolicy.setCollisionAvoidancePercent((short) 15);
-            // Only need 1 redelivery for testing, totally ignoring the above. Use 6-10 for production.
-            redeliveryPolicy.setMaximumRedeliveries(TEST_TOTAL_DELIVERY_ATTEMPTS - 1);
-
-            return conFactory;
+            return newActiveMqConnectionFactory(brokerUrl);
         }
 
         protected static void closeBroker(BrokerService _brokerService) {
@@ -542,10 +589,10 @@ public interface MatsTestBroker {
         MatsTestBroker_ActiveMq() {
             String sysprop_brokerUrl = System.getProperty(SYSPROP_MATS_TEST_BROKERURL);
 
-            BrokerService brokerService = null;
-
-            // :: Find which broker URL to use
             String brokerUrl;
+            BrokerService brokerService;
+
+            // :: Find which broker URL and BrokerService to use
             if (SYSPROP_MATS_TEST_BROKERURL_VALUE_IN_VM.equalsIgnoreCase(sysprop_brokerUrl)
                     || (sysprop_brokerUrl == null)) {
                 brokerService = MatsTestBroker_InVmActiveMq.createInVmActiveMqBroker();
@@ -556,11 +603,13 @@ public interface MatsTestBroker {
                 log.info("SKIPPING setup of in-vm ActiveMQ BrokerService (MQ server), since System Property '"
                         + SYSPROP_MATS_TEST_BROKERURL + "' was set to [" + sysprop_brokerUrl + "]"
                         + " - using [" + brokerUrl + "]");
+                brokerService = null;
             }
             else {
                 brokerUrl = sysprop_brokerUrl;
                 log.info("SKIPPING setup of in-vm ActiveMQ BrokerService (MQ server), since System Property '"
                         + SYSPROP_MATS_TEST_BROKERURL + "' was set to [" + sysprop_brokerUrl + "].");
+                brokerService = null;
             }
             _brokerService = brokerService;
             _connectionFactory = MatsTestBroker_InVmActiveMq.createActiveMQConnectionFactory(brokerUrl);
@@ -580,7 +629,8 @@ public interface MatsTestBroker {
     }
 
     /**
-     * Creates a connection to an Artemis broker.
+     * Either creates an in-vm Artemis broker, or an Artemis ConnectionFactory to an external URL, based on system
+     * properties.
      */
     class MatsTestBroker_Artemis implements MatsTestBroker {
         private static final Logger log = LoggerFactory.getLogger(MatsTestBroker_Artemis.class);
@@ -592,12 +642,14 @@ public interface MatsTestBroker {
             String sysprop_brokerUrl = System.getProperty(SYSPROP_MATS_TEST_BROKERURL);
 
             String brokerUrl;
-            EmbeddedActiveMQ server;
+            EmbeddedActiveMQ artemisServer;
+
+            // :: Find which broker URL and Artemis server to use
             if (SYSPROP_MATS_TEST_BROKERURL_VALUE_IN_VM.equalsIgnoreCase(sysprop_brokerUrl)
                     || (sysprop_brokerUrl == null)) {
                 // Create the broker, random id.
                 brokerUrl = "vm://" + Math.abs(ThreadLocalRandom.current().nextInt());
-                server = createArtemisBroker(brokerUrl);
+                artemisServer = createArtemisBroker(brokerUrl);
             }
             else if (SYSPROP_MATS_TEST_BROKERURL_VALUE_LOCALHOST.equalsIgnoreCase(sysprop_brokerUrl)) {
                 // -> Yes, there is specified a brokerUrl to connect to, so we don't start in-vm ActiveMQ.
@@ -605,20 +657,20 @@ public interface MatsTestBroker {
                 log.info("SKIPPING setup of Artemis broker, since System Property '"
                         + SYSPROP_MATS_TEST_BROKERURL + "' was set to [" + sysprop_brokerUrl + "]"
                         + " - using [" + brokerUrl + "].");
-                server = null;
+                artemisServer = null;
             }
             else {
                 // -> Yes, there is specified a brokerUrl to connect to, so we don't start in-vm ActiveMQ.
                 log.info("SKIPPING setup of Artemis broker, since System Property '"
                         + SYSPROP_MATS_TEST_BROKERURL + "' was set to [" + sysprop_brokerUrl + "].");
                 brokerUrl = sysprop_brokerUrl;
-                server = null;
+                artemisServer = null;
             }
             // :: Connect to the Artemis broker
             log.info("Setting up Artemis ConnectionFactory to brokerUrl: [" + brokerUrl + "].");
             // Starting with Artemis 1.0.1 you can just use the URI to instantiate the object directly
             _connectionFactory = new org.apache.activemq.artemis.jms.client.ActiveMQConnectionFactory(brokerUrl);
-            _artemisServer = server;
+            _artemisServer = artemisServer;
         }
 
         public static EmbeddedActiveMQ createArtemisBroker(String brokerUrl) {
