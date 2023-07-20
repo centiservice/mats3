@@ -148,7 +148,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
         }
 
         @Stage(10)
-        void evaluateSomeThings(ProcessContext context, SpringTestDataTO in) {
+        void evaluateSomeThings(ProcessContext<?> context, SpringTestDataTO in) {
             // Assert that state is kept from previous stage
             Assert.assertEquals(-10, _someStateInt);
             Assert.assertEquals("SetFromInitial", _someStateString);
@@ -169,7 +169,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
         }
 
         @Stage(20)
-        void evaluateSomeMoreThings(SpringTestDataTO in, ProcessContext context) {
+        void evaluateSomeMoreThings(SpringTestDataTO in, ProcessContext<?> context) {
             // Assert that state is kept from previous stage
             Assert.assertEquals(-10, _someStateInt);
             Assert.assertEquals("SetFromInitial", _someStateString);
@@ -198,7 +198,7 @@ public class MatsSpringDefinedTest_MatsClassMapping {
 
         @Stage(30)
         void processSomeStuff(@Dto SpringTestStateTO in, String anotherParameterMaybeUsedForTesting,
-                ProcessContext context) {
+                ProcessContext<?> context) {
             // Assert that state is kept from previous stage
             Assert.assertEquals(10, _someStateInt);
             Assert.assertEquals("SetFromStageA", _someStateString);

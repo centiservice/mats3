@@ -36,6 +36,7 @@ public class Test_LargeMessages  {
 
     private static final String TERMINATOR = MatsTestHelp.terminator();
 
+    @SuppressWarnings("overrides")
     private static class LargeMessageDTO {
         private final int _index;
         private final List<DataTO> _dataTransferObjects;

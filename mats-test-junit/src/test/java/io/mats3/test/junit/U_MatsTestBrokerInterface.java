@@ -20,6 +20,7 @@ public class U_MatsTestBrokerInterface {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
+    @SuppressWarnings("overrides")
     public static class MatsTestData {
         String string;
         Double number;

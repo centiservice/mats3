@@ -84,7 +84,7 @@ public class Test_NestedInInitiate {
         String traceId1 = "nestingIsOk_nested_A_2:" + RandomString.partTraceId();
         String traceId2 = "nestingIsOk_nested_B_3:" + RandomString.partTraceId();
 
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "rawtypes"})
         Result<StateTO, DataTO>[] results = new Result[3];
         long[] timestamp = new long[3];
 
@@ -294,7 +294,7 @@ public class Test_NestedInInitiate {
         String traceId1 = "nestingIsOk_outer_2:" + RandomString.partTraceId();
         String traceId2 = "nestingIsOk_outer_3:" + RandomString.partTraceId();
 
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "rawtypes"})
         Result<StateTO, DataTO>[] results = new Result[3];
         long[] timestamp = new long[3];
 
@@ -504,7 +504,7 @@ public class Test_NestedInInitiate {
         String traceId1 = "nestingIsOk_outer_2:" + RandomString.partTraceId();
         String traceId2 = "nestingIsOk_outer_3:" + RandomString.partTraceId();
 
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "rawtypes"})
         Result<StateTO, DataTO>[] results = new Result[3];
         long[] timestamp = new long[3];
 

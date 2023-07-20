@@ -70,9 +70,8 @@ subprojects {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
 
-    compileJava {
+    tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
-        options.deprecation = true
         options.incremental = true
         options.compilerArgs += ['-Werror', '-Xlint:all', '-Xlint:-serial']
     }

@@ -127,6 +127,7 @@ public class TestMatsSerializerJson {
     }
 
 
+    @SuppressWarnings("overrides")
     static class ClassTest {
         final String string;
         final int integer;

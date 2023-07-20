@@ -79,7 +79,7 @@ public class Test_MatsFuturizer_WhichThread {
         // ACT
 
         String[] completedOnThreadName = new String[1];
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "rawtypes"})
         Reply<DataTO>[] reply = new Reply[1];
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -117,7 +117,7 @@ public class Test_MatsFuturizer_WhichThread {
         // :: ACT
 
         String[] completedOnThreadName = new String[1];
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "rawtypes"})
         Reply<DataTO>[] reply = new Reply[1];
 
         // Do a ".thenApply(...)", followed by a ".get()" to get the value..
@@ -155,7 +155,7 @@ public class Test_MatsFuturizer_WhichThread {
         // :: ACT
 
         String[] completedOnThreadName = new String[1];
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "rawtypes"})
         Reply<DataTO>[] reply = new Reply[1];
 
         // Do a ".thenAccept(...)", followed by a ".get()" to get the value - which won't come due to exception.

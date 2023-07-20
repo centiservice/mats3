@@ -102,7 +102,7 @@ public class Test_MatsFuturizer_Basics {
         // :: ACT
 
         String[] completedOnThreadName = new String[1];
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "rawtypes"})
         Reply<DataTO>[] reply = new Reply[1];
 
         // Do a ".thenApply(...)", followed by a ".get()" to get the value..
