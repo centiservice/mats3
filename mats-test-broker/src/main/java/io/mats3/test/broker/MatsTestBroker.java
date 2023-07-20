@@ -9,6 +9,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import javax.jms.ConnectionFactory;
 
+import io.mats3.test.broker.messagecursor.Reflection_Hacked_StoreQueueCursor;
+import io.mats3.test.broker.messagecursor.Reflection_Hacked_StoreQueueCursor.Reflection_Hacked_StorePendingQueueMessageStoragePolicy;
 import org.apache.activemq.RedeliveryPolicy;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.RoutingType;
@@ -383,6 +385,10 @@ public interface MatsTestBroker {
         // get rid of queues for Endpoints which are taken out of the codebase.
         allQueuesPolicy.setGcInactiveDestinations(true);
         allQueuesPolicy.setInactiveTimeoutBeforeGC(2 * 24 * 60 * 60 * 1000); // Two full days.
+
+        // To make ActiveMQ better wrt. handling interleaving of persistent and non-persistent messages on the same
+        // queue, we install a "hacked" version of the StoreQueueCursor. Read the JavaDoc of the class.
+        allQueuesPolicy.setPendingQueuePolicy(new Reflection_Hacked_StorePendingQueueMessageStoragePolicy());
 
         // :: Create policy entry for TOPICS:
         PolicyEntry allTopicsPolicy = new PolicyEntry();
