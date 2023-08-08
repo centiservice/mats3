@@ -324,6 +324,12 @@ public interface MatsTestBroker {
             // on log, thus we make one ourselves.
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 try {
+                    // Chill a small bit, so that if a JVM has both the server running, and at the same time uses client
+                    // connections, and these end up concurrently closing, there is a tad higher chance that the MQ
+                    // goes down after client Connections have been closed, avoiding annoying exceptions in logs.
+                    // (This is not really a problem, just ugly.)
+                    Thread.sleep(100);
+                    // Stop it.
                     broker.stop();
                 }
                 catch (Exception e) {
