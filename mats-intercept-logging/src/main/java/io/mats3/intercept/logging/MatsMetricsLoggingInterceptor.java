@@ -111,7 +111,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * <li><b>{@link #MDC_MATS_EXEC_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Number of messages sent in this initiation.
  * Should most often be 1, but can be multiple, and also zero.</li>
  * <li><b>{@link #MDC_MATS_EXEC_SIZE_OUT_TOTAL_WIRE "mats.exec.Out.TotalWire.bytes"}</b>: The sum of
- * {@link #MDC_MATS_OUT_SIZE_TOTAL_WIRE} for all messages sent in this initiation.</li>
+ * {@link #MDC_MATS_OUT_SIZE_TOTAL_WIRE "mats.out.TotalWire.bytes"} for all messages sent in this initiation.</li>
  * <li><b>{@link #MDC_MATS_EXEC_TIME_DB_COMMIT "mats.exec.DbCommit.ms"}</b>: Part of total time taken for committing
  * DB.</li>
  * <li><b>{@link #MDC_MATS_EXEC_TIME_MSGSYS_COMMIT "mats.exec.MsgSysCommit.ms"}</b>: Part of total time taken for
@@ -196,8 +196,8 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * <li><b>{@link #MDC_MATS_IN_TIME_DATA_AND_STATE_DESERIAL "mats.in.DataAndStateDeserial.ms"}</b>: Part of total time
  * taken to deserialize the data and state objects (DTO and STO) from the Mats envelope.</li>
  * <li><b>{@link #MDC_MATS_IN_SIZE_TOTAL_WIRE "mats.in.TotalWire.bytes"}</b>: Best approximation of the total message
- * system wire size (envelope + sideloads + any meta info set on the message). The overhead of the message system itself
- * will probably not be included.</li>
+ * system wire size (envelope (compressed) + sideloads + any meta info set on the message). The overhead of the message
+ * system itself might not be included, unless actual message size is directly available from message system.</li>
  * <li><b>{@link #MDC_MATS_IN_SIZE_STATE_SERIAL "mats.in.StateSerial.bytes"}</b>: The serialized size of the incoming
  * state object (STO). If there is no incoming state, <code>0</code> is returned - this is normal for initial stage of
  * an endpoint, unless an initiation sets initialState. If the serializer employs Strings, the returned value is
@@ -238,9 +238,12 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * including both user code and all system code including commits. The same value is present on
  * {@link #MDC_MATS_STAGE_COMPLETED "mats.StageCompleted"}, see above.</li>
  * <li><b>{@link #MDC_MATS_EXEC_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.exec.TotalPreprocDeserial.ms"}</b>: Part of the
- * total time taken for the preprocessing and deserialization of the incoming message, same as the message received
- * logline's {@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.in.TotalPreprocDeserial.ms"}, as that piece is
- * also part of the stage processing.</li>
+ * total time taken for the preprocessing and deserialization of the incoming message, same value as the message
+ * received logline's {@link #MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL "mats.in.TotalPreprocDeserial.ms"}, as that
+ * piece is also part of the stage processing.</li>
+ * <li><b>{@link #MDC_MATS_EXEC_SIZE_IN_TOTAL_WIRE "mats.exec.In.TotalWire.bytes"}</b>: The processed incoming message's
+ * total wire size - same as the message received logline's {@link #MDC_MATS_IN_SIZE_TOTAL_WIRE
+ * "mats.in.TotalWire.bytes"} above.</li>
  * <li><b>{@link #MDC_MATS_EXEC_TIME_USER_LAMBDA "mats.exec.UserLambda.ms"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_EXEC_TIME_OUT "mats.exec.Out.ms"}</b>: Same as for initiation.</li>
  * <li><b>{@link #MDC_MATS_EXEC_QUANTITY_OUT "mats.exec.Out.quantity"}</b>: Same as for initiation.</li>
@@ -477,6 +480,10 @@ public class MatsMetricsLoggingInterceptor
     // ..... specific Stage complete metric - along with the other ".exec." from the COMMON Init/Stage Completed
     // Note that this is the same timing as the MDC_MATS_IN_TIME_TOTAL_PREPROC_AND_DESERIAL
     public static final String MDC_MATS_EXEC_TIME_TOTAL_PREPROC_AND_DESERIAL = "mats.exec.TotalPreprocDeserial.ms";
+
+    // Note that this is the same size as the MDC_MATS_IN_SIZE_TOTAL_WIRE
+    public static final String MDC_MATS_EXEC_SIZE_IN_TOTAL_WIRE = "mats.exec.In.TotalWire.bytes";
+
 
     // ============================================================================================================
     // ===== For Endpoint Completed - i.e. a stage of ep that either REPLY or stop the flow (no REQ,NEXT,GOTO)
@@ -906,6 +913,7 @@ public class MatsMetricsLoggingInterceptor
         String extraBreakdown = " totPreprocAndDeserial:[" + totalPreprocessAndDeserializeNanosString + " ms],";
         long extraNanosBreakdown = ctx.getTotalPreprocessAndDeserializeNanos();
         completedMDC.put(MDC_MATS_EXEC_TIME_TOTAL_PREPROC_AND_DESERIAL, totalPreprocessAndDeserializeNanosString);
+        completedMDC.put(MDC_MATS_EXEC_SIZE_IN_TOTAL_WIRE, Integer.toString(ctx.getMessageSystemTotalWireSize()));
 
         completedMDC.put(MDC_MATS_PROCESS_RESULT, ctx.getStageProcessResult().toString());
 
