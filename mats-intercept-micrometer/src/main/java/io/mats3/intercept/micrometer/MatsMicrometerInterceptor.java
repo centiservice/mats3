@@ -21,9 +21,7 @@ import io.mats3.api.intercept.CommonCompletedContext;
 import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
 import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
-import io.mats3.api.intercept.MatsInterceptable;
-import io.mats3.api.intercept.MatsInterceptable.MatsMetricsInterceptor;
-import io.mats3.api.intercept.MatsInterceptableMatsFactory;
+import io.mats3.api.intercept.MatsMetricsInterceptor;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor;
@@ -126,7 +124,7 @@ import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
  * series - if you have a popular Mats endpoint with many stages targeted by many other services (thus getting many
  * differing 'from', 'initiatingAppName' and 'initiatorId'), you may get a "cardinality explosion", in particular if you
  * also configure histograms. It is thus <code>false</code> by default, i.e. when using the
- * {@link #install(MatsInterceptableMatsFactory) single-arg install(..) method}.<br />
+ * {@link #install(MatsFactory) single-arg install(..) method}.<br />
  * Which extra tags are omitted in which situations when 'includeAllTags' is <code>false</code>:
  * <ul>
  * <li>Received (incoming message): "from" (from which initId or stageId) <i>for initial stage</i>, "initiatingAppName"
@@ -157,11 +155,11 @@ import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
  * Micrometer.
  * <p/>
  * <b>Note: This interceptor (Micrometer Metrics) has special support in <code>JmsMatsFactory</code>: If present on the
- * classpath, it is automatically installed using the {@link #install(MatsInterceptableMatsFactory)} install method.</b>
+ * classpath, it is automatically installed using the {@link #install(MatsFactory)} install method.</b>
  * This implies that it employs the {@link Metrics#globalRegistry Micrometer 'globalRegistry'} - and 'includeAllTags'
  * will be <code>false</code>. If you rather want to supply a specific registry, or change the 'includeAllTags' boolean
  * value, then create and install a specific instance of this class using the
- * {@link #install(MatsInterceptableMatsFactory, MeterRegistry, boolean)} method - the <code>JmsMatsFactory</code> will
+ * {@link #install(MatsFactory, MeterRegistry, boolean)} method - the <code>JmsMatsFactory</code> will
  * then remove the automatically installed, since it implements the special marker-interface
  * {@link MatsMetricsInterceptor} of which there can only be one instance installed. <i>(In a Spring context where the
  * MatsFactory is created for you using an annotation, you are still able to do this during early phases of Spring
@@ -330,10 +328,10 @@ public class MatsMicrometerInterceptor
 
     /**
      * Creates a {@link MatsMicrometerInterceptor} employing the provided {@link MeterRegistry}, and installs it as a
-     * singleton on the provided {@link MatsInterceptableMatsFactory}
+     * singleton on the provided {@link MatsFactory}
      *
-     * @param matsInterceptableMatsFactory
-     *            the {@link MatsInterceptable} to install on (probably a {@link MatsFactory}.
+     * @param matsFactory
+     *            the {@link MatsFactory} to install on (probably a {@link MatsFactory}.
      * @param meterRegistry
      *            the Micrometer {@link MeterRegistry} to create meters on.
      * @param includeAllTags
@@ -341,28 +339,26 @@ public class MatsMicrometerInterceptor
      * @return the {@link MatsMicrometerInterceptor} instance which was installed as singleton.
      */
     public static MatsMicrometerInterceptor install(
-            MatsInterceptableMatsFactory matsInterceptableMatsFactory,
-            MeterRegistry meterRegistry, boolean includeAllTags) {
-        FactoryConfig factoryConfig = matsInterceptableMatsFactory.getFactoryConfig();
+            MatsFactory matsFactory, MeterRegistry meterRegistry, boolean includeAllTags) {
+        FactoryConfig factoryConfig = matsFactory.getFactoryConfig();
 
         MatsMicrometerInterceptor metrics = new MatsMicrometerInterceptor(meterRegistry,
                 factoryConfig.getAppName(), factoryConfig.getAppVersion(), includeAllTags);
 
-        matsInterceptableMatsFactory.addInitiationInterceptor(metrics);
-        matsInterceptableMatsFactory.addStageInterceptor(metrics);
+        factoryConfig.installPlugin(metrics);
         return metrics;
     }
 
     /**
      * Creates a {@link MatsMicrometerInterceptor} employing the provided {@link Metrics#globalRegistry globalRegistry},
-     * and installs it as a singleton on the provided {@link MatsInterceptableMatsFactory}
+     * and installs it as a singleton on the provided {@link MatsFactory}
      *
-     * @param matsInterceptableMatsFactory
-     *            the {@link MatsInterceptable} to install on (probably a {@link MatsFactory}.
+     * @param matsFactory
+     *            the {@link MatsFactory} to install on (probably a {@link MatsFactory}.
      * @return the {@link MatsMicrometerInterceptor} instance which was installed as singleton.
      */
-    public static MatsMicrometerInterceptor install(MatsInterceptableMatsFactory matsInterceptableMatsFactory) {
-        return install(matsInterceptableMatsFactory, Metrics.globalRegistry, false);
+    public static MatsMicrometerInterceptor install(MatsFactory matsFactory) {
+        return install(matsFactory, Metrics.globalRegistry, false);
     }
 
     /*

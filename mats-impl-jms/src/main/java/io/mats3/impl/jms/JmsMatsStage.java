@@ -332,5 +332,10 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         public Class<I> getIncomingClass() {
             return _incomingClass;
         }
+
+        @Override
+        public ProcessLambda<R, S, I> getProcessLambda() {
+            return _processLambda;
+        }
     }
 }

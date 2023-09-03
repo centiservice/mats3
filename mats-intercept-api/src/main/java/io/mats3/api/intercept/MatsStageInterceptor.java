@@ -8,6 +8,8 @@ import io.mats3.MatsEndpoint.DetachedProcessContext;
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsEndpoint.ProcessLambda;
+import io.mats3.MatsFactory.FactoryConfig;
+import io.mats3.MatsFactory.MatsPlugin;
 import io.mats3.MatsStage;
 import io.mats3.api.intercept.MatsOutgoingMessage.DispatchType;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsEditableOutgoingMessage;
@@ -16,15 +18,15 @@ import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StageProcessResult;
 
 /**
- * <b>Implement this interface to intercept Stage Processing</b>, then register with
- * {@link MatsInterceptable#addStageInterceptor(MatsStageInterceptor)}.
+ * <b>Extension of MatsPlugin: Implement this interface to intercept Stage Processing</b>, then register with
+ * {@link FactoryConfig#installPlugin(MatsPlugin)}.
  * <p />
  * Intercepts stage processors with ability to modify the stage processing, and implement extra logging and metrics
  * gathering.
  *
  * @author Endre Stølsvik - 2020-01-08 - http://endre.stolsvik.com
  */
-public interface MatsStageInterceptor {
+public interface MatsStageInterceptor extends MatsPlugin {
 
     /**
      * Invoked if any of the preprocessing and deserialization activities on the incoming message from the message

@@ -8,6 +8,8 @@ dependencies {
 
     // We need an implementation of the Mats API
     implementation project(':mats-impl-jms')
+    // Need the MatsSerializerJson
+    implementation project(":mats-serial-json")
 
     // Backing message brokers:
     // We need a backing JMS-based Message Broker; MatsTestBroker is a tool that provides easy instantiation of such.
@@ -22,7 +24,7 @@ dependencies {
     // .. therefore, also pull in ActiveMQ Client and broker (actually, broker brings in client, but to be explicit)
     implementation "org.apache.activemq:activemq-client:$activeMqVersion"
     implementation "org.apache.activemq:activemq-broker:$activeMqVersion"
-    // .. and pull in The Artemis (Apache ActiveMQ Artemis) Client and Server, since you can choose to test with it.
+    // .. and pull in Artemis (Apache ActiveMQ Artemis) Client and Server, since you can choose to test with it.
     // .. (note that Artemis has always used JMS 2.0.)
     implementation "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
     implementation "org.apache.activemq:artemis-server:$artemisMqVersion"

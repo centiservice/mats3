@@ -17,7 +17,6 @@ import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsFactory;
 import io.mats3.MatsFactory.MatsFactoryWrapper;
-import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
@@ -87,7 +86,6 @@ public interface MatsTestBrokerInterface {
      * <ul>
      * <li><code>matsFactory.getFactoryConfig().getMatsDestinationPrefix()</code> (standard MatsFactory)</li>
      * <li><code>matsFactory.getFactoryConfig().getMatsTraceKey()</code> (standard MatsFactory)</li>
-     * <li>The Mats Interceptor API (from {@link MatsInterceptable}, which JmsMatsFactory is)</li>
      * <li>The {@link MatsSerializer} to provide access to contents from messages (from JmsMatsFactory)</li>
      * </ul>
      * <p />

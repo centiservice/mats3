@@ -5,13 +5,16 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import javax.jms.ConnectionFactory;
 import javax.sql.DataSource;
 
+import io.mats3.MatsFactory.MatsPlugin;
+import io.mats3.api.intercept.MatsLoggingInterceptor;
+import io.mats3.api.intercept.MatsMetricsInterceptor;
+import io.mats3.test.MatsTestFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint.ProcessTerminatorLambda;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator;
-import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
@@ -33,7 +36,7 @@ import io.mats3.util.MatsFuturizer;
  * utilizing MATS.
  * <p>
  * The setup and creation of these objects are located in the {@link #beforeAll()} method, this method should be called
- * through the use JUnit and Jupiters life
+ * through the use JUnit and Jupiters life cycle methods.
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  * @author Kevin Mc Tiernan, 2020-10-18, kmctiernan@gmail.com
@@ -46,7 +49,7 @@ public abstract class AbstractMatsTest<Z> {
     protected DataSource _dataSource;
 
     protected MatsTestBroker _matsTestBroker;
-    protected MatsInterceptableMatsFactory _matsFactory;
+    protected MatsFactory _matsFactory;
     protected CopyOnWriteArrayList<MatsFactory> _createdMatsFactories = new CopyOnWriteArrayList<>();
 
     // :: Lazy init:
@@ -188,14 +191,6 @@ public abstract class AbstractMatsTest<Z> {
      * @return the {@link MatsFactory} that this JUnit Rule sets up.
      */
     public MatsFactory getMatsFactory() {
-        return getMatsInterceptableMatsFactory();
-    }
-
-    /**
-     * @return the {@link MatsInterceptableMatsFactory} that this JUnit Rule sets up - <b>This should not be used unless
-     *         testing the Interceptor API!</b>
-     */
-    public MatsInterceptableMatsFactory getMatsInterceptableMatsFactory() {
         return _matsFactory;
     }
 
@@ -210,34 +205,9 @@ public abstract class AbstractMatsTest<Z> {
      *
      * @return a <i>new, separate</i> {@link MatsFactory} in addition to the one provided by {@link #getMatsFactory()}.
      */
-    public MatsInterceptableMatsFactory createMatsFactory() {
-        JmsMatsJmsSessionHandler sessionHandler = JmsMatsJmsSessionHandler_Pooling
-                .create(_matsTestBroker.getConnectionFactory());
+    public MatsFactory createMatsFactory() {
+        MatsFactory matsFactory = MatsTestFactory.create(_matsTestBroker, _dataSource, _matsSerializer);
 
-        JmsMatsFactory<Z> matsFactory;
-        if (_dataSource == null) {
-            // -> No DataSource
-            matsFactory = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(this.getClass().getSimpleName() + "_app",
-                    "*testing*", sessionHandler, _matsSerializer);
-        }
-        else {
-            // -> We have DataSource
-            // Create the JMS and JDBC TransactionManager-backed JMS MatsFactory.
-            matsFactory = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(this.getClass().getSimpleName()
-                    + "_app", "*testing*", sessionHandler, _dataSource, _matsSerializer);
-
-        }
-
-        // Set name
-        matsFactory.getFactoryConfig().setName(this.getClass().getSimpleName() + "_MF");
-
-        /*
-         * For most test scenarios, it really makes little meaning to have a concurrency of more than 1 - unless
-         * explicitly testing Mats' handling of concurrency. However, due to some testing scenarios might come to rely
-         * on such sequential processing, we set it to 2, to try to weed out such dependencies - hopefully tests will
-         * (at least occasionally) fail by two consumers each getting a message and thus processing them concurrently.
-         */
-        matsFactory.getFactoryConfig().setConcurrency(2);
         // Add it to the list of created MatsFactories.
         _createdMatsFactories.add(matsFactory);
         return matsFactory;
@@ -258,15 +228,8 @@ public abstract class AbstractMatsTest<Z> {
     }
 
     /**
-     * @deprecated use {@link #cleanMatsFactories()}.
-     */
-    @Deprecated
-    public void cleanMatsFactory() {
-    }
-
-    /**
-     * Loops through all the {@link MatsFactory}'s contained in this Rule (default + any specifically created), and
-     * removes all endpoints from each of them, this ensures that all factories are "clean".
+     * Loops through all the {@link MatsFactory}s contained in this Rule (default + any specifically created), and
+     * removes all Endpoints and unknown Plugins from each of them, this ensures that all factories are "clean".
      * <p />
      * You may want to utilize this if you have multiple tests in a class, and set up the Endpoints using a @Before type
      * annotation in the test, as opposed to @BeforeClass. This because otherwise you will on the second test try to
@@ -286,10 +249,26 @@ public abstract class AbstractMatsTest<Z> {
                 _matsFuturizer = null;
             }
         }
-        // :: Loop through all created MATS factories and remove the endpoints
+        // :: Loop through all created MATS factories and remove the endpoints and unknown plugins
         for (MatsFactory createdMatsFactory : _createdMatsFactories) {
+            // .. Removing Endpoints
             createdMatsFactory.getEndpoints()
                     .forEach(matsEndpoint -> matsEndpoint.remove(30_000));
+            // .. Removing unknown Plugins
+            for (MatsPlugin plugin : createdMatsFactory.getFactoryConfig().getPlugins(MatsPlugin.class)) {
+                // ?: Is this the standard MatsMetricsLoggingInterceptor?
+                if (plugin.getClass().getSimpleName().equals("MatsMetricsLoggingInterceptor")) {
+                    // -> Yes, so don't remove it.
+                    continue;
+                }
+                // ?: Is this the standard MatsMicrometerInterceptor?
+                if (plugin.getClass().getSimpleName().equals("MatsMicrometerInterceptor")) {
+                    // -> Yes, so don't remove it.
+                    continue;
+                }
+                // E-> No, none of the standard, so remove it.
+                createdMatsFactory.getFactoryConfig().removePlugin(plugin);
+            }
         }
     }
 

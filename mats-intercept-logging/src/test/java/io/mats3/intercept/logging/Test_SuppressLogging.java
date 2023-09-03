@@ -8,7 +8,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 
 import io.mats3.MatsEndpoint;
-import io.mats3.api.intercept.MatsInterceptable.MatsLoggingInterceptor;
+import io.mats3.api.intercept.MatsLoggingInterceptor;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.junit.Rule_Mats;

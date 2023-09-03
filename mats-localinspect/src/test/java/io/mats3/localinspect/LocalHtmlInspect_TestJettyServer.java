@@ -38,7 +38,6 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import ch.qos.logback.core.CoreConstants;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.KeepTrace;
-import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.MatsSerializer;
@@ -66,8 +65,8 @@ public class LocalHtmlInspect_TestJettyServer {
     @WebListener
     public static class SCL_Endre implements ServletContextListener {
 
-        private MatsInterceptableMatsFactory _matsFactory1;
-        private MatsInterceptableMatsFactory _matsFactory2;
+        private MatsFactory _matsFactory1;
+        private MatsFactory _matsFactory2;
         private MatsFuturizer _matsFuturizer1;
         private MatsFuturizer _matsFuturizer2;
 

@@ -7,8 +7,8 @@ import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -35,8 +35,8 @@ import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.MatsStage.StageConfig;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
 import io.mats3.api.intercept.MatsInitiateInterceptor.InitiateInterceptContext;
-import io.mats3.api.intercept.MatsInterceptable;
-import io.mats3.api.intercept.MatsInterceptableMatsFactory;
+import io.mats3.api.intercept.MatsLoggingInterceptor;
+import io.mats3.api.intercept.MatsMetricsInterceptor;
 import io.mats3.api.intercept.MatsStageInterceptor;
 import io.mats3.api.intercept.MatsStageInterceptor.StageInterceptContext;
 import io.mats3.impl.jms.JmsMatsInitiator.MatsInitiator_DefaultInitiator_TxRequired;
@@ -45,7 +45,7 @@ import io.mats3.impl.jms.JmsMatsProcessContext.DoAfterCommitRunnableHolder;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
 
-public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsStatics, JmsMatsStartStoppable {
+public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable, MatsFactory {
 
     private static String MATS_IMPLEMENTATION_NAME = "JMS Mats";
     private static String MATS_IMPLEMENTATION_VERSION = "0.19.11-2023-05-16";
@@ -152,8 +152,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         _matsSerializer = matsSerializer;
         _factoryConfig = new JmsMatsFactoryConfig();
 
-        installIfPresent(_matsLoggingInterceptor, MatsInterceptable.class);
-        installIfPresent(_matsMetricsInterceptor, MatsInterceptableMatsFactory.class);
+        installIfPresent(_matsLoggingInterceptor);
+        installIfPresent(_matsMetricsInterceptor);
 
         log.info(LOG_PREFIX + "Created [" + idThis() + "],"
                 + " Mats:[" + MATS_IMPLEMENTATION_NAME + ",v" + MATS_IMPLEMENTATION_VERSION + "],"
@@ -187,16 +187,37 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     // Set to default, which is FULL
     private KeepTrace _defaultKeepTrace = KeepTrace.COMPACT;
 
+    // :: Internal state
+
+    // ALL *modifications* to state shall take this sync object. All read can be done without sync.
+    // Note that Endpoints' Stages' StageProcessors will not ever need sync while working.
+    private final Object _stateLockObject = new Object();
+    // State of Plugin - started or not. SYNCHED on _stateLockObject.
+    private final IdentityHashMap<MatsPlugin, Boolean> _pluginsStarted = new IdentityHashMap<>();
+
+    // ALL these are COWAL, so that we can iterate over them without sync - but modifications are with sync on above.
+
+    private final CopyOnWriteArrayList<MatsPlugin> _plugins = new CopyOnWriteArrayList<>();
+    // These are "filter views" of the plugins list, so that we don't have to iterate over all plugins for each
+    // initiation and stage processing.
+    private final CopyOnWriteArrayList<MatsInitiateInterceptor> _initiationInterceptors = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<MatsStageInterceptor> _stageInterceptors = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<JmsMatsEndpoint<?, ?, Z>> _createdEndpoints = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<MatsInitiator> _createdInitiators = new CopyOnWriteArrayList<>();
+
+    // =========== End of fields
+
     Function<String, String> getInitiateTraceIdModifier() {
         return _initiateTraceIdModifier;
     }
 
-    private void installIfPresent(Class<?> standardInterceptorClass, Class<?> interceptable) {
+    private void installIfPresent(Class<?> standardInterceptorClass) {
         if (standardInterceptorClass != null) {
             log.info(LOG_PREFIX + "Found '" + standardInterceptorClass.getSimpleName()
                     + "' on classpath, installing for [" + idThis() + "].");
             try {
-                Method install = standardInterceptorClass.getDeclaredMethod("install", interceptable);
+                Method install = standardInterceptorClass.getDeclaredMethod("install", MatsFactory.class);
                 install.invoke(null, this);
             }
             catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
@@ -208,9 +229,6 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
     public void useSeparateQueueForInteractiveNonPersistent(boolean separate) {
         /* no-op - not yet implemented */
     }
-
-    private final List<JmsMatsEndpoint<?, ?, Z>> _createdEndpoints = new ArrayList<>();
-    private final List<JmsMatsInitiator<Z>> _createdInitiators = new ArrayList<>();
 
     private static String getHostname_internal() {
         try (BufferedInputStream in = new BufferedInputStream(Runtime.getRuntime().exec("hostname").getInputStream())) {
@@ -258,104 +276,105 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         return _matsSerializer;
     }
 
-    // :: Interceptors
+    private void installPlugin(MatsPlugin plugin) {
+        if (plugin == null) {
+            throw new NullPointerException("plugin");
+        }
+        synchronized (_stateLockObject) {
+            // :: Assert that we don't add the same instance of the plugin twice.
+            for (MatsPlugin existing : _plugins) {
+                if (existing == plugin) {
+                    throw new IllegalStateException("Cannot add plugin twice: [" + plugin + "]");
+                }
+            }
 
-    private final CopyOnWriteArrayList<MatsInitiateInterceptor> _initiationInterceptors = new CopyOnWriteArrayList<>();
+            // ?: Is this a MatsLoggingInterceptor?
+            if (plugin instanceof MatsLoggingInterceptor) {
+                // -> Yes, MatsLoggingInterceptor - so clear out any existing to add this new.
+                removeInterceptorType(_plugins, MatsLoggingInterceptor.class, true);
+                removeInterceptorType(_initiationInterceptors, MatsLoggingInterceptor.class, false);
+                removeInterceptorType(_stageInterceptors, MatsLoggingInterceptor.class, false);
+            }
 
-    private final CopyOnWriteArrayList<MatsStageInterceptor> _stageInterceptors = new CopyOnWriteArrayList<>();
+            // ?: Is this a MatsMetricsInterceptor?
+            if (plugin instanceof MatsMetricsInterceptor) {
+                // -> Yes, MatsMetricsInterceptor - so clear out any existing to add this new.
+                removeInterceptorType(_plugins, MatsMetricsInterceptor.class, true);
+                removeInterceptorType(_initiationInterceptors, MatsMetricsInterceptor.class, false);
+                removeInterceptorType(_stageInterceptors, MatsMetricsInterceptor.class, false);
+            }
 
-    @Override
-    public void addInitiationInterceptor(MatsInitiateInterceptor initiateInterceptor) {
-        addInterceptor(MatsInitiateInterceptor.class, initiateInterceptor, _initiationInterceptors);
-    }
+            // :: "Cache" a filtered view of init and stage interceptors, used by init and stage processors.
+            if (plugin instanceof MatsInitiateInterceptor) {
+                _initiationInterceptors.add((MatsInitiateInterceptor) plugin);
+            }
+            if (plugin instanceof MatsStageInterceptor) {
+                _stageInterceptors.add((MatsStageInterceptor) plugin);
+            }
 
-    @Override
-    public List<MatsInitiateInterceptor> getInitiationInterceptors() {
-        return new ArrayList<>(_initiationInterceptors);
-    }
+            // :: FIRST start the plugin, THEN add it to the MatsFactory.
 
-    @Override
-    public <T extends MatsInitiateInterceptor> Optional<T> getInitiationInterceptor(Class<T> interceptorClass) {
-        return getInterceptorSingleton(_initiationInterceptors, interceptorClass);
-    }
+            // :: Start the plugin (done within sync block to keep internal state consistent)
+            // NOTE: We let any Exceptions propagate out, both so that we do not add this plugin, and so that the
+            // application can fail to start if a plugin fails to start.
+            plugin.start(this);
 
-    @Override
-    public void removeInitiationInterceptor(MatsInitiateInterceptor initiateInterceptor) {
-        log.info(LOG_PREFIX + "Removing " + MatsInitiateInterceptor.class.getSimpleName()
-                + ": [" + initiateInterceptor + "].");
-        boolean removed = _initiationInterceptors.remove(initiateInterceptor);
-        if (!removed) {
-            throw new IllegalStateException("Cannot remove because not added: [" + initiateInterceptor + "]");
+            // ----- It started OK, so we can add it to the list of plugins.
+
+            // :: Mark the plugin as started.
+            _pluginsStarted.put(plugin, true);
+
+            // :: Actually add the plugin to the list of plugins.
+            _plugins.add(plugin);
         }
     }
 
-    @Override
-    public void addStageInterceptor(MatsStageInterceptor stageInterceptor) {
-        addInterceptor(MatsStageInterceptor.class, stageInterceptor, _stageInterceptors);
-    }
-
-    @Override
-    public List<MatsStageInterceptor> getStageInterceptors() {
-        return new ArrayList<>(_stageInterceptors);
-    }
-
-    @Override
-    public <T extends MatsStageInterceptor> Optional<T> getStageInterceptor(Class<T> interceptorClass) {
-        return getInterceptorSingleton(_stageInterceptors, interceptorClass);
-    }
-
-    @Override
-    public void removeStageInterceptor(MatsStageInterceptor stageInterceptor) {
-        log.info(LOG_PREFIX + "Removing " + MatsStageInterceptor.class.getSimpleName()
-                + ": [" + stageInterceptor + "].");
-        boolean removed = _stageInterceptors.remove(stageInterceptor);
-        if (!removed) {
-            throw new IllegalStateException("Cannot remove because not added: [" + stageInterceptor + "]");
+    private <T extends MatsPlugin> List<T> getPlugins(Class<T> filterByClass) {
+        if (filterByClass == null) {
+            throw new NullPointerException("filterByClass");
         }
-    }
-
-    private <I, T extends I> Optional<T> getInterceptorSingleton(Collection<I> singletons, Class<T> typeToFind) {
-        for (I singleton : singletons) {
-            if (typeToFind.isInstance(singleton)) {
-                @SuppressWarnings("unchecked")
-                Optional<T> ret = (Optional<T>) Optional.of(singleton);
-                return ret;
+        List<T> ret = new ArrayList<>();
+        synchronized (_stateLockObject) {
+            for (Object plugin : _plugins) {
+                if (filterByClass.isInstance(plugin)) {
+                    T t = filterByClass.cast(plugin);
+                    ret.add(t);
+                }
             }
         }
-        return Optional.empty();
+        return ret;
     }
 
-    private <I> void addInterceptor(Class<I> interceptorType, I interceptor, CopyOnWriteArrayList<I> interceptors) {
-        log.info(LOG_PREFIX + "Adding " + interceptorType.getSimpleName() + ": [" + interceptor + "].");
-        // :: Special handling for our special interceptors
-        // ?: Is this a MatsLoggingInterceptor?
-        if (interceptor instanceof MatsLoggingInterceptor) {
-            // -> Yes, MatsLoggingInterceptor - so clear out any existing to add this new.
-            removeInterceptorType(interceptors, MatsLoggingInterceptor.class);
+    private boolean removePlugin(MatsPlugin plugin) {
+        if (plugin == null) {
+            throw new NullPointerException("plugin");
         }
-        if (interceptor instanceof MatsMetricsInterceptor) {
-            // -> Yes, MatsMetricsInterceptor - so clear out any existing to add this new.
-            removeInterceptorType(interceptors, MatsMetricsInterceptor.class);
-        }
-
-        // ----- Not our special handling interceptors
-
-        // :: Handle double-adding of same instance (not allowed)
-        if (!((interceptor instanceof MatsLoggingInterceptor))
-                || (interceptor instanceof MatsMetricsInterceptor)) {
-            // ?: Have we already added this same instance?
-            if (interceptors.contains(interceptor)) {
-                // -> Yes, already added, cannot add twice.
-                throw new IllegalStateException(interceptorType.getSimpleName()
-                        + ": Interceptor Singleton already added: " + interceptor + ".");
+        boolean wasPresent;
+        synchronized (_stateLockObject) {
+            // :: Remove the plugin from the started set
+            _pluginsStarted.remove(plugin);
+            // :: Remove from "filter lists" if relevant interface
+            if (plugin instanceof MatsInitiateInterceptor) {
+                _initiationInterceptors.remove(plugin);
+            }
+            if (plugin instanceof MatsStageInterceptor) {
+                _stageInterceptors.remove(plugin);
+            }
+            // :: Remove from the actual list of plugins
+            wasPresent = _plugins.remove(plugin);
+            // Stop it within sync
+            if (wasPresent) {
+                stopSinglePluginAfterRemoved(plugin);
             }
         }
-
-        // Add the new
-        interceptors.add(interceptor);
+        return wasPresent;
     }
 
-    private <I> void removeInterceptorType(CopyOnWriteArrayList<I> interceptors, Class<?> typeToRemove) {
+    private <I extends MatsPlugin> void removeInterceptorType(List<I> interceptors, Class<?> typeToRemove,
+            boolean stopPlugin) {
+        if (!Thread.holdsLock(_stateLockObject)) {
+            throw new AssertionError("Should have held lock on '_plugins'.");
+        }
         Iterator<I> it = interceptors.iterator();
         while (it.hasNext()) {
             I next = it.next();
@@ -365,7 +384,20 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
                 log.info(LOG_PREFIX + ".. removing existing: [" + next + "], since adding new "
                         + typeToRemove.getSimpleName());
                 it.remove();
+                if (stopPlugin) {
+                    stopSinglePluginAfterRemoved(next);
+                }
             }
+        }
+    }
+
+    private void stopSinglePluginAfterRemoved(MatsPlugin plugin) {
+        try {
+            plugin.preStop();
+            plugin.stop();
+        }
+        catch (Throwable t) {
+            log.warn(LOG_PREFIX + "Got problems when closing plugin [" + plugin + "].", t);
         }
     }
 
@@ -392,7 +424,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
             Consumer<? super EndpointConfig<R, S>> endpointConfigLambda) {
         JmsMatsEndpoint<R, S, Z> endpoint = new JmsMatsEndpoint<>(this, endpointId, true, stateClass, replyClass);
         endpoint.getEndpointConfig().setOrigin(getInvocationPoint());
-        validateNewEndpoint(endpoint);
+        validateNewEndpointAtCreation(endpoint);
         endpointConfigLambda.accept(endpoint.getEndpointConfig());
         return endpoint;
     }
@@ -468,7 +500,7 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         JmsMatsEndpoint<Void, S, Z> endpoint = new JmsMatsEndpoint<>(this, endpointId, queue, stateClass,
                 Void.TYPE);
         endpoint.getEndpointConfig().setOrigin(getInvocationPoint());
-        validateNewEndpoint(endpoint);
+        validateNewEndpointAtCreation(endpoint);
         endpointConfigLambda.accept(endpoint.getEndpointConfig());
         // :: Wrap the ProcessTerminatorLambda in a single stage that does not return.
         // This is just a direct forward, w/o any return value.
@@ -551,7 +583,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
      */
     void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(MatsTrace<Z> matsTrace, String currentStageId,
             MessageConsumer messageConsumer) {
-        __nestingWithinStageProcessing.set(new NestingWithinStageProcessing<>(matsTrace, currentStageId, messageConsumer));
+        __nestingWithinStageProcessing.set(new NestingWithinStageProcessing<>(matsTrace, currentStageId,
+                messageConsumer));
     }
 
     /**
@@ -576,57 +609,79 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         return Optional.ofNullable(__nestingWithinStageProcessing.get());
     }
 
-    private volatile JmsMatsInitiator<Z> _defaultMatsInitiator;
+    private volatile MatsInitiator _defaultMatsInitiator;
 
     @Override
     public MatsInitiator getDefaultInitiator() {
+        // :: Fast-path for the default initiator (name="default"), which resides in its own field.
         if (_defaultMatsInitiator == null) {
-            synchronized (_createdInitiators) {
-                if (_defaultMatsInitiator == null) {
-                    _defaultMatsInitiator = getOrCreateInitiator_internal(DEFAULT_INITIATOR_NAME);
-                }
-            }
+            // Note: getOrCreateInitiator_internal(..) will sync, and check whether it has been created.
+            // We can ignore any races, as the initiator will be the same.
+            _defaultMatsInitiator = getOrCreateInitiator_internal(DEFAULT_INITIATOR_NAME);
         }
+        // Wrap it in a MatsInitiator that either joins existing transaction, or starts new.
         return new MatsInitiator_DefaultInitiator_TxRequired<Z>(this, _defaultMatsInitiator);
     }
 
     @Override
     public MatsInitiator getOrCreateInitiator(String name) {
+        // Wrap it in a MatsInitiator that always starts new transaction.
         return new MatsInitiator_NamedInitiator_TxRequiresNew<Z>(this, getOrCreateInitiator_internal(name));
     }
 
-    public JmsMatsInitiator<Z> getOrCreateInitiator_internal(String name) {
-        synchronized (_createdInitiators) {
-            for (JmsMatsInitiator<Z> init : _createdInitiators) {
+    public MatsInitiator getOrCreateInitiator_internal(String name) {
+        // "Double checked locking" part 1: First check if it is there (the list is a COWAL)
+        for (MatsInitiator init : _createdInitiators) {
+            if (init.getName().equals(name)) {
+                return init;
+            }
+        }
+
+        // E-> Not found, now sync and check again
+        synchronized (_stateLockObject) {
+            // "Double checked locking" part 2: Check again, now that we're synched.
+            for (MatsInitiator init : _createdInitiators) {
                 if (init.getName().equals(name)) {
                     return init;
                 }
             }
             // E-> Not found, make new
-            JmsMatsInitiator<Z> initiator = new JmsMatsInitiator<>(name, this,
+            MatsInitiator initiator = new JmsMatsInitiator<>(name, this,
                     _jmsMatsJmsSessionHandler, _jmsMatsTransactionManager);
-            addCreatedInitiator(initiator);
+
+            // First notify all plugins that we're about to add a new Initiator.
+            for (MatsPlugin plugin : _plugins) {
+                try {
+                    plugin.addingInitiator(initiator);
+                }
+                catch (Throwable t) {
+                    log.error(LOG_PREFIX + "Got problems when notifying plugin [" + plugin + "] that we're adding"
+                            + " a new initiator [" + initiator + "]. Ignoring, but this is probably bad.", t);
+                }
+            }
+
+            // .. then add it
+            _createdInitiators.add(initiator);
             return initiator;
         }
     }
 
-    private void validateNewEndpoint(JmsMatsEndpoint<?, ?, Z> newEndpoint) {
+    private void validateNewEndpointAtCreation(JmsMatsEndpoint<?, ?, Z> newEndpoint) {
         // :: Assert that it is possible to instantiate the State and Reply classes.
         assertOkToInstantiateClass(newEndpoint.getEndpointConfig().getStateClass(), "State 'STO' Class",
                 "Endpoint " + newEndpoint.getEndpointId());
         assertOkToInstantiateClass(newEndpoint.getEndpointConfig().getReplyClass(), "Reply DTO Class",
                 "Endpoint " + newEndpoint.getEndpointId());
 
-        // :: Check that we do not have the endpoint already.
-        synchronized (_createdEndpoints) {
-            Optional<MatsEndpoint<?, ?>> existingEndpoint = getEndpoint(newEndpoint.getEndpointConfig()
-                    .getEndpointId());
-            if (existingEndpoint.isPresent()) {
-                throw new IllegalStateException("An Endpoint with endpointId='"
-                        + newEndpoint.getEndpointConfig().getEndpointId()
-                        + "' was already present. Existing: [" + existingEndpoint.get()
-                        + "], attempted registered:[" + newEndpoint + "].");
-            }
+        // :: Early check that we do not have the endpoint already.
+        // (We also check at actual insertion (finishSetup()), to handle concurrent creation.)
+        Optional<MatsEndpoint<?, ?>> existingEndpoint = getEndpoint(newEndpoint.getEndpointConfig()
+                .getEndpointId());
+        if (existingEndpoint.isPresent()) {
+            throw new IllegalStateException("An Endpoint with endpointId='"
+                    + newEndpoint.getEndpointConfig().getEndpointId()
+                    + "' was already present. Existing: [" + existingEndpoint.get()
+                    + "], attempted registered:[" + newEndpoint + "].");
         }
     }
 
@@ -635,7 +690,8 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
      */
     void addNewEndpointToFactory(JmsMatsEndpoint<?, ?, Z> newEndpoint) {
         // :: Check that we do not have the endpoint already - and if not, add it.
-        synchronized (_createdEndpoints) {
+        synchronized (_stateLockObject) {
+            // :: Check again that we do not have the endpoint already
             Optional<MatsEndpoint<?, ?>> existingEndpoint = getEndpoint(newEndpoint.getEndpointConfig()
                     .getEndpointId());
             if (existingEndpoint.isPresent()) {
@@ -644,19 +700,43 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
                         + "' was already present. Existing: [" + existingEndpoint.get()
                         + "], attempted registered:[" + newEndpoint + "].");
             }
+            // First notify all plugins that we're about to add a new Endpoint.
+            for (MatsPlugin plugin : _plugins) {
+                try {
+                    plugin.addingEndpoint(newEndpoint);
+                }
+                catch (Throwable t) {
+                    log.error(LOG_PREFIX + "Got problems when notifying plugin [" + plugin + "] that we're adding"
+                            + " a new Wndpoint [" + newEndpoint + "]. Ignoring, but this is probably bad.", t);
+                }
+            }
+            // .. then add it
             _createdEndpoints.add(newEndpoint);
         }
     }
 
     void removeEndpoint(JmsMatsEndpoint<?, ?, Z> endpointToRemove) {
-        synchronized (_createdEndpoints) {
+        synchronized (_stateLockObject) {
             Optional<MatsEndpoint<?, ?>> existingEndpoint = getEndpoint(endpointToRemove.getEndpointConfig()
                     .getEndpointId());
             if (!existingEndpoint.isPresent()) {
                 throw new IllegalStateException("When trying to remove the endpoint [" + endpointToRemove + "], it was"
                         + " not present in the MatsFactory! EndpointId:[" + endpointToRemove.getEndpointId() + "]");
             }
+
+            // First remove the endpoint
             _createdEndpoints.remove(endpointToRemove);
+
+            // .. then notify all plugins that we've removed an Endpoint.
+            for (MatsPlugin plugin : _plugins) {
+                try {
+                    plugin.removedEndpoint(endpointToRemove);
+                }
+                catch (Throwable t) {
+                    log.error(LOG_PREFIX + "Got problems when notifying plugin [" + plugin + "] that we've removed"
+                            + " Endpoint [" + endpointToRemove + "]. Ignoring, but this is probably bad.", t);
+                }
+            }
         }
     }
 
@@ -686,11 +766,13 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
     @Override
     public List<MatsEndpoint<?, ?>> getEndpoints() {
-        ArrayList<MatsEndpoint<?, ?>> matsEndpoints;
-        synchronized (_createdEndpoints) {
-            matsEndpoints = new ArrayList<>(_createdEndpoints);
-        }
-        // :: Split out private endpoints
+        // Can copy without sync, as the list is a COWAL.
+        ArrayList<MatsEndpoint<?, ?>> matsEndpoints = new ArrayList<>(_createdEndpoints);
+
+        // :: Make it into a nice list, where the endpoints are sorted by endpointId, and private are at the end.
+        // 1. Sort all
+        matsEndpoints.sort(Comparator.comparing(ep -> ep.getEndpointConfig().getEndpointId()));
+        // 2. split out private Endpoints, by iterating over all, moving over the private to a new list
         ArrayList<MatsEndpoint<?, ?>> privateEndpoints = new ArrayList<>();
         for (Iterator<MatsEndpoint<?, ?>> iterator = matsEndpoints.iterator(); iterator.hasNext();) {
             MatsEndpoint<?, ?> next = iterator.next();
@@ -699,30 +781,26 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
                 iterator.remove();
             }
         }
-        matsEndpoints.sort(Comparator.comparing(ep -> ep.getEndpointConfig().getEndpointId()));
-        privateEndpoints.sort(Comparator.comparing(ep -> ep.getEndpointConfig().getEndpointId()));
+        // 3. then add the private Endpoints last
         matsEndpoints.addAll(privateEndpoints);
         return matsEndpoints;
     }
 
     @Override
     public Optional<MatsEndpoint<?, ?>> getEndpoint(String endpointId) {
-        synchronized (_createdEndpoints) {
-            for (MatsEndpoint<?, ?> endpoint : _createdEndpoints) {
-                if (endpoint.getEndpointConfig().getEndpointId().equals(endpointId)) {
-                    return Optional.of(endpoint);
-                }
+        // Can iterate without sync, as the list is a COWAL.
+        for (MatsEndpoint<?, ?> endpoint : _createdEndpoints) {
+            if (endpoint.getEndpointConfig().getEndpointId().equals(endpointId)) {
+                return Optional.of(endpoint);
             }
-            return Optional.empty();
         }
+        return Optional.empty();
     }
 
     @Override
     public List<MatsInitiator> getInitiators() {
-        ArrayList<MatsInitiator> matsInitiators;
-        synchronized (_createdInitiators) {
-            matsInitiators = new ArrayList<>(_createdInitiators);
-        }
+        // Can copy without sync, as the list is a COWAL.
+        ArrayList<MatsInitiator> matsInitiators = new ArrayList<>(_createdInitiators);
         // :: Put "default" as first entry
         MatsInitiator defaultInitiator = null;
         for (Iterator<MatsInitiator> iter = matsInitiators.iterator(); iter.hasNext();) {
@@ -739,17 +817,31 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
         return matsInitiators;
     }
 
-    private void addCreatedInitiator(JmsMatsInitiator<Z> initiator) {
-        synchronized (_createdInitiators) {
-            _createdInitiators.add(initiator);
-        }
-    }
-
     @Override
     public void start() {
         log.info(LOG_PREFIX + "Starting [" + idThis() + "], thus starting all created endpoints.");
         // First setting the "hold" to false, so if any subsequent endpoints are added, they will auto-start.
         _holdEndpointsUntilFactoryIsStarted = false;
+
+        synchronized (_stateLockObject) {
+            // :: First start all already registered plugins which aren't started yet.
+            for (MatsPlugin plugin : _plugins) {
+                // ?: Is this plugin not started yet?
+                if (_pluginsStarted.get(plugin) == null) {
+                    // -> Yes, not started yet, so start it.
+                    // Mark as stared
+                    _pluginsStarted.put(plugin, true);
+                    // Start it
+                    try {
+                        plugin.start(this);
+                    }
+                    catch (Throwable t) {
+                        log.warn(LOG_PREFIX + "Got problems when invoking start() on plugin [" + plugin + "].", t);
+                    }
+                }
+            }
+        }
+
         // :: Now start all the already configured endpoints
         for (MatsEndpoint<?, ?> endpoint : getEndpoints()) {
             endpoint.start();
@@ -775,9 +867,10 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
     @Override
     public List<JmsMatsStartStoppable> getChildrenStartStoppable() {
-        synchronized (_createdEndpoints) {
-            return new ArrayList<>(_createdEndpoints);
-        }
+        // Can clone with vengeance, as the list is a COWAL.
+        @SuppressWarnings("unchecked")
+        List<JmsMatsStartStoppable> clone = (List<JmsMatsStartStoppable>) _createdEndpoints.clone();
+        return clone;
     }
 
     @Override
@@ -793,20 +886,54 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
      * Method for Spring's default lifecycle - directly invokes {@link #stop(int) stop(30_000)}.
      */
     public void close() {
-        log.info(LOG_PREFIX + getClass().getSimpleName() + ".close() invoked"
-                + " (probably via Spring's default lifecycle), forwarding to stop().");
+        log.info(LOG_PREFIX + getClass().getSimpleName() + ".close() invoked, forwarding to stop().");
         stop(30_000);
     }
 
     @Override
     public boolean stop(int gracefulShutdownMillis) {
         log.info(LOG_PREFIX + "Stopping [" + idThis()
-                + "], thus stopping/closing all created endpoints and initiators."
+                + "], thus stopping/closing all plugins, and created endpoints and initiators."
                 + " Graceful shutdown millis: [" + gracefulShutdownMillis + "].");
-        boolean stopped = JmsMatsStartStoppable.super.stop(gracefulShutdownMillis);
 
-        for (MatsInitiator initiator : getInitiators()) {
-            initiator.close();
+        boolean stopped = true; // Can only be pulled 'false'.
+        synchronized (_stateLockObject) {
+            // :: Prestop all plugins.
+            for (MatsPlugin plugin : _plugins) {
+                // Remove the plugin from the started-map, so that it will be restarted if matsFactory.start()
+                // is invoked
+                _pluginsStarted.remove(plugin);
+                // preStop it within sync
+                try {
+                    plugin.preStop();
+                }
+                catch (Throwable t) {
+                    stopped  = false;
+                    log.error(LOG_PREFIX + "Got problems when invoking preStop() on plugin [" + plugin + "].", t);
+                }
+            }
+
+            // :: Stop all endpoints (very graceful stuff)
+            boolean endpointsStopped = JmsMatsStartStoppable.super.stop(gracefulShutdownMillis);
+            if (!endpointsStopped) {
+                stopped = false;
+            }
+
+            // :: Stop all initiators.
+            for (MatsInitiator initiator : getInitiators()) {
+                initiator.close();
+            }
+
+            // :: Now, final stop of all the plugins
+            for (MatsPlugin plugin : _plugins) {
+                try {
+                    plugin.stop();
+                }
+                catch (Throwable t) {
+                    stopped = false;
+                    log.warn(LOG_PREFIX + "Got problems when invoking stop() on plugin [" + plugin + "].", t);
+                }
+            }
         }
 
         if (stopped) {
@@ -906,7 +1033,6 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
 
         @Override
         public int getConcurrency() {
-
             // ?: Is the concurrency set specifically?
             if (_concurrency != 0) {
                 // -> Yes, set specifically, so return it.
@@ -1019,6 +1145,22 @@ public class JmsMatsFactory<Z> implements MatsInterceptableMatsFactory, JmsMatsS
                         + " instantiate class [" + type + "] MatsSerializer: ["
                         + _matsSerializer + "].", t);
             }
+        }
+
+        @Override
+        public FactoryConfig installPlugin(MatsPlugin plugin) {
+            JmsMatsFactory.this.installPlugin(plugin);
+            return this;
+        }
+
+        @Override
+        public <T extends MatsPlugin> List<T> getPlugins(Class<T> filterByClass) {
+            return JmsMatsFactory.this.getPlugins(filterByClass);
+        }
+
+        @Override
+        public boolean removePlugin(MatsPlugin instanceToRemove) {
+            return JmsMatsFactory.this.removePlugin(instanceToRemove);
         }
 
         @Override

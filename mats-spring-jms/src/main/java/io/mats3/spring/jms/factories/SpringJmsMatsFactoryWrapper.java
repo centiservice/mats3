@@ -20,7 +20,6 @@ import org.springframework.core.env.Environment;
 import io.mats3.MatsFactory;
 import io.mats3.MatsFactory.MatsFactoryWrapper;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
-import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsStageInterceptor;
 import io.mats3.impl.jms.JmsMatsFactory;
 
@@ -46,7 +45,7 @@ import io.mats3.impl.jms.JmsMatsFactory;
  *
  * @author Endre Stølsvik 2020-11-28 01:28 - http://stolsvik.com/, endre@stolsvik.com
  */
-public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements MatsInterceptable {
+public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
 
     public static final String MATS_TEST_BROKER_INTERFACE_CLASSNAME = "io.mats3.test.MatsTestBrokerInterface";
     public static final String LATE_POPULATE_METHOD_NAME = "_latePopulate";
@@ -55,7 +54,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
     private static final String LOG_PREFIX = "#SPRINGJMATS# ";
 
     private final ConnectionFactory _connectionFactory;
-    private final MatsInterceptable _matsInterceptable;
+    private final MatsFactory _matsFactory;
 
     private Class<?> _matsTestBrokerInterfaceClass;
 
@@ -94,7 +93,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
                     + " resolve to a JmsMatsFactory when invoking matsFactory.unwrapFully() - this doesn't [" +
                     matsFactory + "].");
         }
-        _matsInterceptable = matsFactory.unwrapTo(MatsInterceptable.class);
+        _matsFactory = matsFactory;
     }
 
     /**
@@ -121,13 +120,13 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
      * lifecycle, and hence cannot rely on property setting and <code>@PostConstruct</code> being run. Invoke this
      * method in your <code>getObject()</code> (raw FactoryBean implementation) or <code>createInstance()</code>
      * (AbstractFactoryBean implementation). To get hold of the Spring {@link Environment} and Spring
-     * {@link ApplicationContext} in the FactoryBean, simply use Spring injection on the FactoryBean, e.g. field-inject.
+     * {@link ApplicationContext} in the FactoryBean, simply use Spring injection on the FactoryBean, e.g.
+     * field-inject.
      *
      * @param environment
-     *            the Spring {@link Environment}
+     *         the Spring {@link Environment}
      * @param applicationContext
-     *            the Spring {@link ApplicationContext}.
-     *
+     *         the Spring {@link ApplicationContext}.
      * @see #postConstruct()
      */
     public void postConstructForFactoryBean(Environment environment, ApplicationContext applicationContext) {
@@ -250,47 +249,5 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper implements M
                 }
             }
         }
-    }
-
-    // ==== MatsInterceptable
-
-    @Override
-    public void addInitiationInterceptor(MatsInitiateInterceptor initiateInterceptor) {
-        _matsInterceptable.addInitiationInterceptor(initiateInterceptor);
-    }
-
-    @Override
-    public List<MatsInitiateInterceptor> getInitiationInterceptors() {
-        return _matsInterceptable.getInitiationInterceptors();
-    }
-
-    @Override
-    public <T extends MatsInitiateInterceptor> Optional<T> getInitiationInterceptor(Class<T> interceptorClass) {
-        return _matsInterceptable.getInitiationInterceptor(interceptorClass);
-    }
-
-    @Override
-    public void removeInitiationInterceptor(MatsInitiateInterceptor initiateInterceptor) {
-        _matsInterceptable.removeInitiationInterceptor(initiateInterceptor);
-    }
-
-    @Override
-    public void addStageInterceptor(MatsStageInterceptor stageInterceptor) {
-        _matsInterceptable.addStageInterceptor(stageInterceptor);
-    }
-
-    @Override
-    public List<MatsStageInterceptor> getStageInterceptors() {
-        return _matsInterceptable.getStageInterceptors();
-    }
-
-    @Override
-    public <T extends MatsStageInterceptor> Optional<T> getStageInterceptor(Class<T> interceptorClass) {
-        return _matsInterceptable.getStageInterceptor(interceptorClass);
-    }
-
-    @Override
-    public void removeStageInterceptor(MatsStageInterceptor stageInterceptor) {
-        _matsInterceptable.removeStageInterceptor(stageInterceptor);
     }
 }

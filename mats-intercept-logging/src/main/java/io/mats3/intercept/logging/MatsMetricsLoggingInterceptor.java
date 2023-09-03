@@ -11,6 +11,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.mats3.MatsFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -24,9 +25,8 @@ import io.mats3.api.intercept.CommonCompletedContext;
 import io.mats3.api.intercept.CommonCompletedContext.MatsMeasurement;
 import io.mats3.api.intercept.CommonCompletedContext.MatsTimingMeasurement;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
-import io.mats3.api.intercept.MatsInterceptable;
-import io.mats3.api.intercept.MatsInterceptable.MatsLoggingInterceptor;
-import io.mats3.api.intercept.MatsInterceptable.MatsMetricsInterceptor;
+import io.mats3.api.intercept.MatsLoggingInterceptor;
+import io.mats3.api.intercept.MatsMetricsInterceptor;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor;
@@ -359,7 +359,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * also be logged in full.
  * <p/>
  * <b>Note: This interceptor (SLF4J Logger with Metrics on MDC) has special support in <code>JmsMatsFactory</code>: If
- * present on the classpath, it is automatically installed using the {@link #install(MatsInterceptable)} install
+ * present on the classpath, it is automatically installed using the {@link #install(MatsFactory)} install
  * method.</b> This interceptor implements the special marker-interface {@link MatsLoggingInterceptor} of which there
  * can only be one instance installed in a <code>JmsMatsFactory</code> - implying that if you want a different type of
  * logging, you may implement a custom variant (either subclassing this, on your own risk, or start from scratch), and
@@ -551,25 +551,23 @@ public class MatsMetricsLoggingInterceptor
     public static final String MDC_MATS_PERSISTENT = "mats.Persistent";
 
     /**
-     * Adds the singleton {@link #INSTANCE} as both Initiation and Stage interceptors.
+     * Install the singleton {@link #INSTANCE} as MatsFactory plugin.
      *
-     * @param matsInterceptableMatsFactory
-     *            the {@link MatsInterceptable} MatsFactory to add it to.
+     * @param matsFactory
+     *            the {@link MatsFactory} MatsFactory to install it on.
      */
-    public static void install(MatsInterceptable matsInterceptableMatsFactory) {
-        matsInterceptableMatsFactory.addInitiationInterceptor(INSTANCE);
-        matsInterceptableMatsFactory.addStageInterceptor(INSTANCE);
+    public static void install(MatsFactory matsFactory) {
+        matsFactory.getFactoryConfig().installPlugin(INSTANCE);
     }
 
     /**
-     * Removes the singleton {@link #INSTANCE} as both Initiation and Stage interceptors.
+     * Removes the singleton {@link #INSTANCE} as MatsFactory plugin.
      *
-     * @param matsInterceptableMatsFactory
-     *            the {@link MatsInterceptable} to remove it from.
+     * @param matsFactory
+     *            the {@link MatsFactory} to remove it from.
      */
-    public static void remove(MatsInterceptable matsInterceptableMatsFactory) {
-        matsInterceptableMatsFactory.removeInitiationInterceptor(INSTANCE);
-        matsInterceptableMatsFactory.removeStageInterceptor(INSTANCE);
+    public static void remove(MatsFactory matsFactory) {
+        matsFactory.getFactoryConfig().removePlugin(INSTANCE);
     }
 
     protected final ConcurrentHashMap<String, AtomicInteger> _suppressions = new ConcurrentHashMap<>();

@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
+import io.mats3.MatsFactory;
+import io.mats3.MatsFactory.FactoryConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +29,6 @@ import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsInitiator;
 import io.mats3.MatsStage;
 import io.mats3.api.intercept.MatsInitiateInterceptor.MatsInitiateInterceptOutgoingMessages;
-import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsEditableOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MatsSentOutgoingMessage;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
@@ -38,7 +39,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * Interceptor that collects "local stats" for Initiators and Stages of Endpoints, which can be used in conjunction with
  * a MatsFactory report generator, {@link LocalHtmlInspectForMatsFactory}.
  * <p />
- * To install, invoke the {@link #install(MatsInterceptable)} method, supplying the MatsFactory. The report generator
+ * To install, invoke the {@link #install(MatsFactory)} method, supplying the MatsFactory. The report generator
  * will fetch the interceptor from the MatsFactory.
  * <p />
  * <b>Implementation note:</b> Mats allows Initiators and Endpoints to be defined "runtime" - there is no specific setup
@@ -55,7 +56,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * @author Endre Stølsvik 2021-04-09 00:37 - http://stolsvik.com/, endre@stolsvik.com
  */
 public class LocalStatsMatsInterceptor
-        implements MatsStageInterceptOutgoingMessages, MatsInitiateInterceptOutgoingMessages {
+        implements MatsInitiateInterceptOutgoingMessages, MatsStageInterceptOutgoingMessages {
 
     private static final Logger log = LoggerFactory.getLogger(LocalStatsMatsInterceptor.class);
 
@@ -71,20 +72,18 @@ public class LocalStatsMatsInterceptor
     public static final int MAX_NUMBER_OF_DYNAMIC_ENTRIES = 500;
 
     /**
-     * Creates an instance of this interceptor and installs it on the provided {@link MatsInterceptable} (which most
-     * probably is a <code>MatsFactory</code>). Note that this interceptor is stateful wrt. the MatsFactory, thus a new
-     * instance is needed per MatsFactory - which is fulfilled using this method. It should only be invoked once per
-     * MatsFactory. You get the created interceptor in return, but that is not needed when employed with
-     * {@link LocalHtmlInspectForMatsFactory}, as that will fetch the instance from the MatsFactory using
-     * {@link MatsInterceptable#getInitiationInterceptor(Class)}.
+     * Creates an instance of this interceptor and installs it on the provided {@link MatsFactory}. Note that this
+     * interceptor is stateful wrt. the MatsFactory, thus a new instance is needed per MatsFactory - which is fulfilled
+     * using this method. It should only be invoked once per MatsFactory. You get the created interceptor in return,
+     * but that is not needed when employed with {@link LocalHtmlInspectForMatsFactory}, as that will fetch the
+     * instance from the MatsFactory using {@link FactoryConfig#getPlugins(Class)}.
      *
-     * @param matsInterceptableMatsFactory
-     *            the {@link MatsInterceptable} MatsFactory to add it to.
+     * @param matsFactory
+     *            the {@link MatsFactory MatsFactory} to add it to.
      */
-    public static LocalStatsMatsInterceptor install(MatsInterceptable matsInterceptableMatsFactory) {
+    public static LocalStatsMatsInterceptor install(MatsFactory matsFactory) {
         LocalStatsMatsInterceptor interceptor = new LocalStatsMatsInterceptor(DEFAULT_NUM_SAMPLES);
-        matsInterceptableMatsFactory.addInitiationInterceptor(interceptor);
-        matsInterceptableMatsFactory.addStageInterceptor(interceptor);
+        matsFactory.getFactoryConfig().installPlugin(interceptor);
         return interceptor;
     }
 

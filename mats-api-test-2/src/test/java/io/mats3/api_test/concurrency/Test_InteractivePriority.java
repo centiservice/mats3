@@ -10,7 +10,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 
 import io.mats3.MatsEndpoint;
-import io.mats3.api.intercept.MatsInterceptable.MatsLoggingInterceptor;
+import io.mats3.api.intercept.MatsLoggingInterceptor;
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
 import io.mats3.test.MatsTestHelp;

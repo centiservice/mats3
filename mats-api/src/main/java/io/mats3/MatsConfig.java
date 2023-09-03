@@ -146,7 +146,9 @@ public interface MatsConfig {
         /**
          * If the entity is stopped or starting, this method won't return until it has actually started the receive-loop
          * (i.e. that some {@link MatsStage} Processor has actually entered its receive-loop, consuming messages). If
-         * the entity has already gotten into the receive loop, the method immediately returns.
+         * the entity has already gotten into the receive loop, the method immediately returns. (For a
+         * {@link MatsFactory}, all its Endpoints must have started ok, for an Endpoint all Stages must have started ok,
+         * and for a Stage, at least one its StageProcessors must have started ok)
          * <p />
          * Note: Currently, this only holds for the initial start. If the entity has started the receive-loop at some
          * point, it will always immediately return - even though it is currently stopped.

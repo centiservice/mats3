@@ -26,7 +26,6 @@ import io.mats3.MatsInitiator;
 import io.mats3.MatsStage;
 import io.mats3.MatsStage.StageConfig;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
-import io.mats3.api.intercept.MatsInterceptable;
 import io.mats3.api.intercept.MatsOutgoingMessage.MessageType;
 import io.mats3.api.intercept.MatsStageInterceptor;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StageProcessResult;
@@ -50,25 +49,9 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
     }
 
     final MatsFactory _matsFactory;
-    final MatsInterceptable _matsInterceptable;
 
     LocalHtmlInspectForMatsFactoryImpl(MatsFactory matsFactory) {
         _matsFactory = matsFactory;
-        MatsInterceptable matsInterceptable = null;
-
-        // ?: Is the provided MatsFactory a MatsInterceptable?
-        if (matsFactory instanceof MatsInterceptable) {
-            // -> Yes, so hold on to it.
-            matsInterceptable = (MatsInterceptable) matsFactory;
-        }
-        // ?: Okay, is the fully unwrapped MatsFactory a MatsInterceptable then?
-        else if (matsFactory.unwrapFully() instanceof MatsInterceptable) {
-            // -> Yes, when we unwrapFully'ed, the resulting MatsFactory was MatsInterceptable
-            // Hold on to it
-            matsInterceptable = (MatsInterceptable) matsFactory.unwrapFully();
-        }
-
-        _matsInterceptable = matsInterceptable;
     }
 
     /**
@@ -110,11 +93,8 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
     public void createFactoryReport(Appendable out, boolean includeInitiators,
             boolean includeEndpoints, boolean includeStages) throws IOException {
         // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
-        LocalStatsMatsInterceptor localStats = null;
-        if (_matsInterceptable != null) {
-            localStats = _matsInterceptable
-                    .getInitiationInterceptor(LocalStatsMatsInterceptor.class).orElse(null);
-        }
+        LocalStatsMatsInterceptor localStats = _matsFactory.getFactoryConfig()
+                .getPlugins(LocalStatsMatsInterceptor.class).stream().findFirst().orElse(null);
 
         FactoryConfig config = _matsFactory.getFactoryConfig();
         out.append("<div class='matsli_report matsli_factory'>\n");
@@ -146,15 +126,19 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
                         + LocalStatsMatsInterceptor.class.getSimpleName()
                         + "</code> is not installed!</b>") + "</b><br/>");
 
-        if (_matsInterceptable != null) {
+
+        List<MatsInitiateInterceptor> initiationInterceptors = _matsFactory.getFactoryConfig()
+                .getPlugins(MatsInitiateInterceptor.class);
+        List<MatsStageInterceptor> stageInterceptors = _matsFactory.getFactoryConfig()
+                .getPlugins(MatsStageInterceptor.class);
+
+        if (!(initiationInterceptors.isEmpty() && stageInterceptors.isEmpty())) {
             out.append("<b>Installed InitiationInterceptors:</b><br/>\n");
-            List<MatsInitiateInterceptor> initiationInterceptors = _matsInterceptable.getInitiationInterceptors();
             for (MatsInitiateInterceptor initiationInterceptor : initiationInterceptors) {
                 out.append("&nbsp;&nbsp;<code>" + initiationInterceptor.getClass().getName() + "</code>: "
                         + initiationInterceptor + "<br/>\n");
             }
             out.append("<b>Installed StageInterceptors:</b><br/>\n");
-            List<MatsStageInterceptor> stageInterceptors = _matsInterceptable.getStageInterceptors();
             for (MatsStageInterceptor stageInterceptor : stageInterceptors) {
                 out.append("&nbsp;&nbsp;<code>" + stageInterceptor.getClass().getName() + "</code>: "
                         + stageInterceptor + "<br/>\n");
@@ -191,11 +175,8 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
             throws IOException {
         if (includeInitiators || includeEndpoints) {
             // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
-            LocalStatsMatsInterceptor localStats = null;
-            if (_matsInterceptable != null) {
-                localStats = _matsInterceptable
-                        .getInitiationInterceptor(LocalStatsMatsInterceptor.class).orElse(null);
-            }
+            LocalStatsMatsInterceptor localStats = _matsFactory.getFactoryConfig()
+                    .getPlugins(LocalStatsMatsInterceptor.class).stream().findFirst().orElse(null);
             out.append("<table class='matsli_table_summary matsli_report'>");
             out.append("<thead><tr>");
             out.append("<th>Initiator Name / Endpoint Id</th>");
@@ -426,11 +407,8 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
     public void createInitiatorReport(Appendable out, MatsInitiator matsInitiator)
             throws IOException {
         // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
-        LocalStatsMatsInterceptor localStats = null;
-        if (_matsInterceptable != null) {
-            localStats = _matsInterceptable
-                    .getInitiationInterceptor(LocalStatsMatsInterceptor.class).orElse(null);
-        }
+        LocalStatsMatsInterceptor localStats = _matsFactory.getFactoryConfig()
+                .getPlugins(LocalStatsMatsInterceptor.class).stream().findFirst().orElse(null);
 
         out.append("<div class='matsli_report matsli_initiator' id='matsInitiator_")
                 .append(matsInitiator.getParentFactory().getFactoryConfig().getName())
@@ -479,11 +457,8 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
     public void createEndpointReport(Appendable out, MatsEndpoint<?, ?> matsEndpoint, boolean includeStages)
             throws IOException {
         // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
-        LocalStatsMatsInterceptor localStats = null;
-        if (_matsInterceptable != null) {
-            localStats = _matsInterceptable
-                    .getInitiationInterceptor(LocalStatsMatsInterceptor.class).orElse(null);
-        }
+        LocalStatsMatsInterceptor localStats = _matsFactory.getFactoryConfig()
+                .getPlugins(LocalStatsMatsInterceptor.class).stream().findFirst().orElse(null);
 
         EndpointConfig<?, ?> config = matsEndpoint.getEndpointConfig();
 
@@ -590,11 +565,8 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
     @Override
     public void createStageReport(Appendable out, MatsStage<?, ?, ?> matsStage) throws IOException {
         // We do this dynamically, so as to handle late registration of the LocalStatsMatsInterceptor.
-        LocalStatsMatsInterceptor localStats = null;
-        if (_matsInterceptable != null) {
-            localStats = _matsInterceptable
-                    .getInitiationInterceptor(LocalStatsMatsInterceptor.class).orElse(null);
-        }
+        LocalStatsMatsInterceptor localStats = _matsFactory.getFactoryConfig()
+                .getPlugins(LocalStatsMatsInterceptor.class).stream().findFirst().orElse(null);
 
         StageConfig<?, ?, ?> config = matsStage.getStageConfig();
 

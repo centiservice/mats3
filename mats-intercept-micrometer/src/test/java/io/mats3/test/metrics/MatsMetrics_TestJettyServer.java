@@ -34,7 +34,6 @@ import org.slf4j.LoggerFactory;
 import ch.qos.logback.core.CoreConstants;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.KeepTrace;
-import io.mats3.api.intercept.MatsInterceptableMatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.intercept.micrometer.MatsMicrometerInterceptor.SuggestedTimingHistogramsMeterFilter;
@@ -64,7 +63,7 @@ public class MatsMetrics_TestJettyServer {
     @WebListener
     public static class SCL_Endre implements ServletContextListener {
 
-        private MatsInterceptableMatsFactory _matsFactory;
+        private MatsFactory _matsFactory;
 
         @Override
         public void contextInitialized(ServletContextEvent sce) {

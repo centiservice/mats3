@@ -2,6 +2,8 @@ package io.mats3;
 
 import io.mats3.MatsConfig.StartStoppable;
 import io.mats3.MatsEndpoint.EndpointConfig;
+import io.mats3.MatsEndpoint.ProcessLambda;
+import io.mats3.MatsEndpoint.ProcessSingleLambda;
 
 /**
  * A representation of a process stage of a {@link MatsEndpoint}. Either constructed implicitly (for single-stage
@@ -75,6 +77,14 @@ public interface MatsStage<R, S, I> extends StartStoppable {
          * @return the class expected for incoming messages to this process stage.
          */
         Class<I> getIncomingClass();
+
+        /**
+         * @return the {@link ProcessLambda} which will process this stage. Note that all stages are actually internally
+         *         a generic ProcessLambda, even though when created, a seemingly specific type was used (e.g.
+         *         {@link ProcessSingleLambda}). Those variants are all just convenience wrappers around the generic
+         *         variant, and this method will return the underlying generic one.
+         */
+        ProcessLambda<R, S, I> getProcessLambda();
 
         /**
          * @return the currently number of running Stage Processors (the actual concurrency - this might be different

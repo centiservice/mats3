@@ -56,8 +56,8 @@ public class Test_StageIntercept_Simple {
         final MatsStageInterceptor stageInterceptor_1 = new MyMatsStageInterceptor(1);
         final MatsStageInterceptor stageInterceptor_2 = new MyMatsStageInterceptor(2);
 
-        MATS.getMatsInterceptableMatsFactory().addStageInterceptor(stageInterceptor_1);
-        MATS.getMatsInterceptableMatsFactory().addStageInterceptor(stageInterceptor_2);
+        MATS.getMatsFactory().getFactoryConfig().installPlugin(stageInterceptor_1);
+        MATS.getMatsFactory().getFactoryConfig().installPlugin(stageInterceptor_2);
 
         MATS.getMatsFactory().getDefaultInitiator().initiateUnchecked(init -> {
             init.traceId(MatsTestHelp.traceId() + "_First")

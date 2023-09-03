@@ -835,10 +835,10 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
      */
     static class MatsInitiator_DefaultInitiator_TxRequired<Z> implements MatsInitiator {
         private final JmsMatsFactory<Z> _matsFactory;
-        private final JmsMatsInitiator<Z> _matsInitiator;
+        private final MatsInitiator _matsInitiator;
 
         public MatsInitiator_DefaultInitiator_TxRequired(JmsMatsFactory<Z> matsFactory,
-                JmsMatsInitiator<Z> matsInitiator) {
+                MatsInitiator matsInitiator) {
             _matsFactory = matsFactory;
             _matsInitiator = matsInitiator;
         }
@@ -923,10 +923,10 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
      */
     static class MatsInitiator_NamedInitiator_TxRequiresNew<Z> implements MatsInitiator {
         private final JmsMatsFactory<Z> _matsFactory;
-        private final JmsMatsInitiator<Z> _matsInitiator;
+        private final MatsInitiator _matsInitiator;
 
         public MatsInitiator_NamedInitiator_TxRequiresNew(JmsMatsFactory<Z> matsFactory,
-                JmsMatsInitiator<Z> matsInitiator) {
+                MatsInitiator matsInitiator) {
             _matsFactory = matsFactory;
             _matsInitiator = matsInitiator;
         }

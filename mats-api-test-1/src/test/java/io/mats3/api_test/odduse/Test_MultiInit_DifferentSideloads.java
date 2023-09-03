@@ -19,10 +19,7 @@ import io.mats3.test.junit.Rule_Mats;
  *
  * @author Endre Stølsvik 2022-05-11 08:57 - http://stolsvik.com/, endre@stolsvik.com
  */
-public class Test_MultiInit_DifferentSideloads {
-
-    private static final Logger log = MatsTestHelp.getClassLogger();
-
+public class  Test_MultiInit_DifferentSideloads {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 

@@ -11,9 +11,8 @@ import io.mats3.MatsStage;
  * Will produce an "embeddable" HTML interface - notice that there are CSS ({@link #getStyleSheet(Appendable)}),
  * JavaScript ({@link #getJavaScript(Appendable)}) and HTML
  * ({@link #createFactoryReport(Appendable, boolean, boolean, boolean) createFactoryReport(Appendable,..)}) to include.
- * If the {@link LocalStatsMatsInterceptor} is installed on the {@link MatsFactory} implementing
- * {@link io.mats3.api.intercept.MatsInterceptable}, it will include pretty nice "local statistics" for all initiators,
- * endpoints and stages.
+ * If the {@link LocalStatsMatsInterceptor} is installed on the {@link MatsFactory} which handles the Intercept API, it
+ * will include pretty nice "local statistics" for all initiators, endpoints and stages.
  * <p />
  * Note: You are expected to {@link #create(MatsFactory) create} one instance of an implementation of this interface per
  * MatsFactory, and keep these around for the lifetime of the MatsFactories (i.e. for the JVM) - as in multiple

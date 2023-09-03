@@ -4,13 +4,15 @@ import java.time.Instant;
 
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsFactory;
+import io.mats3.MatsFactory.FactoryConfig;
+import io.mats3.MatsFactory.MatsPlugin;
 import io.mats3.MatsInitiator;
 import io.mats3.MatsInitiator.InitiateLambda;
 import io.mats3.MatsInitiator.MatsInitiate;
 
 /**
- * <b>Implement this interface to intercept Initiations</b>, then register with
- * {@link MatsInterceptable#addInitiationInterceptor(MatsInitiateInterceptor)}.
+ * <b>Extension of MatsPlugin: Implement this interface to intercept Initiations</b>, then register with
+ * {@link FactoryConfig#installPlugin(MatsPlugin)}.
  * <p />
  * Meant for intercepting initiations with ability to modify the initiation, and to implement extra logging and metrics
  * gathering.
@@ -117,7 +119,7 @@ import io.mats3.MatsInitiator.MatsInitiate;
  *
  * @author Endre Stølsvik - 2020-01-08 - http://endre.stolsvik.com
  */
-public interface MatsInitiateInterceptor {
+public interface MatsInitiateInterceptor extends MatsPlugin {
 
     /**
      * Invoked right before user lambda is invoked.

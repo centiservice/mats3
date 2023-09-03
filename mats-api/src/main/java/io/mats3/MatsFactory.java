@@ -345,8 +345,11 @@ public interface MatsFactory extends StartStoppable {
 
     /**
      * Starts all endpoints that has been created by this factory, by invoking {@link MatsEndpoint#start()} on them.
+     * (Any plugins which aren't started will also be started - this will happen if the MatsFactory has actively
+     * been {@link #stop(int) stopped} after start, and then started again).
      * <p/>
-     * Subsequently clears the {@link #holdEndpointsUntilFactoryIsStarted()}-flag.
+     * Clears the {@link #holdEndpointsUntilFactoryIsStarted()}-flag, so that any endpoints created after this method
+     * has been invoked will start immediately.
      */
     @Override
     void start();
@@ -628,6 +631,47 @@ public interface MatsFactory extends StartStoppable {
          */
         <T> T instantiateNewObject(Class<T> type);
 
+        /**
+         * Installs a new plugin. The plugin will be {@link MatsPlugin#start(MatsFactory)} started} immediately - you
+         * may inspect which Endpoints are at that point already present. It will subsequently have its
+         * {@link MatsPlugin#addingEndpoint(MatsEndpoint) endpointAdded(MatsEndpoint)} and
+         * {@link MatsPlugin#removedEndpoint(MatsEndpoint) endpointRemoved(MatsEndpoint)} methods invoked as Endpoints
+         * are added and removed from the MatsFactory. All these operations are done within a synchronized construct, so
+         * that the plugin shall be able to have a consistent view of the MatsFactory.
+         * <p/>
+         * The MatsFactory might have special handling for a given plugin based on the interfaces it implements. For
+         * example, the JMS implementation know about the 'mats-intercept-api' module, and will act accordingly.
+         *
+         * @param plugin
+         *            the plugin to install, <code>null</code> is not allowed.
+         * @return the config object, for method chaining.
+         * @throws IllegalStateException
+         *             if the plugin instance is already installed.
+         */
+        FactoryConfig installPlugin(MatsPlugin plugin) throws IllegalStateException;
+
+        /**
+         * Returns the list of plugins that are installed on this MatsFactory, filtered by the provided class or
+         * interface. If you want all plugins, use <code>MatsPlugin.class</code>.
+         *
+         * @param filterByClass
+         *            Which type of plugins to return. <code>MatsPlugin.class</code> returns all installed plugins.
+         *            <code>null</code> is not allowed.
+         * @return the selected list of plugins
+         * @param <T>
+         *            What type the plugin is. This might be an interface of the actual plugin.
+         */
+        <T extends MatsPlugin> List<T> getPlugins(Class<T> filterByClass);
+
+        /**
+         * Removes the specified plugin from this MatsFactory. The plugin will have its {@link MatsPlugin#preStop()} and
+         * {@link MatsPlugin#stop()} methods invoked, and will subsequently be out of the equation.
+         *
+         * @param instanceToRemove
+         *            the plugin instance to remove.
+         */
+        boolean removePlugin(MatsPlugin instanceToRemove);
+
         // Overridden to return the more specific FactoryConfig instead of MatsConfig
         @Override
         FactoryConfig setAttribute(String key, Object value);
@@ -639,6 +683,88 @@ public interface MatsFactory extends StartStoppable {
         // Overridden to return the more specific FactoryConfig instead of MatsConfig
         @Override
         FactoryConfig setInteractiveConcurrency(int concurrency);
+    }
+
+    interface MatsPlugin {
+        /**
+         * Invoked when installed, <b>before</b> it is added to the MatsFactory. This is the place to do any
+         * initialization that needs to be done before the plugin will get other invocations. The state of the
+         * MatsFactory is effectively locked while this method is invoked - so that you can get a consistent view of
+         * what Endpoints is already added to the MatsFactory, vs. what endpoints are
+         * {@link #addingEndpoint(MatsEndpoint) added} and {@link #removedEndpoint(MatsEndpoint removed)} later.
+         * <p/>
+         * Notice again that it is not added to the MatsFactory unless this method returns without throwing an
+         * exception. This also means that if you register any Endpoints in this method, or create Initiators, the
+         * corresponding {@link #addingEndpoint(MatsEndpoint) addingEndpoint(..)} or
+         * {@link #addingInitiator(MatsInitiator) addingInitiator(..)} will not be invoked.
+         *
+         *
+         * @param matsFactory
+         *            the MatsFactory instance that this plugin is installed on.
+         */
+        default void start(MatsFactory matsFactory) {
+        }
+
+        /**
+         * Invoked before the Initiator is added to the MatsFactory. For interception needs, check out
+         * 'mats-intercept-api'.
+         *
+         * @param initiator
+         *            the initiator that is about to be added.
+         */
+        default void addingInitiator(MatsInitiator initiator) {
+        }
+
+        /**
+         * Invoked when the Endpoint's {@link MatsEndpoint#finishSetup() finishSetup()} is invoked, before the Endpoint
+         * is added to the MatsFactory. For interception needs, check out 'mats-intercept-api'.
+         *
+         * @param endpoint
+         *            the endpoint that is about to be added.
+         */
+        default void addingEndpoint(MatsEndpoint<?, ?> endpoint) {
+        }
+
+        /**
+         * Invoked after the Endpoint has been removed from the MatsFactory - note that this will not be invoked for all
+         * endpoints when the plugin is {@link FactoryConfig#removePlugin(MatsPlugin) removed} or the MatsFactory is
+         * {@link MatsFactory#stop(int) stopped}, so you must handle any per-Endpoint cleanup in {@link #preStop()} and
+         * {@link #stop()}.
+         * <p/>
+         * Note that removing an Endpoint is primarily meant for testing procedures, so this should not be a common
+         * scenario in production.
+         *
+         * @param endpoint
+         *            the endpoint that was removed.
+         */
+        default void removedEndpoint(MatsEndpoint<?, ?> endpoint) {
+        }
+
+        /**
+         * Stop step 1/2: E.g. set "runflags" to false, and signal or interrupt threads, and clear out any per-Endpoint
+         * resources. Invoked after the plugin is {@link FactoryConfig#removePlugin(MatsPlugin) removed} from the
+         * MatsFactory, or when the MatsFactory is {@link MatsFactory#stop(int) stopped}. The plugin is not removed upon
+         * MatsFactory stop (and neither are Initiators and Endpoints), and will be started again by invoking
+         * {@link MatsFactory#start()}).
+         * <p/>
+         * Note: Upon MatsFactory stopping, this method is invoked <b>before</b> the Initiators and Endpoints are
+         * stopped. The state of the MatsFactory is effectively locked while this method is invoked.
+         */
+        default void preStop() {
+        }
+
+        /**
+         * Stop step 2/2: E.g. wait for threads to finish and close resources - make sure this happens in a timely
+         * fashion. Invoked after the plugin is {@link FactoryConfig#removePlugin(MatsPlugin) removed} from the
+         * MatsFactory, or when the MatsFactory is {@link MatsFactory#stop(int) stopped}. The plugin it is not removed
+         * upon MatsFactory stop (and neither are Initiators and Endpoints), and will be started again by invoking
+         * {@link MatsFactory#start()}).
+         * <p/>
+         * Note: Upon MatsFactory stopping, this method is invoked <b>after</b> the Initiators and Endpoints are
+         * stopped. The state of the MatsFactory is effectively locked while this method is invoked.
+         */
+        default void stop() {
+        }
     }
 
     /**
