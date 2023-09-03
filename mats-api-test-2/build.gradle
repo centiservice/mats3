@@ -1,0 +1,3 @@
+// mats-api-test-2: Testing the Mats API itself (not testing util classes)
+
+apply from: '../mats-api-test-1/build.gradle'

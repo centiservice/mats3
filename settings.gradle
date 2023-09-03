@@ -18,7 +18,7 @@ gradleEnterprise {
 
 rootProject.name = 'mats3'
 
-include 'mats-api', 'mats-impl-jms', 'mats-api-test',
+include 'mats-api', 'mats-impl-jms', 'mats-api-test-1', 'mats-api-test-2',
         'mats-serial', 'mats-serial-json',
         'mats-test', 'mats-test-junit', 'mats-test-jupiter', 'mats-test-broker',
         'mats-intercept-api',

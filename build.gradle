@@ -152,6 +152,7 @@ subprojects {
 
     // Some info about current gradle environment.
     tasks.register('systemInformation') {
+        def gradleVersion = gradle.gradleVersion // Needed due to config cache.
         doLast {
             println "\n** Java properties [System.getProperties()], sorted:\n"
             System.properties.sort().each { k, v ->
@@ -164,7 +165,7 @@ subprojects {
             println ''
             println "** Java Version:   " + System.getProperty("java.version")
             println "** Groovy Version: " + GroovySystem.getVersion()
-            println "** Gradle Version: " + gradle.gradleVersion
+            println "** Gradle Version: " + gradleVersion
         }
     }
 }

@@ -29,7 +29,7 @@ public class Test_NestedInInitiate {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
-    private static final int NAP_TIME = 1000;
+    private static final int NAP_TIME = 750;
     private static final int NAP_TIME_COMP = NAP_TIME - 100;
 
     private static final String TERMINATOR0 = MatsTestHelp.endpoint("terminator0");

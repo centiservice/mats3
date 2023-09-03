@@ -1,4 +1,4 @@
-// mats-lib-test: Testing the Mats API itself (not testing util classes)
+// mats-api-test-1: Testing the Mats API itself (not testing util classes)
 
 dependencies {
 
