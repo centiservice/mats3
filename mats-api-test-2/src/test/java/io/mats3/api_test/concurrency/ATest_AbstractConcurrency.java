@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
 import io.mats3.test.MatsTestHelp;
+import io.mats3.test.MatsTestLatch;
 import io.mats3.test.junit.Rule_Mats;
 
 /**
@@ -30,9 +31,13 @@ public class ATest_AbstractConcurrency {
     protected static final String ENDPOINT = MatsTestHelp.endpoint();
     protected static final String TERMINATOR = MatsTestHelp.terminator();
 
-    protected static final int CONCURRENCY = 8;
+    protected static final int CONCURRENCY = 10; // 10 processors/threads per stage
 
-    protected static final int PROCESSING_TIME = 500;
+    protected static final int MESSAGES_MULTIPLE = 6;
+
+    protected static final int NUM_MESSAGES = CONCURRENCY * MESSAGES_MULTIPLE;
+
+    protected static final int PROCESSING_TIME = 100;
 
     private static CountDownLatch _latch;
 
@@ -52,7 +57,7 @@ public class ATest_AbstractConcurrency {
     @Before
     public void clearMapsAndLatch() {
         _map.clear();
-        _latch = new CountDownLatch(CONCURRENCY);
+        _latch = new CountDownLatch(NUM_MESSAGES);
     }
 
     protected void performTest(double expectedMultiple, String expectedString) throws InterruptedException {
@@ -65,11 +70,18 @@ public class ATest_AbstractConcurrency {
          * Remedy by napping a little before firing off the messages, hoping that all the StageProcessors gets one
          * message each, which is a requirement for the test to pass.
          */
-        MatsTestHelp.takeNap(PROCESSING_TIME);
+
+        // First "standard" waitForReceiving, to get at least one StageProcessor running for all stages.
+        MATS.getMatsFactory().getEndpoint(ENDPOINT).orElseThrow(() ->
+                new AssertionError("Could not get endpoint [" + ENDPOINT + "]"))
+                .waitForReceiving(30_0000);
+
+        // .. then wait a little more, in hope that all the StageProcessors has gotten into receive()
+        MatsTestHelp.takeNap(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 2);
 
         // .. Now fire off the messages.
         MATS.getMatsInitiator().initiateUnchecked((msg) -> {
-            for (int i = 0; i < CONCURRENCY; i++) {
+            for (int i = 0; i < NUM_MESSAGES; i++) {
                 DataTO dto = new DataTO(i, "TheAnswer");
                 StateTO sto = new StateTO(i, i);
                 msg.traceId(MatsTestHelp.traceId())
@@ -82,21 +94,19 @@ public class ATest_AbstractConcurrency {
 
         // :: Wait synchronously for all messages to reach terminator
 
-        // We set the max time to receive all messages to a multiple <2 - this means that if the messages does not
-        // go through in parallel, the test should fail. We want as tight margin as possible, but since evidently
-        // the test runner instances on Github Actions are pretty crowded, we'll have to give quite a bit of leeway.
-        // Former x1.3 (650 ms) failed on MacOS (it took 685 ms!), upping to 1.75x, which still should catch if the
-        // concurrency is severely off what is configured in the tests. Aaand, upping to 1.99, since MacOS still fails
-        // us (took 888ms, when 1.75x gives max 875!). 1.99x is still short enough that a bad test cannot falsely get
-        // green, but this will probably still fail sometimes since there is so little headroom.
-        long maxWait = (long) (PROCESSING_TIME * 1.99);
+        // The messages should go through much faster than if there was only one processor per stage.
+        // It should take a tad more than PROCESSING_TIME * MESSAGES_MULTIPLE ms, but we give it a good bit more.
+        // Note: The Windows hosts on GitHub Actions are seemingly absurdly slow, so we need to give it a lot more time.
+        // (On local dev machine, it typically runs in a multiple of 1.1 from cold start)
+        long maxWait = PROCESSING_TIME * MESSAGES_MULTIPLE * 5;
         long startMillis = System.currentTimeMillis();
-        boolean gotToZero = _latch.await((long) (PROCESSING_TIME * CONCURRENCY * 1.5), TimeUnit.MILLISECONDS);
+        boolean gotToZero = _latch.await(30, TimeUnit.SECONDS);
         long millisTaken = System.currentTimeMillis() - startMillis;
         Assert.assertTrue("The CountDownLatch did not reach zero.", gotToZero);
         Assert.assertTrue("The CountDownLatch did not reach zero in " + maxWait + " ms (took " + millisTaken + "ms).",
                 millisTaken < maxWait);
-        log.info("@@ Test passed - Waiting for " + CONCURRENCY + " messages took " + millisTaken + " ms.");
+        log.info("@@ Test passed - Waiting for " + CONCURRENCY + " messages took " + millisTaken
+                + " ms - less than the maxWait of [" + maxWait + " ms].");
 
         // :: Assert the processed data
         for (int i = 0; i < CONCURRENCY; i++) {

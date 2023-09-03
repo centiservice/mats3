@@ -15,9 +15,9 @@ import io.mats3.test.MatsTestHelp;
  * ASCII-artsy, it looks like this:
  *
  * <pre>
- * [Initiator] x 1, firing off 8 requests.
- *     [Service] x 8 StageProcessors (sleeping 500 ms) - reply
- * [Terminator] x 1 StageProcessor, getting all the 8 replies, counting down a 8-latch.
+ * [Initiator] x 1, firing off NUM_MESSAGES requests.
+ *     [Service] x 8 StageProcessors (sleeping PROCESSING_TIME ms) - reply
+ * [Terminator] x 1 StageProcessor, getting all the NUM_MESSAGES replies, counting down a latch.
  * </pre>
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com

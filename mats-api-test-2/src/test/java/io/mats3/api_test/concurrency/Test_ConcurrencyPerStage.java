@@ -18,10 +18,10 @@ import io.mats3.test.MatsTestHelp;
  * ASCII-artsy, it looks like this:
  *
  * <pre>
- * [Initiator] x 1, firing off 8 requests.
- *     [Service S0 (init)] x 8 StageProcessors (sleeping 250 ms) - next
- *     [Service S1 (last)] x 4 StageProcessors (sleeping 125 ms) - reply
- * [Terminator] x 1 StageProcessor, getting all the 8 replies, counting down a 8-latch.
+ * [Initiator] x 1, firing off NUM_MESSAGES requests.
+ *     [Service S0 (init)] x CONCURRENCY StageProcessors (sleeping PROCESSING_TIME / 2 ms) - next
+ *     [Service S1 (last)] x CONCURRENCY / 2 StageProcessors (sleeping PROCESSING_TIME / 4 ms) - reply
+ * [Terminator] x 1 StageProcessor, getting all the NUM_MESSAGES replies, counting down a latch.
  * </pre>
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
@@ -30,12 +30,15 @@ public class Test_ConcurrencyPerStage extends ATest_AbstractConcurrency {
 
     @BeforeClass
     public static void setupService() {
-        // :: Configuring endpoint to use 4 as concurrency.
+        // :: Configuring endpoint to use half as concurrency.
         MatsEndpoint<DataTO, StateTO> ep = MATS.getMatsFactory().staged(ENDPOINT, DataTO.class, StateTO.class,
                 (endpointConfig) -> {
                     endpointConfig.setConcurrency(CONCURRENCY / 2);
                 });
-        // :: Configuring this stage to override concurrency from 4 to 8.
+
+        // ::: TWO STAGES
+
+        // :: 1. Configuring this stage to use the large concurrency.
         ep.stage(DataTO.class,
                 (stageConfig) -> {
                     stageConfig.setConcurrency(CONCURRENCY);
@@ -45,7 +48,7 @@ public class Test_ConcurrencyPerStage extends ATest_AbstractConcurrency {
                     MatsTestHelp.takeNap(PROCESSING_TIME / 2); // Half of total
                     context.next(new DataTO(dto.number * 2, dto.string + ":InitialStage"));
                 });
-        // :: This stage uses the Endpoint's configured concurrency of 4.
+        // :: 2. This stage uses the Endpoint's configured half concurrency.
         ep.lastStage(DataTO.class,
                 (context, state, dto) -> {
                     // Emulate some lengthy processing...
