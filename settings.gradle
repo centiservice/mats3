@@ -4,7 +4,7 @@ import java.nio.charset.Charset
 // To run a build scan locally, either force this block to kick in by: $ CI=true ./gradlew build
 // Or run the build with: $ ./gradlew build --scan
 plugins {
-    id "com.gradle.enterprise" version "3.11.1"
+    id "com.gradle.enterprise" version "3.14.1"
 }
 gradleEnterprise {
     if (System.getenv("CI") != null) {
