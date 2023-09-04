@@ -222,8 +222,8 @@ public interface MatsInitiateInterceptor extends MatsPlugin {
              * {@link io.mats3.MatsInitiator.MatsBackendException MatsBackendException} (messaging handling or db
              * commit), or {@link io.mats3.MatsInitiator.MatsMessageSendException MatsMessageSendException} (which is
              * the "VERY BAD!" scenario where db is committed, whereupon the messaging commit failed - which quite
-             * possibly is a "notify the humans!"-situation, unless the user code is crafted to handle such a
-             * situation by being idempotent).
+             * possibly is a "notify the humans!"-situation, unless the user code is crafted to handle such a situation
+             * by being idempotent).
              */
             SYSTEM_EXCEPTION
         }

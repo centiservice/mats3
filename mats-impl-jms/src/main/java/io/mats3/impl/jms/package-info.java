@@ -1,9 +1,7 @@
 /**
- * Java Message Service v1.1 (JMS v1.1) implementation of the {@link io.mats3 Mats<sup>3</sup> API} and
- * {@link io.mats3.api.intercept Mats<sup>3</sup> Intercept API}.
+ * Implementation of the {@link io.mats3 Mats<sup>3</sup> API} on Java Message Service v2 (JMS v2) .
  * <p/>
- * The JMS v2.0 API is a superset of JMS v1.1. This implementation has run in production for a substantial financial
- * system since ~2018 on ActiveMQ (which implements JMS v1.1), but all tests are run for Artemis too (which implements
- * JMS v2.0).
+ * Note that the implementation actually works with JMS v1.1, but per 2023 there is no known broker that only implements
+ * JMS v1.1. The v2.0 API is a strict superset of the v1.1 API, and the implementation only uses the v1.1 API features.
  */
 package io.mats3.impl.jms;
