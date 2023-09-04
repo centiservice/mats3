@@ -62,7 +62,7 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * Note that in the case of pure "GET-style" requests where information is only retrieved and no state in the total
  * system is changed, everything is a bit more relaxed: If a processing fails, the worst thing that happens is a
  * slightly annoyed user. But if this was an "add order" or "move money" instruction from the user, a mid-processing
- * failure is rather bad and could require human intervention to clean up. <b>>Thus, the
+ * failure is rather bad and could require human intervention to clean up. <b>Thus, the
  * <code>futurizeNonessential(..)</code> method should only be employed for such <i>safe</i> "GET-style" requests</b>.
  * Any other potentially state changing operations must employ the generic <code>futurize(..)</code> method.
  * <p/>
