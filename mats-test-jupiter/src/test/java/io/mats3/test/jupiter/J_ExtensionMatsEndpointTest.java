@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -20,6 +21,7 @@ import io.mats3.util.MatsFuturizer.Reply;
 public class J_ExtensionMatsEndpointTest {
 
     public static final String HELLO_ENDPOINT_ID = "HelloEndpoint";
+    public static final String NO_MATS_FACTORY_ENDPOINT_ID = "NoMatsFactoryEndpoint";
 
     @RegisterExtension
     public static final Extension_Mats MATS = Extension_Mats.create();
@@ -27,6 +29,10 @@ public class J_ExtensionMatsEndpointTest {
     @RegisterExtension
     public final Extension_MatsEndpoint<String, String> _helloEndpoint = Extension_MatsEndpoint
             .create(MATS, HELLO_ENDPOINT_ID, String.class, String.class);
+
+    @RegisterExtension
+    public final Extension_MatsEndpoint<String, String> _endpointWithoutMatsFactory = Extension_MatsEndpoint
+            .create(NO_MATS_FACTORY_ENDPOINT_ID, String.class, String.class);
 
     /**
      * Shows that when no processor is defined, an endpoint will not produce a reply.
@@ -76,12 +82,12 @@ public class J_ExtensionMatsEndpointTest {
         // :: First Act
         String firstReply = MATS.getMatsFuturizer().futurizeNonessential(
                 getClass().getSimpleName() + "_changeProcessorMidTestTest",
-                        getClass().getSimpleName(),
-                        HELLO_ENDPOINT_ID,
-                        String.class,
-                        "Hello")
-                        .thenApply(Reply::getReply)
-                        .get(10, TimeUnit.SECONDS);
+                getClass().getSimpleName(),
+                HELLO_ENDPOINT_ID,
+                String.class,
+                "Hello")
+                .thenApply(Reply::getReply)
+                .get(10, TimeUnit.SECONDS);
 
         // :: First Verify
         Assertions.assertEquals(expectedReturn, firstReply);
@@ -113,15 +119,33 @@ public class J_ExtensionMatsEndpointTest {
 
         // :: Act
         String reply = MATS.getMatsFuturizer().futurizeNonessential(
-                        getClass().getSimpleName() + "_nullHandling",
-                        getClass().getSimpleName(),
-                        HELLO_ENDPOINT_ID,
-                        String.class,
-                        null)
+                getClass().getSimpleName() + "_nullHandling",
+                getClass().getSimpleName(),
+                HELLO_ENDPOINT_ID,
+                String.class,
+                null)
+                .thenApply(Reply::getReply)
+                .get(10, TimeUnit.SECONDS);
+        Assertions.assertEquals("null World!", reply);
+    }
+
+    @Test
+    void ableToUseEndpointWithoutMatsFactory() throws ExecutionException, InterruptedException, TimeoutException {
+        // :: Setup
+        String expectedReturn = "Hello World!";
+        _endpointWithoutMatsFactory.setProcessLambda((ctx, msg) -> msg + " World!");
+
+        // :: Act
+        String reply = MATS.getMatsFuturizer().futurizeNonessential(
+                getClass().getSimpleName() + "_ableToUseEndpointWithoutMatsFactory",
+                getClass().getSimpleName(),
+                NO_MATS_FACTORY_ENDPOINT_ID,
+                String.class,
+                "Hello")
                 .thenApply(Reply::getReply)
                 .get(10, TimeUnit.SECONDS);
 
         // :: Verify
-        Assertions.assertEquals("null World!", reply);
+        Assertions.assertEquals(expectedReturn, reply);
     }
 }
