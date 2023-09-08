@@ -5,12 +5,17 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
 
+import io.mats3.MatsFactory;
+import io.mats3.MatsInitiator;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
+import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.TestH2DataSource;
 import io.mats3.test.abstractunit.AbstractMatsTest;
+import io.mats3.util.MatsFuturizer;
 
 /**
  * Provides a full MATS harness for unit testing by creating {@link JmsMatsFactory MatsFactory} utilizing an in-vm
@@ -58,6 +63,8 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
 public class Extension_Mats extends AbstractMatsTest
         implements BeforeAllCallback, AfterAllCallback {
 
+    private static final Namespace NAMESPACE = Namespace.create(Extension_Mats.class.getSimpleName());
+
     protected Extension_Mats(MatsSerializer<?> matsSerializer) {
         super(matsSerializer);
     }
@@ -91,10 +98,34 @@ public class Extension_Mats extends AbstractMatsTest
     }
 
     /**
+     * Returns the {@link Extension_Mats} from the test context, provided that this has been initialized
+     * prior to calling this method. This is intended for use by other extensions that rely on the presence of
+     * a {@link Extension_Mats} to function. The {@link Extension_Mats} is not set in the {@link ExtensionContext}
+     * until after the {@link #beforeAll(ExtensionContext)} has been called for an instance of {@link Extension_Mats}.
+     * <p>
+     * Note that if you crate multiple {@link Extension_Mats}, then this will only provide the last created extension.
+     * In that case, you should instead provide the actual MatsFactory to each extension.
+     *
+     * @param extensionContext to get {@link Extension_Mats} from
+     * @return the {@link Extension_Mats} from the test context
+     * @throws IllegalStateException if no {@link Extension_Mats} is found in the test context
+     */
+    public static Extension_Mats getExtension(ExtensionContext extensionContext) {
+        Extension_Mats extensionMats =
+                extensionContext.getStore(NAMESPACE).get(Extension_Mats.class, Extension_Mats.class);
+        if (extensionMats == null) {
+            throw new IllegalStateException("Could not find Extension_Mats in ExtensionContext,"
+                    + " make sure to include Extension_Mats as a test extension.");
+        }
+        return extensionMats;
+    }
+
+    /**
      * Executed by Jupiter before any test method is executed. (Once at the start of the class.)
      */
     @Override
     public void beforeAll(ExtensionContext context) {
+        context.getStore(NAMESPACE).put(Extension_Mats.class, this);
         super.beforeAll();
     }
 
