@@ -22,9 +22,7 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  * <p/>
  * By default the {@link #create() rule} will create a {@link MatsSerializerJson} which will be the serializer utilized
  * by the created {@link JmsMatsFactory MatsFactory}. Should one want to use a different serializer which serializes to
- * the type of {@link String} then this can be specified using the method {@link #create(MatsSerializer)}. However
- * should one want to specify a serializer which serializes into anything other than {@link String}, then
- * {@link Rule_MatsGeneric} offers this possibility.
+ * the type of {@link String} then this can be specified using the method {@link #create(MatsSerializer)}.
  * <p/>
  * {@link Rule_Mats} shall be considered a {@link ClassRule} and thus annotated as such, being a {@link ClassRule} also
  * means that the instance field shall be static. Therefore to utilize {@link Rule_Mats} one should add it to a test
@@ -56,15 +54,14 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  * @author Kevin Mc Tiernan, 2020-10-18, kmctiernan@gmail.com
- * @see Rule_MatsGeneric
  */
-public class Rule_Mats extends AbstractMatsTest<String> implements TestRule {
+public class Rule_Mats extends AbstractMatsTest implements TestRule {
 
-    protected Rule_Mats(MatsSerializer<String> matsSerializer) {
+    protected Rule_Mats(MatsSerializer<?> matsSerializer) {
         super(matsSerializer);
     }
 
-    protected Rule_Mats(MatsSerializer<String> matsSerializer, DataSource dataSource) {
+    protected Rule_Mats(MatsSerializer<?> matsSerializer, DataSource dataSource) {
         super(matsSerializer, dataSource);
     }
 
@@ -79,7 +76,7 @@ public class Rule_Mats extends AbstractMatsTest<String> implements TestRule {
      * Creates a {@link Rule_Mats} utilizing the user provided {@link MatsSerializer} which serializes to the type of
      * String.
      */
-    public static Rule_Mats create(MatsSerializer<String> matsSerializer) {
+    public static Rule_Mats create(MatsSerializer<?> matsSerializer) {
         return new Rule_Mats(matsSerializer);
     }
 
@@ -87,7 +84,7 @@ public class Rule_Mats extends AbstractMatsTest<String> implements TestRule {
         return createWithDb(MatsSerializerJson.create());
     }
 
-    public static Rule_Mats createWithDb(MatsSerializer<String> matsSerializer) {
+    public static Rule_Mats createWithDb(MatsSerializer<?> matsSerializer) {
         TestH2DataSource testH2DataSource = TestH2DataSource.createStandard();
         return new Rule_Mats(matsSerializer, testH2DataSource);
     }

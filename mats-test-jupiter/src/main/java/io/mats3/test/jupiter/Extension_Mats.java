@@ -22,8 +22,6 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  * By default the {@link #create() extension} will create a {@link MatsSerializerJson} which will be the serializer
  * utilized by the created {@link JmsMatsFactory MatsFactory}. Should one want to use a different serializer which
  * serializes to the type of {@link String} then this can be specified using the method {@link #create(MatsSerializer)}.
- * However should one want to specify a serializer which serializes into anything other than {@link String}, then
- * {@link Extension_MatsGeneric} offers this possibility.
  * <p/>
  * {@link Extension_Mats} shall be annotated with
  * {@link org.junit.jupiter.api.extension.RegisterExtension @RegisterExtension} and the instance field shall be static
@@ -56,16 +54,15 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  * </pre>
  *
  * @author Kevin Mc Tiernan, 2020-10-18, kmctiernan@gmail.com
- * @see Extension_MatsGeneric
  */
-public class Extension_Mats extends AbstractMatsTest<String>
+public class Extension_Mats extends AbstractMatsTest
         implements BeforeAllCallback, AfterAllCallback {
 
-    protected Extension_Mats(MatsSerializer<String> matsSerializer) {
+    protected Extension_Mats(MatsSerializer<?> matsSerializer) {
         super(matsSerializer);
     }
 
-    protected Extension_Mats(MatsSerializer<String> matsSerializer, DataSource dataSource) {
+    protected Extension_Mats(MatsSerializer<?> matsSerializer, DataSource dataSource) {
         super(matsSerializer, dataSource);
     }
 
@@ -80,7 +77,7 @@ public class Extension_Mats extends AbstractMatsTest<String>
      * Creates an {@link Extension_Mats} utilizing the user provided {@link MatsSerializer} which serializes to the type
      * of String.
      */
-    public static Extension_Mats create(MatsSerializer<String> matsSerializer) {
+    public static Extension_Mats create(MatsSerializer<?> matsSerializer) {
         return new Extension_Mats(matsSerializer);
     }
 
@@ -88,7 +85,7 @@ public class Extension_Mats extends AbstractMatsTest<String>
         return createWithDb(MatsSerializerJson.create());
     }
 
-    public static Extension_Mats createWithDb(MatsSerializer<String> matsSerializer) {
+    public static Extension_Mats createWithDb(MatsSerializer<?> matsSerializer) {
         TestH2DataSource testH2DataSource = TestH2DataSource.createStandard();
         return new Extension_Mats(matsSerializer, testH2DataSource);
     }

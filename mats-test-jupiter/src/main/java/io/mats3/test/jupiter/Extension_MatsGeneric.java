@@ -36,28 +36,30 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  *            terrible at serializing byte arrays.
  * @author Kevin Mc Tiernan, 2020-10-22, kmctiernan@gmail.com
  * @see AbstractMatsTest
+ * @deprecated Use {@link Extension_Mats} instead, this class has been made redundant.
  */
-public class Extension_MatsGeneric<Z> extends AbstractMatsTest<Z>
+@Deprecated
+public class Extension_MatsGeneric extends AbstractMatsTest
         implements BeforeAllCallback, AfterAllCallback {
 
-    protected Extension_MatsGeneric(MatsSerializer<Z> matsSerializer) {
+    protected Extension_MatsGeneric(MatsSerializer<?> matsSerializer) {
         super(matsSerializer);
     }
 
-    protected Extension_MatsGeneric(MatsSerializer<Z> matsSerializer, DataSource dataSource) {
+    protected Extension_MatsGeneric(MatsSerializer<?> matsSerializer, DataSource dataSource) {
         super(matsSerializer, dataSource);
     }
 
     /**
      * Creates an {@link Extension_MatsGeneric} utilizing the user provided {@link MatsSerializer}.
      */
-    public static <Z> Extension_MatsGeneric<Z> create(MatsSerializer<Z> matsSerializer) {
-        return new Extension_MatsGeneric<>(matsSerializer);
+    public static Extension_MatsGeneric create(MatsSerializer<?> matsSerializer) {
+        return new Extension_MatsGeneric(matsSerializer);
     }
 
-    public static <Z> Extension_MatsGeneric<Z> createWithDb(MatsSerializer<Z> matsSerializer) {
+    public static Extension_MatsGeneric createWithDb(MatsSerializer<?> matsSerializer) {
         TestH2DataSource testH2DataSource = TestH2DataSource.createStandard();
-        return new Extension_MatsGeneric<>(matsSerializer, testH2DataSource);
+        return new Extension_MatsGeneric(matsSerializer, testH2DataSource);
     }
 
     public TestH2DataSource getDataSource() {
