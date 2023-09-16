@@ -859,6 +859,35 @@ public class MatsSpringAnnotationRegistration implements
 
         // :: Create the Staged Endpoint
 
+        // We'll first check that the class has a no-args constructor. This is not strictly necessary as long as the
+        // serialization mechanism can construct an instance, but problems have turned up when the serialization
+        // mechanism is GSON, and constructor injection is employed. The problem is that if a no-args constructor is not
+        // present, GSON will use 'Objenesis' to instantiate the object, which will not invoke /any/ constructor. This
+        // is not a problem in itself, but if the class has a field that uses declaration initialization (i.e. private
+        // List<String> _list = new ArrayList<>()), then this field will not be initialized when no constructor is
+        // invoked, and thus be null. The mechanism that we use here to find the fields that Spring has injected will
+        // thus assume that this field is an injected field (i.e. it is present in the bean instance, but _not_ in the
+        // newly instantiated instance), and thus it will be stored as a template field, and thus it will NOT be assumed
+        // to be state: It will be assumed to be a shared service of sorts, and thus shared between all stage processing
+        // threads. Which is close to opposite of what you expected, and will lead to very strange and hard-to-debug
+        // problems. Thus, we check that the class has a no-args constructor, and if not, we currently (2023-09-16) log
+        // hard - WILL LATER THROW.
+        try {
+            matsClass.getDeclaredConstructor();
+        }
+        catch (NoSuchMethodException e) {
+            log.error(LOG_PREFIX+" HARD WARNING - DEPRECATION!! The class [" + matsClass.getSimpleName() + "] does not"
+                    + " have a no-args constructor, which is required for @MatsClassMapping. THIS WILL THROW IN A LATER"
+                    + " VERSION OF Mats3 SpringConfig, so you should fix this now! If the reason for this is that you"
+                    + " employ constructor injection, and in addition use declaration-initialized fields ('List<Car>"
+                    + " _cars = new ArrayList<>();'), and in addition use GSON as serialization mechanism (which uses"
+                    + " Objenesis to 'stamp out' instances when missing no-args constructor), then the field will be"
+                    + " assumed to be a Spring-injected field as opposed to a state field, and thus shared between all"
+                    + " stage processing threads. It is highly unlikely that this is what you intended, and will lead"
+                    + " to bad and hard-to-debug bugs.");
+        }
+
+        // .. actually make the endpoint
         MatsEndpoint<?, ?> ep;
         try {
             ep = matsFactoryToUse.staged(matsClassMapping.endpointId(), replyClass, matsClass);
@@ -874,7 +903,11 @@ public class MatsSpringAnnotationRegistration implements
         // :: Hold on to all non-null fields of the bean - these are what Spring has injected. Make "template".
 
         // Need to check if the State class sets any fields by itself, i.e. with no-args constructor or initial value.
+        // Note: This also checking that deserialization works for an "empty object", which can fail if the combination
+        // of the class's fields and serialization mechanism is not compatible, e.g. if the class has a state field of
+        // type java.lang.Thread, which would be insane anyway.
         Object instantiatedStateObject = matsFactoryToUse.getFactoryConfig().instantiateNewObject(matsClass);
+
 
         Field[] processContextField_hack = new Field[1];
         LinkedHashMap<Field, Object> templateFields = new LinkedHashMap<>();
@@ -944,10 +977,11 @@ public class MatsSpringAnnotationRegistration implements
                 return;
             }
             // ->?: Not null, but is it also set in a newly instantiated variant of the matsClass?
+            // (That is, is it a 'declaration-initialized' field, i.e. 'List<String> _list = new ArrayList<>();')
             else if (field.get(instantiatedStateObject) != null) {
                 // -> Yes, both non-null in the Spring bean, AND in a newly instantiated instance of the matsClass
                 log.info(LOG_PREFIX + " - Field [" + name + "] is non-null both in Spring bean AND in newly"
-                        + " instantiated instance: Assuming state field, ignoring. (Type: ["
+                        + " instantiated instance: Assuming declaration-initialized state field, ignoring. (Type: ["
                         + field.getGenericType() + "])");
                 return;
             }
@@ -958,11 +992,11 @@ public class MatsSpringAnnotationRegistration implements
                     + "Injection has set it - storing as template. (Type:[" + field.getGenericType() + "], Value:["
                     + value + "])");
 
-            // Check that 'transient' is set. Currently (2023-05-30) we just log, later we'll throw.
+            // Check that 'transient' is set. Currently (2023-05-30), we just log, later we'll throw.
             if (!Modifier.isTransient(field.getModifiers())) {
-                log.error(LOG_PREFIX + " !! MISSING 'transient' MODIFIER ON INJECTED FIELD [" + name + "] of class"
-                        + " [" + classNameWithoutPackage(bean) + "]. Please add this. In some later Mats version, we'll"
-                        + " throw here!");
+                log.error(LOG_PREFIX + " HARD WARNING - DEPRECATION!! MISSING 'transient' MODIFIER ON INJECTED FIELD"
+                        + " [" + name + "] of class [" + classNameWithoutPackage(bean) + "]. Please add this. In some"
+                        + " later Mats version, we'll throw here!");
             }
 
             templateFields.put(field, value);
