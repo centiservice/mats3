@@ -174,18 +174,18 @@ subprojects {
 // - Adapted from https://coderwall.com/p/evtdbw/aggregate-javadoc-in-multiproject-gradle-builds
 apply plugin: 'java'
 tasks.register('alljavadoc', Javadoc) {
-    def relevantProjects = subprojects.findAll { it.name != 'mats-api-test' }
+    def relevantProjects = subprojects.findAll { ! it.name.startsWith('mats-api-test') }
     source relevantProjects.collect { it.sourceSets.main.allJava }
     classpath = files(relevantProjects.collect { it.sourceSets.main.compileClasspath })
-    destinationDir = file("${buildDir}/docs/javadoc")
+    destinationDir = file("${layout.buildDirectory}/docs/javadoc")
     options.addStringOption('Xdoclint:none', '-quiet')
     options.addStringOption('--frames')
 }
 // .. ensure 'alljavadoc' is run together with './gradlew clean javadoc', thus building 'all' + submodules.
 javadoc.dependsOn alljavadoc
 
-// For publishing subprojects: All, minus 'mats-api-test'
-configure(subprojects.findAll { it.name != 'mats-api-test' }) {
+// For publishing subprojects: All, minus 'mats-api-test*'
+configure(subprojects.findAll { ! it.name.startsWith('mats-api-test') }) {
     apply plugin: 'signing'
     apply plugin: 'maven-publish'
 
