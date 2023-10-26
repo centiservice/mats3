@@ -158,6 +158,14 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         }
     }
 
+    /**
+     * @return what the newly initiated messages should have as its initial "total call number" - 0 if "true
+     *         initiation", or the existing total call number + 1 if "within stage".
+     */
+    int getInitialTotalCallNumber() {
+        return _existingMatsTrace != null ? _existingMatsTrace.getTotalCallNumber() + 1 : 0;
+    }
+
     @Override
     public MatsInitiate traceId(CharSequence traceId) {
         // :: Decide how to handle TraceId:
@@ -464,7 +472,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         if (_existingMatsTrace != null) {
             // -> Yes, so initialize it as such.
             matsTrace.withChildFlow(_existingMatsTrace.getCurrentCall().getMatsMessageId(),
-                    _existingMatsTrace.getTotalCallNumber() + 1);
+                    getInitialTotalCallNumber());
         }
         return matsTrace;
     }

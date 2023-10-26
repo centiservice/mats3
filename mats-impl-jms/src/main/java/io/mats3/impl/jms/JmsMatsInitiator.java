@@ -91,6 +91,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         String existingMatsAppName = MDC.get(MDC_MATS_APP_NAME);
         String existingMatsAppVersion = MDC.get(MDC_MATS_APP_VERSION);
         String existingMatsCallNumber = MDC.get(MDC_MATS_CALL_NUMBER);
+        String existingMatsCallNumberTotal = MDC.get(MDC_MATS_TOTAL_CALL_NUMBER);
 
         // :: For Intercepting, base intercept context.
         InitiateInterceptContextImpl interceptContext = new InitiateInterceptContextImpl(this, startedInstant,
@@ -136,6 +137,9 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                             within.getMatsTrace(), within.getCurrentStageId()))
                     .orElseGet(() -> JmsMatsInitiate.createForTrueInitiation(_parentFactory, messagesToSend,
                             internalExecutionContext, doAfterCommitRunnableHolder, existingTraceId));
+
+            MDC.put(MDC_MATS_TOTAL_CALL_NUMBER, String.valueOf(init.getInitialTotalCallNumber()));
+
             try {
                 // ===== Going into Transactional Demarcation
                 _transactionContext.doTransaction(internalExecutionContext, () -> {
@@ -415,6 +419,13 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             }
             else {
                 MDC.remove(MDC_MATS_CALL_NUMBER);
+            }
+
+            if (existingMatsCallNumberTotal != null) {
+                MDC.put(MDC_MATS_TOTAL_CALL_NUMBER, existingMatsCallNumberTotal);
+            }
+            else {
+                MDC.remove(MDC_MATS_TOTAL_CALL_NUMBER);
             }
 
             if (existingTraceId != null) {

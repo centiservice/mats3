@@ -16,7 +16,6 @@ import javax.jms.Session;
 import org.slf4j.Logger;
 import org.slf4j.MDC;
 
-import io.mats3.MatsConfig;
 import io.mats3.MatsEndpoint.MatsObject;
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsFactory.FactoryConfig;
@@ -49,6 +48,8 @@ public interface JmsMatsStatics {
     // ::: MDC-values. Using "mats." prefix for the Mats-specific parts of MDC
 
     String MDC_MATS_CALL_NUMBER = "mats.CallNo"; // 0 for init, >0 for stages.
+
+    String MDC_MATS_TOTAL_CALL_NUMBER = "mats.TotalCallNo"; // ~call number, but taking into account child flows.
 
     String MDC_MATS_APP_NAME = "mats.AppName";
     String MDC_MATS_APP_VERSION = "mats.AppVersion";
@@ -96,16 +97,16 @@ public interface JmsMatsStatics {
     int EXTRA_GRACE_MILLIS = 500;
 
     /**
-     * If an outgoing message has {@link MatsTrace#getTotalCallNumber()} higher than this (100), the processing will be
+     * If an outgoing message has {@link MatsTrace#getTotalCallNumber()} higher than this (200), the processing will be
      * refused (i.e. {@link MatsRefuseMessageException} will be thrown).
      */
-    int MAX_TOTAL_CALL_NUMBER = 100;
+    int MAX_TOTAL_CALL_NUMBER = 200;
 
     /**
-     * If an outgoing message has {@link Call#getReplyStackHeight()} higher than this (25), the processing will be
+     * If an outgoing message has {@link Call#getReplyStackHeight()} higher than this (35), the processing will be
      * refused (i.e. {@link MatsRefuseMessageException} will be thrown).
      */
-    int MAX_STACK_HEIGHT = 25;
+    int MAX_STACK_HEIGHT = 35;
 
     /**
      * Log prefix (after {@link #LOG_PREFIX}) for flows that are illegal.
