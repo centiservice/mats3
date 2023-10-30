@@ -94,9 +94,9 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * </ul>
  * <b>Logger for MDCs for timeouts:</b>
  * <ul>
- * <li><b>{@link #MDC_MATS_FUTURE_TIMEOUT "mats.FutureTimeout"}</b>: Present on a single logline when a Future is
- * timed out by the MatsFuturizer, for oversitting its specified timeout upon futurization initiation. The value is the
- * time since it was initiated.</li>
+ * <li><b>{@link #MDC_MATS_FUTURE_TIMEOUT "mats.FutureTimeout"}</b>: Present on a single logline when a Future is timed
+ * out by the MatsFuturizer, for oversitting its specified timeout upon futurization initiation. The value is the time
+ * since it was initiated.</li>
  * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: Same as completed.</li>
  * <li><b>{@link #MDC_MATS_INIT_ID "mats.init.Id"}</b>: Same as completed.</li>
  * </ul>
@@ -114,7 +114,6 @@ public class MatsFuturizer implements AutoCloseable {
     public static final String MDC_MATS_FUTURE_TIME_COMPLETING = "mats.future.completing.ms";
 
     public static final String MDC_MATS_FUTURE_TIMEOUT = "mats.FutureTimeout";
-
 
     /**
      * Creates a MatsFuturizer, <b>and you should only need one per MatsFactory</b> (which again mostly means one per
@@ -232,6 +231,47 @@ public class MatsFuturizer implements AutoCloseable {
     }
 
     /**
+     * An instance of this interface will be the return value of the {@link CompletableFuture}s created with the
+     * {@link MatsFuturizer}. It will contain the reply from the requested endpoint, and the
+     * {@link DetachedProcessContext DetachedProcessContext} from the received message, from where you can get any
+     * incoming {@link DetachedProcessContext#getBytes(String) "sideloads"} and other metadata. It also contains a
+     * timestamp of when the outgoing message was initiated (both as {@link #getInitiationTimestamp() millis} and
+     * {@link #getInitiationNanos() nanos}), as well as {@link #getRoundTripNanos() the roundtrip-time} in nanos.
+     *
+     * @param <T>
+     *            the type of the reply class.
+     */
+    public interface Reply<T> {
+        DetachedProcessContext getContext();
+
+        /**
+         * SOFT DEPRECATED, use {@link #get()}.
+         */
+        T getReply();
+
+        /**
+         * @return the actual Reply DTO from the requested Endpoint
+         */
+        T get();
+
+        /**
+         * @return when this request was initiated, from {@link System#currentTimeMillis() System.currentTimeMillis()}.
+         */
+        long getInitiationTimestamp();
+
+        /**
+         * @return when this request was initiated, from {@link System#nanoTime() System.nanoTime()}.
+         */
+        long getInitiationNanos();
+
+        /**
+         * @return the number of nanos between the Request was sent to targeted Endpoint, and when MatsFuturizer
+         *         received the Reply from the Endpoint on the internal <i>SubscriptionTerminator</i>.
+         */
+        long getRoundTripNanos();
+    }
+
+    /**
      * An instance of this class will be the return value of any {@link CompletableFuture}s created with the
      * {@link MatsFuturizer}. It will contain the reply from the requested endpoint, and the
      * {@link DetachedProcessContext} from the received message, from where you can get any incoming
@@ -241,14 +281,16 @@ public class MatsFuturizer implements AutoCloseable {
      * @param <T>
      *            the type of the reply class.
      */
-    public static class Reply<T> {
+    private static class ReplyImpl<T> implements Reply<T> {
+        private static final Logger log = LoggerFactory.getLogger(ReplyImpl.class);
+
         public final DetachedProcessContext context;
         public final T reply;
         public final long initiationTimestamp;
         private final Promise<?> _promise;
         private final long _roundTripNanos;
 
-        public Reply(DetachedProcessContext context, T reply, Promise<?> promise) {
+        public ReplyImpl(DetachedProcessContext context, T reply, Promise<?> promise) {
             this.context = context;
             this.reply = reply;
             this.initiationTimestamp = promise._initiationTimestamp;
@@ -264,12 +306,11 @@ public class MatsFuturizer implements AutoCloseable {
          * SOFT DEPRECATED, use {@link #get()}.
          */
         public T getReply() {
+            log.warn(LOG_PREFIX + "HARD WARNING - DEPRECATION!! Using Reply.getReply() is deprecated,"
+                    + " use Reply.get()!");
             return get();
         }
 
-        /**
-         * @return the actual Reply DTO from the requested Endpoint
-         */
         public T get() {
             return reply;
         }
@@ -282,12 +323,6 @@ public class MatsFuturizer implements AutoCloseable {
             return _promise._initiationNanos;
         }
 
-        /**
-         * @return the number of nanos between the internal Promise was created (and request subsequently sent to
-         *         targeted Endpoint), and when this <code>Reply</code> instance was created by the completion thread
-         *         from the internal completion thread pool (after receiving the Request's Reply on the internal
-         *         <i>SubscriptionTerminator</i>).
-         */
         public long getRoundTripNanos() {
             return _roundTripNanos;
         }
@@ -296,7 +331,7 @@ public class MatsFuturizer implements AutoCloseable {
     /**
      * This exception is raised through the {@link CompletableFuture} if the timeout specified when getting the
      * {@link CompletableFuture} is reached (to get yourself a future, use one of the
-     * {@link #futurizeNonessential(CharSequence, String, String, Class, Object) futurizeXYZ(..)} methods). The
+     * {@link #futurize(CharSequence, String, String, Class, Object, InitiateLambda) futurize(..)} methods). The
      * exception is passed to the waiter on the future by {@link CompletableFuture#completeExceptionally(Throwable)},
      * where the consumer can pick it up with e.g. {@link CompletableFuture#exceptionally(Function)}.
      */
@@ -352,7 +387,7 @@ public class MatsFuturizer implements AutoCloseable {
      * @param <T>
      *            the type of the reply DTO.
      * @return a {@link CompletableFuture} which will be resolved with a {@link Reply}-instance that contains both some
-     *         meta-data, and the {@link Reply#reply reply} from the requested endpoint.
+     *         meta-data, and the {@link Reply#get() reply} from the requested endpoint.
      */
     public <T> CompletableFuture<Reply<T>> futurize(CharSequence traceId, String from, String to,
             int timeout, TimeUnit unit, Class<T> replyClass, Object request, InitiateLambda customInit) {
@@ -392,7 +427,7 @@ public class MatsFuturizer implements AutoCloseable {
      * @param <T>
      *            the type of the reply DTO.
      * @return a {@link CompletableFuture} which will be resolved with a {@link Reply}-instance that contains both some
-     *         meta-data, and the {@link Reply#reply reply} from the requested endpoint.
+     *         meta-data, and the {@link Reply#get() reply} from the requested endpoint.
      */
     public <T> CompletableFuture<Reply<T>> futurize(CharSequence traceId, String from, String to, Class<T> replyClass,
             Object request, InitiateLambda customInit) {
@@ -456,7 +491,7 @@ public class MatsFuturizer implements AutoCloseable {
      * @param <T>
      *            the type of the reply DTO.
      * @return a {@link CompletableFuture} which will be resolved with a {@link Reply}-instance that contains both some
-     *         meta-data, and the {@link Reply#reply reply} from the requested endpoint.
+     *         meta-data, and the {@link Reply#get() reply} from the requested endpoint.
      */
     public <T> CompletableFuture<Reply<T>> futurizeNonessential(CharSequence traceId, String from, String to,
             Class<T> replyClass, Object request) {
@@ -712,11 +747,11 @@ public class MatsFuturizer implements AutoCloseable {
         return matsObject.toClass(toClass);
     }
 
-    private static final Logger log_reply = LoggerFactory.getLogger(MatsFuturizer.class.getName()+".Reply");
+    private static final Logger log_reply = LoggerFactory.getLogger(MatsFuturizer.class.getName() + ".Reply");
 
     @SuppressWarnings("unchecked")
     protected void _completeFuture(ProcessContext<Void> context, Object replyObject, Promise<?> promise) {
-        Reply<?> futureReply = new Reply<>(context, replyObject, promise);
+        Reply<?> futureReply = new ReplyImpl<>(context, replyObject, promise);
 
         // If special Reply-logger is INFO-enabled, log a line when the getter is invoked.
         // ?: Is the logger enabled?
