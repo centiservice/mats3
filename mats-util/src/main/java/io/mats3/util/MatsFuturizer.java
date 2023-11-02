@@ -231,73 +231,93 @@ public class MatsFuturizer implements AutoCloseable {
     }
 
     /**
-     * An instance of this interface will be the return value of the {@link CompletableFuture}s created with the
+     * An instance of this class will be the return value of the {@link CompletableFuture}s created by the
      * {@link MatsFuturizer}. It will contain the reply from the requested endpoint, and the
      * {@link DetachedProcessContext DetachedProcessContext} from the received message, from where you can get any
      * incoming {@link DetachedProcessContext#getBytes(String) "sideloads"} and other metadata. It also contains a
      * timestamp of when the outgoing message was initiated (both as {@link #getInitiationTimestamp() millis} and
-     * {@link #getInitiationNanos() nanos}), as well as {@link #getRoundTripNanos() the roundtrip-time} in nanos.
+     * {@link #getInitiationNanos() nanos}), as well as the {@link #getRoundTripNanos() round-trip-time} in nanos.
+     * <p/>
+     * You may choose between using the final fields, or the getters, as you prefer. You should probably be consistent
+     * within a project!
      *
      * @param <T>
      *            the type of the reply class.
      */
-    public interface Reply<T> {
-        DetachedProcessContext getContext();
+    public static class Reply<T> {
+        private static final Logger log = LoggerFactory.getLogger(Reply.class);
 
         /**
-         * SOFT DEPRECATED, use {@link #get()}.
+         * The {@link DetachedProcessContext} from the received message, from where you can get any incoming
+         * {@link DetachedProcessContext#getBytes(String) "sideloads"} and other metadata.
          */
-        T getReply();
-
-        /**
-         * @return the actual Reply DTO from the requested Endpoint
-         */
-        T get();
-
-        /**
-         * @return when this request was initiated, from {@link System#currentTimeMillis() System.currentTimeMillis()}.
-         */
-        long getInitiationTimestamp();
-
-        /**
-         * @return when this request was initiated, from {@link System#nanoTime() System.nanoTime()}.
-         */
-        long getInitiationNanos();
-
-        /**
-         * @return the number of nanos between the Request was sent to targeted Endpoint, and when MatsFuturizer
-         *         received the Reply from the Endpoint on the internal <i>SubscriptionTerminator</i>.
-         */
-        long getRoundTripNanos();
-    }
-
-    /**
-     * An instance of this class will be the return value of any {@link CompletableFuture}s created with the
-     * {@link MatsFuturizer}. It will contain the reply from the requested endpoint, and the
-     * {@link DetachedProcessContext} from the received message, from where you can get any incoming
-     * {@link DetachedProcessContext#getBytes(String) "sideloads"} and other metadata. It also contains a timestamp of
-     * when the outgoing message was initiated.
-     *
-     * @param <T>
-     *            the type of the reply class.
-     */
-    private static class ReplyImpl<T> implements Reply<T> {
-        private static final Logger log = LoggerFactory.getLogger(ReplyImpl.class);
-
         public final DetachedProcessContext context;
-        public final T reply;
-        public final long initiationTimestamp;
-        private final Promise<?> _promise;
-        private final long _roundTripNanos;
 
-        public ReplyImpl(DetachedProcessContext context, T reply, Promise<?> promise) {
+        /**
+         * The actual Reply DTO from the requested Endpoint
+         */
+        public final T reply;
+
+        /**
+         * When this request was initiated, from {@link System#currentTimeMillis() System.currentTimeMillis()}.
+         */
+        public final long initiationTimestamp;
+
+        /**
+         * When this request was initiated, from {@link System#nanoTime() System.nanoTime()}.
+         */
+        public final long initiationNanos;
+
+        /**
+         * The number of nanos between the Request was sent to targeted Endpoint, and when MatsFuturizer received the
+         * Reply from the Endpoint on the internal <i>SubscriptionTerminator</i>.
+         */
+        public final long roundTripNanos;
+
+        /**
+         * SOFT DEPRECATED, constructor available for legacy reasons. Please move away! Use the new forTest(..) factory
+         * methods instead.
+         */
+        public Reply(DetachedProcessContext context, T reply, long initiationTimestamp) {
+            log.warn(LOG_PREFIX + "HARD WARNING - DEPRECATION!! Using the new Reply(context, reply,"
+                    + " initiationTimestamp) constructor is deprecated, use Reply.forTest(context, reply) instead!");
+
             this.context = context;
             this.reply = reply;
-            this.initiationTimestamp = promise._initiationTimestamp;
-            _promise = promise;
-            _roundTripNanos = System.nanoTime() - promise._initiationNanos;
+            this.initiationTimestamp = initiationTimestamp;
+            this.initiationNanos = 0;
+            this.roundTripNanos = 0;
         }
 
+        /**
+         * Factory method for testing scenarios, where you want to create a Reply instance only containing the reply.
+         * Timestamps and RTT will be zero, and the DetachedProcessContext will be null.
+         */
+        public static <T> Reply<T> forTest(T reply) {
+            return new Reply<>(null, reply, 0, 0);
+        }
+
+        /**
+         * Factory method for testing scenarios, where you want to create a Reply instance only containing the reply and
+         * the DetachedProcessContext. If you need anything more, you should use Mockito. Timestamps and RTT will be
+         * zero.
+         */
+        public static <T> Reply<T> forTest(DetachedProcessContext context, T reply) {
+            return new Reply<>(context, reply, 0, 0);
+        }
+
+        private Reply(DetachedProcessContext context, T reply, long initiationTimestamp, long initiationNanos) {
+            this.context = context;
+            this.reply = reply;
+            this.initiationTimestamp = initiationTimestamp;
+            this.initiationNanos = initiationNanos;
+            this.roundTripNanos = System.nanoTime() - initiationNanos;
+        }
+
+        /**
+         * @return the {@link DetachedProcessContext} from the received message, from where you can get any incoming
+         *         {@link DetachedProcessContext#getBytes(String) "sideloads"} and other metadata.
+         */
         public DetachedProcessContext getContext() {
             return context;
         }
@@ -311,20 +331,33 @@ public class MatsFuturizer implements AutoCloseable {
             return get();
         }
 
+        /**
+         * @return the actual Reply DTO from the requested Endpoint
+         */
         public T get() {
             return reply;
         }
 
+        /**
+         * @return when this request was initiated, from {@link System#currentTimeMillis() System.currentTimeMillis()}.
+         */
         public long getInitiationTimestamp() {
-            return _promise._initiationTimestamp;
+            return initiationTimestamp;
         }
 
+        /**
+         * @return when this request was initiated, from {@link System#nanoTime() System.nanoTime()}.
+         */
         public long getInitiationNanos() {
-            return _promise._initiationNanos;
+            return initiationNanos;
         }
 
+        /**
+         * @return the number of nanos between the Request was sent to targeted Endpoint, and when MatsFuturizer
+         *         received the Reply from the Endpoint on the internal <i>SubscriptionTerminator</i>.
+         */
         public long getRoundTripNanos() {
-            return _roundTripNanos;
+            return roundTripNanos;
         }
     }
 
@@ -749,9 +782,10 @@ public class MatsFuturizer implements AutoCloseable {
 
     private static final Logger log_reply = LoggerFactory.getLogger(MatsFuturizer.class.getName() + ".Reply");
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" }) // We know that the futureReply is of the same type as the Promise.
     protected void _completeFuture(ProcessContext<Void> context, Object replyObject, Promise<?> promise) {
-        Reply<?> futureReply = new ReplyImpl<>(context, replyObject, promise);
+        Reply<?> futureReply = new Reply<>(context, replyObject, promise._initiationTimestamp,
+                promise._initiationNanos);
 
         // If special Reply-logger is INFO-enabled, log a line when the getter is invoked.
         // ?: Is the logger enabled?
@@ -766,15 +800,22 @@ public class MatsFuturizer implements AutoCloseable {
             long nanosTaken_total = nanosNow - promise._initiationNanos;
 
             // Microseconds should be plenty resolution.
-            double roundTripMillis = Math.round(futureReply.getRoundTripNanos() / 1000d) / 1000d;
+            double roundTripMillis = Math.round(futureReply.roundTripNanos / 1000d) / 1000d;
             double completingMillis = Math.round(nanosTaken_completing / 1000d) / 1000d;
             double totalMillis = Math.round(nanosTaken_total / 1000d) / 1000d;
             MDC.put(MDC_MATS_FUTURE_COMPLETED, Double.toString(totalMillis));
             MDC.put(MDC_MATS_FUTURE_TIME_RTT, Double.toString(roundTripMillis));
             MDC.put(MDC_MATS_FUTURE_TIME_COMPLETING, Double.toString(completingMillis));
-            log_reply.info(MatsFuturizer.LOG_PREFIX + "Completed Future with ["
-                    + replyObject.getClass().getSimpleName() + "] - Total:[" + totalMillis
-                    + " ms], Mats RTT:[" + roundTripMillis + " ms].");
+            try {
+                log_reply.info(MatsFuturizer.LOG_PREFIX + "Completed Future with ["
+                        + replyObject.getClass().getSimpleName() + "] - Total:[" + totalMillis
+                        + " ms], Mats RTT:[" + roundTripMillis + " ms].");
+            }
+            finally {
+                MDC.remove(MDC_MATS_FUTURE_COMPLETED);
+                MDC.remove(MDC_MATS_FUTURE_TIME_RTT);
+                MDC.remove(MDC_MATS_FUTURE_TIME_COMPLETING);
+            }
         }
         else {
             // -> No, logger not enabled, so don't bother timing the future completion either.
