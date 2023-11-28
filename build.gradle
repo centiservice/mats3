@@ -188,7 +188,7 @@ configure(subprojects.findAll { ! it.name.startsWith('mats-api-test') }) {
     apply plugin: 'maven-publish'
 
     signing {
-        // "configurations.archives" didn't sign anything, while this overeagerly even signs the MD5s and SHAs..
+        // Sign everything, even MD5s and SHAs..
         sign publishing.publications
     }
 

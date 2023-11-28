@@ -184,7 +184,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     // Set to default, which is false. Volatile since quite probably set by differing threads.
     private volatile boolean _holdEndpointsUntilFactoryIsStarted = false;
 
-    // Set to default, which is FULL
+    // Set to default, which is COMPACT
     private KeepTrace _defaultKeepTrace = KeepTrace.COMPACT;
 
     // :: Internal state
@@ -689,7 +689,8 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
      * Invoked by the endpoint upon {@link MatsEndpoint#finishSetup()}.
      */
     void addNewEndpointToFactory(JmsMatsEndpoint<?, ?, Z> newEndpoint) {
-        // :: Check that we do not have the endpoint already - and if not, add it.
+        // :: We've already checked that we didn't have the endpoint when it was created.
+        // Now we'll go into sync for the actual insertion, to handle concurrent creation.
         synchronized (_stateLockObject) {
             // :: Check again that we do not have the endpoint already
             Optional<MatsEndpoint<?, ?>> existingEndpoint = getEndpoint(newEndpoint.getEndpointConfig()
@@ -707,7 +708,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
                 }
                 catch (Throwable t) {
                     log.error(LOG_PREFIX + "Got problems when notifying plugin [" + plugin + "] that we're adding"
-                            + " a new Wndpoint [" + newEndpoint + "]. Ignoring, but this is probably bad.", t);
+                            + " a new Endpoint [" + newEndpoint + "]. Ignoring, but this is probably bad.", t);
                 }
             }
             // .. then add it
