@@ -751,13 +751,13 @@ public class MatsFuturizer implements AutoCloseable {
                 try {
                     replyObject = _deserializeReply(matsObject, promise._replyClass);
                 }
-                catch (IllegalArgumentException e) {
+                catch (Throwable t) { // Notice: Unless overridden, this should always be IllegalArgumentException.
                     log.error("Got problems completing Future due to failing to deserialize the incoming object to"
                             + " expected class [" + promise._replyClass.getName() + "], thus doing"
-                            + " future.completeExceptionally(..) with the [" + e.getClass().getSimpleName() + "]."
+                            + " future.completeExceptionally(..) with the [" + t.getClass().getSimpleName() + "]."
                             + " Initiated from [" + promise._from + "], with reply from [" + context.getFromStageId()
-                            + "], traceId [" + context.getTraceId() + "]", e);
-                    promise._future.completeExceptionally(e);
+                            + "], traceId [" + context.getTraceId() + "]", t);
+                    promise._future.completeExceptionally(t);
                     return;
                 }
                 _completeFuture(context, replyObject, promise);
@@ -789,12 +789,14 @@ public class MatsFuturizer implements AutoCloseable {
 
         // If special Reply-logger is INFO-enabled, log a line when the getter is invoked.
         // ?: Is the logger enabled?
-        if (log.isInfoEnabled()) {
+        if (log_reply.isInfoEnabled()) {
             // -> Yes, logger enabled, so time the future completion, fill the MDC and log a line.
 
             long nanosAtStart_completing = System.nanoTime();
+
             // ::: === Actual Future.complete(..)!
             promise._future.complete((Reply) futureReply);
+
             long nanosNow = System.nanoTime();
             long nanosTaken_completing = nanosNow - nanosAtStart_completing;
             long nanosTaken_total = nanosNow - promise._initiationNanos;
@@ -806,19 +808,19 @@ public class MatsFuturizer implements AutoCloseable {
             MDC.put(MDC_MATS_FUTURE_COMPLETED, Double.toString(totalMillis));
             MDC.put(MDC_MATS_FUTURE_TIME_RTT, Double.toString(roundTripMillis));
             MDC.put(MDC_MATS_FUTURE_TIME_COMPLETING, Double.toString(completingMillis));
-            try {
-                log_reply.info(MatsFuturizer.LOG_PREFIX + "Completed Future with ["
-                        + replyObject.getClass().getSimpleName() + "] - Total:[" + totalMillis
-                        + " ms], Mats RTT:[" + roundTripMillis + " ms].");
-            }
-            finally {
-                MDC.remove(MDC_MATS_FUTURE_COMPLETED);
-                MDC.remove(MDC_MATS_FUTURE_TIME_RTT);
-                MDC.remove(MDC_MATS_FUTURE_TIME_COMPLETING);
-            }
+
+            // NOTICE: No need to clean MDC, as it is _cleared_ by caller after this method returns.
+
+            log_reply.info(MatsFuturizer.LOG_PREFIX + "Completed Future from initiatorId"
+                    + " [" + promise._from + "] with answer from [" + context.getFromStageId()
+                    + (replyObject != null
+                            ? "], with instance of [" + replyObject.getClass().getSimpleName() + "]"
+                            : "], which was null")
+                    + " - Total:[" + totalMillis + " ms], Mats RTT:[" + roundTripMillis + " ms].");
         }
         else {
             // -> No, logger not enabled, so don't bother timing the future completion either.
+
             // ::: === Actual Future.complete(..)!
             promise._future.complete((Reply) futureReply);
         }
