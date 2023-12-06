@@ -58,8 +58,8 @@ public interface JmsMatsJmsSessionHandler {
     JmsSessionHolder getSessionHolder(JmsMatsStageProcessor<?, ?, ?, ?> processor) throws JmsMatsJmsException;
 
     /**
-     * Closes all <i>Available</i> Session, does not touch <i>Employed</i>. Net result is that it Connections that do
-     * not have any employed Sessions will be closed. The use case for this is to "clear out" the
+     * Closes all <i>Available</i> Sessions, does not touch <i>Employed</i>. Net result is that Connections that do not
+     * have any employed Sessions will be closed. The use case for this is to "clear out" the
      * {@link JmsMatsJmsSessionHandler} upon shutdown - the returned value is a count of how many Connections are still
      * alive after the operation, which should be 0.
      *
@@ -80,11 +80,10 @@ public interface JmsMatsJmsSessionHandler {
          * have become unstable - start afresh]</li>
          *
          * <li>(For StageProcessors and Initiators) Before committing any resources other than the JMS Session - if
-         * {@link JmsMatsJmsException} is raised, rollback shall be performed, {@link #close()} or
-         * {@link #crashed(Throwable)} shall be invoked, and then a new JmsSessionHolder shall be fetched. [This is to
-         * tighten the gap between typically the DB commit and the JMS commit: Just before the DB is committed, an
-         * invocation to this method is performed. If this goes OK, then the DB is committed and then the JMS Session is
-         * committed.]</li>
+         * {@link JmsMatsJmsException} is raised, rollback shall be performed, {@link #crashed(Throwable)} shall be
+         * invoked, and then a new JmsSessionHolder shall be fetched. [This is to tighten the gap between typically the
+         * DB commit and the JMS commit: Just before the DB is committed, an invocation to this method is performed. If
+         * this goes OK, then the DB is committed and then the JMS Session is committed.]</li>
          * </ol>
          */
         void isSessionOk() throws JmsMatsJmsException;
@@ -101,8 +100,8 @@ public interface JmsMatsJmsSessionHandler {
         MessageProducer getDefaultNoDestinationMessageProducer();
 
         /**
-         * Employed by StageProcessors: This physically closes the JMS Session, and removes it from the pool-Connection,
-         * and when all Sessions for a given pool-Connection is closed, the pool-Connection is closed.
+         * For StageProcessors: This physically closes the JMS Session, and removes it from the pool-Connection, and
+         * when all Sessions for a given pool-Connection is closed, the pool-Connection is closed.
          */
         void close();
 
@@ -110,8 +109,8 @@ public interface JmsMatsJmsSessionHandler {
          * For Initiators: This returns the JmsSessionHolder to the Session Pool for the underlying Connection.
          * <p />
          * <b>Note: It is allowed to call this in a finally block after use, so it must guard against already having
-         * been {@link #close() closed} or {@link #crashed(Throwable) crashed} when inside the
-         * {@link JmsMatsTransactionManager}</b>, in which case it should probably effectively act as a no-op.
+         * {@link #crashed(Throwable) crashed} when inside the {@link JmsMatsTransactionManager}</b>, in which case it
+         * should probably effectively act as a no-op.
          */
         void release();
 

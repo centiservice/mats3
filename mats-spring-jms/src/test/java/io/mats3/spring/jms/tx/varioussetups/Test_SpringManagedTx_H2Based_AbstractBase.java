@@ -29,21 +29,16 @@ import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.junit4.SpringRunner;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
-import io.mats3.impl.jms.JmsMatsTransactionManager;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.Dto;
 import io.mats3.spring.EnableMats;
 import io.mats3.spring.MatsMapping;
 import io.mats3.spring.Sto;
-import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx;
 import io.mats3.spring.jms.tx.SpringTestDataTO;
 import io.mats3.spring.jms.tx.SpringTestStateTO;
 import io.mats3.test.MatsTestBrokerInterface;
@@ -213,7 +208,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
                     int thisCount = _counter.decrementAndGet();
                     log.info("MULTIPLE: Counting down, current count after decrement: " + thisCount);
                     if (thisCount == 0) {
-                        log.info("MULTIPLE: Counted to zero, latching the test, latch is: "+_latch);
+                        log.info("MULTIPLE: Counted to zero, latching the test, latch is: " + _latch);
                         _latch.resolve(context, state, msg);
                     }
                 });
@@ -221,7 +216,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
             else {
                 // -> No, ordinary single-test, so latch away.
                 context.doAfterCommit(() -> {
-                    log.info("SINGLE: Latching the test, latch is: "+_latch);
+                    log.info("SINGLE: Latching the test, latch is: " + _latch);
                     _latch.resolve(context, state, msg);
                 });
             }
@@ -260,7 +255,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
         sendMessage(ENDPOINT, dto, traceId);
 
         // Wait for the message that appears on TERMINATOR
-        log.info("TEST: Waiting for latching, latch is: "+_latch);
+        log.info("TEST: Waiting for latching, latch is: " + _latch);
         Result<SpringTestStateTO, SpringTestDataTO> result = _latch.waitForResult();
         Assert.assertEquals(traceId, result.getContext().getTraceId());
         Assert.assertEquals(new SpringTestDataTO(dto.number * 2, dto.string), result.getData());
@@ -282,7 +277,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
         }
 
         // Wait for the message that appears on TERMINATOR that runs the count down to 0
-        log.info("TEST: Waiting for latching, latch is: "+_latch);
+        log.info("TEST: Waiting for latching, latch is: " + _latch);
         _latch.waitForResult(10_000);
 
         // :: Assert against the data from the database - it should be there!

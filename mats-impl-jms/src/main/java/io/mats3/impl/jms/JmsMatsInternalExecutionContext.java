@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import javax.jms.MapMessage;
 import javax.jms.MessageConsumer;
 
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
@@ -34,6 +35,17 @@ public class JmsMatsInternalExecutionContext {
         _messageConsumer = messageConsumer;
     }
 
+    private MapMessage _incomingJmsMessage;
+    private int _incomingJmsMessageDeliveryCount;
+
+    private Supplier<Connection> _sqlConnectionSupplier;
+    private Supplier<Boolean> _sqlConnectionEmployedSupplier;
+    private boolean _elideJmsCommit;
+    // For transaction manager - if a user lambda throws, the "innermost" tx should log it, and then "outer" should not.
+    private boolean _userLambdaExceptionLogged;
+    private long _dbCommitNanos;
+    private long _messageSystemCommitNanos;
+
     public JmsSessionHolder getJmsSessionHolder() {
         return _jmsSessionHolder;
     }
@@ -46,8 +58,18 @@ public class JmsMatsInternalExecutionContext {
         return Optional.ofNullable(_messageConsumer);
     }
 
-    private Supplier<Connection> _sqlConnectionSupplier;
-    private Supplier<Boolean> _sqlConnectionEmployedSupplier;
+    void setIncomingJmsMessage(MapMessage incomingJmsMessage, int incomingJmsMessageDeliveryCount) {
+        _incomingJmsMessage = incomingJmsMessage;
+        _incomingJmsMessageDeliveryCount = incomingJmsMessageDeliveryCount;
+    }
+
+    Optional<MapMessage> getIncomingJmsMessage() {
+        return Optional.ofNullable(_incomingJmsMessage);
+    }
+
+    int getIncomingJmsMessageDeliveryCount() {
+        return _incomingJmsMessageDeliveryCount;
+    }
 
     /**
      * If the current {@link JmsMatsTransactionManager} is managing a SQL Connection, then it SHALL set a way to get the
@@ -103,8 +125,6 @@ public class JmsMatsInternalExecutionContext {
         return _sqlConnectionEmployedSupplier != null && _sqlConnectionEmployedSupplier.get();
     }
 
-    private boolean _elideJmsCommit;
-
     /**
      * Invoked by initiations if there is no point in committing JMS, since there was never produced any messages after
      * all.
@@ -121,9 +141,6 @@ public class JmsMatsInternalExecutionContext {
         return _elideJmsCommit;
     }
 
-    // For transaction manager - if a user lambda throws, the "innermost" tx should log it, and then "outer" should not.
-    private boolean _userLambdaExceptionLogged;
-
     public void setUserLambdaExceptionLogged() {
         _userLambdaExceptionLogged = true;
     }
@@ -133,9 +150,6 @@ public class JmsMatsInternalExecutionContext {
     }
 
     // ===== Timings
-
-    private long _dbCommitNanos;
-    private long _messageSystemCommitNanos;
 
     public void setDbCommitNanos(long dbCommitNanos) {
         _dbCommitNanos = dbCommitNanos;

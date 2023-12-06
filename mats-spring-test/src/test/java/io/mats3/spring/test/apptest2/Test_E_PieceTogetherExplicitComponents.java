@@ -15,16 +15,16 @@ import org.springframework.test.context.junit4.SpringRunner;
 
 import io.mats3.MatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.ConfigurationForTest;
 import io.mats3.spring.Dto;
 import io.mats3.spring.EnableMats;
 import io.mats3.spring.MatsMapping;
 import io.mats3.spring.Sto;
-import io.mats3.spring.test.apptest2.AppMain_TwoMatsFactories.TestCustomQualifier;
 import io.mats3.spring.test.SpringTestDataTO;
 import io.mats3.spring.test.SpringTestStateTO;
+import io.mats3.spring.test.apptest2.AppMain_TwoMatsFactories.TestCustomQualifier;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.broker.MatsTestBroker;
@@ -33,7 +33,7 @@ import io.mats3.util.RandomString;
 /**
  * A test that points to only a specific @Configuration bean of an application, thus not taking up the entire
  * application - we have to provide the infrastructure (i.e. MatsFactories) in the test.
- * 
+ *
  * @author Endre Stølsvik 2019-06-06 21:53 - http://stolsvik.com/, endre@stolsvik.com
  */
 @RunWith(SpringRunner.class)
@@ -65,14 +65,14 @@ public class Test_E_PieceTogetherExplicitComponents {
         protected MatsFactory matsFactoryX(@Qualifier("brokerX") MatsTestBroker broker) {
             return JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(
                     Test_E_PieceTogetherExplicitComponents.class.getSimpleName(), "#testing#",
-                    JmsMatsJmsSessionHandler_Pooling.create(broker.getConnectionFactory()),
+                    JmsMatsJmsSessionHandler_PoolingSerial.create(broker.getConnectionFactory()),
                     MatsSerializerJson.create());
         }
 
         /**
-         * Create the "brokerX" for "matsFactoryX". This is forced to be a unique, in-vm broker, as opposed to
-         * the above one, which can be directed to use an external broker by use of system properties, read JavaDoc
-         * of {@link MatsTestBroker}.
+         * Create the "brokerX" for "matsFactoryX". This is forced to be a unique, in-vm broker, as opposed to the above
+         * one, which can be directed to use an external broker by use of system properties, read JavaDoc of
+         * {@link MatsTestBroker}.
          */
         @Bean
         @Qualifier("brokerY")
@@ -88,7 +88,7 @@ public class Test_E_PieceTogetherExplicitComponents {
         protected MatsFactory matsFactoryY(@Qualifier("brokerY") MatsTestBroker broker) {
             return JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(
                     Test_E_PieceTogetherExplicitComponents.class.getSimpleName(), "#testing#",
-                    JmsMatsJmsSessionHandler_Pooling.create(broker.getConnectionFactory()),
+                    JmsMatsJmsSessionHandler_PoolingSerial.create(broker.getConnectionFactory()),
                     MatsSerializerJson.create());
         }
 

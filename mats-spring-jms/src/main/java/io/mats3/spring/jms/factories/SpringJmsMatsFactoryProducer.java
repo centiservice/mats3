@@ -15,7 +15,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import io.mats3.MatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
 import io.mats3.impl.jms.JmsMatsTransactionManager;
 import io.mats3.impl.jms.JmsMatsTransactionManager_Jms;
 import io.mats3.serial.MatsSerializer;
@@ -32,8 +32,8 @@ import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx
  * <p />
  * <b>NOTE: It returns an instance of {@link SpringJmsMatsFactoryWrapper}, which it is assumed that you put in the
  * Spring context as a bean, so that Spring property injection and <code>@PostConstruct</code> is run on it.</b> If you
- * instead employ a FactoryBean <i>(e.g. because you have made a cool Mats single-annotation-configuration solution
- * for your multiple codebases)</i>, then you need to invoke
+ * instead employ a FactoryBean <i>(e.g. because you have made a cool Mats single-annotation-configuration solution for
+ * your multiple codebases)</i>, then you need to invoke
  * {@link SpringJmsMatsFactoryWrapper#postConstructForFactoryBean(Environment, ApplicationContext)} - read up!
  *
  * @see SpringJmsMatsFactoryWrapper
@@ -160,7 +160,8 @@ public class SpringJmsMatsFactoryProducer {
     private static SpringJmsMatsFactoryWrapper createJmsMatsFactory(String appName, String appVersion,
             MatsSerializer<?> matsSerializer, ConnectionFactory jmsConnectionFactory, JmsMatsTransactionManager txMgr) {
         // JmsSessionHandler (pooler)
-        JmsMatsJmsSessionHandler jmsSessionHandler = JmsMatsJmsSessionHandler_Pooling.create(jmsConnectionFactory);
+        JmsMatsJmsSessionHandler jmsSessionHandler = JmsMatsJmsSessionHandler_PoolingSerial.create(
+                jmsConnectionFactory);
         // The MatsFactory itself, supplying the JmsSessionHandler and MatsTransactionManager.
         JmsMatsFactory<?> matsFactory = JmsMatsFactory
                 .createMatsFactory(appName, appVersion, jmsSessionHandler, txMgr, matsSerializer);

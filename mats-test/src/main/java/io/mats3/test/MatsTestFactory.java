@@ -1,17 +1,17 @@
 package io.mats3.test;
 
-import io.mats3.MatsFactory;
-import io.mats3.MatsFactory.MatsFactoryWrapper;
-import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
-import io.mats3.serial.MatsSerializer;
-import io.mats3.serial.json.MatsSerializerJson;
-import io.mats3.test.broker.MatsTestBroker;
+import javax.sql.DataSource;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.sql.DataSource;
+import io.mats3.MatsFactory;
+import io.mats3.impl.jms.JmsMatsFactory;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.serial.MatsSerializer;
+import io.mats3.serial.json.MatsSerializerJson;
+import io.mats3.test.broker.MatsTestBroker;
 
 /**
  * Creates a {@link AutoCloseable} MatsFactory for testing purposes, backed by the in-vm broker from MatsTestBroker.
@@ -63,7 +63,7 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
     static <Z> MatsTestFactory create(MatsTestBroker matsTestBroker, DataSource dataSource,
             MatsSerializer<Z> matsSerializer) {
 
-        JmsMatsJmsSessionHandler sessionHandler = JmsMatsJmsSessionHandler_Pooling
+        JmsMatsJmsSessionHandler sessionHandler = JmsMatsJmsSessionHandler_PoolingSerial
                 .create(matsTestBroker.getConnectionFactory());
 
         JmsMatsFactory<Z> matsFactory;

@@ -5,21 +5,17 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import javax.jms.ConnectionFactory;
 import javax.sql.DataSource;
 
-import io.mats3.MatsFactory.MatsPlugin;
-import io.mats3.api.intercept.MatsLoggingInterceptor;
-import io.mats3.api.intercept.MatsMetricsInterceptor;
-import io.mats3.test.MatsTestFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint.ProcessTerminatorLambda;
 import io.mats3.MatsFactory;
+import io.mats3.MatsFactory.MatsPlugin;
 import io.mats3.MatsInitiator;
 import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.test.MatsTestBrokerInterface;
+import io.mats3.test.MatsTestFactory;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.TestH2DataSource;
 import io.mats3.test.broker.MatsTestBroker;

@@ -11,13 +11,13 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.mats3.MatsFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import io.mats3.MatsEndpoint.DetachedProcessContext;
 import io.mats3.MatsEndpoint.ProcessContext;
+import io.mats3.MatsFactory;
 import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsInitiator;
 import io.mats3.MatsInitiator.MatsInitiate;
@@ -137,6 +137,9 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * <li><code><b>"mats.StageId"</b></code>: Always set on the Processor threads for a stage, so any logline output inside
  * a Mats stage will have this set.</li>
  * <li><b>{@link #MDC_TRACE_ID "traceId"}</b>: The Mats flow's traceId, set from the initiation.</li>
+ * <li><b>{@link #MDC_MATS_IN_DELIVERY_COUNT "mats.in.DeliveryCount"}</b>: The number of times this particular message
+ * has been delivered to this stage. Starts at 1, and is incremented for each redelivery. Note that re-issuing from a
+ * DLQ will start the count at 1 again.</li>
  * <li><code><b>"mats.in.MsgSysId"</b></code>: The messageId the messaging system assigned the message when it was
  * produced on the sender side (e.g JMSMessageID for the JMS implementation)</li>
  * <li><b>{@link #MDC_MATS_IN_MATS_MESSAGE_ID "mats.in.MatsMsgId"}</b>: The messageId the Mats system assigned the
@@ -359,11 +362,11 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * also be logged in full.
  * <p/>
  * <b>Note: This interceptor (SLF4J Logger with Metrics on MDC) has special support in <code>JmsMatsFactory</code>: If
- * present on the classpath, it is automatically installed using the {@link #install(MatsFactory)} install
- * method.</b> This interceptor implements the special marker-interface {@link MatsLoggingInterceptor} of which there
- * can only be one instance installed in a <code>JmsMatsFactory</code> - implying that if you want a different type of
- * logging, you may implement a custom variant (either subclassing this, on your own risk, or start from scratch), and
- * simply install it, leading to this instance being removed (or just not have this variant on the classpath).
+ * present on the classpath, it is automatically installed using the {@link #install(MatsFactory)} install method.</b>
+ * This interceptor implements the special marker-interface {@link MatsLoggingInterceptor} of which there can only be
+ * one instance installed in a <code>JmsMatsFactory</code> - implying that if you want a different type of logging, you
+ * may implement a custom variant (either subclassing this, on your own risk, or start from scratch), and simply install
+ * it, leading to this instance being removed (or just not have this variant on the classpath).
  *
  * @author Endre Stølsvik - 2021-02-07 12:45 - http://endre.stolsvik.com
  */
@@ -436,13 +439,13 @@ public class MatsMetricsLoggingInterceptor
 
     // 'true' on a single logline per received message:
     public static final String MDC_MATS_MESSAGE_RECEIVED = "mats.MessageReceived";
-
+    public static final String MDC_MATS_IN_DELIVERY_COUNT = "mats.in.DeliveryCount";
+    public static final String MDC_MATS_IN_MATS_MESSAGE_ID = "mats.in.MatsMsgId";
+    public static final String MDC_MATS_IN_MESSAGE_TYPE = "mats.in.MessageType";
     public static final String MDC_MATS_IN_FROM_APP_NAME = "mats.in.from.App";
     public static final String MDC_MATS_IN_FROM_ID = "mats.in.from.Id";
     // NOTICE: NOT using MDC_MATS_IN_TO_APP, as that is identical to MDC_MATS_APP_NAME
     // NOTICE: NOT using MDC_MATS_IN_TO_ID, as that is identical to MDC_MATS_STAGE_ID
-    public static final String MDC_MATS_IN_MATS_MESSAGE_ID = "mats.in.MatsMsgId";
-    public static final String MDC_MATS_IN_MESSAGE_TYPE = "mats.in.MessageType";
 
     // ... Metrics:
     // Notice that metric this is susceptible to time skews between nodes.
@@ -483,7 +486,6 @@ public class MatsMetricsLoggingInterceptor
 
     // Note that this is the same size as the MDC_MATS_IN_SIZE_TOTAL_WIRE
     public static final String MDC_MATS_EXEC_SIZE_IN_TOTAL_WIRE = "mats.exec.In.TotalWire.bytes";
-
 
     // ============================================================================================================
     // ===== For Endpoint Completed - i.e. a stage of ep that either REPLY or stop the flow (no REQ,NEXT,GOTO)
@@ -744,6 +746,27 @@ public class MatsMetricsLoggingInterceptor
     }
 
     @Override
+    public void stagePreprocessAndDeserializeError(StagePreprocessAndDeserializeErrorContext context) {
+        try {
+            MDC.put(MDC_TRACE_ID, context.getTraceId().orElse(":unknown:"));
+            MDC.put(MDC_INIT_OR_STAGE_ID, context.getStage().getStageConfig().getStageId());
+
+            if (context.getThrowable().isPresent()) {
+                log_stage.error(LOG_PREFIX + "!!ERROR!! Preprocess or deserialize failed with '" + context
+                        .getStagePreprocessAndDeserializeError() + "'.", context.getThrowable().get());
+            }
+            else {
+                log_stage.error(LOG_PREFIX + "!!ERROR!! Preprocess or deserialize failed with '" + context
+                        .getStagePreprocessAndDeserializeError() + "'.");
+            }
+        }
+        finally {
+            MDC.remove(MDC_TRACE_ID);
+            MDC.remove(MDC_INIT_OR_STAGE_ID);
+        }
+    }
+
+    @Override
     public void stageReceived(StageReceivedContext ctx) {
         ProcessContext<Object> processContext = ctx.getProcessContext();
 
@@ -790,10 +813,13 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_PERSISTENT, Boolean.toString(!processContext.isNonPersistent()));
             MDC.put(MDC_MATS_INTERACTIVE, Boolean.toString(processContext.isInteractive()));
 
-            MDC.put(MDC_MATS_IN_FROM_APP_NAME, processContext.getFromAppName());
-            MDC.put(MDC_MATS_IN_FROM_ID, processContext.getFromStageId());
+            if (ctx.getDeliveryCount() != -1) {
+                MDC.put(MDC_MATS_IN_DELIVERY_COUNT, Integer.toString(ctx.getDeliveryCount()));
+            }
             MDC.put(MDC_MATS_IN_MATS_MESSAGE_ID, processContext.getMatsMessageId());
             MDC.put(MDC_MATS_IN_MESSAGE_TYPE, ctx.getIncomingMessageType().toString());
+            MDC.put(MDC_MATS_IN_FROM_APP_NAME, processContext.getFromAppName());
+            MDC.put(MDC_MATS_IN_FROM_ID, processContext.getFromStageId());
 
             // ::: Metrics
 
@@ -848,10 +874,11 @@ public class MatsMetricsLoggingInterceptor
             MDC.remove(MDC_MATS_PERSISTENT);
             MDC.remove(MDC_MATS_INTERACTIVE);
 
-            MDC.remove(MDC_MATS_IN_FROM_APP_NAME);
-            MDC.remove(MDC_MATS_IN_FROM_ID);
+            MDC.remove(MDC_MATS_IN_DELIVERY_COUNT);
             MDC.remove(MDC_MATS_IN_MATS_MESSAGE_ID);
             MDC.remove(MDC_MATS_IN_MESSAGE_TYPE);
+            MDC.remove(MDC_MATS_IN_FROM_APP_NAME);
+            MDC.remove(MDC_MATS_IN_FROM_ID);
 
             MDC.remove(MDC_MATS_IN_TIME_SINCE_SENT);
             MDC.remove(MDC_MATS_IN_TIME_SINCE_PRECEDING_ENDPOINT_STAGE);

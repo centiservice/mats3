@@ -67,7 +67,7 @@ public interface MatsStageInterceptor extends MatsPlugin {
                 ProcessLambda<Object, Object, Object> processLambda,
                 ProcessContext<Object> ctx, Object state, Object msg)
                 throws MatsRefuseMessageException {
-            // Default: Call directly through
+            // Default: Call directly through - if you override, you must too.
             processLambda.process(ctx, state, msg);
         }
     }
@@ -110,6 +110,12 @@ public interface MatsStageInterceptor extends MatsPlugin {
         MatsStage<?, ?, ?> getStage();
 
         /**
+         * @return the delivery count. Starts at 1, and is incremented for each redelivery. Returns -1 if this is not
+         *         available.
+         */
+        int getDeliveryCount();
+
+        /**
          * @return when the message was received, as {@link Instant#now()}, as early as possible right after the message
          *         system returns it (before decoding it etc).
          */
@@ -123,6 +129,11 @@ public interface MatsStageInterceptor extends MatsPlugin {
     }
 
     interface StagePreprocessAndDeserializeErrorContext extends StageInterceptContext {
+        /**
+         * @return the TraceId of the message, if available at this point.
+         */
+        Optional<String> getTraceId();
+
         StagePreprocessAndDeserializeError getStagePreprocessAndDeserializeError();
 
         Optional<Throwable> getThrowable();
@@ -398,22 +409,22 @@ public interface MatsStageInterceptor extends MatsPlugin {
              * {@link io.mats3.MatsInitiator.MatsBackendException MatsBackendException} (messaging handling or db
              * commit), or {@link io.mats3.MatsInitiator.MatsMessageSendException MatsMessageSendException} (which is
              * the "VERY BAD!" scenario where db is committed, whereupon the messaging commit failed - which quite
-             * possibly is a "notify the humans!"-situation, unless the user code is crafted to handle such a
-             * situation by being idempotent).
+             * possibly is a "notify the humans!"-situation, unless the user code is crafted to handle such a situation
+             * by being idempotent).
              */
             SYSTEM_EXCEPTION
         }
 
         /**
-         * @return the Reply, Next or Goto outgoing message, it this was the {@link StageProcessResult ProcessingResult}.
-         *         Otherwise, <code>Optional.empty()</code>. The message will be of {@link DispatchType#STAGE
-         *         DispatchType.STAGE}.
+         * @return the Reply, Next or Goto outgoing message, it this was the {@link StageProcessResult
+         *         ProcessingResult}. Otherwise, <code>Optional.empty()</code>. The message will be of
+         *         {@link DispatchType#STAGE DispatchType.STAGE}.
          */
         Optional<MatsSentOutgoingMessage> getStageResultMessage();
 
         /**
-         * @return the outgoing Requests, if this was the {@link StageProcessResult}. Otherwise, an empty list. The messages
-         *         will be of {@link DispatchType#STAGE DispatchType.STAGE}.
+         * @return the outgoing Requests, if this was the {@link StageProcessResult}. Otherwise, an empty list. The
+         *         messages will be of {@link DispatchType#STAGE DispatchType.STAGE}.
          */
         List<MatsSentOutgoingMessage> getStageRequestMessages();
 

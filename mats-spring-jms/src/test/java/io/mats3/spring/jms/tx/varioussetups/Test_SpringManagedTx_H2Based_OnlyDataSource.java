@@ -13,7 +13,7 @@ import org.springframework.test.context.junit4.SpringRunner;
 import io.mats3.MatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
 import io.mats3.impl.jms.JmsMatsTransactionManager;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.spring.EnableMats;
@@ -37,12 +37,12 @@ public class Test_SpringManagedTx_H2Based_OnlyDataSource extends Test_SpringMana
         protected MatsFactory createMatsFactory(DataSource dataSource,
                 ConnectionFactory connectionFactory, MatsSerializer<String> matsSerializer) {
             // Create the JMS and Spring DataSourceTransactionManager-backed JMS MatsFactory.
-            JmsMatsJmsSessionHandler jmsSessionHandler = JmsMatsJmsSessionHandler_Pooling.create(connectionFactory);
+            JmsMatsJmsSessionHandler sessionPooler = JmsMatsJmsSessionHandler_PoolingSerial.create(connectionFactory);
             JmsMatsTransactionManager txMgrSpring = JmsMatsTransactionManager_JmsAndSpringManagedSqlTx.create(
                     dataSource);
 
             JmsMatsFactory<String> matsFactory = JmsMatsFactory.createMatsFactory(this.getClass().getSimpleName(),
-                    "*testing*", jmsSessionHandler, txMgrSpring, matsSerializer);
+                    "*testing*", sessionPooler, txMgrSpring, matsSerializer);
             // For the MULTIPLE test scenario, it makes sense to test concurrency, so we go for 5.
             matsFactory.getFactoryConfig().setConcurrency(5);
             return matsFactory;
