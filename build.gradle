@@ -1,6 +1,6 @@
 // Customize the Gradle Wrapper generation task.
 wrapper {
-    gradleVersion = "8.3"
+    gradleVersion = "8.5"
     // Use "-all"-version of distribution, since IntelliJ works better then..
     setDistributionType(Wrapper.DistributionType.ALL)
 }
@@ -84,6 +84,9 @@ subprojects {
         options.encoding = 'UTF-8'
         options.incremental = true
         options.compilerArgs += ['-Werror', '-Xlint:all', '-Xlint:-serial']
+        if (javaVersion >= 21) {
+            options.compilerArgs += ['-Xlint:-this-escape']
+        }
     }
 
     javadoc {

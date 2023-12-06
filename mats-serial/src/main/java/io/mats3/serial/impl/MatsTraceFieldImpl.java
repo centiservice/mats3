@@ -114,7 +114,11 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         this.tid = traceId;
         this.id = flowId;
         // This should really have been provided by user, when the initiation was /started/.
-        overrideInitializationTimestamp(System.currentTimeMillis());
+        this.ts = System.currentTimeMillis();
+        // Set the initialization timestamp as "endpoint entered", so that if the init is a REQUEST, you can get
+        // the "total endpoint time" on the terminator, as init-to-terminator.
+        // The 'eets' (and 'ots') uses diff-from-initialization.
+        this.eets = new long[] { 0 };
         this.kt = keepMatsTrace;
         this.np = nonPersistent ? Boolean.TRUE : null;
         this.ia = interactive ? Boolean.TRUE : null;

@@ -231,7 +231,9 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     }
 
     private static String getHostname_internal() {
-        try (BufferedInputStream in = new BufferedInputStream(Runtime.getRuntime().exec("hostname").getInputStream())) {
+        try (BufferedInputStream in = new BufferedInputStream(Runtime.getRuntime()
+                .exec(new String[] { "hostname" })
+                .getInputStream())) {
             byte[] b = new byte[256];
             int readBytes = in.read(b, 0, b.length);
             // Using platform default charset, which probably is exactly what we want in this one specific case.
@@ -909,7 +911,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
                     plugin.preStop();
                 }
                 catch (Throwable t) {
-                    stopped  = false;
+                    stopped = false;
                     log.error(LOG_PREFIX + "Got problems when invoking preStop() on plugin [" + plugin + "].", t);
                 }
             }

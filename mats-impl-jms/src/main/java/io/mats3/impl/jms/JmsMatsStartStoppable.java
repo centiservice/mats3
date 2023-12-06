@@ -21,7 +21,7 @@ public interface JmsMatsStartStoppable extends JmsMatsStatics, StartStoppable {
         for (JmsMatsStartStoppable child : getChildrenStartStoppable()) {
             long millisBefore = System.currentTimeMillis();
             started &= child.waitForReceiving(millisLeft);
-            millisLeft -= (System.currentTimeMillis() - millisBefore);
+            millisLeft -= (int) (System.currentTimeMillis() - millisBefore);
             millisLeft = Math.max(millisLeft, EXTRA_GRACE_MILLIS);
         }
         return started;
@@ -42,7 +42,7 @@ public interface JmsMatsStartStoppable extends JmsMatsStatics, StartStoppable {
         for (JmsMatsStartStoppable child : getChildrenStartStoppable()) {
             long millisBefore = System.currentTimeMillis();
             child.stopPhase2_GracefulWaitAfterRunflagFalse(millisLeft);
-            millisLeft -= (System.currentTimeMillis() - millisBefore);
+            millisLeft -= (int) (System.currentTimeMillis() - millisBefore);
             millisLeft = Math.max(millisLeft, EXTRA_GRACE_MILLIS);
         }
     }
