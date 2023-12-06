@@ -20,7 +20,7 @@ source is a good place to learn about Mats<sup>3</sup>, explained [here](https:/
 To use Mats in a project, fetch [`mats-impl-jms`](https://mvnrepository.com/artifact/io.mats3/mats-impl-jms)
 from [Maven Central](https://mvnrepository.com/artifact/io.mats3).
 
-Runs on Java 11, 17+. _(Developed on Java 11, runs in prod on 11 and 17)_
+Runs on Java 11+. _(Developed on Java 11, runs in prod on 11, 17 and 21)_
 
 License: [Polyform Perimeter 1.0.0 with examples](LICENSE.md)
 
