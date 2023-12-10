@@ -93,7 +93,7 @@ public @interface MatsClassMapping {
 
     /**
      * Alias for "endpointId", so that if you only need to set the endpointId, you can do so directly:
-     * <code>@MatsEndpointSetup("endpointId")</code>
+     * <code>@MatsClassMapping("endpointId")</code>
      *
      * @return the endpointId.
      */
@@ -155,10 +155,7 @@ public @interface MatsClassMapping {
          * relative position of this Stage wrt. to the other stages. The initial Stage must have the ordinal zero, you
          * may use the constant {@link #INITIAL}. The magnitude of the number does not matter, only the "sort order", so
          * 0, 1, 2 is just as good as 0, 3, 5, which is just as good as 0, 4527890, 4527990 - although one can
-         * definitely discuss the relative merits between each approach. An idea is the cool'n'retro Commodore
-         * BASIC-style of line numbers, which commonly was to use values in multiple of 10, i.e. 0 (for the Initial),
-         * then 10, 20, 30. The rationale is that you then quickly can add a line between 10 and 20 by sticking in a 15
-         * there.
+         * definitely discuss the relative merits between each approach.
          *
          * @return the ordinal of this Stage in the sequence of stages of this endpoint.
          */
@@ -167,7 +164,7 @@ public @interface MatsClassMapping {
 
         /**
          * Alias for "ordinal", so that if you only need to set the ordinal (which relative position in the sequence of
-         * stages this Stage is), you can do so directly: <code>@Stage(15)</code>.
+         * stages this Stage is), you can do so directly: <code>@Stage(INITIAL)</code> and <code>@Stage(3)</code>.
          *
          * @see #ordinal()
          *

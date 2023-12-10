@@ -19,19 +19,26 @@ import io.mats3.MatsFactory;
 import io.mats3.spring.MatsEndpointSetup.MatsEndpointSetups;
 
 /**
- * A method annotated with this repeatable annotation specifies a method that shall <em>set up</em> a (usually)
- * Multi-Staged Mats Endpoint. Note that as opposed to {@link MatsMapping @MatsMapping}, this method will be invoked
- * <em>once</em> to <i>set up</i> the endpoint, and will not be invoked each time when the Mats endpoint is invoked (as
- * is the case with {@literal @MatsMapping}). <b>You might want to check up on the {@link MatsClassMapping} instead.</b>
- * <p />
+ * <b>NOTE: You should probably use {@link MatsClassMapping} or {@link MatsMapping @MatsMapping} instead - or otherwise
+ * consider plain programmatic registration instead of using this feature as it brings very little convenience compared
+ * to pure Java.</b>
+ * <p/>
+ * A method annotated with this repeatable annotation specifies a method that shall <em>set up</em> a Multi-Staged Mats
+ * Endpoint. Note that as opposed to {@link MatsMapping @MatsMapping} and {@link MatsClassMapping}, this method will be
+ * invoked <em>once</em> at startup to <i>set up</i> the endpoint, and will not be invoked each time when the Mats
+ * endpoint gets a message (as is the case with {@literal @MatsMapping} and {@literal @MatsClassMapping}).
+ * <p/>
  * You specify the EndpointId, state STO type and the reply DTO type using annotation parameters. The method is then
- * invoked with a {@link MatsEndpoint MatsEndpoint} instance as argument, and the method should then invoke
- * {@link MatsEndpoint#stage(Class, ProcessLambda) endpoint.stage(..)} and
- * {@link MatsEndpoint#lastStage(Class, ProcessReturnLambda) endpoint.lastStage(..)} to set up the MatsEndpoint. You can
- * also have an argument of type {@link EndpointConfig} to be able to configure the endpoint. Remember again that this
- * is a <i>setup method</i> where you should set up the endpoint, and it is invoked only <i>once</i> during startup, and
- * then never again.
- * <p />
+ * invoked once during Spring context startup, with a {@link MatsEndpoint MatsEndpoint} instance as argument, as would
+ * have been returned by {@link MatsFactory#staged(String, Class, Class) matsFactory.staged(...)} when using
+ * programmatic registration. The method should then invoke {@link MatsEndpoint#stage(Class, ProcessLambda)
+ * endpoint.stage(..)} and {@link MatsEndpoint#lastStage(Class, ProcessReturnLambda) endpoint.lastStage(..)} to set up
+ * the MatsEndpoint - as you would have done when using programmatic registration. You can also have an argument of type
+ * {@link EndpointConfig EndpointConfig} to be able to configure the endpoint - but you can also do this using the
+ * config getters on the endpoint instance, and for each stage you create (e.g. to set concurrency). Remember again that
+ * this is a <i>setup method</i> where you should set up the endpoint, and it is invoked only <i>once</i> during
+ * startup, and then never again.
+ * <p/>
  * In a multi-MatsFactory setup, you may qualify which MatsFactory this Endpoint should be constructed on - read JavaDoc
  * on @{@link MatsMapping} for how this works.
  *

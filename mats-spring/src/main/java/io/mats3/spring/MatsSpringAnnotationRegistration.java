@@ -67,8 +67,8 @@ import io.mats3.spring.MatsClassMapping.Stage;
 /**
  * The {@link BeanPostProcessor}-class specified by the {@link EnableMats @EnableMats} annotation.
  * <p/>
- * It checks all Spring beans in the current Spring {@link ApplicationContext} for whether their classes are annotated
- * with {@link MatsClassMapping @MatsClassMapping}, or if they have methods annotated with
+ * It checks all Spring beans registered to the Spring {@link ApplicationContext} for whether their classes are
+ * annotated with {@link MatsClassMapping @MatsClassMapping}, or if they have methods annotated with
  * {@link MatsMapping @MatsMapping} or {@link MatsEndpointSetup @MatsEndpointSetup}, and if so configures Mats endpoints
  * for them on the (possibly specified) {@link MatsFactory}. It will also control any registered {@link MatsFactory}
  * beans, invoking {@link MatsFactory#holdEndpointsUntilFactoryIsStarted()} early in the startup procedure before adding
@@ -544,7 +544,7 @@ public class MatsSpringAnnotationRegistration implements
             }
         }
 
-        // ----- We've found the parameters.
+        // ----- We've found the method parameters (DTO, STO, ProcessContext) - now deduce attributes.
 
         // :: Find which MatsFactory to use
 
@@ -586,7 +586,6 @@ public class MatsSpringAnnotationRegistration implements
         // ?: Do we have a void return value?
         if (replyType.getName().equals("void")) {
             // -> Yes, void return: Setup Terminator.
-            typeEndpoint = "Terminator";
             if (subscription) {
                 matsEndpoint = matsFactoryToUse.subscriptionTerminator(matsMapping.endpointId(), stoType, dtoType,
                         (processContext, state, incomingDto) -> invokeMatsLambdaMethod(
@@ -594,6 +593,7 @@ public class MatsSpringAnnotationRegistration implements
                                 processContextParamF, processContext,
                                 dtoParamF, incomingDto,
                                 stoParamF, state));
+                typeEndpoint = "Subscription Terminator";
             }
             else {
                 matsEndpoint = matsFactoryToUse.terminator(matsMapping.endpointId(), stoType, dtoType,
@@ -602,6 +602,7 @@ public class MatsSpringAnnotationRegistration implements
                                 processContextParamF, processContext,
                                 dtoParamF, incomingDto,
                                 stoParamF, state));
+                typeEndpoint = "Terminator";
             }
         }
         else {
@@ -706,7 +707,7 @@ public class MatsSpringAnnotationRegistration implements
             }
         }
 
-        // ----- We've found the parameters.
+        // ----- We've found the method parameters - now deduce attributes.
 
         // :: Invoke the @MatsEndpointSetup-annotated staged endpoint setup method
 
