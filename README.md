@@ -14,7 +14,7 @@ JSON-over-HTTP "REST" endpoints.
 *To explore the library, check out the [Explore Mats<sup>3</sup>](https://mats3.io/explore/) page. In particular, there
 is [tooling for Mats<sup>3</sup> using JBang](https://mats3.io/explore/jbang-mats/): JBang makes it possible to make
 small self-executable source files. With the all-in-one `mats-jbangkit` dependency, you can literally pull up a Mats
-Endpoints in 10 lines, and start an ActiveMQ instance with a single command: `jbang activemq@centiservice`. Also, the
+Endpoints in 10 lines, and start an ActiveMQ Classic instance with a single command: `jbang activemq@centiservice`. Also, the
 source is a good place to learn about Mats<sup>3</sup>, explained [here](https://mats3.io/explore/mats-source-code/).*
 
 To use Mats in a project, fetch [`mats-impl-jms`](https://mvnrepository.com/artifact/io.mats3/mats-impl-jms)
@@ -157,8 +157,8 @@ all features of a fully Asynchronous Message Oriented Architecture.
 This code has for several years been running in production as the sole inter service communication layer in a quite
 large financial system consisting of >50 services and applications and several hundred Mats Endpoints. This system has
 multiple customer frontends, both web and apps, and several backend UIs for backoffice functions. Several million
-messages are produced and consumed each day. The Message Broker in use in this production setup is Apache ActiveMQ, but
-all unit and integration tests also run on Apache Artemis (formerly JBoss HornetQ, and what RedHat AMQ is built on).
+messages are produced and consumed each day. The Message Broker in use in this production setup is Apache ActiveMQ Classic, but
+all unit and integration tests also run on Apache ActiveMQ Artemis (formerly JBoss HornetQ, and what Red Hat AMQ 7+ is built on).
 
 For more, read [this](docs/WhatIsMats.md), then [this](docs/RationaleForMats.md).
 
@@ -180,7 +180,7 @@ and finish in the same order they were started.
 # Examples
 
 Some examples taken from the [unit tests](mats-api-test/src/test/java/io/mats3/api_test). Notice the use of the JUnit
-Rule `Rule_Mats`, which sets up an ActiveMQ in-memory server and creates a JMS-backed MatsFactory based on that.
+Rule `Rule_Mats`, which sets up an ActiveMQ Classic in-memory server and creates a JMS-backed MatsFactory based on that.
 
 In these examples, all the endpoints and stages are set up in one test class, and when invoked by the JUnit runner,
 obviously runs on the same machine - but in actual usage, you would typically have each endpoint run in a different
@@ -551,3 +551,4 @@ public class Test_MatsFuturizer_Basics {
 If you want to try this out in your project, I will support you!
 
 -Endre, endre@stolsvik.com
+
