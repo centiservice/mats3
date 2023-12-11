@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.annotation.AliasFor;
 
+import io.mats3.MatsEndpoint.EndpointConfig;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator;
 import io.mats3.MatsInitiator.MatsInitiate;
@@ -92,6 +93,15 @@ public @interface MatsMapping {
      *         (i.e. the method must not return anything, i.e. "void").
      */
     boolean subscription() default false;
+
+    /**
+     * A string representing the {@link EndpointConfig#setConcurrency(int) concurrency} of the Endpoint. Currently
+     * only digits are allowed, and the value is passed directly to {@link Integer#parseInt(String)}. <i/>(In a future
+     * version it might be possible to specify a Spring SpEL expression, which would be evaluated against a context
+     * of the parent MatsFactory so that you could say "parentFactory * 2", and include the Spring Environment, so
+     * that you could say "env['mats.concurrency'] * 2" or similar constructs.)</i>
+     */
+    String concurrency() default "";
 
     /**
      * Specifies the {@link MatsFactory} to use by means of a specific qualifier annotation type (which thus must be

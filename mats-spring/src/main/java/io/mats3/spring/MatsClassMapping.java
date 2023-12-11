@@ -12,8 +12,10 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.annotation.AliasFor;
 import org.springframework.stereotype.Service;
 
+import io.mats3.MatsEndpoint.EndpointConfig;
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsFactory;
+import io.mats3.MatsStage.StageConfig;
 import io.mats3.spring.MatsClassMapping.MatsClassMappings;
 
 /**
@@ -101,6 +103,15 @@ public @interface MatsClassMapping {
     String value() default "";
 
     /**
+     * A string representing the {@link EndpointConfig#setConcurrency(int) concurrency} of the Endpoint. Currently
+     * only digits are allowed, and the value is passed directly to {@link Integer#parseInt(String)}. <i/>(In a future
+     * version it might be possible to specify a Spring SpEL expression, which would be evaluated against a context
+     * of the parent MatsFactory so that you could say "parentFactory * 2", and include the Spring Environment, so
+     * that you could say "env['mats.concurrency'] * 2" or similar constructs.)</i>
+     */
+    String concurrency() default "";
+
+    /**
      * Specifies the {@link MatsFactory} to use by means of a specific qualifier annotation type (which thus must be
      * meta-annotated with {@link Qualifier}). Notice that this will search for the custom qualifier annotation
      * <i>type</i>, as opposed to if you add the annotation to the @MatsEndpointSetup-annotated method directly, in
@@ -172,6 +183,12 @@ public @interface MatsClassMapping {
          */
         @AliasFor("ordinal")
         int value() default -1;
+
+        /**
+         * A string representing the {@link StageConfig#setConcurrency(int) concurrency} for the Stage, overriding the
+         * concurrency of the Endpoint. See {@link MatsClassMapping#concurrency()} for more information.
+         */
+        String concurrency() default "";
     }
 
     @Target({ ElementType.TYPE, ElementType.ANNOTATION_TYPE })

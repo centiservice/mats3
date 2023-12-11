@@ -546,14 +546,19 @@ public class MatsSpringAnnotationRegistration implements
 
         // ----- We've found the method parameters (DTO, STO, ProcessContext) - now deduce attributes.
 
+        String descriptionOfAnnotation = simpleAnnotationAndMethodDescription(matsMapping, method);
+
         // :: Find which MatsFactory to use
 
         MatsFactory matsFactoryToUse = getMatsFactoryToUse(
-                simpleAnnotationAndMethodDescription(matsMapping, method),
+                descriptionOfAnnotation,
                 method,
                 matsMapping.matsFactoryCustomQualifierType(),
                 matsMapping.matsFactoryQualifierValue(),
                 matsMapping.matsFactoryBeanName());
+
+        // :: Find the concurrency to use, if set (-1 if not)
+        int concurrency = getConcurrencyToUse(descriptionOfAnnotation, matsMapping.concurrency());
 
         // :: Set up the Endpoint
 
@@ -620,7 +625,6 @@ public class MatsSpringAnnotationRegistration implements
                             stoParamF, state);
                     return helperCast(reply);
                 });
-                matsStage.getStageConfig().setOrigin(origin);
             }
             else {
                 // -> No state parameter, so use the proper Single endpoint.
@@ -633,11 +637,17 @@ public class MatsSpringAnnotationRegistration implements
                                     -1, null);
                             return helperCast(reply);
                         });
-                matsEndpoint.getStages().get(0).getStageConfig().setOrigin(origin);
             }
         }
         // Set creation-info on the MatsEndpoint
         matsEndpoint.getEndpointConfig().setOrigin(origin);
+        // .. and on the single stage
+        matsEndpoint.getStages().get(0).getStageConfig().setOrigin(origin);
+
+        // Set concurrency, if set
+        if (concurrency > 0) {
+            matsEndpoint.getEndpointConfig().setConcurrency(concurrency);
+        }
 
         if (log.isInfoEnabled()) {
             String procCtxParamDesc = processContextParam != -1 ? "param#" + processContextParam : "<not present>";
@@ -649,7 +659,8 @@ public class MatsSpringAnnotationRegistration implements
                     + " :: ReplyType:[" + replyType.getSimpleName()
                     + "], ProcessContext:[" + procCtxParamDesc
                     + "], STO:[" + stoParamDesc
-                    + "], DTO:[" + dtoParamDesc + "]");
+                    + "], DTO:[" + dtoParamDesc
+                    + "], Concurrency:[" + (concurrency != -1 ? Integer.toString(concurrency) : "~default~") + "]");
         }
     }
 
@@ -844,21 +855,27 @@ public class MatsSpringAnnotationRegistration implements
         }
         Class<?> requestClass = initialStageMethod.getParameters()[dtoParamIdxOfInitial].getType();
 
-        log.info(LOG_PREFIX + "The @MatsClassMapping endpoint at class '" + classNameWithoutPackage(bean)
-                + "' has " + stages.size() + " Stage" + (stages.size() > 1 ? "s" : "") + ", request DTO ["
-                + classNameWithoutPackage(requestClass) + "], and reply DTO [" + classNameWithoutPackage(replyClass)
-                + "].");
+        // ----- We've found the method parameters (DTO, STO, ProcessContext) - now deduce attributes.
+
+        String descriptionOfAnnotation = "@MatsClassMapping-annotated bean '" + classNameWithoutPackage(bean) + "'";
 
         // :: Find which MatsFactory to use
 
-        MatsFactory matsFactoryToUse = getMatsFactoryToUse(
-                "@MatsClassMapping-annotated bean '" + classNameWithoutPackage(bean) + "'",
+        MatsFactory matsFactoryToUse = getMatsFactoryToUse(descriptionOfAnnotation,
                 matsClass,
                 matsClassMapping.matsFactoryCustomQualifierType(),
                 matsClassMapping.matsFactoryQualifierValue(),
                 matsClassMapping.matsFactoryBeanName());
 
+        // :: Find the concurrency to use, if set (-1 if not)
+
+        int concurrencyForEndpoint = getConcurrencyToUse(descriptionOfAnnotation, matsClassMapping.concurrency());
+
         // :: Create the Staged Endpoint
+
+        log.info(LOG_PREFIX + "The " + descriptionOfAnnotation + "' has " + stages.size()
+                + " Stage" + (stages.size() > 1 ? "s" : "") + ", request DTO [" + classNameWithoutPackage(requestClass)
+                + "], and reply DTO [" + classNameWithoutPackage(replyClass) + "].");
 
         // We'll first check that the class has a no-args constructor. This is not strictly necessary as long as the
         // serialization mechanism can construct an instance, but problems have turned up when the serialization
@@ -877,7 +894,8 @@ public class MatsSpringAnnotationRegistration implements
             matsClass.getDeclaredConstructor();
         }
         catch (NoSuchMethodException e) {
-            log.error(LOG_PREFIX+" HARD WARNING - DEPRECATION!! The class [" + matsClass.getSimpleName() + "] does not"
+            log.error(LOG_PREFIX + " HARD WARNING - DEPRECATION!! The class [" + matsClass.getSimpleName()
+                    + "] does not"
                     + " have a no-args constructor, which is required for @MatsClassMapping. THIS WILL THROW IN A LATER"
                     + " VERSION OF Mats3 SpringConfig, so you should fix this now! If the reason for this is that you"
                     + " employ constructor injection, and in addition use declaration-initialized fields ('List<Car>"
@@ -901,6 +919,11 @@ public class MatsSpringAnnotationRegistration implements
         ep.getEndpointConfig()
                 .setOrigin("@MatsClassMapping " + matsClass.getSimpleName() + ";" + matsClass.getName());
 
+        // Set concurrency, if set
+        if (concurrencyForEndpoint > 0) {
+            ep.getEndpointConfig().setConcurrency(concurrencyForEndpoint);
+        }
+
         // :: Hold on to all non-null fields of the bean - these are what Spring has injected. Make "template".
 
         // Need to check if the State class sets any fields by itself, i.e. with no-args constructor or initial value.
@@ -908,7 +931,6 @@ public class MatsSpringAnnotationRegistration implements
         // of the class's fields and serialization mechanism is not compatible, e.g. if the class has a state field of
         // type java.lang.Thread, which would be insane anyway.
         Object instantiatedStateObject = matsFactoryToUse.getFactoryConfig().instantiateNewObject(matsClass);
-
 
         Field[] processContextField_hack = new Field[1];
         LinkedHashMap<Field, Object> templateFields = new LinkedHashMap<>();
@@ -1013,6 +1035,13 @@ public class MatsSpringAnnotationRegistration implements
         // :: Make the stages of the Endpoint by running through the @Stage-annotated methods.
 
         stagesByOrdinal.forEach((ordinal, method) -> {
+            Stage stageAnnotation = stages.get(method);
+
+            // :: Find concurrency to use, if set (-1 if not)
+            int concurrencyForStage = getConcurrencyToUse(
+                    descriptionOfAnnotation + " @Stage(" + ordinal + "):" + method.getName() + "(..)",
+                    stageAnnotation.concurrency());
+
             // :: Find the DTO parameter, if any.
             int dtoParamIdx = findDtoParamIndexForMatsClassMappingLambdaMethod(method);
             Parameter[] parameters = method.getParameters();
@@ -1032,7 +1061,7 @@ public class MatsSpringAnnotationRegistration implements
             log.info(LOG_PREFIX + "  -> Stage '" + ordinal + "': '" + simpleMethodDescription(method)
                     + ", DTO paramIdx:" + dtoParamIdx + ", DTO class:"
                     + classNameWithoutPackage(incomingClass) + " - ProcessContext paramIdx:" + processContextParamIdx
-                    + ".");
+                    + ", Concurrency:[" + (concurrencyForEndpoint != -1 ? Integer.toString(concurrencyForEndpoint) : "~default~") + "]");
 
             Object[] defaultArgsArray = defaultArgsArray(method);
 
@@ -1040,6 +1069,9 @@ public class MatsSpringAnnotationRegistration implements
             method.setAccessible(true);
 
             MatsStage<?, ?, ?> stage = ep.stage(incomingClass, (originalProcessContext, state, incomingDto) -> {
+
+                // :: Make lambdas for setting and clearing the state and ProcessContext fields.
+
                 Consumer<ProcessContext<?>> setFields = (processContext) -> {
                     // :: Set the "template fields" from original Dependency Injection of @Service.
                     for (Entry<Field, Object> entry : templateFields.entrySet()) {
@@ -1140,10 +1172,16 @@ public class MatsSpringAnnotationRegistration implements
                     originalProcessContext.reply(helperCast(o));
                 }
             });
-            Stage stageAnnotation = stages.get(method);
+
+            // Set origin "debug info":
             stage.getStageConfig().setOrigin("@Stage(" + stageAnnotation.ordinal() + ") "
                     + method.getDeclaringClass().getSimpleName() + "." + method.getName() + "(..);"
                     + method.getDeclaringClass().getName());
+
+            // Set concurrency, if set
+            if (concurrencyForStage > 0) {
+                stage.getStageConfig().setConcurrency(concurrencyForStage);
+            }
         });
         // This endpoint is finished set up.
         ep.finishSetup();
@@ -1274,6 +1312,32 @@ public class MatsSpringAnnotationRegistration implements
     @SuppressWarnings("unchecked")
     private static <R> R helperCast(Object objectToCast) {
         return (R) objectToCast;
+    }
+
+    /**
+     * @param concurrencySpecifier
+     *            the 'concurrency()' value from the Mats annotation.
+     * @return the value to use for concurrency, or -1 if the concurrency should be left unspecified.
+     */
+    private int getConcurrencyToUse(String forWhat, String concurrencySpecifier) {
+        if ("".equals(concurrencySpecifier)) {
+            return -1;
+        }
+        int concurreny;
+        try {
+            concurreny = Integer.parseInt(concurrencySpecifier);
+        }
+        catch (NumberFormatException e) {
+            throw new MatsSpringConfigException("Not a valid integer: The concurrency specifier ["
+                    + concurrencySpecifier
+                    + "] for [" + forWhat + "] is not an integer.");
+        }
+        if (concurreny < 0) {
+            throw new MatsSpringConfigException("Negative concurreny: The concurrency specifier ["
+                    + concurrencySpecifier
+                    + "] for [" + forWhat + "] is negative - not allowed.");
+        }
+        return concurreny;
     }
 
     private MatsFactory getMatsFactoryToUse(String forWhat, AnnotatedElement annotatedElement,
