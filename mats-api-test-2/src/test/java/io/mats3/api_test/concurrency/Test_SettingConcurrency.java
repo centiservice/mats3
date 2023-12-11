@@ -76,7 +76,8 @@ public class Test_SettingConcurrency {
     public void checkDefaults() {
         // Get number of cpus - default should be 2 x this.
         int numCpus = Runtime.getRuntime().availableProcessors();
-        int defaultConcurrency = numCpus * 2;
+        // Follow API spec.
+        int defaultConcurrency = Math.min(10, numCpus * 2);
 
         // :: NO "ARRANGE"!
 

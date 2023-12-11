@@ -1041,8 +1041,8 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
                 // -> Yes, set specifically, so return it.
                 return _concurrency;
             }
-            // E-> No, not specific concurrency, so return default calculation
-            return 2 * getNumberOfCpus();
+            // E-> No, not specific concurrency, so return default calculation per API.
+            return Math.min(10, getNumberOfCpus() * 2);
         }
 
         @Override

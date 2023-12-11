@@ -22,10 +22,10 @@ public interface MatsConfig {
      * <p />
      * If default logic is in effect (i.e. have not been set by {@link #setConcurrency(int)}, or that is set to 0), a
      * {@link MatsStage} will default to its {@link MatsEndpoint}, while an endpoint will default to the
-     * {@link MatsFactory}. The default for the {@link MatsFactory} is 2 x the number returned by
-     * {@link FactoryConfig#getNumberOfCpus()}, which by default is the number of processors on the server it is running
-     * on, as determined by {@link Runtime#availableProcessors()} (but this default can be changed by setting the System
-     * Property "mats.cpus").
+     * {@link MatsFactory}. The default for the {@link MatsFactory} is <b>minimum of 10 and number_of_cpus x 2</b>. The
+     * 'number_of_cpus' is defined by {@link FactoryConfig#getNumberOfCpus() getNumberOfCpus()}, which by default is the
+     * number of processors on the server it is running on, as determined by {@link Runtime#availableProcessors()} (but
+     * this default can be changed by setting the System Property "mats.cpus").
      *
      * @return the concurrency set up for this factory, or endpoint, or process stage. Will provide the default unless
      *         overridden by {@link #setConcurrency(int)} before start.

@@ -494,7 +494,7 @@ public interface MatsFactory extends StartStoppable {
         /**
          * @return the number of CPUs that Mats shall assume there is available. Default should be
          *         {@link Runtime#availableProcessors() Runtime.getRuntime().availableProcessors()}. Implementations
-         *         should honor the System Property "mats.cpus" and let that override this number, e.g. "-Dmats.cpus=8"
+         *         should honor the System Property "mats.cpus" and let that override this number, e.g. "-Dmats.cpus=3"
          *         on command line.
          */
         int getNumberOfCpus();
