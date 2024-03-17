@@ -145,9 +145,14 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                  * Should only be user code, as errors from "ourselves" (the JMS Mats impl) should throw
                  * JmsMatsJmsException, and are caught earlier (see above).
                  */
-                log.error(LOG_PREFIX + "ROLLBACK JMS: Got a " + e.getClass().getSimpleName() + " while transacting "
-                        + stageOrInit(_txContextKey) + " Rolling back the JMS session.", e);
-                rollback(jmsSession, e);
+                String msg = LOG_PREFIX + "ROLLBACK JMS: Got a " + e.getClass().getSimpleName() + " while transacting "
+                        + stageOrInit(_txContextKey) + " Rolling back the JMS session.";
+                if (internalExecutionContext.isUserLambdaExceptionLogged()) {
+                    log.error(msg);
+                }
+                else {
+                    log.error(msg, e);
+                }
                 // Throw on, so that if this is in an initiate-call, it will percolate all the way out.
                 // (NOTE! Inside JmsMatsStageProcessor, RuntimeExceptions won't recreate the JMS Connection..)
                 throw e;
@@ -171,7 +176,9 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                         + t.getClass().getSimpleName() + " while transacting " + stageOrInit(_txContextKey) + ".", t);
             }
 
+            // ================================================================
             // ----- The ProcessingLambda went OK, no Exception was raised.
+            // ================================================================
 
             // == Handling JMS Commit elision
             // ?: Should we elide JMS Commit?
@@ -183,7 +190,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 return;
             }
 
-            // E-> No, NOT eliding JMS Commit - i.e. we SHOULD commit it, since messages has been produced.
+            // E-> No, NOT eliding JMS Commit - i.e. we SHOULD commit it, since messages have been produced.
 
             if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "COMMIT JMS: ProcessingLambda finished,"
                     + " committing JMS Session.");
@@ -198,8 +205,8 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 /*
                  * WARNING WARNING! COULD NOT COMMIT JMS! Besides indicating that we have a JMS problem, we also have a
                  * potential bad situation with potentially committed external state changes, but where the JMS Message
-                 * Broker cannot record our consumption of the message, and will probably have to (wrongly) redeliver
-                 * it, or throw out if this was an initiation.
+                 * Broker cannot record our consumption of the message, and will thus redeliver it (or we'll throw out
+                 * if this was an initiation.)
                  */
                 String sqlEmployed = internalExecutionContext.isUsingSqlHandlingTransactionManager()
                         ? "(NOTICE: SQL Connection " + (internalExecutionContext.wasSqlConnectionEmployed()
@@ -208,23 +215,20 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                         : "(Not using a SQL-handling JmsMatsTransactionManager)";
                 log.error(LOG_PREFIX
                         + "VERY BAD! " + stageOrInit(_txContextKey) + " " + sqlEmployed
-                        + " After processing finished correctly, and"
-                        + " any external, potentially state changing operations have committed OK, we could not"
-                        + " commit the JMS Session! If this happened within a Mats message initiation, the state"
-                        + " changing operations (e.g. database insert/update) have been committed, while the message"
-                        + " was not sent. If this is not caught by the initiation code ('manually' rolling back the"
-                        + " state change), the global state is probably out of sync (i.e. the order-row is marked"
-                        + " 'processing started', while the corresponding process-order message was not sent). However,"
-                        + " if this happened within a Mats Stage (inside an endpoint), this will most probably "
-                        + " lead to a redelivery (as in 'double delivery'), which should be handled by your endpoint's"
-                        + " idempotent handling of incoming messages. Do note that this might be a problem if the stage"
-                        + " also sends an outgoing message in the normal flow: If you just check your database at the"
-                        + " next redelivery, and realize that the changes have been committed, and hence do not send an"
-                        + " outgoing message, you will effectively have stopped the Mats flow: Since it wasn't sent"
-                        + " this time (that is, due to this 'VERY BAD'), and you do not send it the next time (since"
-                        + " you realize that it was a double delivery, and the database had changes applied, and you"
-                        + " thus erroneously do not send the outgoing message), you won't ever send it, which probably"
-                        + " is not what you want.", t);
+                        + " After processing finished correctly, and any external, potentially state changing"
+                        + " operations have committed OK, we could not commit the JMS Session! If this happened within"
+                        + " a Mats message initiation, the state changing operations (e.g. database insert/update) have"
+                        + " been committed, while the message was not sent. If this is not caught by the initiation"
+                        + " code ('manually' rolling back the state change), the global state is probably out of sync"
+                        + " (i.e. the order-row is marked 'processing started', while the corresponding process-order"
+                        + " message was not sent). On the other hand, if this happened within a Mats Stage (inside an"
+                        + " endpoint), this will most probably lead to a redelivery (as in 'double delivery'), which"
+                        + " should be handled by your endpoint's idempotent handling of incoming messages: On the next"
+                        + " (re)delivery, your code should realize that it already e.g. have inserted the DB row in"
+                        + " question, and thus skip directly to the end of the stage, where it performs a request,"
+                        + " reply, next or nextDirect. If you instead just throw an exception (e.g. 'duplicate key' or"
+                        + " similar), you'll DLQ the message, and thus stop processing of this Mats flow. Reissuing"
+                        + " won't help unless you have deleted the offending row.", t);
                 /*
                  * This certainly calls for reestablishing the JMS Session, so we need to throw out a
                  * JmsMatsJmsException. However, in addition, this is the specific type of error ("VERY BAD!") that

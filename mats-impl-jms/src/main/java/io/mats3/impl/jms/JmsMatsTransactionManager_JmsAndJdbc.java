@@ -79,7 +79,7 @@ public class JmsMatsTransactionManager_JmsAndJdbc extends JmsMatsTransactionMana
     }
 
     /**
-     * The {@link TransactionContext}-implementation for {@link JmsMatsTransactionManager_Jms}.
+     * The {@link TransactionContext}-implementation for {@link JmsMatsTransactionManager_JmsAndJdbc}.
      */
     public static class TransactionalContext_JmsAndJdbc extends TransactionalContext_Jms {
         private final DataSource _dataSource;
