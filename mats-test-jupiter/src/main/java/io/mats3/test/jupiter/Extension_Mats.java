@@ -5,12 +5,17 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
 
+import io.mats3.MatsFactory;
+import io.mats3.MatsInitiator;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
+import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.TestH2DataSource;
 import io.mats3.test.abstractunit.AbstractMatsTest;
+import io.mats3.util.MatsFuturizer;
 
 /**
  * Provides a full MATS harness for unit testing by creating {@link JmsMatsFactory MatsFactory} utilizing an in-vm
@@ -22,8 +27,6 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  * By default the {@link #create() extension} will create a {@link MatsSerializerJson} which will be the serializer
  * utilized by the created {@link JmsMatsFactory MatsFactory}. Should one want to use a different serializer which
  * serializes to the type of {@link String} then this can be specified using the method {@link #create(MatsSerializer)}.
- * However should one want to specify a serializer which serializes into anything other than {@link String}, then
- * {@link Extension_MatsGeneric} offers this possibility.
  * <p/>
  * {@link Extension_Mats} shall be annotated with
  * {@link org.junit.jupiter.api.extension.RegisterExtension @RegisterExtension} and the instance field shall be static
@@ -56,16 +59,17 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  * </pre>
  *
  * @author Kevin Mc Tiernan, 2020-10-18, kmctiernan@gmail.com
- * @see Extension_MatsGeneric
  */
-public class Extension_Mats extends AbstractMatsTest<String>
+public class Extension_Mats extends AbstractMatsTest
         implements BeforeAllCallback, AfterAllCallback {
 
-    protected Extension_Mats(MatsSerializer<String> matsSerializer) {
+    private static final Namespace NAMESPACE = Namespace.create(Extension_Mats.class.getSimpleName());
+
+    protected Extension_Mats(MatsSerializer<?> matsSerializer) {
         super(matsSerializer);
     }
 
-    protected Extension_Mats(MatsSerializer<String> matsSerializer, DataSource dataSource) {
+    protected Extension_Mats(MatsSerializer<?> matsSerializer, DataSource dataSource) {
         super(matsSerializer, dataSource);
     }
 
@@ -80,7 +84,7 @@ public class Extension_Mats extends AbstractMatsTest<String>
      * Creates an {@link Extension_Mats} utilizing the user provided {@link MatsSerializer} which serializes to the type
      * of String.
      */
-    public static Extension_Mats create(MatsSerializer<String> matsSerializer) {
+    public static Extension_Mats create(MatsSerializer<?> matsSerializer) {
         return new Extension_Mats(matsSerializer);
     }
 
@@ -88,9 +92,32 @@ public class Extension_Mats extends AbstractMatsTest<String>
         return createWithDb(MatsSerializerJson.create());
     }
 
-    public static Extension_Mats createWithDb(MatsSerializer<String> matsSerializer) {
+    public static Extension_Mats createWithDb(MatsSerializer<?> matsSerializer) {
         TestH2DataSource testH2DataSource = TestH2DataSource.createStandard();
         return new Extension_Mats(matsSerializer, testH2DataSource);
+    }
+
+    /**
+     * Returns the {@link Extension_Mats} from the test context, provided that this has been initialized
+     * prior to calling this method. This is intended for use by other extensions that rely on the presence of
+     * a {@link Extension_Mats} to function. The {@link Extension_Mats} is not set in the {@link ExtensionContext}
+     * until after the {@link #beforeAll(ExtensionContext)} has been called for an instance of {@link Extension_Mats}.
+     * <p>
+     * Note that if you crate multiple {@link Extension_Mats}, then this will only provide the last created extension.
+     * In that case, you should instead provide the actual MatsFactory to each extension.
+     *
+     * @param extensionContext to get {@link Extension_Mats} from
+     * @return the {@link Extension_Mats} from the test context
+     * @throws IllegalStateException if no {@link Extension_Mats} is found in the test context
+     */
+    public static Extension_Mats getExtension(ExtensionContext extensionContext) {
+        Extension_Mats extensionMats =
+                extensionContext.getStore(NAMESPACE).get(Extension_Mats.class, Extension_Mats.class);
+        if (extensionMats == null) {
+            throw new IllegalStateException("Could not find Extension_Mats in ExtensionContext,"
+                    + " make sure to include Extension_Mats as a test extension.");
+        }
+        return extensionMats;
     }
 
     /**
@@ -98,6 +125,7 @@ public class Extension_Mats extends AbstractMatsTest<String>
      */
     @Override
     public void beforeAll(ExtensionContext context) {
+        context.getStore(NAMESPACE).put(Extension_Mats.class, this);
         super.beforeAll();
     }
 

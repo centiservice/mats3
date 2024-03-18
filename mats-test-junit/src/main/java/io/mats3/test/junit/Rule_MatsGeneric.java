@@ -46,24 +46,26 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  *            terrible at serializing byte arrays.
  * @author Kevin Mc Tiernan, 2020-10-22, kmctiernan@gmail.com
  * @see AbstractMatsTest
+ * @deprecated Use {@link Rule_Mats} instead - this class has been made redundant
  */
-public class Rule_MatsGeneric<Z> extends AbstractMatsTest<Z> implements TestRule {
+@Deprecated
+public class Rule_MatsGeneric extends AbstractMatsTest implements TestRule {
 
-    protected Rule_MatsGeneric(MatsSerializer<Z> matsSerializer) {
+    protected Rule_MatsGeneric(MatsSerializer<?> matsSerializer) {
         super(matsSerializer);
     }
 
-    protected Rule_MatsGeneric(MatsSerializer<Z> matsSerializer, DataSource dataSource) {
+    protected Rule_MatsGeneric(MatsSerializer<?> matsSerializer, DataSource dataSource) {
         super(matsSerializer, dataSource);
     }
 
-    public static <Z> Rule_MatsGeneric<Z> create(MatsSerializer<Z> matsSerializer) {
-        return new Rule_MatsGeneric<>(matsSerializer);
+    public static Rule_MatsGeneric create(MatsSerializer<?> matsSerializer) {
+        return new Rule_MatsGeneric(matsSerializer);
     }
 
-    public static <Z> Rule_MatsGeneric<Z> createWithDb(MatsSerializer<Z> matsSerializer) {
+    public static Rule_MatsGeneric createWithDb(MatsSerializer<?> matsSerializer) {
         TestH2DataSource testH2DataSource = TestH2DataSource.createStandard();
-        return new Rule_MatsGeneric<>(matsSerializer, testH2DataSource);
+        return new Rule_MatsGeneric(matsSerializer, testH2DataSource);
     }
 
     public TestH2DataSource getDataSource() {

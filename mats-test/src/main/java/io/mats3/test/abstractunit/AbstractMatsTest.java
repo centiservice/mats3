@@ -37,11 +37,11 @@ import io.mats3.util.MatsFuturizer;
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  * @author Kevin Mc Tiernan, 2020-10-18, kmctiernan@gmail.com
  */
-public abstract class AbstractMatsTest<Z> {
+public abstract class AbstractMatsTest {
 
     protected static final Logger log = LoggerFactory.getLogger(AbstractMatsTest.class);
 
-    protected MatsSerializer<Z> _matsSerializer;
+    protected MatsSerializer<?> _matsSerializer;
     protected DataSource _dataSource;
 
     protected MatsTestBroker _matsTestBroker;
@@ -54,11 +54,11 @@ public abstract class AbstractMatsTest<Z> {
     protected MatsFuturizer _matsFuturizer;
     protected MatsTestBrokerInterface _matsTestBrokerInterface;
 
-    protected AbstractMatsTest(MatsSerializer<Z> matsSerializer) {
+    protected AbstractMatsTest(MatsSerializer<?> matsSerializer) {
         _matsSerializer = matsSerializer;
     }
 
-    protected AbstractMatsTest(MatsSerializer<Z> matsSerializer, DataSource dataSource) {
+    protected AbstractMatsTest(MatsSerializer<?> matsSerializer, DataSource dataSource) {
         _matsSerializer = matsSerializer;
         _dataSource = dataSource;
     }
