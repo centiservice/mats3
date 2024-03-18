@@ -309,6 +309,12 @@ public class Test_NextDirect {
 
         // Sort received-list
         received_inits.sort(Comparator.naturalOrder());
+
+        log.info("Expected initiations:");
+        expected_inits.forEach(log::info);
+        log.info("Received initiations:");
+        received_inits.forEach(log::info);
+
         // Assert that we got all the initiations.
         Assert.assertEquals(expected_inits, received_inits);
     }

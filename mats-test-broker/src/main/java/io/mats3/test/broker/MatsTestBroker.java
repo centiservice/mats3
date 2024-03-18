@@ -9,8 +9,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import javax.jms.ConnectionFactory;
 
-import io.mats3.test.broker.messagecursor.Reflection_Hacked_StoreQueueCursor;
-import io.mats3.test.broker.messagecursor.Reflection_Hacked_StoreQueueCursor.Reflection_Hacked_StorePendingQueueMessageStoragePolicy;
 import org.apache.activemq.RedeliveryPolicy;
 import org.apache.activemq.artemis.api.core.QueueConfiguration;
 import org.apache.activemq.artemis.api.core.RoutingType;
@@ -33,6 +31,8 @@ import org.apache.activemq.store.kahadb.KahaDBPersistenceAdapter;
 import org.apache.activemq.store.kahadb.disk.journal.Journal.JournalDiskSyncStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.mats3.test.broker.messagecursor.Reflection_Hacked_StoreQueueCursor.Reflection_Hacked_StorePendingQueueMessageStoragePolicy;
 
 /**
  * A special utility class utilized in tests and Mats test infrastructure providing a ConnectionFactory for the test
@@ -107,10 +107,17 @@ public interface MatsTestBroker {
     String SYSPROP_MATS_TEST_BROKERURL_VALUE_LOCALHOST = "localhost";
 
     /**
-     * In test-setting, the default total delivery attempts is 2. For ActiveMQ, this means 1 delivery + 1 redelivery.
-     * For Artemis, it sets the maximumRedeliveries to 2.
+     * Currently, the Mats3 system per default employs "Mats Managed Dlq Diverts", and in test setting, this is set to 2
+     * in 'MatsTestFactory' since it doesn't make much sense to wait for exponential fallback of 7 redeliveries in a
+     * "test that this message DLQs"-setting.
+     * <p/>
+     * However, historically, this constant here was set to 2 to achieve the same effect (For ActiveMQ, this means 1
+     * delivery + 1 redelivery. For Artemis, it sets the maximumRedeliveries to 2) - but now, to test the Mats managed
+     * DLQ, we set this to a higher number (5) so that it is the MatsFactory that does DLQ divert. In the test
+     * 'Test_ThrowExceptionsInServiceShouldDlq', the count is checked (it expects 2, due to the test-config of the
+     * MatsFactory)
      */
-    int TEST_TOTAL_DELIVERY_ATTEMPTS = 2;
+    int TEST_TOTAL_DELIVERY_ATTEMPTS = 5;
 
     /**
      * In test-setting, the default redelivery delay is 250 ms.

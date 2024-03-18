@@ -1,6 +1,9 @@
 package io.mats3.impl.jms;
 
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
@@ -10,6 +13,7 @@ import javax.jms.DeliveryMode;
 import javax.jms.Destination;
 import javax.jms.JMSException;
 import javax.jms.MapMessage;
+import javax.jms.Message;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 
@@ -281,6 +285,22 @@ public interface JmsMatsStatics {
         }
         // E-> it is not special MatsObject
         return matsSerializer.deserializeObject(data, incomingMessageClass);
+    }
+
+    static void makeMessagePropertiesEditable(Message message) throws JMSException {
+        Map<String, Object> existingProperties = new HashMap<>();
+        @SuppressWarnings("unchecked")
+        Enumeration<String> propertyNames = message.getPropertyNames();
+        while (propertyNames.hasMoreElements()) {
+            String propertyName = propertyNames.nextElement();
+            existingProperties.put(propertyName, message.getObjectProperty(propertyName));
+        }
+        // .. and then clear the properties (to make them editable)
+        message.clearProperties();
+        // .. and then put them back on (now editable!)
+        for (Map.Entry<String, Object> entry : existingProperties.entrySet()) {
+            message.setObjectProperty(entry.getKey(), entry.getValue());
+        }
     }
 
     // 62 points in this alphabet

@@ -1,8 +1,14 @@
 package io.mats3.impl.jms;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Optional;
 
+import javax.jms.JMSException;
+import javax.jms.Message;
 import javax.jms.MessageConsumer;
+import javax.jms.MessageProducer;
+import javax.jms.Queue;
 import javax.jms.Session;
 
 import org.slf4j.Logger;
@@ -89,8 +95,8 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
             catch (MatsRefuseMessageException | JmsMatsOverflowRuntimeException e) {
                 /*
                  * Special exception allowed from the Mats API from the MatsStage lambda, denoting that one wants
-                 * immediate refusal of the message. (This is just a hint/wish, as e.g. the JMS specification does
-                 * not provide such a mechanism).
+                 * immediate refusal of the message. (This is just a hint/wish, as e.g. the JMS specification does not
+                 * provide such a mechanism).
                  */
                 String msg = LOG_PREFIX + "ROLLBACK JMS: Got a MatsRefuseMessageException while transacting "
                         + stageOrInit(_txContextKey) + " (most probably from the user code)."
@@ -103,17 +109,28 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 }
                 // Fetch the MessageConsumer used for this MatsStage, so that we can insta-DLQ.
                 Optional<MessageConsumer> messageConsumer = internalExecutionContext.getMessageConsumer();
-                // ?: Assert that it is present
-                if (!messageConsumer.isPresent()) {
-                    // -> It is not - and MatsRefuseMessageException is only declared to be thrown from stage process
+                // ?: Assert that consumer is present? (otherwise it is init)
+                if (messageConsumer.isEmpty()) {
+                    // -> It is not - and MatsRefuseMessageException is only declared to be thrown from stage process,
+                    // hence this must be in init, so this must be an absurd sneaky throws.
+                    // There's no incoming message in an initiation, so we can only rollback.
                     log.error(e.getClass().getName() + " was raised in a wrong context where no JMS MessageConsumer is"
                             + " present (i.e. initiation). This shall not be possible - 'sneaky throws' in play?.", e);
-                    rollback(jmsSession, e);
+                    // Perform normal rollback, as there is no incoming message to DLQ.
+                    rollbackViaStandardJms(jmsSession, e);
                 }
                 else {
                     // -> It is present - so give the job of insta-DLQ'ing to the BrokerSpecifics.
-                    JmsMatsMessageBrokerSpecifics.instaDlqWithRollbackLambda(messageConsumer.get(),
-                            () -> rollback(jmsSession, e));
+                    if (internalExecutionContext.getJmsMatsFactory()
+                            .isMatsManagedDlqDivertOnMatsRefuseException()) {
+                        // -> Yes, we want to do insta-DLQing ourselves.
+                        rollbackOrMatsHandledDlqDivert(internalExecutionContext, true, jmsSession, e);
+                    }
+                    else {
+                        // -> No, we do not want to do insta-DLQing ourselves - use the BrokerSpecifics.
+                        JmsMatsMessageBrokerSpecifics.instaDlqWithRollbackLambda(messageConsumer.get(),
+                                () -> rollbackViaStandardJms(jmsSession, e));
+                    }
                 }
                 // Rethrow
                 throw e;
@@ -136,7 +153,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                     log.error(msg, e);
                 }
 
-                rollback(jmsSession, e);
+                rollbackViaStandardJms(jmsSession, e);
                 // Throwing out, since the JMS Connection most probably is unstable.
                 throw e;
             }
@@ -153,6 +170,8 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 else {
                     log.error(msg, e);
                 }
+
+                rollbackOrMatsHandledDlqDivert(internalExecutionContext, false, jmsSession, e);
                 // Throw on, so that if this is in an initiate-call, it will percolate all the way out.
                 // (NOTE! Inside JmsMatsStageProcessor, RuntimeExceptions won't recreate the JMS Connection..)
                 throw e;
@@ -170,7 +189,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 else {
                     log.error(msg, t);
                 }
-                rollback(jmsSession, t);
+                rollbackOrMatsHandledDlqDivert(internalExecutionContext, false, jmsSession, t);
                 // Rethrow the Throwable as special RTE, which if Initiate will percolate all the way out.
                 throw new JmsMatsUndeclaredCheckedExceptionRaisedRuntimeException("Got a undeclared checked exception "
                         + t.getClass().getSimpleName() + " while transacting " + stageOrInit(_txContextKey) + ".", t);
@@ -245,7 +264,92 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
         }
     }
 
-    static void rollback(Session jmsSession, Throwable t) throws JmsMatsJmsException {
+    static void rollbackOrMatsHandledDlqDivert(JmsMatsInternalExecutionContext internalExecutionContext,
+            boolean instaDlq, Session jmsSession, Throwable t) throws JmsMatsJmsException {
+
+        JmsMatsFactory<?> jmsMatsFactory = internalExecutionContext.getJmsMatsFactory();
+
+        // Should we "manually" DLQ this message?
+        boolean manualDlqThisMessage = (instaDlq && jmsMatsFactory.isMatsManagedDlqDivertOnMatsRefuseException())
+                || (jmsMatsFactory.getNumberOfDeliveryAttemptsBeforeMatsManagedDlqDivert() > 0
+                        && (internalExecutionContext.getIncomingJmsMessageDeliveryCount() >= jmsMatsFactory
+                                .getNumberOfDeliveryAttemptsBeforeMatsManagedDlqDivert()));
+
+        // Note: 'manualDlqThisMessage' will always be false if in initiation, since DeliveryCount is 0.
+
+        if (manualDlqThisMessage && (internalExecutionContext.isMatsManagedDlqDivertStillEnabled())) {
+            log.info(LOG_PREFIX + "Manual DLQ decided due to: " + t.getClass().getSimpleName());
+            // :: Perform manual DLQ
+
+            // Fetch the JmsMatsStage in play (it shall be here)
+            Optional<JmsMatsStage<?, ?, ?, ?>> jmsMatsStageO = internalExecutionContext.getJmsMatsStage();
+            if (jmsMatsStageO.isEmpty()) {
+                throw new AssertionError("Got a MatsRefuseMessageException in a wrong context where no"
+                        + " JmsMatsStage is present (i.e. initiation). This shall very much not be possible.");
+            }
+            JmsMatsStage<?, ?, ?, ?> jmsMatsStage = jmsMatsStageO.get();
+
+            // Fetch original incoming message (it shall be here)
+            Optional<Message> incomingJmsMessageO = internalExecutionContext.getIncomingJmsMessage();
+            if (incomingJmsMessageO.isEmpty()) {
+                throw new AssertionError("Got a MatsRefuseMessageException in a wrong context where no"
+                        + " JMS Message is present (i.e. initiation). This shall very much not be possible.");
+            }
+            Message message = incomingJmsMessageO.get();
+
+            // :: Perform DLQ by sending to a resolved DLQ name
+            try {
+                JmsMatsStatics.makeMessagePropertiesEditable(message);
+
+                // :: Add interesting data points wrt. this DLQ divert
+
+                // Throwable: Convert the Throwable to string, and add it
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+                t.printStackTrace(pw);
+                message.setStringProperty("mats.exception", sw.toString());
+                // This was a Mats3 handled DLQ Divert
+                message.setBooleanProperty("mats.matsHandledDlqDivert", true);
+                // InstaDLQ?
+                message.setBooleanProperty("mats.instaDLQ", instaDlq);
+                // How many rounds have this message been through DLQing? (Re-issue from a monitor, new DLQ)
+                message.setIntProperty("mats.dlqCount", message.propertyExists("mats.dlqCount")
+                        ? message.getIntProperty("mats.dlqCount") + 1
+                        : 1);
+
+                // :: Send the message to the DLQ
+
+                // Create the DLQ by modifying the Stage's Id by configured Function.
+                String dlqName = jmsMatsFactory.getDestinationNameModifierForDlqs().apply(jmsMatsStage);
+                Queue dlqQueue = jmsSession.createQueue(dlqName);
+
+                // Send it
+                log.info(LOG_PREFIX + "Diverting message to DLQ [" + dlqName + "].");
+                MessageProducer messageProducer = internalExecutionContext.getJmsSessionHolder()
+                        .getDefaultNoDestinationMessageProducer();
+                messageProducer.send(dlqQueue, message);
+                // .. and Commit
+                jmsSession.commit();
+                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "JMS Session committed for DLQ Divert to" +
+                        " [" + dlqName + "].");
+                return;
+            }
+            catch (JMSException e) {
+                log.error(LOG_PREFIX + "Got JMSException when trying to 'manually' perform a DLQ divert." +
+                        " Fallthrough to ordinary JMS rollback.", e);
+                // Fallthrough to ordinary JMS rollback
+            }
+        }
+
+        // E-> No manual DLQ, so just rollback
+        // NOTE! May also fallthrough from above, if manual DLQ failed.
+
+        rollbackViaStandardJms(jmsSession, t);
+    }
+
+    static void rollbackViaStandardJms(Session jmsSession, Throwable t)
+            throws JmsMatsJmsException {
+        log.debug(LOG_PREFIX + "Performing normal JMS rollback.");
         try {
             jmsSession.rollback();
             // -> The JMS Session rolled nicely back.
@@ -256,7 +360,10 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
              * Could not roll back. This certainly indicates that we have some problem with the JMS Session, and we'll
              * throw it out so that we start a new JMS Session.
              *
-             * However, it is not that bad, as the JMS Message Broker probably will redeliver anyway.
+             * However, it is not that bad, as the JMS Message Broker probably will redeliver anyway. (This is not the
+             * "VERY BAD" scenario, as we here are already actively trying to rollback, which means that we never did
+             * the commit of the DB if this was in play. To be specific, the "VERY BAD" is when the "optimistic 2 phase
+             * commit" hits the fan: The DB commit goes through, then the JMS commit fails.)
              */
             throw new JmsMatsJmsException("When trying to rollback JMS Session due to a "
                     + t.getClass().getSimpleName() + ", we got some Exception."

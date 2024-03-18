@@ -6,24 +6,20 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import io.mats3.api_test.StateTO;
-import io.mats3.test.broker.MatsTestBroker;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.ActiveMQPrefetchPolicy;
-import org.apache.activemq.RedeliveryPolicy;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
-
-import io.mats3.MatsInitiator.MatsBackendException;
-import io.mats3.MatsInitiator.MatsMessageSendException;
-import io.mats3.test.MatsTestHelp;
-import io.mats3.test.junit.Rule_Mats;
 import org.slf4j.Logger;
 
-import javax.jms.ConnectionFactory;
+import io.mats3.MatsInitiator;
+import io.mats3.api_test.StateTO;
+import io.mats3.impl.jms.JmsMatsFactory;
+import io.mats3.test.MatsTestHelp;
+import io.mats3.test.junit.Rule_Mats;
 
 /**
  * Testing a failure scenario observed with ActiveMQ with connectionFactory.setNonBlockingRedelivery() and
@@ -46,127 +42,63 @@ public class ActiveMq_AMQ_8617_LotsOfDlqs {
         }
     }
 
-    /**
-     * These tests are only run if we're on ActiveMQ.
-     */
-    public static class ActiveMQSpecific extends ActiveMq_AMQ_8617_LotsOfDlqs {
-        @ClassRule
-        public static final Rule_Mats MATS = Rule_Mats.create();
+    @ClassRule
+    public static final Rule_Mats MATS = Rule_Mats.create();
 
-        @Before
-        public void cleanMatsFactories() {
-            MATS.cleanMatsFactories();
-        }
+    @Before
+    public void cleanMatsFactories() {
+        MATS.cleanMatsFactories();
+    }
 
-        private static final int TEST_SPECIFIC_TOTAL_REDELIVERY_ATTEMPTS = 3;
+    private static final int TEST_SPECIFIC_TOTAL_REDELIVERY_ATTEMPTS = 3;
 
-        @BeforeClass
-        public static void setActiveMqRedeliveries() {
-            if (!shouldRunActiveMqSpecifics(MATS.getJmsConnectionFactory())) {
-                return;
-            }
+    @BeforeClass
+    public static void setActiveMqRedeliveries() {
+        // NOTE: Check failure with e.g. ActiveMQ v5.16.6 - it'll throw a 'IllegalArgumentException: Illegal
+        // execution time' when trying to schedule the next redelivery on 'java.util.Timer.sched(..)'.
+        // It was fixed in 5.17.3+.
 
-            ActiveMQConnectionFactory amqConnectionFactory = (ActiveMQConnectionFactory) MATS.getJmsConnectionFactory();
+        // To trig the ActiveMQ-specific AMQ-8617 bug, we need multiple redeliveries.
+        // The total attempts must be >=3 for the bug to manifest.
+        ((JmsMatsFactory<?>) MATS.getMatsFactory().unwrapFully())
+                .setMatsManagedDlqDivert(TEST_SPECIFIC_TOTAL_REDELIVERY_ATTEMPTS);
 
-            // To trig the ActiveMQ-specific AMQ-8617 bug, we need multiple redeliveries.
-            int totalAttempts = 3; // Must be >=3.
-
-            // Check failure with e.g. ActiveMQ v5.16.6 - it'll throw a 'IllegalArgumentException: Illegal execution
-            // time' when trying to schedule the next redelivery on 'java.util.Timer.sched(..)'.
-            // It was fixed in 5.17.3+. Those are Java 11+, while Mats is (per 2023-07-16) Java 8.
-            RedeliveryPolicy redeliveryPolicy = amqConnectionFactory.getRedeliveryPolicy();
-            redeliveryPolicy.setMaximumRedeliveries(totalAttempts - 1); // Total = delivery + #redeliveries.
-
-            // Increase the prefetch to get the test to run faster. Does not compromise test integrity.
+        // ?: Is this ActiveMQ?
+        if (MATS.getJmsConnectionFactory() instanceof ActiveMQConnectionFactory) {
+            // -> Yes, so then increase prefetch to get the test to run faster. Does not compromise test integrity.
             // (All the 200 messages will then be "downloaded" right away, thus we only get a single set of
             // attempt+retries.)
+            ActiveMQConnectionFactory amqConnectionFactory = (ActiveMQConnectionFactory) MATS.getJmsConnectionFactory();
             ActiveMQPrefetchPolicy prefetchPolicy = amqConnectionFactory.getPrefetchPolicy();
             prefetchPolicy.setQueuePrefetch(500);
         }
-
-        @Test
-        public void bunchOfDlqs_amq8617() throws MatsBackendException, MatsMessageSendException, InterruptedException {
-            if (!shouldRunActiveMqSpecifics(MATS.getJmsConnectionFactory())) {
-                return;
-            }
-
-            /*
-             * Note: Wrt. asserting that all the messages are present. They should be expected to be in the order [0, 1,
-             * 2, 3, ..., 0, 1, 2, 3, ...] if things run smoothly.
-             *
-             * Note: The retry-delay is 250 ms. One could and should be inclined to think that we have a problem with
-             * timings here, whereby if we had a little spurious lag (like we do on Github Actions all the time), the
-             * first attempt might take more than 500 ms, and then we'd get interleaving of messages. HOWEVER, with
-             * ActiveMQ, evidently the messages for redelivery are put at the end of the client queue, so they won't be
-             * attempted delivered interleaved: The current prefetch-batch of messages must first be attempted
-             * delivered, before any of the redeliveries can be performed. This can be validated by adding a
-             * MatsTestUtil.takeNap(10) in the receive - which should have ensured that the redelivery-delay was
-             * overshot. They are still presented all the first attempt, then all the second attempt. If you however
-             * then increase the numMessages to something that exceeds prefetch, you will get the expected interleaving.
-             *
-             * HOWEVER, to avoid any async problems, we'll just sort it, so that we get [0, 0, 0, 1, 1, 1, 2, 2, 2, ..].
-             */
-
-            bunchOfDlqs(MATS, 200, TEST_SPECIFIC_TOTAL_REDELIVERY_ATTEMPTS);
-        }
-
-        @Test
-        public void interleavedDlqsAndDeliveries_amq8617() throws MatsBackendException,
-                MatsMessageSendException,
-                InterruptedException {
-            if (!shouldRunActiveMqSpecifics(MATS.getJmsConnectionFactory())) {
-                return;
-            }
-
-            interleavedDlqsAndDeliveries(MATS, 100, TEST_SPECIFIC_TOTAL_REDELIVERY_ATTEMPTS);
-        }
-
     }
 
-    /**
-     * These tests should run on all supported brokers.
-     */
-    public static class NotActiveMqSpecific extends ActiveMq_AMQ_8617_LotsOfDlqs {
-        @ClassRule
-        public static final Rule_Mats MATS = Rule_Mats.create();
-
-        @Before
-        public void cleanMatsFactories() {
-            MATS.cleanMatsFactories();
-        }
-
-        @Test
-        public void bunchOfDlqs_NonActiveMqSpecific() throws MatsBackendException, MatsMessageSendException,
-                InterruptedException {
-            // The default MatsTest setup is 2 attempts of delivery.
-            bunchOfDlqs(MATS, 50, MatsTestBroker.TEST_TOTAL_DELIVERY_ATTEMPTS);
-        }
-
-        @Test
-        public void interleavedDlqsAndDeliveries_NonActiveMqSpecific() throws MatsBackendException,
-                MatsMessageSendException,
-                InterruptedException {
-            // The default MatsTest setup is 2 attempts of delivery.
-            interleavedDlqsAndDeliveries(MATS, 20, MatsTestBroker.TEST_TOTAL_DELIVERY_ATTEMPTS);
-        }
-    }
-
-    private static boolean shouldRunActiveMqSpecifics(ConnectionFactory jmsConnectionFactory) {
-        if (!(jmsConnectionFactory instanceof ActiveMQConnectionFactory)) {
-            log.info("Test skipped, since ConnectionFactory isn't ActiveMQ.");
-            return false;
-        }
-        return true;
-    }
-
-    private static void bunchOfDlqs(Rule_Mats MATS, int numMessages, int totalAttempts) throws MatsBackendException,
-            MatsMessageSendException,
+    @Test
+    public void bunchOfDlqs_amq8617() throws MatsInitiator.MatsBackendException, MatsInitiator.MatsMessageSendException,
             InterruptedException {
+        /*
+         * Note: Wrt. asserting that all the messages are present. They should be expected to be in the order [0, 1, 2,
+         * 3, ..., 0, 1, 2, 3, ...] if things run smoothly.
+         *
+         * Note: The retry-delay is 250 ms. One could and should be inclined to think that we have a problem with
+         * timings here, whereby if we had a little spurious lag (like we do on Github Actions all the time), the first
+         * attempt might take more than 500 ms, and then we'd get interleaving of messages. HOWEVER, with ActiveMQ,
+         * evidently the messages for redelivery are put at the end of the client queue, so they won't be attempted
+         * delivered interleaved: The current prefetch-batch of messages must first be attempted delivered, before any
+         * of the redeliveries can be performed. This can be validated by adding a MatsTestUtil.takeNap(10) in the
+         * receive - which should have ensured that the redelivery-delay was overshot. They are still presented all the
+         * first attempt, then all the second attempt. If you however then increase the numMessages to something that
+         * exceeds prefetch, you will get the expected interleaving.
+         *
+         * HOWEVER, to avoid any async problems, we'll just sort it, so that we get [0, 0, 0, 1, 1, 1, 2, 2, 2, ..].
+         */
+
         // We want 1 for concurreny, so that one thread and thus one consumer must handle all messages.
         MATS.getMatsFactory().getFactoryConfig().setConcurrency(1);
 
         // Each message will be presented totalAttempts due to redelivery settings.
-        CountDownLatch countDownLatch = new CountDownLatch(numMessages * totalAttempts);
+        CountDownLatch countDownLatch = new CountDownLatch(200 * TEST_SPECIFIC_TOTAL_REDELIVERY_ATTEMPTS);
 
         // The messages
         CopyOnWriteArrayList<Integer> numbers = new CopyOnWriteArrayList<>();
@@ -183,7 +115,7 @@ public class ActiveMq_AMQ_8617_LotsOfDlqs {
         // :: ACT
 
         MATS.getMatsInitiator().initiate(init -> {
-            for (int i = 0; i < numMessages; i++) {
+            for (int i = 0; i < 200; i++) {
                 init.traceId(MatsTestHelp.traceId())
                         .from(MatsTestHelp.from("test"))
                         .to(ENDPOINT)
@@ -201,8 +133,8 @@ public class ActiveMq_AMQ_8617_LotsOfDlqs {
         numbers.sort(Comparator.naturalOrder());
 
         ArrayList<Integer> expected = new ArrayList<>();
-        for (int i = 0; i < numMessages; i++) {
-            for (int j = 0; j < totalAttempts; j++) {
+        for (int i = 0; i < 200; i++) {
+            for (int j = 0; j < TEST_SPECIFIC_TOTAL_REDELIVERY_ATTEMPTS; j++) {
                 expected.add(i);
             }
         }
@@ -210,17 +142,19 @@ public class ActiveMq_AMQ_8617_LotsOfDlqs {
         Assert.assertEquals(expected, numbers);
     }
 
-    public static void interleavedDlqsAndDeliveries(Rule_Mats MATS, int perGroup, int totalAttempts) throws MatsBackendException,
-            MatsMessageSendException, InterruptedException {
+    @Test
+    public void interleavedDlqsAndDeliveries_amq8617() throws MatsInitiator.MatsBackendException,
+            MatsInitiator.MatsMessageSendException,
+            InterruptedException {
         // We want 1 for concurreny, so that one thread and thus one consumer must handle all messages.
         MATS.getMatsFactory().getFactoryConfig().setConcurrency(1);
 
-        int numMessages = perGroup * 3; // There will be 3 types of deliveries
+        int numMessages = 100 * 3; // There will be 3 types of deliveries
 
         // Each DLQing message will be presented totalAttempts due to redelivery settings.
-        CountDownLatch ok_countDownLatch = new CountDownLatch(perGroup);
-        CountDownLatch redeliveryThenOk_countDownLatch = new CountDownLatch(perGroup * 2);
-        CountDownLatch dlq_countDownLatch = new CountDownLatch(perGroup * totalAttempts);
+        CountDownLatch ok_countDownLatch = new CountDownLatch(100);
+        CountDownLatch redeliveryThenOk_countDownLatch = new CountDownLatch(100 * 2);
+        CountDownLatch dlq_countDownLatch = new CountDownLatch(100 * TEST_SPECIFIC_TOTAL_REDELIVERY_ATTEMPTS);
 
         // The messages
         CopyOnWriteArrayList<Integer> ok_numbers = new CopyOnWriteArrayList<>();
@@ -315,7 +249,7 @@ public class ActiveMq_AMQ_8617_LotsOfDlqs {
             else {
                 // -> DLQed after 'totalAttempts'
                 // Add the number 'totalAttempts' times.
-                for (int j = 0; j < totalAttempts; j++) {
+                for (int j = 0; j < TEST_SPECIFIC_TOTAL_REDELIVERY_ATTEMPTS; j++) {
                     dlq_expected.add(i);
                 }
             }
