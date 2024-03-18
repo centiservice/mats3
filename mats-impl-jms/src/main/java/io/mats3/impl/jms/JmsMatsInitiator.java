@@ -127,14 +127,14 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                     .getCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing();
 
             JmsMatsInternalExecutionContext internalExecutionContext = withinStageContext
-                    .map(within -> JmsMatsInternalExecutionContext.forStage(
-                            jmsSessionHolder, within.getMessageConsumer()))
-                    .orElseGet(() -> JmsMatsInternalExecutionContext.forInitiation(jmsSessionHolder));
+                    .map(within -> JmsMatsInternalExecutionContext.forStage(_parentFactory,
+                            jmsSessionHolder, within.getCurrentStage(), within.getMessageConsumer()))
+                    .orElseGet(() -> JmsMatsInternalExecutionContext.forInitiation(_parentFactory, jmsSessionHolder));
 
             JmsMatsInitiate<Z> init = withinStageContext
                     .map(within -> JmsMatsInitiate.createForChildFlow(_parentFactory, messagesToSend,
                             internalExecutionContext, doAfterCommitRunnableHolder,
-                            within.getMatsTrace(), within.getCurrentStageId()))
+                            within.getMatsTrace(), within.getCurrentStage().getStageId()))
                     .orElseGet(() -> JmsMatsInitiate.createForTrueInitiation(_parentFactory, messagesToSend,
                             internalExecutionContext, doAfterCommitRunnableHolder, existingTraceId));
 

@@ -21,6 +21,23 @@ import io.mats3.test.broker.MatsTestBroker;
 public interface MatsTestFactory extends AutoCloseable, MatsFactory {
 
     /**
+     * The total number of attempted deliveries when in test-mode: 2. It does not make sense to redliver a bunch of
+     * times, with exponential fallback and whatnot, in test-scenarios. If you in a test want to check that a specific
+     * message DLQs, then it would suffice with 1 attempt. But to get a tad more realistic, we'll run with one
+     * extra attempt (which also suites the Mats3 own tests better, to actually ensure that the same message is
+     * redelivered).
+     */
+    int TEST_MAX_DELIVERY_ATTEMPTS = 2;
+
+    /**
+     * For most test scenarios, it really makes little meaning to have a concurrency of more than 1 - unless
+     * explicitly testing Mats' handling of concurrency. However, due to some testing scenarios might come to rely
+     * on such sequential processing, we set it to 2, to try to weed out such dependencies - hopefully tests will
+     * (at least occasionally) fail by two consumers each getting a message and thus processing them concurrently.
+     */
+    int TEST_CONCURRENCY = 2;
+
+    /**
      * No-args convenience to get a simple, {@link AutoCloseable}, JMS-tx only MatsFactory, backed by an in-vm broker
      * from gotten from default {@link MatsTestBroker#create()} and using {@link MatsSerializerJson}. When the returned
      * MatsFactory's close() method is invoked, the MatsTestBroker is also closed. (Note that the stop(graceful) method
@@ -81,16 +98,13 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
 
         }
 
+        // Reduce number of redeliveries
+        matsFactory.setMatsManagedDlqDivert(TEST_MAX_DELIVERY_ATTEMPTS);
+
         // Set name
         matsFactory.getFactoryConfig().setName(MatsTestFactory.class.getSimpleName() + "_MF");
 
-        /*
-         * For most test scenarios, it really makes little meaning to have a concurrency of more than 1 - unless
-         * explicitly testing Mats' handling of concurrency. However, due to some testing scenarios might come to rely
-         * on such sequential processing, we set it to 2, to try to weed out such dependencies - hopefully tests will
-         * (at least occasionally) fail by two consumers each getting a message and thus processing them concurrently.
-         */
-        matsFactory.getFactoryConfig().setConcurrency(2);
+        matsFactory.getFactoryConfig().setConcurrency(TEST_CONCURRENCY);
 
         return new MatsTestFactoryImpl(matsFactory, matsTestBroker);
     }

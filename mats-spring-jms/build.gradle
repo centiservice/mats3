@@ -15,6 +15,9 @@ dependencies {
     // The ScenarioConnectionFactoryProducer employs the MatsTestBroker if in testing
     // Don't want this in any production classpath, so bring your own to the testing classpath of your project.
     compileOnly project(":mats-test-broker")
+    // Need the two constants: MatsTestFactory.TEST_MAX_DELIVERY_ATTEMPTS and MatsTestFactory.TEST_CONCURRENCY.
+    // (When running in test, mats-test will probably always be present. Also, these are compiled constants.)
+    compileOnly project(":mats-test")
     // JMS API - since you must pull in a JMS Client, which thus provides the JMS API, we use compileOnly.
     compileOnly "$jmsApiDependency"
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.

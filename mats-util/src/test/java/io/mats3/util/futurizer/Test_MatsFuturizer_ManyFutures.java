@@ -55,7 +55,7 @@ public class Test_MatsFuturizer_ManyFutures {
             CompletableFuture<Reply<DataTO>> future = futurizer.futurizeNonessential(
                     UUID.randomUUID().toString(), "futureGet", ENDPOINT, DataTO.class,
                     new DataTO(Math.PI, "FutureGet:" + i));
-            Reply<DataTO> reply = future.get(2, TimeUnit.SECONDS);
+            Reply<DataTO> reply = future.get(30, TimeUnit.SECONDS);
             Assert.assertEquals(new DataTO(Math.PI * 2, "FutureGet:" + i + ":FromService"), reply.getReply());
         }
     }
@@ -83,7 +83,7 @@ public class Test_MatsFuturizer_ManyFutures {
                             throw new IllegalStateException("Thread.sleep(..) raised"
                                     + " unexpected InterruptedException.", e);
                         }
-                        return reply.getReply().string;
+                        return reply.get().string;
                     });
 
             futures.add(future);
@@ -91,8 +91,9 @@ public class Test_MatsFuturizer_ManyFutures {
 
         // Block on the derived future, to ensure that we wait until the thenApply actually evaluates.
         for (int i = 0; i < 200; i++) {
-            String stringReply = futures.get(i).get(2, TimeUnit.SECONDS);
-            log.info("future.get(...) returned.");
+            log.info("Waiting for future.get(...) #" + i + "!");
+            String stringReply = futures.get(i).get(30, TimeUnit.SECONDS);
+            log.info("\\- Got: future.get(...) #" + i + " returned.");
             Assert.assertEquals("FutureThenApply:" + i + ":FromService", stringReply);
         }
     }

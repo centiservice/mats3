@@ -4,7 +4,7 @@ import java.sql.Connection;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import javax.jms.MapMessage;
+import javax.jms.Message;
 import javax.jms.MessageConsumer;
 
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
@@ -18,36 +18,62 @@ import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
  */
 public class JmsMatsInternalExecutionContext {
 
+    private final JmsMatsFactory<?> _jmsMatsFactory;
+
     private final JmsSessionHolder _jmsSessionHolder;
+
+    // For initiation, the two below are null.
+
+    private final JmsMatsStage<?, ?, ?, ?> _jmsMatsStage;
+
     private final MessageConsumer _messageConsumer;
 
-    static JmsMatsInternalExecutionContext forStage(JmsSessionHolder jmsSessionHolder,
-            MessageConsumer messageConsumer) {
-        return new JmsMatsInternalExecutionContext(jmsSessionHolder, messageConsumer);
+    static JmsMatsInternalExecutionContext forStage(JmsMatsFactory<?> jmsMatsFactory,
+            JmsSessionHolder jmsSessionHolder, JmsMatsStage<?, ?, ?, ?> jmsMatsStage, MessageConsumer messageConsumer) {
+        return new JmsMatsInternalExecutionContext(jmsMatsFactory, jmsSessionHolder, jmsMatsStage, messageConsumer);
     }
 
-    static JmsMatsInternalExecutionContext forInitiation(JmsSessionHolder jmsSessionHolder) {
-        return new JmsMatsInternalExecutionContext(jmsSessionHolder, null);
+    static JmsMatsInternalExecutionContext forInitiation(JmsMatsFactory<?> jmsMatsFactory,
+            JmsSessionHolder jmsSessionHolder) {
+        return new JmsMatsInternalExecutionContext(jmsMatsFactory, jmsSessionHolder, null, null);
     }
 
-    private JmsMatsInternalExecutionContext(JmsSessionHolder jmsSessionHolder, MessageConsumer messageConsumer) {
+    private JmsMatsInternalExecutionContext(JmsMatsFactory<?> jmsMatsFactory,
+            JmsSessionHolder jmsSessionHolder, JmsMatsStage<?, ?, ?, ?> jmsMatsStage, MessageConsumer messageConsumer) {
+        _jmsMatsFactory = jmsMatsFactory;
         _jmsSessionHolder = jmsSessionHolder;
+        _jmsMatsStage = jmsMatsStage;
         _messageConsumer = messageConsumer;
     }
 
-    private MapMessage _incomingJmsMessage;
+    private Message _incomingJmsMessage;
     private int _incomingJmsMessageDeliveryCount;
 
     private Supplier<Connection> _sqlConnectionSupplier;
     private Supplier<Boolean> _sqlConnectionEmployedSupplier;
     private boolean _elideJmsCommit;
+
+    private boolean _matsManagedDlqDivertEnabled = true; // Enabled until disabled.
+
     // For transaction manager - if a user lambda throws, the "innermost" tx should log it, and then "outer" should not.
     private boolean _userLambdaExceptionLogged;
     private long _dbCommitNanos;
     private long _messageSystemCommitNanos;
 
+    public JmsMatsFactory<?> getJmsMatsFactory() {
+        return _jmsMatsFactory;
+    }
+
     public JmsSessionHolder getJmsSessionHolder() {
         return _jmsSessionHolder;
+    }
+
+    /**
+     * @return the {@link JmsMatsStage} in effect if this is within a {@link JmsMatsStageProcessor}, returns
+     *         Optional.empty() if this is within a {@link JmsMatsInitiator}.
+     */
+    public Optional<JmsMatsStage<?, ?, ?, ?>> getJmsMatsStage() {
+        return Optional.ofNullable(_jmsMatsStage);
     }
 
     /**
@@ -58,15 +84,24 @@ public class JmsMatsInternalExecutionContext {
         return Optional.ofNullable(_messageConsumer);
     }
 
-    void setIncomingJmsMessage(MapMessage incomingJmsMessage, int incomingJmsMessageDeliveryCount) {
+    void setStageIncomingJmsMessage(Message incomingJmsMessage, int incomingJmsMessageDeliveryCount) {
         _incomingJmsMessage = incomingJmsMessage;
         _incomingJmsMessageDeliveryCount = incomingJmsMessageDeliveryCount;
     }
 
-    Optional<MapMessage> getIncomingJmsMessage() {
+    /**
+     * @return the incoming JMS Message, if this is within a {@link JmsMatsStageProcessor}, returns Optional.empty() if
+     *         this is within a {@link JmsMatsInitiator}.
+     */
+    Optional<Message> getIncomingJmsMessage() {
         return Optional.ofNullable(_incomingJmsMessage);
     }
 
+    /**
+     * @return the incoming JMS Message's delivery count (which starts at 1), if this is within a
+     *         {@link JmsMatsStageProcessor}, returns 0 if this is within a {@link JmsMatsInitiator}, and return -1 if
+     *         this is the delivery count is not available.
+     */
     int getIncomingJmsMessageDeliveryCount() {
         return _incomingJmsMessageDeliveryCount;
     }
@@ -139,6 +174,27 @@ public class JmsMatsInternalExecutionContext {
      */
     boolean shouldElideJmsCommitForInitiation() {
         return _elideJmsCommit;
+    }
+
+    /**
+     * In a stage processing, when we reach the point where we're about to send the outgoing messages, we set this flag.
+     * This is used by the {@link JmsMatsTransactionManager} to determine whether to decide whether it can employ
+     * MatsManagedDlqDivert (if reached the max delivery count), or whether it should just rollback the JMS Session. (If
+     * 1 or more of the outgoing messages have been sent, then we cannot employ MatsManagedDlqDivert (which entails a
+     * "manual" sending of the incoming message to the DLQ, and then commit), as that would mean that at least some of
+     * the outgoing messages also would be committed along with the DLQing of the incoming message. (There's more
+     * information in the comments of JmsMatsStageProcessor.checkForTooManyDeliveriesAndDivertToDlq(..))
+     */
+    void disableMatsManagedDlqDivert() {
+        _matsManagedDlqDivertEnabled = false;
+    }
+
+    /**
+     * @return whether it is still possible to do MatsManagedDlqDivert during processing? (Disabled when starting to
+     * send JMS messages, as it after this point isn't possible to do Mats3-Managed DLQ Diverts).
+     */
+    boolean isMatsManagedDlqDivertStillEnabled() {
+        return _matsManagedDlqDivertEnabled;
     }
 
     public void setUserLambdaExceptionLogged() {

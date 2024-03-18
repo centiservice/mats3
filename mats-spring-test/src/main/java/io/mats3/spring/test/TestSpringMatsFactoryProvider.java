@@ -22,6 +22,7 @@ import io.mats3.impl.jms.JmsMatsTransactionManager_Jms;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.spring.jms.factories.SpringJmsMatsFactoryWrapper;
 import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx;
+import io.mats3.test.MatsTestFactory;
 import io.mats3.test.broker.MatsTestBroker;
 
 /**
@@ -54,7 +55,7 @@ public class TestSpringMatsFactoryProvider {
 
     /**
      * If you need a {@link MatsFactory} employing Spring's DataSourceTransactionManager (which you probably do in a
-     * Spring environment utilizing SQL), this is your factory method. If you need to make y
+     * Spring environment utilizing SQL), this is your factory method.
      * <p />
      * Usage: In the test, make a @Bean-annotated method which returns the result of this method - or employ the
      * convenience {@link MatsTestInfrastructureDbConfiguration}.
@@ -81,7 +82,7 @@ public class TestSpringMatsFactoryProvider {
 
     /**
      * Convenience variant of {@link #createSpringDataSourceTxTestMatsFactory(int, DataSource, MatsSerializer)} where
-     * concurrency is 1, which should be adequate for most testing - unless you explicitly want to test concurrency.
+     * concurrency is 2, which should be adequate for most testing - unless you explicitly want to test concurrency.
      *
      * @param sqlDataSource
      *            the SQL DataSource which to stash into a Spring {@link DataSourceTransactionManager}, and from which
@@ -94,7 +95,7 @@ public class TestSpringMatsFactoryProvider {
      */
     public static MatsFactory createSpringDataSourceTxTestMatsFactory(DataSource sqlDataSource,
             MatsSerializer<?> matsSerializer) {
-        return createSpringDataSourceTxTestMatsFactory(1, sqlDataSource, matsSerializer);
+        return createSpringDataSourceTxTestMatsFactory(MatsTestFactory.TEST_CONCURRENCY, sqlDataSource, matsSerializer);
     }
 
     /**
@@ -145,7 +146,8 @@ public class TestSpringMatsFactoryProvider {
      */
     public static MatsFactory createSpringDataSourceTxTestMatsFactory(
             PlatformTransactionManager platformTransactionManager, MatsSerializer<?> matsSerializer) {
-        return createSpringDataSourceTxTestMatsFactory(2, platformTransactionManager, matsSerializer);
+        return createSpringDataSourceTxTestMatsFactory(MatsTestFactory.TEST_CONCURRENCY, platformTransactionManager,
+                matsSerializer);
     }
 
     /**
@@ -183,7 +185,7 @@ public class TestSpringMatsFactoryProvider {
      * @return the produced {@link MatsFactory}
      */
     public static MatsFactory createJmsTxOnlyTestMatsFactory(MatsSerializer<?> matsSerializer) {
-        return createJmsTxOnlyTestMatsFactory(2, matsSerializer);
+        return createJmsTxOnlyTestMatsFactory(MatsTestFactory.TEST_CONCURRENCY, matsSerializer);
     }
 
     private static SpringJmsMatsFactoryWrapper getMatsFactoryStopLocalVmBrokerWrapper(int concurrency,
@@ -199,6 +201,13 @@ public class TestSpringMatsFactoryProvider {
         // The MatsFactory itself, supplying the JmsSessionHandler and MatsTransactionManager.
         JmsMatsFactory<?> matsFactory = JmsMatsFactory
                 .createMatsFactory(appName, "#testing#", sessionPooler, springSqlTxMgr, matsSerializer);
+
+        // Reduce number of redeliveries
+        matsFactory.setMatsManagedDlqDivert(MatsTestFactory.TEST_MAX_DELIVERY_ATTEMPTS);
+
+        // Set name
+        matsFactory.getFactoryConfig().setName(TestSpringMatsFactoryProvider.class.getSimpleName() + "_MF");
+
         // Set concurrency.
         matsFactory.getFactoryConfig().setConcurrency(concurrency);
 

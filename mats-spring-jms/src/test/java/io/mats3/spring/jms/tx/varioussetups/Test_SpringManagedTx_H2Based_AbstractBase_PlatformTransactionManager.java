@@ -14,6 +14,7 @@ import io.mats3.impl.jms.JmsMatsTransactionManager;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.spring.EnableMats;
 import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx;
+import io.mats3.test.MatsTestFactory;
 
 /**
  * Abstract test for Spring DB Transaction management, creating a MatsFactory using a PlatformTransactionManager,
@@ -40,6 +41,8 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase_PlatformTransact
                     "*testing*", sessionPool, txMgrSpring, matsSerializer);
             // For the MULTIPLE test scenario, it makes sense to test concurrency, so we go for 5.
             matsFactory.getFactoryConfig().setConcurrency(5);
+            // Set standard test max delivery attempts
+            matsFactory.setMatsManagedDlqDivert(MatsTestFactory.TEST_MAX_DELIVERY_ATTEMPTS);
             return matsFactory;
         }
     }

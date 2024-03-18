@@ -134,8 +134,6 @@ public class AppMain_MockAndTestingHarnesses {
         log.info("Creating MatsFactory");
         SpringJmsMatsFactoryWrapper matsFactory = SpringJmsMatsFactoryProducer.createJmsTxOnlyMatsFactory(
                 AppMain_MockAndTestingHarnesses.class.getSimpleName(), "#testing#", matsSerializer, connectionFactory);
-        // Configure for test-scenario: Enough with concurrency of 2
-        matsFactory.getFactoryConfig().setConcurrency(2);
         // Add the LocalInspect just to exercise it here in the tests.
         LocalStatsMatsInterceptor.install(matsFactory);
         return matsFactory;

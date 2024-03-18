@@ -162,10 +162,24 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
 
     // :: Configurable variables:
 
+    // From JmsMatsFactory "proprietary" config
+
+    // DLQ handling: Set to default 6. Note: 0 means "not using MatsManagedDlqDivert"
+    private int _numberOfDeliveryAttemptsBeforeMatsManagedDlqDivert = 0;
+
+    // MatsRefuseException handling by Mats: Set to default true.
+    private boolean _useMatsManagedDlqDivertOnMatsRefuseException = true;
+
+    // Where to DLQ: Set to default: Prefix original queue name with "DLQ.".
+    private Function<JmsMatsStage<?, ?, ?, ?>, String> _destinationNameModifierForDlqs = (jmsMatsStage) -> "DLQ."
+            + jmsMatsStage.getStageDestinationName();
+
+    // From API Config
+
     // Set to default, which is null.
     private Function<String, String> _initiateTraceIdModifier = null;
 
-    // Set to default, which is 0 (which means default logic; 2x numCpus)
+    // Set to default, which is 0 - which means default logic; min(10, numCpus x 2)
     private int _concurrency = 0;
     private int _interactiveConcurrency = 0;
 
@@ -208,6 +222,90 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
 
     // =========== End of fields
 
+    // =========== Implementation-specific config setters
+
+    /**
+     * Sets the number of delivery attempts before MatsFactory "manually" moves a message over to the DLQ. Zero means
+     * unlimited, i.e. that the broker must handle it. The default is <code>6</code>: If
+     * 'message.getIntProperty("JMSXDeliveryCount")' >= 6, then move to DLQ - using the
+     * {@link #setDestinationNameModifierForDlqs(Function)} to modify the destination name to the DLQ.
+     *
+     * @param numberOfDeliveryAttemptsBeforeDlq
+     *            the number of delivery attempts before MatsFactory "manually" moves a message over to the DLQ. Zero
+     *            means unlimited, i.e. that the broker will handle it.
+     */
+    public void setMatsManagedDlqDivert(int numberOfDeliveryAttemptsBeforeDlq) {
+        if (numberOfDeliveryAttemptsBeforeDlq < 0) {
+            throw new IllegalArgumentException("numberOfDeliveryAttemptsBeforeDlq must be >= 0,"
+                    + " was [" + numberOfDeliveryAttemptsBeforeDlq + "]");
+        }
+        if (numberOfDeliveryAttemptsBeforeDlq > 0) {
+            log.info("Enabling MatsManagedDlqDivert, with max delivery attempts to ["
+                    + numberOfDeliveryAttemptsBeforeDlq + "].");
+        }
+        else {
+            log.info("Disabling MatsManagedDlqDivert - letting the broker handle DLQing.");
+        }
+        _numberOfDeliveryAttemptsBeforeMatsManagedDlqDivert = numberOfDeliveryAttemptsBeforeDlq;
+    }
+
+    /**
+     * Sets whether to use Mats Controlled DLQ Routing for MatsRefuseException, i.e. that MatsFactory "manually" move a
+     * message over to the DLQ if the user lambda throws a MatsRefuseException. The default is <code>true</code>. The
+     * {@link #setDestinationNameModifierForDlqs(Function)} is used to modify the destination name to the DLQ.
+     */
+    public void setMatsManagedDlqDivertOnMatsRefuseException(
+            boolean useMatsManagedDlqDivertOnMatsRefuseException) {
+        _useMatsManagedDlqDivertOnMatsRefuseException = useMatsManagedDlqDivertOnMatsRefuseException;
+        if (useMatsManagedDlqDivertOnMatsRefuseException) {
+            log.info("Enabling MatsManagedDlqDivertOnMatsRefuseException.");
+        }
+        else {
+            log.info("Disabling MatsManagedDlqDivertOnMatsRefuseException.");
+        }
+    }
+
+    /**
+     * Sets the {@link Function} that is used to modify the destination name to the DLQ. The default is to prefix the
+     * original destination name with "DLQ.". The {@link Function} is invoked with the MatsStage in question, and should
+     * return the DLQ destination name. The method can return a constant to always use the same DLQ: It might be of
+     * interest to direct dead letters to the same address that is the default global DLQ for the broker in use; E.g.
+     * Apache ActiveMQ Classic has default global DLQ: "ActiveMQ.DLQ", and Apache ActiveMQ Artemis has "DLQ". However,
+     * this is very much not recommended - individual dead letter queues should be used for each MatsStage.
+     *
+     * @param destinationNameModifierForDlqs
+     *            the {@link Function} that is used to modify the destination name to the DLQ. The default is to prefix
+     *            the original destination name with "DLQ.".
+     */
+    public void setDestinationNameModifierForDlqs(
+            Function<JmsMatsStage<?, ?, ?, ?>, String> destinationNameModifierForDlqs) {
+        if (destinationNameModifierForDlqs == null) {
+            throw new NullPointerException("destinationNameModifierForDlqs");
+        }
+        log.info("Setting DestinationNameModifierForDlqs Function to [" + destinationNameModifierForDlqs + "].");
+        _destinationNameModifierForDlqs = destinationNameModifierForDlqs;
+    }
+
+    public void useSeparateQueueForInteractiveNonPersistent(boolean separate) {
+        /* no-op - not yet implemented */
+    }
+
+    // --- getters
+
+    int getNumberOfDeliveryAttemptsBeforeMatsManagedDlqDivert() {
+        return _numberOfDeliveryAttemptsBeforeMatsManagedDlqDivert;
+    }
+
+    boolean isMatsManagedDlqDivertOnMatsRefuseException() {
+        return _useMatsManagedDlqDivertOnMatsRefuseException;
+    }
+
+    Function<JmsMatsStage<?, ?, ?, ?>, String> getDestinationNameModifierForDlqs() {
+        return _destinationNameModifierForDlqs;
+    }
+
+    // =========== Implementation
+
     Function<String, String> getInitiateTraceIdModifier() {
         return _initiateTraceIdModifier;
     }
@@ -224,10 +322,6 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
                 log.warn(LOG_PREFIX + "Got problems installing '" + standardInterceptorClass.getSimpleName() + "'.", e);
             }
         }
-    }
-
-    public void useSeparateQueueForInteractiveNonPersistent(boolean separate) {
-        /* no-op - not yet implemented */
     }
 
     private static String getHostname_internal() {
@@ -511,18 +605,18 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         return endpoint;
     }
 
-    private ThreadLocal<Supplier<MatsInitiate>> __existingMatsInitiate = new ThreadLocal<>();
-    private ThreadLocal<NestingWithinStageProcessing<Z>> __nestingWithinStageProcessing = new ThreadLocal<>();
+    private final ThreadLocal<Supplier<MatsInitiate>> __existingMatsInitiate = new ThreadLocal<>();
+    private final ThreadLocal<NestingWithinStageProcessing<Z>> __nestingWithinStageProcessing = new ThreadLocal<>();
 
     static class NestingWithinStageProcessing<Z> {
         private final MatsTrace<Z> _matsTrace;
-        private final String _currentStageId;
+        private final JmsMatsStage<?, ?, ?, Z> _currentStage;
         private final MessageConsumer _messageConsumer;
 
-        public NestingWithinStageProcessing(MatsTrace<Z> matsTrace, String currentStageId,
+        public NestingWithinStageProcessing(MatsTrace<Z> matsTrace, JmsMatsStage<?, ?, ?, Z> currentStage,
                 MessageConsumer messageConsumer) {
             _matsTrace = matsTrace;
-            _currentStageId = currentStageId;
+            _currentStage = currentStage;
             _messageConsumer = messageConsumer;
         }
 
@@ -534,8 +628,8 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
             return _messageConsumer;
         }
 
-        public String getCurrentStageId() {
-            return _currentStageId;
+        public JmsMatsStage<?, ?, ?, Z> getCurrentStage() {
+            return _currentStage;
         }
     }
 
@@ -583,9 +677,10 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
      * "hoisting" of an initiation transactions into an existing transaction is orthogonal to whether the processing is
      * within a stage or "outside".
      */
-    void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(MatsTrace<Z> matsTrace, String currentStageId,
+    void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(MatsTrace<Z> matsTrace,
+            JmsMatsStage<?, ?, ?, Z> currentStage,
             MessageConsumer messageConsumer) {
-        __nestingWithinStageProcessing.set(new NestingWithinStageProcessing<>(matsTrace, currentStageId,
+        __nestingWithinStageProcessing.set(new NestingWithinStageProcessing<>(matsTrace, currentStage,
                 messageConsumer));
     }
 
@@ -722,7 +817,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         synchronized (_stateLockObject) {
             Optional<MatsEndpoint<?, ?>> existingEndpoint = getEndpoint(endpointToRemove.getEndpointConfig()
                     .getEndpointId());
-            if (!existingEndpoint.isPresent()) {
+            if (existingEndpoint.isEmpty()) {
                 throw new IllegalStateException("When trying to remove the endpoint [" + endpointToRemove + "], it was"
                         + " not present in the MatsFactory! EndpointId:[" + endpointToRemove.getEndpointId() + "]");
             }

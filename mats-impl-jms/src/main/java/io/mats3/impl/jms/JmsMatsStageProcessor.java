@@ -20,6 +20,7 @@ import javax.jms.JMSException;
 import javax.jms.MapMessage;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
+import javax.jms.MessageProducer;
 import javax.jms.Session;
 
 import org.slf4j.Logger;
@@ -30,7 +31,6 @@ import io.mats3.MatsEndpoint.DetachedProcessContext;
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsEndpoint.ProcessLambda;
-import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsInitiator.InitiateLambda;
 import io.mats3.MatsInitiator.MatsBackendException;
 import io.mats3.MatsInitiator.MatsMessageSendException;
@@ -67,8 +67,8 @@ import io.mats3.serial.MatsTrace.Call.MessagingModel;
 import io.mats3.serial.MatsTrace.StackState;
 
 /**
- * MessageConsumer-class for the {@link JmsMatsStage} which is instantiated {@link StageConfig#getConcurrency()} number
- * of times, carrying the run-thread.
+ * MessageConsumer-class for the {@link io.mats3.impl.jms.JmsMatsStage} which is instantiated
+ * {@link StageConfig#getConcurrency()} number of times, carrying the run-thread.
  * <p>
  * Package access so that it can be referred to from JavaDoc.
  *
@@ -284,7 +284,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 try {
                     newJmsSessionHolder = _jmsMatsStage.getParentFactory()
                             .getJmsMatsJmsSessionHandler().getSessionHolder(this);
-                    // This went OK, so we'll reset the chillWait counter.
+                    // Getting a JmsSessionHolder went OK, so we'll reset the chillWait counter.
                     _waitsWithoutResets = 0;
                 }
                 catch (JmsMatsJmsException | RuntimeException t) {
@@ -316,7 +316,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             }
             try { // catch-all-Throwable, as we do not ever want the thread to die - and handles jmsSession.crashed()
                 Session jmsSession = _jmsSessionHolder.getSession();
-                Destination destination = createJmsDestination(jmsSession, getFactory().getFactoryConfig());
+                Destination destination = createJmsDestination(jmsSession);
                 MessageConsumer jmsConsumer;
                 switch (_priorityFilter) {
                     case STANDARD_ONLY:
@@ -347,12 +347,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     _jmsSessionHolder.isSessionOk();
                     // :: GET NEW MESSAGE!! THIS IS THE MESSAGE PUMP!
                     // Using array so that we can null it out after fetching data from it, hoping to help GC.
-                    Message[] messageA = new Message[1];
+                    Message message;
                     try {
                         if (log.isDebugEnabled()) log.debug(LOG_PREFIX
                                 + "Going into JMS consumer.receive() for [" + destination + "].");
                         _processorInReceive = true;
-                        messageA[0] = jmsConsumer.receive();
+                        message = jmsConsumer.receive();
                     }
                     finally {
                         _processorInReceive = false;
@@ -362,7 +362,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                     // Need to check whether the JMS Message gotten is null, as that signals that the
                     // Consumer, Session or Connection was closed from another thread.
-                    if (messageA[0] == null) {
+                    if (message == null) {
                         // ?: Are we shut down?
                         if (!_runFlag) {
                             // -> Yes, down
@@ -385,18 +385,21 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     // Fetch JMS Delivery Count, for interceptor context. This starts at 1 for first delivery.
                     int jmsxDeliveryCount_x = -1;
                     try {
-                        // Fetch the JMS DeliveryCount -
-                        jmsxDeliveryCount_x = messageA[0].getIntProperty("JMSXDeliveryCount");
+                        // Fetch the JMS DeliveryCount - this prop is mandatory for JMS 2, but try-catch just in case.
+                        jmsxDeliveryCount_x = message.getIntProperty("JMSXDeliveryCount");
                     }
                     catch (JMSException e) {
                         /* no-op */
                     }
-                    int jmsxDeliveryCount = jmsxDeliveryCount_x;
+                    final int jmsxDeliveryCount = jmsxDeliveryCount_x;
 
                     // :: Perform the work inside the TransactionContext
                     DoAfterCommitRunnableHolder doAfterCommitRunnableHolder = new DoAfterCommitRunnableHolder();
                     JmsMatsInternalExecutionContext internalExecutionContext = JmsMatsInternalExecutionContext
-                            .forStage(_jmsSessionHolder, jmsConsumer);
+                            .forStage(_jmsMatsStage.getParentFactory(), _jmsSessionHolder, _jmsMatsStage, jmsConsumer);
+
+                    // Set the message and delivery count on the JmsMatsInternalExecutionContext
+                    internalExecutionContext.setStageIncomingJmsMessage(message, jmsxDeliveryCount);
 
                     // The messages produced in a stage - will be reused (cleared) if nextDirect is invoked by stage
                     List<JmsMatsMessage<Z>> stageMessagesProduced = new ArrayList<>();
@@ -425,9 +428,22 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                         // :: Going into Mats Transaction
                         _transactionContext.doTransaction(internalExecutionContext, () -> {
 
+                            // --------------------------------------------------------------------------------
+                            // :: EVALUATE whether we should "manual-DLQ" due to too many deliveries.
+                            // --------------------------------------------------------------------------------
+
+                            boolean messageIsDlqed = checkForTooManyDeliveriesAndDivertToDlq(message, jmsxDeliveryCount,
+                                    jmsSession);
+                            if (messageIsDlqed) {
+                                return;
+                            }
+
+                            // --------------------------------------------------------------------------------
                             // :: PREPROCESS!! (Pick apart JMS Message, decompress and deserialize MatsTrace)
+                            // --------------------------------------------------------------------------------
+
                             PreprocessAndDeserializeData<S, Z> data = preprocessAndDeserializeData(getFactory(),
-                                    _jmsMatsStage, jmsxDeliveryCount, nanos_Received[0], instant_Received[0], messageA);
+                                    _jmsMatsStage, jmsxDeliveryCount, nanos_Received[0], instant_Received[0], message);
 
                             // Update the MatsTrace with stage-incoming timestamp - handles the "endpoint entered" logic
                             data.matsTrace.setStageEnteredTimestamp(instant_Received[0].toEpochMilli());
@@ -461,7 +477,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 // This is relevant both if within current transaction demarcation, but also if explicit
                                 // going outside when using non-default initiator: matsFactory.getOrCreateInitiator.
                                 getFactory().setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(
-                                        data.matsTrace, currentStageId, jmsConsumer);
+                                        data.matsTrace, currentStage, jmsConsumer);
 
                                 // :: Create contexts, invoke interceptors
                                 // ==========================================================
@@ -470,7 +486,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 JmsMatsProcessContext<R, S, Z> processContext_l = JmsMatsProcessContext.create(
                                         getFactory(),
                                         currentStage.getParentEndpoint().getEndpointId(),
-                                        currentStage.getStageId(),
+                                        currentStageId,
                                         data.jmsMessageId,
                                         currentStage.getNextStageId(),
                                         currentStage.getStageConfig().getOrigin(),
@@ -486,7 +502,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                         internalExecutionContext,
                                         doAfterCommitRunnableHolder);
                                 if (nextDirectInvoked) {
-                                    processContext_l.overrideForNextDirect(getFactory().getFactoryConfig().getAppName(),
+                                    processContext_l.override_FromProps_ForNextDirect(
+                                            getFactory().getFactoryConfig().getAppName(),
                                             getFactory().getFactoryConfig().getAppVersion(),
                                             previousStage.getStageId(),
                                             instant_Received[0]);
@@ -530,7 +547,9 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 ProcessLambda<Object, Object, Object> currentLambda = invokeWrapUserLambdaInterceptors(
                                         currentStage, interceptorsForStage[0], stageCommonContext[0]);
 
+                                // ==============================================
                                 // == Invoke the UserLambda, possibly wrapped.
+                                // ==============================================
                                 long nanosAtStart_UserLambda = System.nanoTime();
                                 try {
                                     currentLambda.process(processContextCasted, incomingAndOutgoingSto, incomingDto);
@@ -590,7 +609,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                 }
                             } while (nextDirectInvoked);
 
-                            // Reset name if NEXT_DIRECT has changed it.
+                            // Reset ThreadName if NEXT_DIRECT has changed it.
                             Thread.currentThread().setName(threadName);
 
                             // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -614,6 +633,15 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             if (!allMessagesToSend.isEmpty()) {
                                 // -> Yes, there are messages, so send them.
                                 // (commit is performed when it exits the transaction lambda)
+
+                                /*
+                                 * Mark that we've reached the point where we're sending the outgoing messages. If
+                                 * sending fails, we cannot from now on use MatsManagedDlqDivert, as we'd then risk both
+                                 * sending the incoming message to the DLQ, but in the same transaction also send the
+                                 * outgoing messages to their targeted queues/topics. (Must use ordinary rollback in
+                                 * that case, and instead handle DLQ'ing at top of next redelivery).
+                                 */
+                                internalExecutionContext.disableMatsManagedDlqDivert();
 
                                 long nanosAtStart_totalEnvelopeSerialization = System.nanoTime();
                                 for (JmsMatsMessage<Z> matsMessage : allMessagesToSend) {
@@ -714,7 +742,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     // interceptor, but then still throw them on to "crash" the JMS Session and get a new.
                     catch (Error e) {
                         // NOTE: It is really not known whether this is USER or SYSTEM. We'll tag them as SYSTEM, as
-                        // they are not "expected" to come out of user code.
+                        // they are not "expected" to come out of user code, and one can argue that OOME is "system"!
                         throwableResult = e;
                         throwableStageProcessResult = StageProcessResult.SYSTEM_EXCEPTION;
                         // .. We throw this on to the outer catch, to "crash" the JMS Session.
@@ -828,15 +856,15 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             }
         } // END: OUTER RUN-LOOP
 
-        // If we exited out while processing, just clean up so that the exit line does not look like it came from msg.
+        // MDC: If we exited out while processing, clean up so that the exit line doesn't look like it came from msg.
         clearAndSetStaticMdcValues();
         // :: log "exit line".
         // ?: Should we close the current JMS SessionHolder?
         if (nullFromReceiveThusSessionIsClosed) {
             // -> No, the JMS SessionHolder has been closed from the outside (since we got 'null' from the receive),
             // so DO NOT do it here, thus avoiding loglines about double closes.
-            log.info(LOG_PREFIX + ident() + " asked to exit, and that we do! NOT closing current JmsSessionHolder,"
-                    + " as that was done from the outside.");
+            log.info(LOG_PREFIX + ident() + " asked to exit (by receive()==null), and that we do! NOT closing current"
+                    + " JmsSessionHolder, as that was done from the outside.");
         }
         else {
             // -> Yes, evidently NOT closed from the outside, so DO it here (if double-close, the holder will catch it)
@@ -845,6 +873,108 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             closeCurrentSessionHolder();
         }
         _jmsMatsStage.removeStageProcessorFromList(this);
+    }
+
+    private boolean checkForTooManyDeliveriesAndDivertToDlq(Message message, int jmsxDeliveryCount, Session jmsSession)
+            throws JmsMatsJmsException {
+
+        // TODO: Rewrite this, as we are now doing DLQ both directly after receive, and after processing.
+
+        /*
+         * So, there's a question here: We could first do the actual processing of the stage, and if that fails (for the
+         * n'th time, i.e. DeliveryCount is too high), then send the incomoing message onto the DLQ - and then *commit*
+         * the JMS Session (that is, we won't rollback, but actually consume and "divert" the message to DLQ using a
+         * plain send, and then commit).
+         *
+         * However, this solution leads to a problem: If the processing results in multiple outgoing messages (which is
+         * not a too uncommon situation), we could get an exception while sending message #2 (say e.g. it was too large,
+         * or something like that). If we then were at the last redelivery attempt, we must now divert the incoming
+         * message to DLQ. In a broker-handled setup, you'd rollback the JMS Session, and thus "not-receive" the
+         * incoming message, and, crucially, also "not-send" the already sent first outgoing message - and if the broker
+         * found that this was the too-many'th delivery attempt, it would put the incoming message on the DLQ instead of
+         * redelivering it yet again. However, in this "manual DLQing" solution, the DLQing is implemented as a send of
+         * incoming message to DLQ, and then commit. However, since we then have already also sent the first outgoing
+         * message, we are now in a "half-processed" state, where the incoming message has been put on DLQ (correct),
+         * but the first outgoing message is also sent to its target queue (incorrect) and will thus be processed by
+         * downstream endpoints - when the goal was actually to stop the Mats Flow by DLQing the incoming message.
+         *
+         * Therefore, we'll do the DLQing when receiving the message, which might be a bit counter-intuitive, but it is
+         * the only way to ensure that we don't get "partial" processing of the incoming message. That is, we leverage
+         * that any failure and subsequent rollback in the processing of delivery attempt N will lead to a redelivery
+         * attempt N+1, and thus we'll get the message again, and *then* we'll DLQ before even starting to process it.
+         */
+
+        /*
+         * [ChatGPT-rewritten variant of the above explanation, maybe you find this better!]
+         *
+         * In our JMS message processing scenario, there's a critical decision point: should we first process the
+         * message and then, if it fails on the n'th attempt (due to high DeliveryCount), send it to the DLQ, committing
+         * the JMS Session? This approach means we consume and 'divert' the failed message to the DLQ with a regular
+         * send operation, followed by a session commit.
+         *
+         * However, this method can lead to complications when processing involves multiple outgoing messages. Imagine
+         * an error occurs while sending the second of these messages, perhaps due to its size. On the last redelivery
+         * attempt, we would need to divert the incoming message to the DLQ. In a standard broker-handled setup, you'd
+         * roll back the JMS Session to effectively 'unreceive' the incoming message and 'unsend' any outgoing messages
+         * already dispatched. The broker would then place the incoming message on the DLQ if it was the final delivery
+         * attempt. In contrast, our manual DLQing approach involves sending the incoming message to the DLQ and then
+         * committing. This process unfortunately leaves us in a half-processed state where the incoming message is
+         * correctly on the DLQ, but the first outgoing message has already been sent to its destination, triggering
+         * unintended downstream further processing of the Mats flow.
+         *
+         * To avoid this partial processing dilemma, we choose to perform DLQing right upon receiving the message. While
+         * it may seem counter-intuitive, this preemptive DLQing ensures complete processing integrity. If a processing
+         * failure occurs, leading to a session rollback, the message will be redelivered. On this next delivery, if the
+         * DeliveryCount is excessively high, the message is immediately diverted to the DLQ, preventing any processing.
+         * This approach guarantees that a message is either fully processed or entirely diverted to the DLQ in the
+         * event of repeated failures, maintaining the consistency of the processing flow.
+         */
+
+        // ?: Are we using MatsManagedDlqDivert?
+        if (getFactory().getNumberOfDeliveryAttemptsBeforeMatsManagedDlqDivert() == 0) {
+            // -> No, we're not using MatsManagedDlqDivert, so continue processing of this message.
+            return false;
+        }
+        // E-> Yes, we are using MatsManagedDlqDivert.
+
+        // ?: Is the DeliveryCount too high? (NOTICE USE OF effective '>' HERE, WHILE '>=' AFTER PROCESSING!)
+        if (jmsxDeliveryCount <= getFactory().getNumberOfDeliveryAttemptsBeforeMatsManagedDlqDivert()) {
+            // -> No, DeliveryCount is not too high, so continue processing of this message.
+            return false;
+        }
+
+        // E-> Yes, DeliveryCount is too high, so divert to DLQ.
+
+        // :: Fetch TraceId and JMSMessageId for MDC
+        try {
+            String jmsMessageId = message.getJMSMessageID();
+            MDC.put(MDC_MATS_IN_MESSAGE_SYSTEM_ID, jmsMessageId);
+            // Fetching the TraceId early from the JMS Message for MDC, so that can follow in logs.
+            String traceId = message.getStringProperty(JMS_MSG_PROP_TRACE_ID);
+            MDC.put(MDC_TRACE_ID, traceId);
+        }
+        catch (JMSException e) {
+            throw new JmsMessageReadFailure_JmsMatsJmsException("Got JMSException when doing"
+                    + " msg.getJMSMessageID() or msg.getStringProperty('traceId').", e);
+        }
+
+        String dlqName = JmsMatsStatics.convertToDlqName(log, getFactory(), _jmsMatsStage);
+
+        log.warn(LOG_PREFIX + "Upon reception, DeliveryCount [" + jmsxDeliveryCount + "] is higher"
+                + " than MatsManagedDlqDivert [" + getFactory()
+                        .getNumberOfDeliveryAttemptsBeforeMatsManagedDlqDivert()
+                + "], so diverting incoming message to DLQ [" + dlqName + "].");
+        // :: Divert to DLQ
+        MessageProducer messageProducer = _jmsSessionHolder.getDefaultNoDestinationMessageProducer();
+        try {
+            JmsMatsStatics.sendDlq(log, jmsSession, messageProducer, message, dlqName, false, null);
+            // We've handled this message by diverting it to DLQ, so stop processing it, and fetch next message.
+            return true;
+        }
+        catch (JMSException e) {
+            throw new JmsMatsJmsException("Got JMSException when diverting incoming message to DLQ ["
+                    + dlqName + "].", e);
+        }
     }
 
     private int _waitsWithoutResets;
@@ -889,21 +1019,21 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
     private static <R, S, Z> PreprocessAndDeserializeData<S, Z> preprocessAndDeserializeData(
             JmsMatsFactory<Z> matsFactory, JmsMatsStage<R, S, ?, Z> jmsMatsStage,
-            int deliveryCount, long startedNanos, Instant startedInstant, Message[] messageA)
+            int deliveryCount, long startedNanos, Instant startedInstant, Message message)
             throws JmsMessageProblem_RefuseMessageException, JmsMessageReadFailure_JmsMatsJmsException {
 
         long nanosAtStart_DeconstructMessage = System.nanoTime();
 
         String jmsMessageId;
-        String traceId = null;
+        String traceId;
         try {
             // Setting this in the JMS Mats implementation instead of MatsMetricsLoggingInterceptor,
             // so that if things fail before getting to the actual Mats part, we'll have it in
             // the log lines.
-            jmsMessageId = messageA[0].getJMSMessageID();
+            jmsMessageId = message.getJMSMessageID();
             MDC.put(MDC_MATS_IN_MESSAGE_SYSTEM_ID, jmsMessageId);
             // Fetching the TraceId early from the JMS Message for MDC, so that can follow in logs.
-            traceId = messageA[0].getStringProperty(JMS_MSG_PROP_TRACE_ID);
+            traceId = message.getStringProperty(JMS_MSG_PROP_TRACE_ID);
             MDC.put(MDC_TRACE_ID, traceId);
         }
         catch (JMSException e) {
@@ -916,7 +1046,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         // Assert that this is indeed a JMS MapMessage.
-        if (!(messageA[0] instanceof MapMessage)) {
+        if (!(message instanceof MapMessage)) {
             String reason = "Got some JMS Message that is not instanceof JMS MapMessage"
                     + " - cannot be a Mats message! Refusing this message!";
             JmsMessageProblem_RefuseMessageException up = new JmsMessageProblem_RefuseMessageException(reason);
@@ -928,7 +1058,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
         // ----- This is a MapMessage
         // Using array so that we can null it out after fetching data from it, hoping to help GC.
-        MapMessage[] mapMessageA = { (MapMessage) messageA[0] };
+        MapMessage mapMessage = (MapMessage) message;
 
         // :: Fetch Mats-specific message data from the JMS Message.
         // ==========================================================
@@ -939,8 +1069,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         byte[] matsTraceBytes;
         String matsTraceMeta;
         try {
-            matsTraceBytes = mapMessageA[0].getBytes(matsTraceKey);
-            matsTraceMeta = mapMessageA[0].getString(matsTraceMetaKey);
+            matsTraceBytes = mapMessage.getBytes(matsTraceKey);
+            matsTraceMeta = mapMessage.getString(matsTraceMetaKey);
 
             // :: Assert that we got some values
             if ((matsTraceBytes == null) || (matsTraceMeta == null)) {
@@ -969,7 +1099,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         LinkedHashMap<String, String> incomingStrings = new LinkedHashMap<>();
         try {
             @SuppressWarnings("unchecked")
-            Enumeration<String> mapNames = (Enumeration<String>) mapMessageA[0].getMapNames();
+            Enumeration<String> mapNames = (Enumeration<String>) mapMessage.getMapNames();
             while (mapNames.hasMoreElements()) {
                 String name = mapNames.nextElement();
                 // ?: Is this the MatsTrace itself?
@@ -977,7 +1107,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     // Yes, this is the MatsTrace: Do not expose this as binary or string sideload.
                     continue;
                 }
-                Object object = mapMessageA[0].getObject(name);
+                Object object = mapMessage.getObject(name);
                 if (object instanceof byte[]) {
                     incomingBinaries.put(name, (byte[]) object);
                 }
@@ -1003,9 +1133,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
 
         // ----- We don't need the JMS Message anymore, we've gotten all required info from it.
-        // Null it out before starting deserialization, hopefully helping GC
-        messageA[0] = null;
-        mapMessageA[0] = null;
+        // Ideally, we should ditch the reference to it, so that GC can collect it. I used to do this by using an
+        // array referencing the JMS Message, and then nulling out the position 0, in a hope that this would help
+        // GC. However, from 2023-12-12, I decided to handle DLQ and insta-DLQ "manually" by putting the JMS Message
+        // directly onto a DLQ-prefixed queue, instead of relying on the broker to do it after a certain number of
+        // redeliveries. This means that we need to keep the reference to the JMS Message for when we want to DLQ it.
+        // This sits in the 'JmsMatsInternalExecutionContext'.
 
         long nanosTaken_DeconstructMessage = System.nanoTime() - nanosAtStart_DeconstructMessage;
 
@@ -1439,9 +1572,9 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         }
     }
 
-    private Destination createJmsDestination(Session jmsSession, FactoryConfig factoryConfig) throws JMSException {
+    private Destination createJmsDestination(Session jmsSession) throws JMSException {
         Destination destination;
-        String destinationName = factoryConfig.getMatsDestinationPrefix() + _jmsMatsStage.getStageId();
+        String destinationName = _jmsMatsStage.getStageDestinationName();
         if (_jmsMatsStage.isQueue()) {
             destination = jmsSession.createQueue(destinationName);
         }

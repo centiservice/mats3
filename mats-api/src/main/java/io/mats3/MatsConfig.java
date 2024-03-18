@@ -22,10 +22,14 @@ public interface MatsConfig {
      * <p />
      * If default logic is in effect (i.e. have not been set by {@link #setConcurrency(int)}, or that is set to 0), a
      * {@link MatsStage} will default to its {@link MatsEndpoint}, while an endpoint will default to the
-     * {@link MatsFactory}. The default for the {@link MatsFactory} is <b>minimum of 10 and number_of_cpus x 2</b>. The
-     * 'number_of_cpus' is defined by {@link FactoryConfig#getNumberOfCpus() getNumberOfCpus()}, which by default is the
-     * number of processors on the server it is running on, as determined by {@link Runtime#availableProcessors()} (but
-     * this default can be changed by setting the System Property "mats.cpus").
+     * {@link MatsFactory}. The default for the {@link MatsFactory} is the <b>minimum</b> of <code>[10, number_of_cpus x
+     * 2]</code>. The 'number_of_cpus' is defined by {@link FactoryConfig#getNumberOfCpus() getNumberOfCpus()}, which by
+     * default is the number of processors on the server it is running on, as determined by
+     * {@link Runtime#availableProcessors()} (but this default can be changed by setting the System Property
+     * "mats.cpus"). The reason for using this <i>minimum</i>-logic for default concurrency is that if you start up a
+     * Mats Factory on a server with 32 CPUs, you would probably not want 64 threads x 2 (because of the separate
+     * interactive thread count) consuming from each and every stage (i.e. 128 threads per stage), which would be quite
+     * excessive.
      *
      * @return the concurrency set up for this factory, or endpoint, or process stage. Will provide the default unless
      *         overridden by {@link #setConcurrency(int)} before start.
@@ -42,7 +46,7 @@ public interface MatsConfig {
      * <p />
      * Will only have effect before the {@link MatsStage} is started. Can be reset by stopping, setting, and restarting.
      * <p />
-     * Setting to 0 will invoke default logic.
+     * Setting to 0 will invoke default logic - read about that in {@link #getConcurrency()}.
      *
      * @param concurrency
      *            the concurrency for the Factory, or Endpoint, or Stage. If set to 0, default-logic is in effect.
@@ -85,6 +89,8 @@ public interface MatsConfig {
     /**
      * Like {@link #setConcurrency(int)}, but changes the "interactive concurrency" specifically - this is relevant for
      * the Mats Flows that are initiated with the {@link MatsInitiate#interactive() interactive} flag set.
+     * <p />
+     * Setting to 0 will invoke default logic - which is to use the {@link #getConcurrency() normal concurrency}.
      *
      * @param concurrency
      *            the interactive concurrency for the Factory, or Endpoint, or Stage. If set to 0, default-logic is in

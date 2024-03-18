@@ -88,6 +88,10 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         return _stageId;
     }
 
+    public String getStageDestinationName() {
+        return _parentFactory.getFactoryConfig().getMatsDestinationPrefix() + getStageId();
+    }
+
     private String _nextStageId;
 
     void setNextStageId(String nextStageId) {

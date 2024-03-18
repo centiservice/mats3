@@ -2,8 +2,6 @@ package io.mats3.spring.jms.factories;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.List;
-import java.util.Optional;
 
 import javax.annotation.PostConstruct;
 import javax.jms.ConnectionFactory;
@@ -19,9 +17,8 @@ import org.springframework.core.env.Environment;
 
 import io.mats3.MatsFactory;
 import io.mats3.MatsFactory.MatsFactoryWrapper;
-import io.mats3.api.intercept.MatsInitiateInterceptor;
-import io.mats3.api.intercept.MatsStageInterceptor;
 import io.mats3.impl.jms.JmsMatsFactory;
+import io.mats3.test.MatsTestFactory;
 
 /**
  * Wrapper that should be used for a JmsMatsFactory in a Spring context. In addition to the wrapped {@link MatsFactory},
@@ -120,13 +117,12 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
      * lifecycle, and hence cannot rely on property setting and <code>@PostConstruct</code> being run. Invoke this
      * method in your <code>getObject()</code> (raw FactoryBean implementation) or <code>createInstance()</code>
      * (AbstractFactoryBean implementation). To get hold of the Spring {@link Environment} and Spring
-     * {@link ApplicationContext} in the FactoryBean, simply use Spring injection on the FactoryBean, e.g.
-     * field-inject.
+     * {@link ApplicationContext} in the FactoryBean, simply use Spring injection on the FactoryBean, e.g. field-inject.
      *
      * @param environment
-     *         the Spring {@link Environment}
+     *            the Spring {@link Environment}
      * @param applicationContext
-     *         the Spring {@link ApplicationContext}.
+     *            the Spring {@link ApplicationContext}.
      * @see #postConstruct()
      */
     public void postConstructForFactoryBean(Environment environment, ApplicationContext applicationContext) {
@@ -182,10 +178,10 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
 
         // :: Now populate the tool we found in the Spring context.
         try {
-            Method factoryMethod = _matsTestBrokerInterfaceClass.getMethod(LATE_POPULATE_METHOD_NAME,
+            Method latePopulateMethod = _matsTestBrokerInterfaceClass.getMethod(LATE_POPULATE_METHOD_NAME,
                     ConnectionFactory.class,
                     MatsFactory.class);
-            factoryMethod.invoke(matsTestBrokerInterface, _connectionFactory, unwrap());
+            latePopulateMethod.invoke(matsTestBrokerInterface, _connectionFactory, unwrap());
             if (log.isDebugEnabled()) log.debug(LOG_PREFIX + " \\- Invoked the " + LATE_POPULATE_METHOD_NAME + " on '"
                     + MATS_TEST_BROKER_INTERFACE_CLASSNAME + " to make the tool ready.");
         }
@@ -204,18 +200,24 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
         if (matsTestPofileActive) {
             // -> Yes, mats-test profile active, so set concurrency low.
             // ?: Are we in default concurrency?
-            if (unwrap().getFactoryConfig().isConcurrencyDefault()) {
-                // -> Yes, default concurrency - so set it to 2 since testing.
+            if (getFactoryConfig().isConcurrencyDefault()) {
+                // -> Yes, default concurrency - so set testing specs for concurrency and max delivery attempts.
                 log.info(LOG_PREFIX + "We're in Spring Profile '" + MatsProfiles.PROFILE_MATS_TEST
-                        + "', so set concurrency to 2 to avoid dozens of threads and messy logs.");
-                unwrap().getFactoryConfig().setConcurrency(2);
+                        + "', so set concurrency to " + MatsTestFactory.TEST_CONCURRENCY
+                        + " to avoid dozens of threads and messy logs, and set"
+                        + " max delivery attempts to " + MatsTestFactory.TEST_MAX_DELIVERY_ATTEMPTS + ".");
+                // Set test concurrency
+                getFactoryConfig().setConcurrency(MatsTestFactory.TEST_CONCURRENCY);
+                // Also set test max delivery attempts
+                ((JmsMatsFactory<?>) unwrapFully()).setMatsManagedDlqDivert(
+                        MatsTestFactory.TEST_MAX_DELIVERY_ATTEMPTS);
             }
             else {
                 // -> No, concurrency evidently already set to something non-default, so will not override this.
                 log.info(LOG_PREFIX + "We're in Spring Profile '" + MatsProfiles.PROFILE_MATS_TEST
                         + "', but the concurrency of MatsFactory is already set to something non-default ("
-                        + unwrap().getFactoryConfig().getConcurrency() + "), so will not mess with that"
-                        + " (would have set to 2).");
+                        + getFactoryConfig().getConcurrency() + "), so will not mess with that"
+                        + " (would have set to " + MatsTestFactory.TEST_CONCURRENCY + ").");
             }
         }
         else {
@@ -227,15 +229,21 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
                 // ?: Are we in MatsScenario.LOCALVM?
                 MatsScenario matsScenario = scenarioWrapped.getMatsScenarioUsedToMakeConnectionFactory();
                 if (matsScenario == MatsScenario.LOCALVM) {
-                    // -> Yes, so assume development - set concurrency low.
+                    // -> Yes, so assume development
                     // ?: Are we in default concurrency?
-                    if (unwrap().getFactoryConfig().isConcurrencyDefault()) {
-                        // -> Yes, default concurrency - so set it to 2 since testing.
+                    if (getFactoryConfig().isConcurrencyDefault()) {
+                        // -> Yes, default concurrency - so set testing specs for concurrency and max delivery attempts.
                         log.info(LOG_PREFIX + "The supplied ConnectionFactory was created with MatsScenario.LOCALVM,"
                                 + " so we assume this is a development situation (or testing where the user forgot to"
                                 + " add the Spring active profile 'mats-test' as with @MatsTestProfile), and thus set"
-                                + " the concurrency to 2 to avoid dozens of threads and messy logs.");
-                        unwrap().getFactoryConfig().setConcurrency(2);
+                                + " the concurrency to " + MatsTestFactory.TEST_CONCURRENCY
+                                + " to avoid dozens of threads and messy logs, and set"
+                                + " max delivery attempts to " + MatsTestFactory.TEST_MAX_DELIVERY_ATTEMPTS + ".");
+                        // Set test concurrency
+                        getFactoryConfig().setConcurrency(MatsTestFactory.TEST_CONCURRENCY);
+                        // Also set test max delivery attempts
+                        ((JmsMatsFactory<?>) unwrapFully()).setMatsManagedDlqDivert(
+                                MatsTestFactory.TEST_MAX_DELIVERY_ATTEMPTS);
                     }
                     else {
                         // -> No, concurrency evidently already set to something non-default, so will not override this.
@@ -243,8 +251,8 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
                                 + " so we assume this is a development situation (or testing where the user forgot to"
                                 + " add the Spring active profile 'mats-test' as with @MatsTestProfile),"
                                 + " HOWEVER, the concurrency is already set to something non-default ("
-                                + unwrap().getFactoryConfig().getConcurrency() + "), so will not mess with that"
-                                + " (would have set it to 2).");
+                                + getFactoryConfig().getConcurrency() + "), so will not mess with that"
+                                + " (would have set it to " + MatsTestFactory.TEST_CONCURRENCY + ").");
                     }
                 }
             }

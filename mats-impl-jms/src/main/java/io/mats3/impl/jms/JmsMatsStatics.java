@@ -1,6 +1,11 @@
 package io.mats3.impl.jms;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
@@ -10,6 +15,7 @@ import javax.jms.DeliveryMode;
 import javax.jms.Destination;
 import javax.jms.JMSException;
 import javax.jms.MapMessage;
+import javax.jms.Message;
 import javax.jms.MessageProducer;
 import javax.jms.Session;
 
@@ -90,6 +96,11 @@ public interface JmsMatsStatics {
             + JMS_MSG_PROP_INITIATOR_ID.length()
             + JMS_MSG_PROP_TO.length()
             + JMS_MSG_PROP_AUDIT.length();
+
+    String JMS_PROP_DLQ_EXCEPTION = "mats_exception"; // String
+    String JMS_PROP_DLQ_MATS_HANDLED_DLQ_DIVERT = "mats_matsHandledDlqDivert"; // Boolean
+    String JMS_PROP_DLQ_INSTA_DLQ = "mats_instaDLQ"; // Boolean
+    String JMS_PROP_DLQ_DLQ_COUNT = "mats_dlqCount"; // Integer
 
     /**
      * Number of milliseconds to "extra wait" after timeoutMillis or gracefulShutdownMillis is gone.
@@ -283,6 +294,22 @@ public interface JmsMatsStatics {
         return matsSerializer.deserializeObject(data, incomingMessageClass);
     }
 
+    static void makeMessagePropertiesEditable(Message message) throws JMSException {
+        Map<String, Object> existingProperties = new HashMap<>();
+        @SuppressWarnings("unchecked")
+        Enumeration<String> propertyNames = message.getPropertyNames();
+        while (propertyNames.hasMoreElements()) {
+            String propertyName = propertyNames.nextElement();
+            existingProperties.put(propertyName, message.getObjectProperty(propertyName));
+        }
+        // .. and then clear the properties (to make them editable)
+        message.clearProperties();
+        // .. and then put them back on (now editable!)
+        for (Map.Entry<String, Object> entry : existingProperties.entrySet()) {
+            message.setObjectProperty(entry.getKey(), entry.getValue());
+        }
+    }
+
     // 62 points in this alphabet
     String RANDOM_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -409,18 +436,64 @@ public interface JmsMatsStatics {
 
         String msg = what + " is set to ";
         if (newIsDefault) {
-            msg += "[0:default -> "+newConcurrencyResult+"]";
+            msg += "[0:default -> " + newConcurrencyResult + "]";
         }
         else {
-            msg += "["+newConcurrencyResult+"]";
+            msg += "[" + newConcurrencyResult + "]";
         }
         msg += " - was ";
         if (previousIsDefault) {
-            msg += "[0:default -> "+previousConcurrencyResult+"]";
+            msg += "[0:default -> " + previousConcurrencyResult + "]";
         }
         else {
-            msg += "["+previousConcurrencyResult+"]";
+            msg += "[" + previousConcurrencyResult + "]";
         }
         log.info(LOG_PREFIX + msg);
+    }
+
+    static String convertToDlqName(Logger log, JmsMatsFactory<?> jmsMatsFactory,
+            JmsMatsStage<?, ?, ?, ?> jmsMatsStage) {
+        String dlqName;
+        try {
+            dlqName = jmsMatsFactory.getDestinationNameModifierForDlqs().apply(jmsMatsStage);
+        }
+        catch (Throwable t) {
+            log.error(LOG_PREFIX + "Unbelievably, someone has made a bad MatsFactory "
+                    + " 'DestinationNameModifierForDlqs' function, which threw an Exception for"
+                    + " stage [" + jmsMatsStage.getStageId() + "]."
+                    + " Using DLQ-name 'DLQ' instead.", t);
+            dlqName = "DLQ";
+        }
+        return dlqName;
+    }
+
+    static void sendDlq(Logger log, Session jmsSession, MessageProducer messageProducer, Message message,
+                                String dlqName, boolean instaDlq, Throwable t) throws JMSException {
+        JmsMatsStatics.makeMessagePropertiesEditable(message);
+
+        // ?: Do we have a Throwable? (Always do in post-Stage, never in pre-Stage).
+        if (t != null) {
+            // -> Yes, Throwable: Convert the Throwable to string, and add it
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            t.printStackTrace(pw);
+            message.setStringProperty(JMS_PROP_DLQ_EXCEPTION, sw.toString());
+        }
+        // This was a Mats3 handled DLQ Divert
+        message.setBooleanProperty(JMS_PROP_DLQ_MATS_HANDLED_DLQ_DIVERT, true);
+        // InstaDLQ?
+        message.setBooleanProperty(JMS_PROP_DLQ_INSTA_DLQ, instaDlq);
+        // How many rounds have this message been through DLQing? (Re-issue from a monitor, new DLQ)
+        message.setIntProperty(JMS_PROP_DLQ_DLQ_COUNT, message.propertyExists(JMS_PROP_DLQ_DLQ_COUNT)
+                ? message.getIntProperty(JMS_PROP_DLQ_DLQ_COUNT) + 1
+                : 1);
+
+        // :: Send (divert) the message
+        log.info(LOG_PREFIX + "Diverting message to DLQ [" + dlqName + "].");
+        messageProducer.send(jmsSession.createQueue(dlqName), message);
+        // .. and Commit
+        jmsSession.commit();
+        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "JMS Session committed for DLQ Divert to" +
+                " [" + dlqName + "].");
     }
 }

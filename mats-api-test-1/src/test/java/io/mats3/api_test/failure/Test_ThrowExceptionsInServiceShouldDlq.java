@@ -1,9 +1,10 @@
 package io.mats3.api_test.failure;
 
+import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE;
+
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
-import org.apache.activemq.ActiveMQConnectionFactory;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -17,10 +18,6 @@ import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.junit.Rule_Mats;
-
-import javax.jms.ConnectionFactory;
-
-import static io.mats3.test.MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE;
 
 /**
  * Tests 2 scenarios:
@@ -97,26 +94,30 @@ public class Test_ThrowExceptionsInServiceShouldDlq {
 
         /*
          * Adding hack here 2021-08-18, reevaluated 2023-07-17, to allow for usage of Artemis MQ, internal and external.
+         * Again changed in 2024-03-19 with the change to "Mats Managed Dlq Divert" - now it is 2 DLQs for any broker.
          *
          * 1. We seemingly cannot set the number of redeliveries on the client side with Artemis. In Mats testing
-         * scenario on ActiveMQ - both in-vm, and external - it is set to 1 delivery and 1 redelivery, with a total
-         * of 2 (it is set on the ActiveMQConnectionFactory). A default Artemis broker has 10 attempts total. When
-         * we run Artemis in-vm, we configure the server to have 2 total deliveries, as with ActiveMQ.
+         * scenario on ActiveMQ - both in-vm, and external - it is set to 1 delivery and 1 redelivery, with a total of 2
+         * (it is set on the ActiveMQConnectionFactory). A default Artemis broker has 10 attempts total. When we run
+         * Artemis in-vm, we configure the server to have 2 total deliveries, as with ActiveMQ.
          *
-         * 2. I do not currently know of a way to implement the MatsRefuseMessage (aka "insta-DLQ") solution for
-         * Artemis (the insta-DLQ code resides in the class JmsMatsMessageBrokerSpecifics, and relies on the
-         * mentioned ability to set the number of redeliveries client side). Thus, the distinction between
-         * RuntimeException and MatsRefuseException tested in the two tests does not exist when using Artemis.
+         * 2. I do not currently know of a way to implement the MatsRefuseMessage (aka "insta-DLQ") solution for Artemis
+         * (the insta-DLQ code resides in the class JmsMatsMessageBrokerSpecifics, and relies on the mentioned ability
+         * to set the number of redeliveries client side). Thus, the distinction between RuntimeException and
+         * MatsRefuseException tested in the two tests does not exist when using Artemis.
+         *
+         * 3. 2024-03-19: With "Mats Managed DLQ Divert", i.e. client side diverts to DLQ, we can be assured that the
+         * DLQ count will always be 2, as long as the broker has a higher redelivery count before it DLQs on the server
+         * side. This used to be the code:
          */
+        // // Therefore, for this ordinary DLQ-scenario, if ActiveMQ, it is always 2, while for Artemis we accept
+        // // both 2 (via MatsTestBroker), and 10 (if external Broker).
+        // boolean activeMq = MATS.getJmsConnectionFactory() instanceof ActiveMQConnectionFactory;
+        // Predicate<Integer> deliveryCountOk = activeMq
+        // ? deliveryCount -> deliveryCount == 2
+        // : deliveryCount -> deliveryCount == 2 || deliveryCount == 10;
 
-        // Therefore, for this ordinary DLQ-scenario, if ActiveMQ, it is always 2, while for Artemis we accept
-        // both 2 (via MatsTestBroker), and 10 (if external Broker).
-        boolean activeMq = MATS.getJmsConnectionFactory() instanceof ActiveMQConnectionFactory;
-        Predicate<Integer> deliveryCountOk = activeMq
-                ? deliveryCount -> deliveryCount == 2
-                : deliveryCount -> deliveryCount == 2 || deliveryCount == 10;
-
-        doTest(THROW_RUNTIME, deliveryCountOk, true);
+        doTest(THROW_RUNTIME, deliveryCount -> deliveryCount == 2, true);
     }
 
     @Test
@@ -125,32 +126,19 @@ public class Test_ThrowExceptionsInServiceShouldDlq {
 
         /*
          * Adding hack here 2021-08-18, reevaluated 2023-07-17, to allow for usage of Artemis MQ, internal and external.
+         * Again changed in 2024-03-19 with the change to "Mats Managed Dlq Divert" - now it is 2 DLQs for any broker.
          *
-         * 1. We seemingly cannot set the number of redeliveries on the client side with Artemis. In Mats testing
-         * scenario on ActiveMQ - both in-vm, and external - it is set to 1 delivery and 1 redelivery, with a total
-         * of 2 (it is set on the ActiveMQConnectionFactory). A default Artemis broker has 10 attempts total. When
-         * we run Artemis in-vm, we configure the server to have 2 total deliveries, as with ActiveMQ.
+         * (Read above)
          *
-         * 2. I do not currently know of a way to implement the MatsRefuseMessage (aka "insta-DLQ") solution for
-         * Artemis (the insta-DLQ code resides in the class JmsMatsMessageBrokerSpecifics, and relies on the
-         * mentioned ability to set the number of redeliveries client side). Thus, the distinction between
-         * RuntimeException and MatsRefuseException tested in the two tests does not exist when using Artemis.
+         * For Insta-DLQ (MatsRefuseMessageException), since we do client side Mats Managed DLQ Divert, a DLQ is
+         * just a redirect to another queue, and thus it will happen immediately, and the delivery count will be 1.
          */
 
-        // Therefore, for this insta-DLQ scenario, if ActiveMQ, it is always 1 (we can always refuse, both for internal
-        // and external), while for Artemis we accept both 2 (we can't insta-refuse) (via MatsTestBroker), and 10
-        // (if external Broker).
-
-        boolean activeMq = MATS.getJmsConnectionFactory() instanceof ActiveMQConnectionFactory;
-        Predicate<Integer> deliveryCountOk = activeMq
-                ? deliveryCount -> deliveryCount == 1
-                : deliveryCount -> deliveryCount == 2 || deliveryCount == 10;
-
-        doTest(THROW_MATSREFUSE, deliveryCountOk, true);
+        doTest(THROW_MATSREFUSE, deliveryCount -> deliveryCount == 1, true);
     }
 
     public DataTO doTest(String sendString, Predicate<Integer> invocationCountOk, boolean expectDlq) {
-        log.info(".. sending string ["+sendString+"]");
+        log.info(".. sending string [" + sendString + "]");
         _serviceInvocations = new AtomicInteger();
         DataTO dto = new DataTO(42, sendString);
         StateTO sto = new StateTO(420, 420.024);
@@ -171,7 +159,7 @@ public class Test_ThrowExceptionsInServiceShouldDlq {
             log.info("The number of service invocations was: [" + _serviceInvocations + "]");
             boolean okNumberOfInvocations = invocationCountOk.test(_serviceInvocations.get());
             Assert.assertTrue("Did not get the correct number of deliveries."
-                            + " It was [" + _serviceInvocations.get() + "]", okNumberOfInvocations);
+                    + " It was [" + _serviceInvocations.get() + "]", okNumberOfInvocations);
 
             // Assert that the reply was not received by terminator
             // Note: If we've found the message on DLQ, there are pretty slim chances that it also has gotten

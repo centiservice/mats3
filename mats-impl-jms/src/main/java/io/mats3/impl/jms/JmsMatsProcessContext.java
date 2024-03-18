@@ -109,8 +109,8 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _doAfterCommitRunnableHolder = doAfterCommitRunnableHolder;
     }
 
-    void overrideForNextDirect(String nd_fromAppName, String nd_fromAppVersion,
-            String nd_fromStageId, Instant nd_fromTimestamp) {
+    void override_FromProps_ForNextDirect(String nd_fromAppName, String nd_fromAppVersion,
+                                          String nd_fromStageId, Instant nd_fromTimestamp) {
         _isNextDirect = true;
         _nd_fromAppName = nd_fromAppName;
         _nd_fromAppVersion = nd_fromAppVersion;

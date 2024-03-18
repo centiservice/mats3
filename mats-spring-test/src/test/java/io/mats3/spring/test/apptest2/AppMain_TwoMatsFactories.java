@@ -8,7 +8,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.jms.ConnectionFactory;
 
-import io.mats3.localinspect.LocalStatsMatsInterceptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -18,6 +17,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.SpringVersion;
 
 import io.mats3.MatsFactory;
+import io.mats3.localinspect.LocalStatsMatsInterceptor;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.ComponentScanExcludingConfigurationForTest;
@@ -211,8 +211,6 @@ public class AppMain_TwoMatsFactories {
         log.info("Creating MatsFactory1");
         SpringJmsMatsFactoryWrapper matsFactory = SpringJmsMatsFactoryProducer.createJmsTxOnlyMatsFactory(
                 AppMain_TwoMatsFactories.class.getSimpleName(), "#testing#", matsSerializer, connectionFactory);
-        // Configure for test-scenario: Enough with concurrency of 2
-        matsFactory.getFactoryConfig().setConcurrency(2);
         // Add the LocalInspect just to exercise it here in the tests.
         LocalStatsMatsInterceptor.install(matsFactory);
         return matsFactory;
@@ -225,8 +223,6 @@ public class AppMain_TwoMatsFactories {
         log.info("Creating MatsFactory2");
         SpringJmsMatsFactoryWrapper matsFactory = SpringJmsMatsFactoryProducer.createJmsTxOnlyMatsFactory(
                 AppMain_TwoMatsFactories.class.getSimpleName(), "#testing#", matsSerializer, connectionFactory);
-        // Configure for test-scenario: Enough with concurrency of 2
-        matsFactory.getFactoryConfig().setConcurrency(2);
         // Add the LocalInspect just to exercise it here in the tests.
         LocalStatsMatsInterceptor.install(matsFactory);
         return matsFactory;
