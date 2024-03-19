@@ -599,25 +599,43 @@ public class MatsFuturizer implements AutoCloseable {
         // Have a constant pool of "corePoolSize", and then as more tasks are concurrently running than threads
         // available, you increase the number of threads until "maximumPoolSize", at which point the rest go on queue.
 
-        // Snitched from https://stackoverflow.com/a/24493856
+        // Snitched from https://stackoverflow.com/a/24493856, with a twist to make it work with Java 21.0.2.
 
-        // Part 1: So, we extend a LinkedTransferQueue to behave a bit special on "offer(..)":
-        LinkedTransferQueue<Runnable> queue = new LinkedTransferQueue<Runnable>() {
+        /*
+         * Part 1: So, we extend a LinkedTransferQueue to behave a bit special on "offer(..)": The ThreadPoolExecutor
+         * (TPE) will when it has exhausted the core pool size, put the task on queue via "offer(E)". But, in offer(E),
+         * we'll try to "forcefully" give the task to the TPE, so that it starts scaling the pool towards the maximum.
+         * However, if the TPE is "full" (i.e. it has reached maximumPoolSize), it will return false, and the task will
+         * be rejected. We'll then have a RejectionExecutionHandler that puts the task on queue anyway, even if it's
+         * "full".
+         *
+         * Previous to Java 21.0.2, we used the "put(E)" method to put stuff on queue. However, with Java 21.0.2, the
+         * "put(E)" method was reimplemented to directly call "offer(E)", so we could not anymore rely on "put(E)" to
+         * put stuff on queue. Therefore, we'll make a special "sneaky" method to put stuff on queue.
+         */
+        class LinkedTransferQueueSneaky<E> extends LinkedTransferQueue<E> {
             @Override
-            public boolean offer(Runnable e) {
-                // If there are any pool thread waiting for job, give it the job, otherwise return false.
-                // The TPE interprets false as "no more room on queue", so it rejects it. (cont'd on part 2)
+            public boolean offer(E e) {
                 return tryTransfer(e);
             }
-        };
+
+            public void sneak(E e) {
+                super.offer(e);
+            }
+        }
+
+        LinkedTransferQueueSneaky<Runnable> queue = new LinkedTransferQueueSneaky<>();
+
         ThreadPoolExecutor threadPool = new ThreadPoolExecutor(corePoolSize, maximumPoolSize,
                 5L, TimeUnit.MINUTES, queue,
                 r1 -> new Thread(r1, "MatsFuturizer completer #" + _threadNumber.getAndIncrement()));
 
-        // Part 2: We make a special RejectionExecutionHandler ...
+        /*
+         * Part 2: We make a special RejectionExecutionHandler which upon rejection due to "full queue" (i.e. TPE has
+         * reached max pool size) puts the task on queue anyway, using our sneaky method (LTQ is not bounded).
+         */
         threadPool.setRejectedExecutionHandler((r, executor) -> {
-            // ... which upon rejection due to "full queue" puts the task on queue nevertheless (LTQ is not bounded).
-            ((LinkedTransferQueue<Runnable>) executor.getQueue()).put(r);
+            queue.sneak(r);
         });
 
         return threadPool;
