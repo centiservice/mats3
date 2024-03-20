@@ -5,6 +5,8 @@ import javax.inject.Inject;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint.ProcessSingleLambda;
 import io.mats3.MatsFactory;
@@ -53,6 +55,7 @@ import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
  */
 public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I> implements BeforeEachCallback,
         AfterEachCallback {
+    private static final Logger log = LoggerFactory.getLogger(Extension_MatsEndpoint.class);
 
     /**
      * Private constructor, utilize {@link #create(String, Class, Class)} to create an instance of this object.
@@ -75,12 +78,14 @@ public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I>
     @Inject
     @Override
     public Extension_MatsEndpoint<R, I> setMatsFactory(MatsFactory matsFactory) {
+        log.debug("+++ Jupiter +++ setMatsFactory(" + matsFactory + ") invoked.");
         _matsFactory = matsFactory;
         return this;
     }
 
     @Override
     public Extension_MatsEndpoint<R, I> setProcessLambda(ProcessSingleLambda<R, I> processLambda) {
+        log.debug("+++ JUnit +++ setProcessLambda(" + processLambda + ") invoked.");
         _processLambda = processLambda;
         return this;
     }

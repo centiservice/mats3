@@ -36,6 +36,8 @@ public class U_RuleMatsEndpointTest {
     public void noProcessorDefined() {
         Throwable throwExpected = null;
 
+        // NOTE: Each @Test method is invoked in a new instance of the test class, thus the endpoint is reset.
+
         // :: Send a message to the endpoint - This will timeout, thus wrap it in a try-catch.
         try {
             MATS.getMatsFuturizer().futurizeNonessential(getClass().getSimpleName() + "|noProcessorDefined",
@@ -49,15 +51,15 @@ public class U_RuleMatsEndpointTest {
             throw new AssertionError("Expected timeout exception, not this!", e);
         }
 
-        // :: Assert that we got the TimeoutException we expected
-        Assert.assertNotNull(throwExpected);
-        Assert.assertEquals(TimeoutException.class, throwExpected.getClass());
-
         // ----- At this point the above block has timed out.
 
         // :: Assert that the endpoint actually got the message
         String incomingMsgToTheEndpoint = _helloEndpoint.waitForRequests(1).get(0);
         Assert.assertEquals("World", incomingMsgToTheEndpoint);
+
+        // :: Assert that we got the TimeoutException we expected
+        Assert.assertNotNull(throwExpected);
+        Assert.assertEquals(TimeoutException.class, throwExpected.getClass());
     }
 
     /**
@@ -100,5 +102,27 @@ public class U_RuleMatsEndpointTest {
 
         // :: Final verify
         Assert.assertEquals(secondExpectedReturn, secondReply);
+    }
+
+    /**
+     * Sends a null message to the endpoint to verify that it can handle null messages.
+     */
+    @Test
+    public void sendNullMessage() throws InterruptedException, ExecutionException, TimeoutException {
+        // :: Setup
+        _helloEndpoint.setProcessLambda((ctx, msg) -> msg + " World!");
+
+        // :: Act
+        String reply = MATS.getMatsFuturizer().futurizeNonessential(
+                        getClass().getSimpleName() + "_nullHandling",
+                        getClass().getSimpleName(),
+                        HELLO_ENDPOINT_ID,
+                        String.class,
+                        null)
+                .thenApply(Reply::getReply)
+                .get(10, TimeUnit.SECONDS);
+
+        // :: Verify
+        Assert.assertEquals("null World!", reply);
     }
 }

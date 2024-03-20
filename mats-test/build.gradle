@@ -6,6 +6,9 @@ dependencies {
     // The MatsFuturizer is provided as a convenience in the Rule_Mats and Extension_Mats
     api project(':mats-util')
 
+    // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
+    compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
+
     // We need an implementation of the Mats API
     implementation project(':mats-impl-jms')
     // Need the MatsSerializerJson

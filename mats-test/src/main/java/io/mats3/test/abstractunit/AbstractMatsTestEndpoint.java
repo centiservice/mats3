@@ -38,7 +38,7 @@ public abstract class AbstractMatsTestEndpoint<R, I> {
     private final Class<I> _incomingMsgClass;
 
     protected MatsFactory _matsFactory;
-    protected ProcessSingleLambda<R, I> _processLambda;
+    protected volatile ProcessSingleLambda<R, I> _processLambda;
 
     /**
      * Synchronized list keeping track of all endpoint invocations, storing the incoming message for later retrieval.
@@ -201,8 +201,13 @@ public abstract class AbstractMatsTestEndpoint<R, I> {
                 if (_processLambda != null) {
                     // -> Yes, execute it.
                     log.debug("+++ [" + _endpointId + "] executing user defined process lambda, incoming message"
-                            + " class:[" + msg.getClass() + "], expected reply class: [" + _replyMsgClass + "]");
+                            + " class:[" + (msg != null ? msg.getClass().getSimpleName() : "{null msg}")
+                            + "], expected reply class: [" + _replyMsgClass + "]");
                     ctx.reply(_processLambda.process(ctx, msg));
+                }
+                else {
+                    // -> No, then we should not reply.
+                    log.warn("+++ [" + _endpointId + "] no processor defined, thus not replying.");
                 }
             }
             finally {

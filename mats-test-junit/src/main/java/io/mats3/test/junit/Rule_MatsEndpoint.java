@@ -7,6 +7,8 @@ import org.junit.Rule;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint.ProcessSingleLambda;
 import io.mats3.MatsFactory;
@@ -52,6 +54,7 @@ import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
  * @author Kevin Mc Tiernan, 2020-10-22, kmctiernan@gmail.com
  */
 public class Rule_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I> implements TestRule {
+    private static final Logger log = LoggerFactory.getLogger(Rule_MatsEndpoint.class);
 
     /**
      * Private constructor, utilize {@link #create(String, Class, Class)} to create an instance of this object.
@@ -74,12 +77,14 @@ public class Rule_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I> impl
     @Inject
     @Override
     public Rule_MatsEndpoint<R, I> setMatsFactory(MatsFactory matsFactory) {
+        log.debug("+++ JUnit +++ setMatsFactory(" + matsFactory + ") invoked.");
         _matsFactory = matsFactory;
         return this;
     }
 
     @Override
     public Rule_MatsEndpoint<R, I> setProcessLambda(ProcessSingleLambda<R, I> processLambda) {
+        log.debug("+++ JUnit +++ setProcessLambda(" + processLambda + ") invoked.");
         _processLambda = processLambda;
         return this;
     }

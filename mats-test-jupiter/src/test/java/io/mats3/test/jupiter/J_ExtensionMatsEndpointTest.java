@@ -26,8 +26,7 @@ public class J_ExtensionMatsEndpointTest {
 
     @RegisterExtension
     public final Extension_MatsEndpoint<String, String> _helloEndpoint = Extension_MatsEndpoint
-            .create(HELLO_ENDPOINT_ID, String.class, String.class)
-            .setMatsFactory(MATS.getMatsFactory());
+            .create(MATS, HELLO_ENDPOINT_ID, String.class, String.class);
 
     /**
      * Shows that when no processor is defined, an endpoint will not produce a reply.
@@ -36,14 +35,12 @@ public class J_ExtensionMatsEndpointTest {
     public void noProcessorDefined() {
         Throwable throwExpected = null;
 
+        // NOTE: Each @Test method is invoked in a new instance of the test class, thus the endpoint is reset.
+
         // :: Send a message to the endpoint - This will timeout, thus wrap it in a try-catch.
         try {
             MATS.getMatsFuturizer().futurizeNonessential(getClass().getSimpleName() + "|noProcessorDefined",
-                    getClass().getSimpleName(),
-                    HELLO_ENDPOINT_ID,
-                    String.class,
-                    "World")
-                    .thenApply(Reply::getReply)
+                    getClass().getSimpleName(), HELLO_ENDPOINT_ID, String.class, "World")
                     .get(1, TimeUnit.SECONDS);
         }
         catch (TimeoutException e) {
@@ -53,14 +50,15 @@ public class J_ExtensionMatsEndpointTest {
             throw new AssertionError("Expected timeout exception, not this!", e);
         }
 
-        // ----- At this point the above block has timed out. Now we need to verify that the endpoint actually got the
-        // message and that the exception throw above was indeed a TimeoutException.
-        String incomingMsgToTheEndpoint = _helloEndpoint.waitForRequests(1).get(0);
+        // ----- At this point the above block has timed out.
 
+        // :: Assert that the endpoint actually got the message
+        String incomingMsgToTheEndpoint = _helloEndpoint.waitForRequests(1).get(0);
+        Assertions.assertEquals("World", incomingMsgToTheEndpoint);
+
+        // :: Assert that we got the TimeoutException we expected
         Assertions.assertNotNull(throwExpected);
         Assertions.assertEquals(TimeoutException.class, throwExpected.getClass());
-
-        Assertions.assertEquals("World", incomingMsgToTheEndpoint);
     }
 
     /**
@@ -103,5 +101,27 @@ public class J_ExtensionMatsEndpointTest {
 
         // :: Final verify
         Assertions.assertEquals(secondExpectedReturn, secondReply);
+    }
+
+    /**
+     * Sends a null message to the endpoint to verify that it can handle null messages.
+     */
+    @Test
+    public void sendNullMessage() throws InterruptedException, ExecutionException, TimeoutException {
+        // :: Setup
+        _helloEndpoint.setProcessLambda((ctx, msg) -> msg + " World!");
+
+        // :: Act
+        String reply = MATS.getMatsFuturizer().futurizeNonessential(
+                        getClass().getSimpleName() + "_nullHandling",
+                        getClass().getSimpleName(),
+                        HELLO_ENDPOINT_ID,
+                        String.class,
+                        null)
+                .thenApply(Reply::getReply)
+                .get(10, TimeUnit.SECONDS);
+
+        // :: Verify
+        Assertions.assertEquals("null World!", reply);
     }
 }
