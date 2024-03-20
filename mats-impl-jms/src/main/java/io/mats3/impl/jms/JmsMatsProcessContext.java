@@ -301,11 +301,23 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     @Override
     public void addBytes(String key, byte[] payload) {
+        if (key == null) {
+            throw new NullPointerException("addBytes(..): 'key' is null.");
+        }
+        if (payload == null) {
+            throw new NullPointerException("addBytes(..): 'payload' is null");
+        }
         _outgoingBinaries.put(key, payload);
     }
 
     @Override
     public void addString(String key, String payload) {
+        if (key == null) {
+            throw new NullPointerException("addString(..): 'key' is null.");
+        }
+        if (payload == null) {
+            throw new NullPointerException("addString(..): 'payload' is null");
+        }
         _outgoingStrings.put(key, payload);
     }
 

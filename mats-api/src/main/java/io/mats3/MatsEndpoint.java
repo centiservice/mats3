@@ -469,8 +469,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
      */
     interface ProcessContext<R> extends DetachedProcessContext {
         /**
-         * Attaches a binary payload ("sideload") to the next outgoing message, being it a request or a reply. Note that
-         * for initiations, you have the same method on the {@link MatsInitiate} instance.
+         * Attaches a binary payload ("sideload") to the next outgoing message, being it a request, reply, next or
+         * nextDirect. Note that for initiations, you have the same method on the {@link MatsInitiate} instance.
          * <p/>
          * The rationale for having this is to not have to encode a largish byte array inside the JSON structure that
          * carries the Request or Reply DTO - byte arrays represent very badly in JSON.
@@ -487,11 +487,10 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * {@link MatsInitiate MatsInitiate} instance within the initiate-lambda).
          *
          * @param key
-         *            the key on which to store the byte array payload. The receiver will have to use this key to get
-         *            the payload out again, so either it will be a specific key that the sender and receiver agree
-         *            upon, or you could generate a random key, and reference this key as a field in the outgoing DTO.
+         *            the key on which to store the byte array payload, <code>null</code> is not allowed. The receiver
+         *            will have to use this key to get the payload out again.
          * @param payload
-         *            the payload to store.
+         *            the payload to store, <code>null</code> is not allowed.
          * @see #getBytes(String)
          * @see #addString(String, String)
          * @see #getString(String)
@@ -499,8 +498,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
         void addBytes(String key, byte[] payload);
 
         /**
-         * Attaches a <code>String</code> payload ("sideload") to the next outgoing message, being it a request or a
-         * reply. Note that for initiations, you have the same method on the {@link MatsInitiate} instance.
+         * Attaches a <code>String</code> payload ("sideload") to the next outgoing message, being it a request, reply,
+         * next or nextDirect. Note that for initiations, you have the same method on the {@link MatsInitiate} instance.
          * <p/>
          * The rationale for having this is to not have to encode a largish string document inside the JSON structure
          * that carries the Request or Reply DTO.
@@ -518,11 +517,10 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * {@link MatsInitiate MatsInitiate} instance within the initiate-lambda).
          *
          * @param key
-         *            the key on which to store the String payload. The receiver will have to use this key to get the
-         *            payload out again, so either it will be a specific key that the sender and receiver agree upon, or
-         *            you could generate a random key, and reference this key as a field in the outgoing DTO.
+         *            the key on which to store the String payload, <code>null</code> is not allowed. The receiver will
+         *            have to use this key to get the payload out again.
          * @param payload
-         *            the payload to store.
+         *            the payload to store, <code>null</code> is not allowed.
          * @see #getString(String)
          * @see #addBytes(String, byte[])
          * @see #getBytes(String)
@@ -576,8 +574,7 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * constructed to e.g. say <i>"Number of items in order 1234 for customer 5678"</i>.
          * <p/>
          * Note: It is illegal to use the same 'metricId' for more than one measurement for a given stage, and this also
-         * goes between measurements and {@link #logTimingMeasurement(String, String, long, String...) timing
-         * metrics}.
+         * goes between measurements and {@link #logTimingMeasurement(String, String, long, String...) timing metrics}.
          * <p/>
          * <b>Inclusion as metric by plugin 'mats-intercept-micrometer'</b>: A new meter will be created (and cached),
          * of type <code>DistributionSummary</code>, with the 'name' set to
@@ -979,8 +976,8 @@ public interface MatsEndpoint<R, S> extends StartStoppable {
          * {@link MatsFactory#getOrCreateInitiator(String)}, only that this way works within the transactional context
          * of the {@link MatsStage} which this method is invoked within. Also, the traceId and from-endpointId is
          * predefined, but it is still recommended to set the traceId, as that will append the new string on the
-         * existing traceId (joined with a "|" character), making log tracking (e.g. when debugging) better. Note:
-         * This prepending will not happen if the first char of the TraceId is a "!" character - which will be removed.
+         * existing traceId (joined with a "|" character), making log tracking (e.g. when debugging) better. Note: This
+         * prepending will not happen if the first char of the TraceId is a "!" character - which will be removed.
          * <p/>
          * <b>IMPORTANT NOTICE!!</b> The {@link MatsInitiator} returned from {@link MatsFactory#getDefaultInitiator()
          * MatsFactory.getDefaultInitiator()} is "magic" in that when employed from within a Mats Stage's context
