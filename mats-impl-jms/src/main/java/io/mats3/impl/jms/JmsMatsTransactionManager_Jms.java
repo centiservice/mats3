@@ -148,6 +148,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 }
                 else {
                     log.error(msg, e);
+                    internalExecutionContext.setUserLambdaExceptionLogged();
                 }
 
                 rollbackViaStandardJms(jmsSession, e);
@@ -166,6 +167,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 }
                 else {
                     log.error(msg, e);
+                    internalExecutionContext.setUserLambdaExceptionLogged();
                 }
 
                 rollbackOrMatsHandledDlqDivert(internalExecutionContext, false, jmsSession, e);
@@ -185,6 +187,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                 }
                 else {
                     log.error(msg, t);
+                    internalExecutionContext.setUserLambdaExceptionLogged();
                 }
                 rollbackOrMatsHandledDlqDivert(internalExecutionContext, false, jmsSession, t);
                 // Rethrow the Throwable as special RTE, which if Initiate will percolate all the way out.
