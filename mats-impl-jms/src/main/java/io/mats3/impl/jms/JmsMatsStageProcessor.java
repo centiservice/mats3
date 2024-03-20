@@ -878,58 +878,36 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     private boolean checkForTooManyDeliveriesAndDivertToDlq(Message message, int jmsxDeliveryCount, Session jmsSession)
             throws JmsMatsJmsException {
 
-        // TODO: Rewrite this, as we are now doing DLQ both directly after receive, and after processing.
-
         /*
-         * So, there's a question here: We could first do the actual processing of the stage, and if that fails (for the
-         * n'th time, i.e. DeliveryCount is too high), then send the incomoing message onto the DLQ - and then *commit*
-         * the JMS Session (that is, we won't rollback, but actually consume and "divert" the message to DLQ using a
-         * plain send, and then commit).
+         * So, one should intuitively think that it would be best to to "manual" Mats-Handled DLQ Divert after
+         * processing, i.e. if the processing fails (for the n'th time, i.e. DeliveryCount is too high), we'll send the
+         * incoming message onto the DLQ, and then *commit* the JMS Session (instead of rollback). That is, we won't
+         * rollback, but actually consume and "divert"/forward the message to DLQ using a plain send, and then commit.
+         * This also have a very nice effect of being able to "tag along" some metadata onto the DLQ'ed message, like
+         * the Exception that cause the DLQ'ing, how many times it has been put on the DLQ, etc - this can then be shown
+         * in the MatsBrokerMonitor view of DLQed messages, which is very nice for debugging.
          *
-         * However, this solution leads to a problem: If the processing results in multiple outgoing messages (which is
-         * not a too uncommon situation), we could get an exception while sending message #2 (say e.g. it was too large,
-         * or something like that). If we then were at the last redelivery attempt, we must now divert the incoming
-         * message to DLQ. In a broker-handled setup, you'd rollback the JMS Session, and thus "not-receive" the
-         * incoming message, and, crucially, also "not-send" the already sent first outgoing message - and if the broker
-         * found that this was the too-many'th delivery attempt, it would put the incoming message on the DLQ instead of
-         * redelivering it yet again. However, in this "manual DLQing" solution, the DLQing is implemented as a send of
-         * incoming message to DLQ, and then commit. However, since we then have already also sent the first outgoing
-         * message, we are now in a "half-processed" state, where the incoming message has been put on DLQ (correct),
-         * but the first outgoing message is also sent to its target queue (incorrect) and will thus be processed by
-         * downstream endpoints - when the goal was actually to stop the Mats Flow by DLQing the incoming message.
+         * However, there is a problem: If we've already output messages (we do this before committing DB) and then get
+         * an exception, or if the processing results in multiple outgoing messages (e.g. Reply + new send), we could
+         * get an exception while sending message #2 (say e.g. it was too large, or something like that). If we then
+         * were at the last redelivery attempt, we must now divert the incoming message to DLQ. In a broker-handled
+         * setup, you'd rollback the JMS Session, and thus "not-receive" the incoming message, and, crucially, also
+         * "not-send" the already sent first outgoing message. It is now the broker's responsibility to check the
+         * delivery count, and if it is too high, divert the incoming message to DLQ. However, in this "manual DLQing"
+         * solution, the DLQing is implemented as a send of incoming message to DLQ, and then commit. But, since we then
+         * have already also sent all, or the first outgoing message, we are now in a "half-processed" state, where one
+         * or more outgoing messages have been put on their target queues, and then we want to put the incoming message
+         * onto the DLQ. If we now commit, the incoming message will be on the DLQ (correct), but all or some of the
+         * so-far produced outgoing messages will also have been sent and will thus be processed by downstream
+         * endpoints. This is violently wrong since the goal was actually DLQ the incoming message only, and thus stop
+         * the Mats Flow. This is a problem, and we cannot really solve it, since we cannot "unsend" messages from JMS.
          *
-         * Therefore, we'll do the DLQing when receiving the message, which might be a bit counter-intuitive, but it is
-         * the only way to ensure that we don't get "partial" processing of the incoming message. That is, we leverage
-         * that any failure and subsequent rollback in the processing of delivery attempt N will lead to a redelivery
-         * attempt N+1, and thus we'll get the message again, and *then* we'll DLQ before even starting to process it.
+         * Therefore, we have resolved to handle this on "both sides": If we can do the DLQ after processing - that is,
+         * if the processing fails before we've started to output messages - then we'll do the DLQ after processing. If
+         * we however have started to output messages, we'll do normal JMS rollback, which will result in a redelivery
+         * of the incoming message, and then on receive we'll realize that this is a too high DeliveryCount, and then
+         * divert the incoming message to DLQ before even starting to process it.
          */
-
-        /*
-         * [ChatGPT-rewritten variant of the above explanation, maybe you find this better!]
-         *
-         * In our JMS message processing scenario, there's a critical decision point: should we first process the
-         * message and then, if it fails on the n'th attempt (due to high DeliveryCount), send it to the DLQ, committing
-         * the JMS Session? This approach means we consume and 'divert' the failed message to the DLQ with a regular
-         * send operation, followed by a session commit.
-         *
-         * However, this method can lead to complications when processing involves multiple outgoing messages. Imagine
-         * an error occurs while sending the second of these messages, perhaps due to its size. On the last redelivery
-         * attempt, we would need to divert the incoming message to the DLQ. In a standard broker-handled setup, you'd
-         * roll back the JMS Session to effectively 'unreceive' the incoming message and 'unsend' any outgoing messages
-         * already dispatched. The broker would then place the incoming message on the DLQ if it was the final delivery
-         * attempt. In contrast, our manual DLQing approach involves sending the incoming message to the DLQ and then
-         * committing. This process unfortunately leaves us in a half-processed state where the incoming message is
-         * correctly on the DLQ, but the first outgoing message has already been sent to its destination, triggering
-         * unintended downstream further processing of the Mats flow.
-         *
-         * To avoid this partial processing dilemma, we choose to perform DLQing right upon receiving the message. While
-         * it may seem counter-intuitive, this preemptive DLQing ensures complete processing integrity. If a processing
-         * failure occurs, leading to a session rollback, the message will be redelivered. On this next delivery, if the
-         * DeliveryCount is excessively high, the message is immediately diverted to the DLQ, preventing any processing.
-         * This approach guarantees that a message is either fully processed or entirely diverted to the DLQ in the
-         * event of repeated failures, maintaining the consistency of the processing flow.
-         */
-
         // ?: Are we using MatsManagedDlqDivert?
         if (getFactory().getNumberOfDeliveryAttemptsBeforeMatsManagedDlqDivert() == 0) {
             // -> No, we're not using MatsManagedDlqDivert, so continue processing of this message.
