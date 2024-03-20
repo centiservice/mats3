@@ -165,7 +165,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     // From JmsMatsFactory "proprietary" config
 
     // DLQ handling: Set to default 6. Note: 0 means "not using MatsManagedDlqDivert"
-    private int _numberOfDeliveryAttemptsBeforeMatsManagedDlqDivert = 0;
+    private int _numberOfDeliveryAttemptsBeforeMatsManagedDlqDivert = 6;
 
     // MatsRefuseException handling by Mats: Set to default true.
     private boolean _useMatsManagedDlqDivertOnMatsRefuseException = true;
