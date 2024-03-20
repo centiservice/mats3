@@ -41,7 +41,7 @@ import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
@@ -97,7 +97,7 @@ public class Test_InitiationElideJmsCommit {
         MatsTestBroker inVmActiveMq = MatsTestBroker.create();
         ConnectionFactory connectionFactory = inVmActiveMq.getConnectionFactory();
         ConnectionFactoryWithCommitCounter wrapper = new ConnectionFactoryWithCommitCounter(connectionFactory);
-        JmsMatsJmsSessionHandler sessionPool = JmsMatsJmsSessionHandler_PoolingSerial.create(wrapper);
+        JmsMatsJmsSessionHandler sessionPool = JmsMatsJmsSessionHandler_Pooling.create(wrapper);
         JmsMatsFactory<String> matsFactory = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions("test", "testversion",
                 sessionPool, MatsSerializerJson.create());
         matsFactory.getFactoryConfig().setConcurrency(5);

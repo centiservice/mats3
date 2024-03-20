@@ -17,17 +17,14 @@ import javax.jms.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.mats3.MatsInitiator;
 import io.mats3.impl.jms.JmsMatsException.JmsMatsJmsException;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling.PoolingKeyInitiator;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling.PoolingKeyStageProcessor;
 import io.mats3.impl.jms.JmsMatsTransactionManager.JmsMatsTxContextKey;
 
 /**
- * Second round of pooling implementation of {@link JmsMatsJmsSessionHandler} which serializes the creation of JMS
- * Connections to avoid thundering herds (An improvement upon {@link JmsMatsJmsSessionHandler_Pooling}). Upon
- * {@link #create(ConnectionFactory, PoolingKeyInitiator, PoolingKeyStageProcessor) creation}, you decide how
- * Connections are shared for {@link JmsMatsStageProcessor}s and {@link MatsInitiator}s.
+ * Exactly the same as {@link JmsMatsJmsSessionHandler_Pooling}. Soft deprecated - will be deleted once all users
+ * are on the new one.
  *
  * @author Endre Stølsvik 2023-12-06 22:07 - http://stolsvik.com/, endre@stolsvik.com
  */

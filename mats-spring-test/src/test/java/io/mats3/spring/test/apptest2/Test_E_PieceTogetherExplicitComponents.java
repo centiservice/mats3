@@ -15,7 +15,7 @@ import org.springframework.test.context.junit4.SpringRunner;
 
 import io.mats3.MatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.ConfigurationForTest;
 import io.mats3.spring.Dto;
@@ -65,7 +65,7 @@ public class Test_E_PieceTogetherExplicitComponents {
         protected MatsFactory matsFactoryX(@Qualifier("brokerX") MatsTestBroker broker) {
             return JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(
                     Test_E_PieceTogetherExplicitComponents.class.getSimpleName(), "#testing#",
-                    JmsMatsJmsSessionHandler_PoolingSerial.create(broker.getConnectionFactory()),
+                    JmsMatsJmsSessionHandler_Pooling.create(broker.getConnectionFactory()),
                     MatsSerializerJson.create());
         }
 
@@ -88,7 +88,7 @@ public class Test_E_PieceTogetherExplicitComponents {
         protected MatsFactory matsFactoryY(@Qualifier("brokerY") MatsTestBroker broker) {
             return JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(
                     Test_E_PieceTogetherExplicitComponents.class.getSimpleName(), "#testing#",
-                    JmsMatsJmsSessionHandler_PoolingSerial.create(broker.getConnectionFactory()),
+                    JmsMatsJmsSessionHandler_Pooling.create(broker.getConnectionFactory()),
                     MatsSerializerJson.create());
         }
 

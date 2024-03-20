@@ -16,7 +16,7 @@ import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsFactory.MatsFactoryWrapper;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.impl.jms.JmsMatsTransactionManager;
 import io.mats3.impl.jms.JmsMatsTransactionManager_Jms;
 import io.mats3.serial.MatsSerializer;
@@ -196,7 +196,7 @@ public class TestSpringMatsFactoryProvider {
         MatsTestBroker inVmActiveMq = MatsTestBroker.create();
         // :: Create the JMS and Spring DataSourceTransactionManager-backed JMS MatsFactory.
         // JmsSessionHandler (pooler)
-        JmsMatsJmsSessionHandler sessionPooler = JmsMatsJmsSessionHandler_PoolingSerial.create(
+        JmsMatsJmsSessionHandler sessionPooler = JmsMatsJmsSessionHandler_Pooling.create(
                 inVmActiveMq.getConnectionFactory());
         // The MatsFactory itself, supplying the JmsSessionHandler and MatsTransactionManager.
         JmsMatsFactory<?> matsFactory = JmsMatsFactory

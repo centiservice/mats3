@@ -35,7 +35,7 @@ import ch.qos.logback.core.CoreConstants;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.KeepTrace;
 import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.intercept.micrometer.MatsMicrometerInterceptor.SuggestedTimingHistogramsMeterFilter;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
@@ -86,7 +86,7 @@ public class MatsMetrics_TestJettyServer {
             // Create the MatsFactory
             _matsFactory = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
                     MatsMetrics_TestJettyServer.class.getSimpleName(), "*testing*",
-                    JmsMatsJmsSessionHandler_PoolingSerial.create(connFactory),
+                    JmsMatsJmsSessionHandler_Pooling.create(connFactory),
                     dataSource,
                     matsSerializer);
             // Configure the MatsFactory for testing (remember, we're running two instances in same JVM)

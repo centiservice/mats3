@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory;
 import io.mats3.MatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.broker.MatsTestBroker;
@@ -80,7 +80,7 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
     static <Z> MatsTestFactory create(MatsTestBroker matsTestBroker, DataSource dataSource,
             MatsSerializer<Z> matsSerializer) {
 
-        JmsMatsJmsSessionHandler sessionHandler = JmsMatsJmsSessionHandler_PoolingSerial
+        JmsMatsJmsSessionHandler sessionHandler = JmsMatsJmsSessionHandler_Pooling
                 .create(matsTestBroker.getConnectionFactory());
 
         JmsMatsFactory<Z> matsFactory;

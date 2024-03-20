@@ -9,7 +9,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import io.mats3.MatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.impl.jms.JmsMatsTransactionManager;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.spring.EnableMats;
@@ -33,7 +33,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase_PlatformTransact
                 ConnectionFactory connectionFactory, MatsSerializer<String> matsSerializer) {
 
             // Create the JMS and Spring DataSourceTransactionManager-backed JMS MatsFactory.
-            JmsMatsJmsSessionHandler sessionPool = JmsMatsJmsSessionHandler_PoolingSerial.create(connectionFactory);
+            JmsMatsJmsSessionHandler sessionPool = JmsMatsJmsSessionHandler_Pooling.create(connectionFactory);
             JmsMatsTransactionManager txMgrSpring = JmsMatsTransactionManager_JmsAndSpringManagedSqlTx.create(
                     platformTransactionManager);
 

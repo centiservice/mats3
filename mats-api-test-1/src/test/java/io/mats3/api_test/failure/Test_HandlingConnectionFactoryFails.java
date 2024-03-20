@@ -21,7 +21,7 @@ import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling.PoolingKeyInitiator;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling.PoolingKeyStageProcessor;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.MatsFuturizer;
@@ -103,7 +103,7 @@ public class Test_HandlingConnectionFactoryFails {
         };
 
         JmsMatsJmsSessionHandler sessionPooler = usePoolingSerial
-                ? JmsMatsJmsSessionHandler_PoolingSerial.create(fakeConFactory, poolingKeyInitiator,
+                ? JmsMatsJmsSessionHandler_Pooling.create(fakeConFactory, poolingKeyInitiator,
                         poolingKeyStageProcessor)
                 : JmsMatsJmsSessionHandler_Pooling.create(fakeConFactory, poolingKeyInitiator,
                         poolingKeyStageProcessor);

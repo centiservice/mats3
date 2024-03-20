@@ -39,7 +39,7 @@ import ch.qos.logback.core.CoreConstants;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.KeepTrace;
 import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.broker.MatsTestBroker;
@@ -96,7 +96,7 @@ public class LocalHtmlInspect_TestJettyServer {
             // Create the MatsFactory
             _matsFactory1 = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
                     SERVICE_ORDER, "*testing*",
-                    JmsMatsJmsSessionHandler_PoolingSerial.create(connFactory),
+                    JmsMatsJmsSessionHandler_Pooling.create(connFactory),
                     dataSource,
                     matsSerializer);
             // Hold start
@@ -110,7 +110,7 @@ public class LocalHtmlInspect_TestJettyServer {
             // Create the MatsFactory
             _matsFactory2 = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
                     SERVICE_DELIVERY, "*testing*",
-                    JmsMatsJmsSessionHandler_PoolingSerial.create(connFactory),
+                    JmsMatsJmsSessionHandler_Pooling.create(connFactory),
                     dataSource,
                     matsSerializer);
             // Hold start

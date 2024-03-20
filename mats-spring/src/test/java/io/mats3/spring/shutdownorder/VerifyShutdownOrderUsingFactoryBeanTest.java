@@ -20,7 +20,7 @@ import io.mats3.MatsEndpoint;
 import io.mats3.MatsFactory;
 import io.mats3.MatsFactory.MatsFactoryWrapper;
 import io.mats3.impl.jms.JmsMatsFactory;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.EnableMats;
 import io.mats3.spring.matsfactoryqualifier.AbstractQualificationTest;
@@ -107,7 +107,7 @@ public class VerifyShutdownOrderUsingFactoryBeanTest {
             MatsFactoryVerifiableStopWrapper matsFactoryVerifiableStopWrapper = new MatsFactoryVerifiableStopWrapper(
                     JmsMatsFactory.createMatsFactory_JmsOnlyTransactions("##TEST##",
                             "##VERSION##",
-                            JmsMatsJmsSessionHandler_PoolingSerial.create(connectionFactory),
+                            JmsMatsJmsSessionHandler_Pooling.create(connectionFactory),
                             MatsSerializerJson.create()),
                     stoppedOrderRegistry);
             // Chill the concurrency a tad

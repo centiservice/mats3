@@ -13,7 +13,7 @@ import org.springframework.test.context.junit4.SpringRunner;
 import io.mats3.MatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.impl.jms.JmsMatsTransactionManager;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.spring.EnableMats;
@@ -37,7 +37,7 @@ public class Test_SpringManagedTx_H2Based_OnlyDataSource extends Test_SpringMana
         protected MatsFactory createMatsFactory(DataSource dataSource,
                 ConnectionFactory connectionFactory, MatsSerializer<String> matsSerializer) {
             // Create the JMS and Spring DataSourceTransactionManager-backed JMS MatsFactory.
-            JmsMatsJmsSessionHandler sessionPooler = JmsMatsJmsSessionHandler_PoolingSerial.create(connectionFactory);
+            JmsMatsJmsSessionHandler sessionPooler = JmsMatsJmsSessionHandler_Pooling.create(connectionFactory);
             JmsMatsTransactionManager txMgrSpring = JmsMatsTransactionManager_JmsAndSpringManagedSqlTx.create(
                     dataSource);
 

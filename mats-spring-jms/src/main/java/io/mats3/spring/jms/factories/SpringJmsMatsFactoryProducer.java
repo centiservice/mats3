@@ -15,7 +15,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import io.mats3.MatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler;
-import io.mats3.impl.jms.JmsMatsJmsSessionHandler_PoolingSerial;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.impl.jms.JmsMatsTransactionManager;
 import io.mats3.impl.jms.JmsMatsTransactionManager_Jms;
 import io.mats3.serial.MatsSerializer;
@@ -160,7 +160,7 @@ public class SpringJmsMatsFactoryProducer {
     private static SpringJmsMatsFactoryWrapper createJmsMatsFactory(String appName, String appVersion,
             MatsSerializer<?> matsSerializer, ConnectionFactory jmsConnectionFactory, JmsMatsTransactionManager txMgr) {
         // JmsSessionHandler (pooler)
-        JmsMatsJmsSessionHandler jmsSessionHandler = JmsMatsJmsSessionHandler_PoolingSerial.create(
+        JmsMatsJmsSessionHandler jmsSessionHandler = JmsMatsJmsSessionHandler_Pooling.create(
                 jmsConnectionFactory);
         // The MatsFactory itself, supplying the JmsSessionHandler and MatsTransactionManager.
         JmsMatsFactory<?> matsFactory = JmsMatsFactory
