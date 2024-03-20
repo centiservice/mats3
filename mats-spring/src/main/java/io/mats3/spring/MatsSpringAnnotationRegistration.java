@@ -888,49 +888,27 @@ public class MatsSpringAnnotationRegistration implements
         // newly instantiated instance), and thus it will be stored as a template field, and thus it will NOT be assumed
         // to be state: It will be assumed to be a shared service of sorts, and thus shared between all stage processing
         // threads. Which is close to opposite of what you expected, and will lead to very strange and hard-to-debug
-        // problems. Thus, we check that the class has a no-args constructor, and if not, we currently (2023-09-16) log
-        // hard - WILL LATER THROW.
+        // problems. Thus, we check that the class has a no-args constructor, and if not, we throw.
         try {
             matsClass.getDeclaredConstructor();
         }
         catch (NoSuchMethodException e) {
-            log.error(LOG_PREFIX + " HARD WARNING - DEPRECATION!! The class [" + matsClass.getSimpleName()
-                    + "] does not"
-                    + " have a no-args constructor, which is required for @MatsClassMapping. THIS WILL THROW IN A LATER"
-                    + " VERSION OF Mats3 SpringConfig, so you should fix this now! If the reason for this is that you"
-                    + " employ constructor injection, and in addition use declaration-initialized fields ('List<Car>"
-                    + " _cars = new ArrayList<>();'), and in addition use GSON as serialization mechanism (which uses"
-                    + " Objenesis to 'stamp out' instances when missing no-args constructor), then the field will be"
-                    + " assumed to be a Spring-injected field as opposed to a state field, and thus shared between all"
-                    + " stage processing threads. It is highly unlikely that this is what you intended, and will lead"
-                    + " to bad and hard-to-debug bugs.");
+            throw new MatsSpringConfigException("The class [" + matsClass.getSimpleName() + "] does not"
+                    + " have a no-args constructor, which is required for @MatsClassMapping. (The reason is that"
+                    + " some serialization mechanisms (GSON) employ 'Objenesis' for instantiation if a no-args"
+                    + " constructor is missing, and any declaration initialized fields will then not be initialized,"
+                    + " as Java rely on constructor invocation to do that).");
         }
 
-        // .. actually make the endpoint
-        MatsEndpoint<?, ?> ep;
-        try {
-            ep = matsFactoryToUse.staged(matsClassMapping.endpointId(), replyClass, matsClass);
-        }
-        catch (RuntimeException e) {
-            throw new MatsSpringConfigException("Could not create endpoint for @MatsClassMapping endpoint at class '"
-                    + classNameWithoutPackage(bean) + "' - NOTE! A common problem is that you have forgotten"
-                    + " 'transient' on fields that are injected by Spring.", e);
-        }
-        ep.getEndpointConfig()
-                .setOrigin("@MatsClassMapping " + matsClass.getSimpleName() + ";" + matsClass.getName());
-
-        // Set concurrency, if set
-        if (concurrencyForEndpoint > 0) {
-            ep.getEndpointConfig().setConcurrency(concurrencyForEndpoint);
-        }
+        // Make an "empty state object" to see if it can be done: Checks that deserialization works for an "empty
+        // object", which can fail if the combination of the class's fields and serialization mechanism is not
+        // compatible, e.g. if the class has a state field of type java.lang.Thread, which would be insane anyway.
+        //
+        // We'll later also use this instance to check if some fields are set by the class itself, i.e. with no-args
+        // constructor or initial value / declaration initialization.
+        Object freshInstantiatedStateObject = matsFactoryToUse.getFactoryConfig().instantiateNewObject(matsClass);
 
         // :: Hold on to all non-null fields of the bean - these are what Spring has injected. Make "template".
-
-        // Need to check if the State class sets any fields by itself, i.e. with no-args constructor or initial value.
-        // Note: This also checking that deserialization works for an "empty object", which can fail if the combination
-        // of the class's fields and serialization mechanism is not compatible, e.g. if the class has a state field of
-        // type java.lang.Thread, which would be insane anyway.
-        Object instantiatedStateObject = matsFactoryToUse.getFactoryConfig().instantiateNewObject(matsClass);
 
         Field[] processContextField_hack = new Field[1];
         LinkedHashMap<Field, Object> templateFields = new LinkedHashMap<>();
@@ -1001,7 +979,7 @@ public class MatsSpringAnnotationRegistration implements
             }
             // ->?: Not null, but is it also set in a newly instantiated variant of the matsClass?
             // (That is, is it a 'declaration-initialized' field, i.e. 'List<String> _list = new ArrayList<>();')
-            else if (field.get(instantiatedStateObject) != null) {
+            else if (field.get(freshInstantiatedStateObject) != null) {
                 // -> Yes, both non-null in the Spring bean, AND in a newly instantiated instance of the matsClass
                 log.info(LOG_PREFIX + " - Field [" + name + "] is non-null both in Spring bean AND in newly"
                         + " instantiated instance: Assuming declaration-initialized state field, ignoring. (Type: ["
@@ -1012,14 +990,13 @@ public class MatsSpringAnnotationRegistration implements
             // ----- This is not ProcessContext nor a State field, thus a Spring Dependency Injected field. We assume.
 
             log.info(LOG_PREFIX + " - Field [" + name + "] of Spring bean is non-null: Assuming Spring Dependency"
-                    + "Injection has set it - storing as template. (Type:[" + field.getGenericType() + "], Value:["
+                    + " Injection has set it - storing as template. (Type:[" + field.getGenericType() + "], Value:["
                     + value + "])");
 
-            // Check that 'transient' is set. Currently (2023-05-30), we just log, later we'll throw.
+            // Check that 'transient' is set for injected fields.
             if (!Modifier.isTransient(field.getModifiers())) {
-                log.error(LOG_PREFIX + " HARD WARNING - DEPRECATION!! MISSING 'transient' MODIFIER ON INJECTED FIELD"
-                        + " [" + name + "] of class [" + classNameWithoutPackage(bean) + "]. Please add this. In some"
-                        + " later Mats version, we'll throw here!");
+                throw new MatsSpringConfigException("Missing 'transient' modifier on injected field [" + name
+                        + "] of class [" + classNameWithoutPackage(bean) + "].");
             }
 
             templateFields.put(field, value);
@@ -1030,6 +1007,24 @@ public class MatsSpringAnnotationRegistration implements
         Field processContextField = processContextField_hack[0];
         if (processContextField != null) {
             processContextField.setAccessible(true);
+        }
+
+        // :: Actually make the endpoint
+        MatsEndpoint<?, ?> ep;
+        try {
+            ep = matsFactoryToUse.staged(matsClassMapping.endpointId(), replyClass, matsClass);
+        }
+        catch (RuntimeException e) {
+            throw new MatsSpringConfigException("Could not create endpoint for @MatsClassMapping endpoint at class '"
+                    + classNameWithoutPackage(bean) + "' - you'll have to diligently read the cause message and"
+                    + " stacktrace!", e);
+        }
+        ep.getEndpointConfig()
+                .setOrigin("@MatsClassMapping " + matsClass.getSimpleName() + ";" + matsClass.getName());
+
+        // Set concurrency, if set
+        if (concurrencyForEndpoint > 0) {
+            ep.getEndpointConfig().setConcurrency(concurrencyForEndpoint);
         }
 
         // :: Make the stages of the Endpoint by running through the @Stage-annotated methods.
@@ -1323,21 +1318,19 @@ public class MatsSpringAnnotationRegistration implements
         if ("".equals(concurrencySpecifier)) {
             return -1;
         }
-        int concurreny;
+        int concurrency;
         try {
-            concurreny = Integer.parseInt(concurrencySpecifier);
+            concurrency = Integer.parseInt(concurrencySpecifier);
         }
         catch (NumberFormatException e) {
             throw new MatsSpringConfigException("Not a valid integer: The concurrency specifier ["
-                    + concurrencySpecifier
-                    + "] for [" + forWhat + "] is not an integer.");
+                    + concurrencySpecifier + "] for [" + forWhat + "] is not an integer.");
         }
-        if (concurreny < 0) {
-            throw new MatsSpringConfigException("Negative concurreny: The concurrency specifier ["
-                    + concurrencySpecifier
-                    + "] for [" + forWhat + "] is negative - not allowed.");
+        if (concurrency < 0) {
+            throw new MatsSpringConfigException("Negative concurrency: The concurrency specifier ["
+                    + concurrencySpecifier + "] for [" + forWhat + "] is negative - not allowed.");
         }
-        return concurreny;
+        return concurrency;
     }
 
     private MatsFactory getMatsFactoryToUse(String forWhat, AnnotatedElement annotatedElement,
