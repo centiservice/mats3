@@ -1,10 +1,14 @@
 package io.mats3.test.jupiter;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import javax.sql.DataSource;
 
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.serial.MatsSerializer;
@@ -58,8 +62,8 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  * @author Kevin Mc Tiernan, 2020-10-18, kmctiernan@gmail.com
  * @see Extension_MatsGeneric
  */
-public class Extension_Mats extends AbstractMatsTest<String>
-        implements BeforeAllCallback, AfterAllCallback {
+public class Extension_Mats extends AbstractMatsTest<String> implements BeforeAllCallback, AfterAllCallback {
+    private static final Logger log = LoggerFactory.getLogger(Extension_Mats.class);
 
     protected Extension_Mats(MatsSerializer<String> matsSerializer) {
         super(matsSerializer);
@@ -93,12 +97,21 @@ public class Extension_Mats extends AbstractMatsTest<String>
         return new Extension_Mats(matsSerializer, testH2DataSource);
     }
 
+    private final AtomicInteger _nestinglevel = new AtomicInteger(0);
+
     /**
      * Executed by Jupiter before any test method is executed. (Once at the start of the class.)
      */
     @Override
     public void beforeAll(ExtensionContext context) {
-        super.beforeAll();
+        int nestingLevel = _nestinglevel.getAndIncrement();
+        if (nestingLevel == 0) {
+            super.beforeAll();
+        }
+        else {
+            log.debug("+++ Jupiter +++ beforeAll(..) invoked, but ignoring since nesting level is > 0: "
+                    + nestingLevel);
+        }
     }
 
     /**
@@ -106,7 +119,13 @@ public class Extension_Mats extends AbstractMatsTest<String>
      */
     @Override
     public void afterAll(ExtensionContext context) {
-        super.afterAll();
+        int nestingLevel = _nestinglevel.decrementAndGet();
+        if (nestingLevel == 0) {
+            super.afterAll();
+        }
+        else {
+            log.debug("--- Jupiter --- afterAll(..) invoked, but ignoring since nesting level is > 0: "
+                    + nestingLevel);
+        }
     }
-
 }
