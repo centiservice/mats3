@@ -72,8 +72,8 @@ public class ATest_AbstractConcurrency {
          */
 
         // First "standard" waitForReceiving, to get at least one StageProcessor running for all stages.
-        MATS.getMatsFactory().getEndpoint(ENDPOINT).orElseThrow(() ->
-                new AssertionError("Could not get endpoint [" + ENDPOINT + "]"))
+        MATS.getMatsFactory().getEndpoint(ENDPOINT).orElseThrow(() -> new AssertionError("Could not get endpoint ["
+                + ENDPOINT + "]"))
                 .waitForReceiving(30_0000);
 
         // .. then wait a little more, in hope that all the StageProcessors has gotten into receive()
@@ -98,14 +98,19 @@ public class ATest_AbstractConcurrency {
         // It should take a tad more than PROCESSING_TIME * MESSAGES_MULTIPLE ms, but we give it a good bit more.
         // Note: The Windows hosts on GitHub Actions are seemingly absurdly slow, so we need to give it a lot more time.
         // (On local dev machine, it typically runs in a multiple of 1.1 from cold start)
-        long maxWait = PROCESSING_TIME * MESSAGES_MULTIPLE * 5;
+        boolean windowsOs = System.getProperty("os.name", "x").toLowerCase().contains("windows");
+        long maxWait = windowsOs
+                ? (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 6.0)
+                : (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 2.5);
+        log.info("Waiting for " + CONCURRENCY + " messages to reach terminator, with a maxWait of [" + maxWait
+                + " ms] (Windows OS: " + windowsOs + ")");
         long startMillis = System.currentTimeMillis();
         boolean gotToZero = _latch.await(30, TimeUnit.SECONDS);
         long millisTaken = System.currentTimeMillis() - startMillis;
         Assert.assertTrue("The CountDownLatch did not reach zero.", gotToZero);
-        Assert.assertTrue("The CountDownLatch did not reach zero in " + maxWait + " ms (took " + millisTaken + "ms).",
-                millisTaken < maxWait);
-        log.info("@@ Test passed - Waiting for " + CONCURRENCY + " messages took " + millisTaken
+        Assert.assertTrue("The CountDownLatch did not reach zero fast enough, in " + maxWait + " ms, it took "
+                + millisTaken + " ms.", millisTaken < maxWait);
+        log.info("@@ Test passed - Waited for " + CONCURRENCY + " messages, took " + millisTaken
                 + " ms - less than the maxWait of [" + maxWait + " ms].");
 
         // :: Assert the processed data
