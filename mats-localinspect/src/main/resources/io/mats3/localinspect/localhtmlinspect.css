@@ -127,40 +127,40 @@
 .matsli_tooltip {
     position: relative;
     display: inline-block;
-    border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
-    cursor: default;
+    border-bottom: 1px dotted black;
+    cursor: grab;
 }
 
 .matsli_tooltip .matsli_tooltiptext {
     visibility: hidden;
-    width: 55em;
-    background-color: rgba(210, 210, 210, 0.9);
+    width: 55em; /* added */
+    background-color: rgba(200, 200, 200, 0.9);
     color: black;
     text-align: center;
     padding: 5px 0;
     border-radius: 6px;
 
-    /* Position the tooltip text - see examples below! */
+    /* Position the tooltip text */
     position: absolute;
+    left: -55em;
     z-index: 1;
     bottom: 200%;
-    left: 50%;
-    margin-left: -27.5em; /* Use half of the width (120/2 = 60), to center the tooltip */
 }
 
 .matsli_tooltip:hover .matsli_tooltiptext {
     visibility: visible;
 }
 
+/* Small arrow under the tooltip */
 .matsli_tooltip .matsli_tooltiptext::after {
     content: " ";
     position: absolute;
     top: 100%; /* At the bottom of the tooltip */
-    left: 50%;
+    left: var(--caret-left, 50%); /* Use a CSS variable with a default of 50% */
     margin-left: -5px;
     border-width: 5px;
     border-style: solid;
-    border-color:  rgba(210, 210, 210, 0.9) transparent transparent transparent;
+    border-color:  rgba(200, 200, 200, 0.9) transparent transparent transparent;
 }
 
 /* :; Inside stage: Initiator-to-Terminator timings */
