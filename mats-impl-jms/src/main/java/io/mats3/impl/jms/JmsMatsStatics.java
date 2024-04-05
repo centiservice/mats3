@@ -25,6 +25,7 @@ import org.slf4j.MDC;
 import io.mats3.MatsEndpoint.MatsObject;
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsFactory.FactoryConfig;
+import io.mats3.MatsStage;
 import io.mats3.impl.jms.JmsMatsException.JmsMatsJmsException;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
 import io.mats3.impl.jms.JmsMatsTransactionManager.JmsMatsTxContextKey;
@@ -47,11 +48,13 @@ public interface JmsMatsStatics {
 
     String THREAD_PREFIX = "MATS:";
 
+    // ===== MDC properties set for logger at various points ("as early as possible" in the processing)
+
     // Not using "mats." prefix for "traceId", as it is hopefully generic yet specific
     // enough that it might be used in similar applications.
     String MDC_TRACE_ID = "traceId";
 
-    // ::: MDC-values. Using "mats." prefix for the Mats-specific parts of MDC
+    // ::: Using "mats." prefix for the Mats-specific parts of MDC
 
     String MDC_MATS_CALL_NUMBER = "mats.CallNo"; // 0 for init, >0 for stages.
 
@@ -71,13 +74,17 @@ public interface JmsMatsStatics {
 
     // .. Set by Processor when receiving a message:
     String MDC_MATS_IN_MESSAGE_SYSTEM_ID = "mats.in.MsgSysId";
+    // NOTICE: Same on MatsMetricsLoggingInterceptor
+    String MDC_MATS_IN_MATS_MESSAGE_ID = "mats.in.MatsMsgId"; // Set when receiving message, from JMS props.
 
     // :: Message Out
 
     // NOTICE: Same on MatsMetricsLoggingInterceptor
     String MDC_MATS_OUT_MATS_MESSAGE_ID = "mats.out.MatsMsgId"; // Set when producing message
 
-    // JMS Properties put on the JMSMessage via set[String|Long|Boolean]Property(..)
+    // ===== JMS Properties put on the JMSMessage via set[String|Long|Boolean]Property(..)
+    // NOTICE: "." is not allowed by JMS (and Apache Artemis complains!), so we use "_".
+
     String JMS_MSG_PROP_TRACE_ID = "mats_TraceId"; // String
     String JMS_MSG_PROP_MATS_MESSAGE_ID = "mats_MsgId"; // String
     String JMS_MSG_PROP_DISPATCH_TYPE = "mats_DispatchType"; // String
@@ -87,6 +94,15 @@ public interface JmsMatsStatics {
     String JMS_MSG_PROP_INITIATOR_ID = "mats_InitId"; // String
     String JMS_MSG_PROP_TO = "mats_To"; // String (needed if a message ends up on a global/common DLQ)
     String JMS_MSG_PROP_AUDIT = "mats_Audit"; // Boolean
+
+    // :: For 'Mats Managed DLQ Divert' - Note that most of these shall be cleared when reissued from DLQ!
+    String JMS_MSG_PROP_DLQ_EXCEPTION = "mats_dlq_Exception"; // String (not set if DLQed on receive-side)
+    String JMS_MSG_PROP_DLQ_REFUSED = "mats_dlq_Refused"; // Boolean (not set if DLQed on receive-side)
+    String JMS_MSG_PROP_DLQ_DELIVERY_COUNT = "mats_dlq_DeliveryCount"; // Integer
+    String JMS_MSG_PROP_DLQ_DLQ_COUNT = "mats_dlq_DlqCount"; // Integer (NOTE: Must be kept when reissued from DLQ!)
+    String JMS_MSG_PROP_DLQ_APP_VERSION_AND_HOST = "mats_dlq_AppAndVersion"; // String
+    String JMS_MSG_PROP_DLQ_STAGE_ORIGIN = "mats_dlq_StageOrigin"; // String
+
     int TOTAL_JMS_MSG_PROPS_SIZE = JMS_MSG_PROP_TRACE_ID.length()
             + JMS_MSG_PROP_MATS_MESSAGE_ID.length()
             + JMS_MSG_PROP_DISPATCH_TYPE.length()
@@ -95,12 +111,13 @@ public interface JmsMatsStatics {
             + JMS_MSG_PROP_INITIALIZING_APP.length()
             + JMS_MSG_PROP_INITIATOR_ID.length()
             + JMS_MSG_PROP_TO.length()
-            + JMS_MSG_PROP_AUDIT.length();
-
-    String JMS_PROP_DLQ_EXCEPTION = "mats_exception"; // String
-    String JMS_PROP_DLQ_MATS_HANDLED_DLQ_DIVERT = "mats_matsHandledDlqDivert"; // Boolean
-    String JMS_PROP_DLQ_INSTA_DLQ = "mats_instaDLQ"; // Boolean
-    String JMS_PROP_DLQ_DLQ_COUNT = "mats_dlqCount"; // Integer
+            + JMS_MSG_PROP_AUDIT.length()
+            + JMS_MSG_PROP_DLQ_EXCEPTION.length()
+            + JMS_MSG_PROP_DLQ_REFUSED.length()
+            + JMS_MSG_PROP_DLQ_DELIVERY_COUNT.length()
+            + JMS_MSG_PROP_DLQ_DLQ_COUNT.length()
+            + JMS_MSG_PROP_DLQ_APP_VERSION_AND_HOST.length()
+            + JMS_MSG_PROP_DLQ_STAGE_ORIGIN.length();
 
     /**
      * Number of milliseconds to "extra wait" after timeoutMillis or gracefulShutdownMillis is gone.
@@ -168,6 +185,7 @@ public interface JmsMatsStatics {
                 }
 
                 // :: Add some JMS Message Properties to simplify intercepting/logging on MQ Broker.
+                // .. and also for ourselves when we receive the message (picking out traceId and matsMessageId).
                 mm.setStringProperty(JMS_MSG_PROP_TRACE_ID, outgoingMatsTrace.getTraceId());
                 mm.setStringProperty(JMS_MSG_PROP_MATS_MESSAGE_ID,
                         outgoingMatsTrace.getCurrentCall().getMatsMessageId());
@@ -467,26 +485,35 @@ public interface JmsMatsStatics {
         return dlqName;
     }
 
-    static void sendDlq(Logger log, Session jmsSession, MessageProducer messageProducer, Message message,
-                                String dlqName, boolean instaDlq, Throwable t) throws JMSException {
+    static void sendToDlq(Logger log, Session jmsSession, MessageProducer messageProducer, MatsStage<?, ?, ?> matsStage,
+            Message message, String dlqName, int deliveryCount, boolean refused, Throwable t)
+            throws JMSException {
         JmsMatsStatics.makeMessagePropertiesEditable(message);
 
-        // ?: Do we have a Throwable? (Always do in post-Stage, never in pre-Stage).
+        // ?: Do we have a Throwable? (Always do in post-Stage, never in pre-Stage/receive-side).
         if (t != null) {
             // -> Yes, Throwable: Convert the Throwable to string, and add it
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
             t.printStackTrace(pw);
-            message.setStringProperty(JMS_PROP_DLQ_EXCEPTION, sw.toString());
+            message.setStringProperty(JMS_MSG_PROP_DLQ_EXCEPTION, sw.toString());
+
+            // Refused? (Can only be set if there is a Throwable, as otherwise it was DLQed on receive-side.)
+            message.setBooleanProperty(JMS_MSG_PROP_DLQ_REFUSED, refused);
         }
-        // This was a Mats3 handled DLQ Divert
-        message.setBooleanProperty(JMS_PROP_DLQ_MATS_HANDLED_DLQ_DIVERT, true);
-        // InstaDLQ?
-        message.setBooleanProperty(JMS_PROP_DLQ_INSTA_DLQ, instaDlq);
+        // How many times has this message been delivered
+        message.setIntProperty(JMS_MSG_PROP_DLQ_DELIVERY_COUNT, deliveryCount);
+
         // How many rounds have this message been through DLQing? (Re-issue from a monitor, new DLQ)
-        message.setIntProperty(JMS_PROP_DLQ_DLQ_COUNT, message.propertyExists(JMS_PROP_DLQ_DLQ_COUNT)
-                ? message.getIntProperty(JMS_PROP_DLQ_DLQ_COUNT) + 1
+        message.setIntProperty(JMS_MSG_PROP_DLQ_DLQ_COUNT, message.propertyExists(JMS_MSG_PROP_DLQ_DLQ_COUNT)
+                ? message.getIntProperty(JMS_MSG_PROP_DLQ_DLQ_COUNT) + 1
                 : 1);
+
+        message.setStringProperty(JMS_MSG_PROP_DLQ_STAGE_ORIGIN, matsStage.getStageConfig().getOrigin());
+
+        FactoryConfig factoryConfig = matsStage.getParentEndpoint().getParentFactory().getFactoryConfig();
+        message.setStringProperty(JMS_MSG_PROP_DLQ_APP_VERSION_AND_HOST, factoryConfig.getAppName()
+                + ";" + factoryConfig.getAppVersion() + "@" + factoryConfig.getNodename());
 
         // :: Send (divert) the message
         log.info(LOG_PREFIX + "Diverting message to DLQ [" + dlqName + "].");

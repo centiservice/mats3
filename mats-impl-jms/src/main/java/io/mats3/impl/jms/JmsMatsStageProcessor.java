@@ -434,7 +434,10 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                             boolean messageIsDlqed = checkForTooManyDeliveriesAndDivertToDlq(message, jmsxDeliveryCount,
                                     jmsSession);
+                            // ?: Was it diverted to DLQ?
                             if (messageIsDlqed) {
+                                // -> Yes, diverted to DLQ, so we're finished with this message.
+                                // Exit out of the transaction.
                                 return;
                             }
 
@@ -879,13 +882,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             throws JmsMatsJmsException {
 
         /*
-         * So, one should intuitively think that it would be best to to "manual" Mats-Handled DLQ Divert after
-         * processing, i.e. if the processing fails (for the n'th time, i.e. DeliveryCount is too high), we'll send the
-         * incoming message onto the DLQ, and then *commit* the JMS Session (instead of rollback). That is, we won't
-         * rollback, but actually consume and "divert"/forward the message to DLQ using a plain send, and then commit.
-         * This also have a very nice effect of being able to "tag along" some metadata onto the DLQ'ed message, like
-         * the Exception that cause the DLQ'ing, how many times it has been put on the DLQ, etc - this can then be shown
-         * in the MatsBrokerMonitor view of DLQed messages, which is very nice for debugging.
+         * So, one should intuitively think that it would be best to "manual" Mats-Handled DLQ Divert after processing,
+         * i.e. if the processing fails (for the n'th time, i.e. DeliveryCount is too high), we'll send the incoming
+         * message onto the DLQ, and then *commit* the JMS Session (instead of rollback). That is, we won't rollback,
+         * but actually consume and "divert"/forward the message to DLQ using a plain send, and then commit. This also
+         * have a very nice effect of being able to "tag along" some metadata onto the DLQ'ed message, like the
+         * Exception that cause the DLQ'ing, how many times it has been put on the DLQ, etc - this can then be shown in
+         * the MatsBrokerMonitor view of DLQed messages, which is very nice for debugging.
          *
          * However, there is a problem: If we've already output messages (we do this before committing DB) and then get
          * an exception, or if the processing results in multiple outgoing messages (e.g. Reply + new send), we could
@@ -923,17 +926,15 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
         // E-> Yes, DeliveryCount is too high, so divert to DLQ.
 
-        // :: Fetch TraceId and JMSMessageId for MDC
+        // :: Fetch JMSMessageId, MatsMessageId and TraceId for MDC logging when DLQ
         try {
-            String jmsMessageId = message.getJMSMessageID();
-            MDC.put(MDC_MATS_IN_MESSAGE_SYSTEM_ID, jmsMessageId);
-            // Fetching the TraceId early from the JMS Message for MDC, so that can follow in logs.
-            String traceId = message.getStringProperty(JMS_MSG_PROP_TRACE_ID);
-            MDC.put(MDC_TRACE_ID, traceId);
+            MDC.put(MDC_MATS_IN_MESSAGE_SYSTEM_ID, message.getJMSMessageID());
+            MDC.put(MDC_MATS_IN_MATS_MESSAGE_ID, message.getStringProperty(JMS_MSG_PROP_MATS_MESSAGE_ID));
+            MDC.put(MDC_TRACE_ID, message.getStringProperty(JMS_MSG_PROP_TRACE_ID));
         }
         catch (JMSException e) {
-            throw new JmsMessageReadFailure_JmsMatsJmsException("Got JMSException when doing"
-                    + " msg.getJMSMessageID() or msg.getStringProperty('traceId').", e);
+            /* Just ignore this - we just want this over to DLQ... */
+            log.warn("Got JMSException when doing msg.getJMSMessageID() or msg.getStringProperty('traceId').", e);
         }
 
         String dlqName = JmsMatsStatics.convertToDlqName(log, getFactory(), _jmsMatsStage);
@@ -945,7 +946,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         // :: Divert to DLQ
         MessageProducer messageProducer = _jmsSessionHolder.getDefaultNoDestinationMessageProducer();
         try {
-            JmsMatsStatics.sendDlq(log, jmsSession, messageProducer, message, dlqName, false, null);
+            JmsMatsStatics.sendToDlq(log, jmsSession, messageProducer, _jmsMatsStage, message, dlqName,
+                    jmsxDeliveryCount, false, null);
             // We've handled this message by diverting it to DLQ, so stop processing it, and fetch next message.
             return true;
         }
@@ -1005,17 +1007,16 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         String jmsMessageId;
         String traceId;
         try {
-            // Setting this in the JMS Mats implementation instead of MatsMetricsLoggingInterceptor,
-            // so that if things fail before getting to the actual Mats part, we'll have it in
-            // the log lines.
+            // Setting these props in the JMS Mats implementation instead of MatsMetricsLoggingInterceptor,
+            // so that if things fail before getting to the actual Mats part, we'll have it in the log lines.
             jmsMessageId = message.getJMSMessageID();
             MDC.put(MDC_MATS_IN_MESSAGE_SYSTEM_ID, jmsMessageId);
-            // Fetching the TraceId early from the JMS Message for MDC, so that can follow in logs.
             traceId = message.getStringProperty(JMS_MSG_PROP_TRACE_ID);
             MDC.put(MDC_TRACE_ID, traceId);
+            MDC.put(MDC_MATS_IN_MATS_MESSAGE_ID, message.getStringProperty(JMS_MSG_PROP_MATS_MESSAGE_ID));
         }
         catch (JMSException e) {
-            String reason = "Got JMSException when doing msg.getJMSMessageID() or msg.getStringProperty('traceId').";
+            String reason = "Got JMSException when doing msg.getJMSMessageID() or msg.getStringProperty(..).";
             JmsMessageReadFailure_JmsMatsJmsException up = new JmsMessageReadFailure_JmsMatsJmsException(reason, e);
             invokeStagePreprocessAndDeserializationErrorInterceptors(matsFactory, jmsMatsStage, deliveryCount,
                     null, startedNanos, startedInstant, StagePreprocessAndDeserializeError.DECONSTRUCT_ERROR, up,

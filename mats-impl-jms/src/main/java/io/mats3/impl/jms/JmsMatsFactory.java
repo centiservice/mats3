@@ -32,6 +32,7 @@ import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator;
 import io.mats3.MatsInitiator.KeepTrace;
 import io.mats3.MatsInitiator.MatsInitiate;
+import io.mats3.MatsStage;
 import io.mats3.MatsStage.StageConfig;
 import io.mats3.api.intercept.MatsInitiateInterceptor;
 import io.mats3.api.intercept.MatsInitiateInterceptor.InitiateInterceptContext;
@@ -170,9 +171,10 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     // MatsRefuseException handling by Mats: Set to default true.
     private boolean _useMatsManagedDlqDivertOnMatsRefuseException = true;
 
-    // Where to DLQ: Set to default: Prefix original queue name with "DLQ.".
-    private Function<JmsMatsStage<?, ?, ?, ?>, String> _destinationNameModifierForDlqs = (jmsMatsStage) -> "DLQ."
-            + jmsMatsStage.getStageDestinationName();
+    // Where to DLQ: Set to default: Prefix original queue name with "DLQ.", remember the MatsDestinationPrefix.
+    private Function<MatsStage<?, ?, ?>, String> _destinationNameModifierForDlqs = (matsStage) -> "DLQ."
+            + matsStage.getParentEndpoint().getParentFactory().getFactoryConfig().getMatsDestinationPrefix()
+            + matsStage.getStageConfig().getStageId();
 
     // From API Config
 
@@ -278,7 +280,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
      *            the original destination name with "DLQ.".
      */
     public void setDestinationNameModifierForDlqs(
-            Function<JmsMatsStage<?, ?, ?, ?>, String> destinationNameModifierForDlqs) {
+            Function<MatsStage<?, ?, ?>, String> destinationNameModifierForDlqs) {
         if (destinationNameModifierForDlqs == null) {
             throw new NullPointerException("destinationNameModifierForDlqs");
         }
@@ -300,7 +302,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         return _useMatsManagedDlqDivertOnMatsRefuseException;
     }
 
-    Function<JmsMatsStage<?, ?, ?, ?>, String> getDestinationNameModifierForDlqs() {
+    Function<MatsStage<?, ?, ?>, String> getDestinationNameModifierForDlqs() {
         return _destinationNameModifierForDlqs;
     }
 

@@ -121,7 +121,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                     if (internalExecutionContext.getJmsMatsFactory()
                             .isMatsManagedDlqDivertOnMatsRefuseException()) {
                         // -> Yes, we want to do insta-DLQing ourselves.
-                        rollbackOrMatsHandledDlqDivert(internalExecutionContext, true, jmsSession, e);
+                        rollbackOrMatsHandledDlqDivert(internalExecutionContext, jmsSession, true, e);
                     }
                     else {
                         // -> No, we do not want to do insta-DLQing ourselves - use the BrokerSpecifics.
@@ -170,7 +170,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                     internalExecutionContext.setUserLambdaExceptionLogged();
                 }
 
-                rollbackOrMatsHandledDlqDivert(internalExecutionContext, false, jmsSession, e);
+                rollbackOrMatsHandledDlqDivert(internalExecutionContext, jmsSession, false, e);
                 // Throw on, so that if this is in an initiate-call, it will percolate all the way out.
                 // (NOTE! Inside JmsMatsStageProcessor, RuntimeExceptions won't recreate the JMS Connection..)
                 throw e;
@@ -189,7 +189,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                     log.error(msg, t);
                     internalExecutionContext.setUserLambdaExceptionLogged();
                 }
-                rollbackOrMatsHandledDlqDivert(internalExecutionContext, false, jmsSession, t);
+                rollbackOrMatsHandledDlqDivert(internalExecutionContext, jmsSession, false, t);
                 // Rethrow the Throwable as special RTE, which if Initiate will percolate all the way out.
                 throw new JmsMatsUndeclaredCheckedExceptionRaisedRuntimeException("Got a undeclared checked exception "
                         + t.getClass().getSimpleName() + " while transacting " + stageOrInit(_txContextKey) + ".", t);
@@ -265,13 +265,13 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
     }
 
     static void rollbackOrMatsHandledDlqDivert(JmsMatsInternalExecutionContext internalExecutionContext,
-            boolean instaDlq, Session jmsSession, Throwable t) throws JmsMatsJmsException {
+            Session jmsSession, boolean refused, Throwable t) throws JmsMatsJmsException {
 
         JmsMatsFactory<?> jmsMatsFactory = internalExecutionContext.getJmsMatsFactory();
 
         // :: Two reasons for MatsManagedDlqDivert: InstaDLQ or too many attempts.
 
-        boolean mmDlq_instaDlq = instaDlq && jmsMatsFactory.isMatsManagedDlqDivertOnMatsRefuseException();
+        boolean mmDlq_instaDlq = refused && jmsMatsFactory.isMatsManagedDlqDivertOnMatsRefuseException();
 
         boolean mmDlq_tooManyAttempts = jmsMatsFactory.getNumberOfDeliveryAttemptsBeforeMatsManagedDlqDivert() > 0
                 && (internalExecutionContext.getIncomingJmsMessageDeliveryCount() >= jmsMatsFactory
@@ -280,7 +280,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
         boolean performMatsManagedDlq = internalExecutionContext.isMatsManagedDlqDivertStillEnabled()
                 && (mmDlq_instaDlq || mmDlq_tooManyAttempts);
 
-        // Note: Both conditions will always be false if in initiation, since instaDlq is false, and DeliveryCount is 0.
+        // Note: Both conditions will always be false if in initiation, since refused is false, and DeliveryCount is 0.
 
         // ?: So, should we perform manual DLQ?
         if (!performMatsManagedDlq) {
@@ -317,7 +317,8 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
 
         // :: Perform DLQ by sending to a resolved DLQ name
         try {
-            JmsMatsStatics.sendDlq(log, jmsSession, messageProducer, message, dlqName, instaDlq, t);
+            JmsMatsStatics.sendToDlq(log, jmsSession, messageProducer, jmsMatsStage, message, dlqName,
+                    internalExecutionContext.getIncomingJmsMessageDeliveryCount(), refused, t);
         }
         catch (JMSException e) {
             log.error(LOG_PREFIX + "Got JMSException when trying to 'manually' perform a DLQ divert." +

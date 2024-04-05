@@ -434,13 +434,14 @@ public class MatsMetricsLoggingInterceptor
     // MDC_MATS_STAGE = "mats.Stage"; // 'true' on Stage Processor threads (set fixed on the consumer thread)
     // MDC_MATS_STAGE_ID = "mats.StageId";
     // MDC_MATS_IN_MESSAGE_SYSTEM_ID = "mats.in.MsgSysId";
+    // MDC_MATS_IN_MATS_MESSAGE_ID = "mats.in.MatsMsgId";
     // MDC_MATS_CALL_NO = "mats.CallNo" // The Call Number, first stage of flow is 1, then increases with calls.
     // MDC_TRACE_ID = "traceId"
 
     // 'true' on a single logline per received message:
     public static final String MDC_MATS_MESSAGE_RECEIVED = "mats.MessageReceived";
     public static final String MDC_MATS_IN_DELIVERY_COUNT = "mats.in.DeliveryCount";
-    public static final String MDC_MATS_IN_MATS_MESSAGE_ID = "mats.in.MatsMsgId";
+    public static final String MDC_MATS_IN_MATS_MESSAGE_ID = "mats.in.MatsMsgId"; // Also set by core: TODO: remove
     public static final String MDC_MATS_IN_MESSAGE_TYPE = "mats.in.MessageType";
     public static final String MDC_MATS_IN_FROM_APP_NAME = "mats.in.from.App";
     public static final String MDC_MATS_IN_FROM_ID = "mats.in.from.Id";
@@ -522,7 +523,7 @@ public class MatsMetricsLoggingInterceptor
     // Set on single logline per msg: INIT, STAGE, STAGE_INIT
     public static final String MDC_MATS_DISPATCH_TYPE = "mats.DispatchType";
 
-    public static final String MDC_MATS_OUT_MATS_MESSAGE_ID = "mats.out.MatsMsgId";
+    public static final String MDC_MATS_OUT_MATS_MESSAGE_ID = "mats.out.MatsMsgId"; // Also set by core.
     public static final String MDC_MATS_OUT_MESSAGE_SYSTEM_ID = "mats.out.MsgSysId";
 
     // NOTICE: NOT using MDC_MATS_OUT_FROM_APP / "mats.out.from.App", as that is 'this' App: MDC_MATS_APP_NAME.
