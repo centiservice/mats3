@@ -23,7 +23,6 @@ import io.mats3.MatsStage;
  * @author Endre Stølsvik 2022-02-17 23:29 - http://stolsvik.com/, endre@stolsvik.com
  */
 public interface LocalHtmlInspectForMatsFactory {
-
     /**
      * Creates the {@link LocalHtmlInspectForMatsFactoryImpl standard implementation} of this interface.
      */

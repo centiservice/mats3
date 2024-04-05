@@ -44,11 +44,7 @@ import io.mats3.localinspect.LocalStatsMatsInterceptor.StatsSnapshot;
  */
 public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMatsFactory {
 
-    public static LocalHtmlInspectForMatsFactoryImpl create(MatsFactory matsFactory) {
-        return new LocalHtmlInspectForMatsFactoryImpl(matsFactory);
-    }
-
-    final MatsFactory _matsFactory;
+    private final MatsFactory _matsFactory;
 
     LocalHtmlInspectForMatsFactoryImpl(MatsFactory matsFactory) {
         _matsFactory = matsFactory;

@@ -19,13 +19,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
-import io.mats3.MatsFactory;
-import io.mats3.MatsFactory.FactoryConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint;
 import io.mats3.MatsEndpoint.ProcessContext;
+import io.mats3.MatsFactory;
+import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsInitiator;
 import io.mats3.MatsStage;
 import io.mats3.api.intercept.MatsInitiateInterceptor.MatsInitiateInterceptOutgoingMessages;
@@ -571,7 +571,6 @@ public class LocalStatsMatsInterceptor
     public static class EndpointStatsImpl implements EndpointStats {
         private final boolean _isTerminator;
         private final Map<MatsStage<?, ?, ?>, StageStatsImpl> _stagesMap;
-        private final List<StageStats> _stageStats;
         private final List<StageStats> _stageStats_unmodifiable;
 
         private final RingBuffer_Long _totalEndpointProcessingTimeNanos;
@@ -586,7 +585,7 @@ public class LocalStatsMatsInterceptor
             _isTerminator = (replyClass == Void.TYPE) || (replyClass == Void.class);
             List<? extends MatsStage<?, ?, ?>> stages = endpoint.getStages();
             _stagesMap = new HashMap<>(stages.size());
-            _stageStats = new ArrayList<>(stages.size());
+            List<StageStats> stageStatsList = new ArrayList<>(stages.size());
             // :: Create StateStatsImpl for each Stage of the Endpoint.
             // Note: No use in adding "between stages time millis" sample reservoir for the first stage..
             // This is handled in the StageStatsImpl constructor
@@ -594,16 +593,12 @@ public class LocalStatsMatsInterceptor
                 MatsStage<?, ?, ?> stage = stages.get(i);
                 StageStatsImpl stageStats = new StageStatsImpl(sampleReservoirSize, i);
                 _stagesMap.put(stage, stageStats);
-                _stageStats.add(stageStats);
+                stageStatsList.add(stageStats);
             }
-            _stageStats_unmodifiable = Collections.unmodifiableList(_stageStats);
+            _stageStats_unmodifiable = Collections.unmodifiableList(stageStatsList);
 
             _sampleReservoirSize = sampleReservoirSize;
             _totalEndpointProcessingTimeNanos = new RingBuffer_Long(sampleReservoirSize);
-        }
-
-        private StageStatsImpl getStageStatsImpl(MatsStage<?, ?, ?> stage) {
-            return _stagesMap.get(stage);
         }
 
         public Map<MatsStage<?, ?, ?>, StageStatsImpl> getStagesMap() {
@@ -1025,7 +1020,6 @@ public class LocalStatsMatsInterceptor
                 return _values[_values.length - 1];
             }
             double index = percentile * (_values.length - 1);
-            double rint = Math.rint(index);
             // ?: Is it a whole number?
             if (index == Math.rint(index)) {
                 // -> Yes, whole number
