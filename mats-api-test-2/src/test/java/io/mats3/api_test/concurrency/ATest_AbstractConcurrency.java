@@ -98,12 +98,16 @@ public class ATest_AbstractConcurrency {
         // It should take a tad more than PROCESSING_TIME * MESSAGES_MULTIPLE ms, but we give it a good bit more.
         // Note: The Windows hosts on GitHub Actions are seemingly absurdly slow, so we need to give it a lot more time.
         // (On local dev machine, it typically runs in a multiple of 1.1 from cold start)
+        // Well, actually the Mac hosts aren't that fast either, so we give them a bit more time as well.
         boolean windowsOs = System.getProperty("os.name", "x").toLowerCase().contains("windows");
+        boolean macOs = System.getProperty("os.name", "x").toLowerCase().contains("mac");
         long maxWait = windowsOs
                 ? (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 6.0)
+                : macOs
+                ? (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 4.0)
                 : (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 2.5);
         log.info("Waiting for " + CONCURRENCY + " messages to reach terminator, with a maxWait of [" + maxWait
-                + " ms] (Windows OS: " + windowsOs + ")");
+                + " ms] (Windows OS: " + windowsOs + ", Mac OS: " + macOs + ")");
         long startMillis = System.currentTimeMillis();
         boolean gotToZero = _latch.await(30, TimeUnit.SECONDS);
         long millisTaken = System.currentTimeMillis() - startMillis;
