@@ -21,7 +21,7 @@ import io.mats3.test.broker.MatsTestBroker;
 public interface MatsTestFactory extends AutoCloseable, MatsFactory {
 
     /**
-     * The total number of attempted deliveries when in test-mode: 2. It does not make sense to redliver a bunch of
+     * The total number of attempted deliveries when in test-mode: 2. It does not make sense to redeliver a bunch of
      * times, with exponential fallback and whatnot, in test-scenarios. If you in a test want to check that a specific
      * message DLQs, then it would suffice with 1 attempt. But to get a tad more realistic, we'll run with one
      * extra attempt (which also suites the Mats3 own tests better, to actually ensure that the same message is
