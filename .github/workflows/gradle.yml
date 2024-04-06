@@ -1,7 +1,9 @@
 # EndreXY 2022-09-18: Based on Github Actions starter "Java with Gradle, By GitHub Actions"
+# EndreXY 2024-04-06: Updated to use new versions and setup
 #
-# This workflow will build a Java project with Gradle and cache/restore any dependencies to improve the workflow execution time
-# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-gradle
+# Based on: https://docs.github.com/en/enterprise-cloud@latest/actions/automating-builds-and-tests/building-and-testing-java-with-gradle
+#  and: https://github.com/gradle/actions/blob/main/setup-gradle/README.md#caching-build-state-between-jobs
+#  and: https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
 
 name: Java CI with Gradle
 
@@ -29,19 +31,16 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up JDK ${{ matrix.javaversion }}
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         java-version: ${{ matrix.javaversion }}
         distribution: 'temurin'
 
-    - name: Validate Gradle wrapper
-      uses: gradle/wrapper-validation-action@ccb4328a959376b642e027874838f60f8e596de3
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+    - name: Build with Gradle
+      run: ./gradlew -Pmats.build.java_version=${{ matrix.javaversion }} clean build
 
-    - name: Build with Gradle, JDK ${{ matrix.javaversion }}
-      uses: gradle/gradle-build-action@749f47bda3e44aa060e82d7b3ef7e40d953bd629
-      with:
-        arguments: -Pmats.build.java_version=${{ matrix.javaversion }} clean build
-        cache-disabled: true
 
   alternative_os:
     strategy:
@@ -55,19 +54,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK ${{ matrix.javaversion }}
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.javaversion }}
           distribution: 'temurin'
 
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@ccb4328a959376b642e027874838f60f8e596de3
-
-      - name: Build with Gradle, JDK ${{ matrix.javaversion }}
-        uses: gradle/gradle-build-action@749f47bda3e44aa060e82d7b3ef7e40d953bd629
-        with:
-          arguments: clean build
-          cache-disabled: true
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+      - name: Build with Gradle
+        run: ./gradlew clean build
 
   with_artemis:
     strategy:
@@ -81,16 +76,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK ${{ matrix.javaversion }}
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.javaversion }}
           distribution: 'temurin'
 
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@ccb4328a959376b642e027874838f60f8e596de3
-
-      - name: Build with Gradle, JDK ${{ matrix.javaversion }}
-        uses: gradle/gradle-build-action@749f47bda3e44aa060e82d7b3ef7e40d953bd629
-        with:
-          arguments: -Pmats.test.broker=artemis clean build
-          cache-disabled: true
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+      - name: Build with Gradle
+        run: ./gradlew -Pmats.test.broker=artemis clean build
