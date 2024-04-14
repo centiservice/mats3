@@ -112,7 +112,7 @@ public abstract class AbstractMatsTest {
             createdMatsFactory.stop(30_000);
         }
 
-        // :: Close the Broker Connection
+        // :: Close the Broker
         _matsTestBroker.close();
 
         // :: If the DataSource is a TestH2DataSource, then close that

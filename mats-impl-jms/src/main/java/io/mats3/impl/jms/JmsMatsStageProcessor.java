@@ -252,10 +252,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     private void closeCurrentSessionHolder() {
         JmsSessionHolder currentJmsSessionHolder = _jmsSessionHolder;
         if (currentJmsSessionHolder != null) {
+            log.info(LOG_PREFIX + "closeCurrentSessionHolder(): Closing.");
             currentJmsSessionHolder.close();
         }
         else {
-            log.info(LOG_PREFIX + "There was no JMS Session in place...");
+            log.info(LOG_PREFIX + "closeCurrentSessionHolder(): When told to close SessionHolder,"
+                    + " there was no SessionHolder in place.");
         }
     }
 
@@ -304,6 +306,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                         // -> we're asked to exit.
                         // NOTICE! Since this JMS Session has not been "published" outside yet, we'll have to
                         // close it directly.
+                        log.info(LOG_PREFIX + "Early exit! - runFlag already false,"
+                                + " right after gotten JmsSessionHolder.");
                         newJmsSessionHolder.close();
                         // Break out of run-loop.
                         break;

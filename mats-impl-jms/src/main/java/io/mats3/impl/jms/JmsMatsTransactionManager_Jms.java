@@ -336,6 +336,8 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
             log.warn(LOG_PREFIX + "JMS Session rolled back.");
         }
         catch (Throwable rollbackT) {
+            // Add the original exception as 'suppressed' to the exception we got when trying to rollback.
+            rollbackT.addSuppressed(t);
             /*
              * Could not roll back. This certainly indicates that we have some problem with the JMS Session, and we'll
              * throw it out so that we start a new JMS Session.
@@ -347,6 +349,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
              */
             throw new JmsMatsJmsException("When trying to rollback JMS Session due to a "
                     + t.getClass().getSimpleName() + ", we got some Exception."
+                    + " Reason for rollback is added as suppressed exception."
                     + " The JMS Session certainly seems unstable.", rollbackT);
         }
     }
