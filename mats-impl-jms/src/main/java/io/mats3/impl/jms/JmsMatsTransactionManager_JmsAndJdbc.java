@@ -78,6 +78,12 @@ public class JmsMatsTransactionManager_JmsAndJdbc extends JmsMatsTransactionMana
         return new TransactionalContext_JmsAndJdbc(_dataSource, txContextKey);
     }
 
+    @Override
+    public String getSystemInformation() {
+        return "JMS Mats TransactionManager with plain JDBC: "+idThis()
+                + "\n  DataSource: " + _dataSource;
+    }
+
     /**
      * The {@link TransactionContext}-implementation for {@link JmsMatsTransactionManager_JmsAndJdbc}.
      */

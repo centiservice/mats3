@@ -51,6 +51,18 @@ public interface JmsMatsTransactionManager {
     TransactionContext getTransactionContext(JmsMatsTxContextKey txContextKey);
 
     /**
+     * Returns a plain text textual description of the Session Handler setup, meant for human consumption, for simple
+     * introspection and monitoring. It will be a multi-line string, and should contain information about the setup. It
+     * may many lines.
+     *
+     * @return a plain text textual description of the Session Handler setup, meant for human consumption, for simple
+     *         introspection and monitoring.
+     */
+    default String getSystemInformation() {
+        return "No System Information available for '" + this.getClass().getSimpleName() + "'.";
+    }
+
+    /**
      * Implementors shall do the transactional processing and handle any Throwable that comes out of the
      * {@link ProcessingLambda} by rolling back.
      */

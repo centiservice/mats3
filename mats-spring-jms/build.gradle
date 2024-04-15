@@ -25,7 +25,6 @@ dependencies {
 
     // :: TEST
 
-
     testImplementation project(":mats-test")
     testImplementation project(":mats-spring")
     testImplementation project(":mats-serial-json")

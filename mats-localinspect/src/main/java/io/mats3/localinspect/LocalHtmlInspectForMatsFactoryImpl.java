@@ -22,6 +22,7 @@ import io.mats3.MatsEndpoint;
 import io.mats3.MatsEndpoint.EndpointConfig;
 import io.mats3.MatsFactory;
 import io.mats3.MatsFactory.FactoryConfig;
+import io.mats3.MatsFactory.MatsPlugin;
 import io.mats3.MatsInitiator;
 import io.mats3.MatsStage;
 import io.mats3.MatsStage.StageConfig;
@@ -38,7 +39,8 @@ import io.mats3.localinspect.LocalStatsMatsInterceptor.StageStats;
 import io.mats3.localinspect.LocalStatsMatsInterceptor.StatsSnapshot;
 
 /**
- * Implementation of {@link LocalHtmlInspectForMatsFactory}.
+ * Implementation of {@link LocalHtmlInspectForMatsFactory} - use
+ * {@link LocalHtmlInspectForMatsFactory#create(MatsFactory)} to get hold of one.
  *
  * @author Endre Stølsvik 2021-03-25 - http://stolsvik.com/, endre@stolsvik.com
  */
@@ -106,7 +108,7 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
         out.append(" - <b>App:</b> " + config.getAppName() + " v." + config.getAppVersion());
         out.append(" - <b>Nodename:</b> " + config.getNodename());
         out.append(" - <b>Mats<sup>3</sup>:</b> " + config.getMatsImplementationName()
-                + ", v."+config.getMatsImplementationVersion());
+                + ", v." + config.getMatsImplementationVersion());
         out.append(" - <b>Destination prefix:</b> '" + config.getMatsDestinationPrefix() + "'");
         out.append(" - <b>Trace key:</b> '" + config.getMatsTraceKey() + "'<br/>\n");
         out.append("</span>\n");
@@ -118,30 +120,38 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
         out.append((localStats != null
                 ? "<b>Local Statistics collector present in MatsFactory!</b>"
                         + " (<code>" + LocalStatsMatsInterceptor.class.getSimpleName() + "</code> installed)"
-                : "<b>Missing Local Statistics collector in MatsFactory - <code>"
+                : "<b style='color:red;>Missing Local Statistics collector in MatsFactory - <code>"
                         + LocalStatsMatsInterceptor.class.getSimpleName()
                         + "</code> is not installed!</b>") + "</b><br/>");
 
+        List<MatsPlugin> matsPlugins = _matsFactory.getFactoryConfig()
+                .getPlugins(MatsPlugin.class);
 
-        List<MatsInitiateInterceptor> initiationInterceptors = _matsFactory.getFactoryConfig()
-                .getPlugins(MatsInitiateInterceptor.class);
-        List<MatsStageInterceptor> stageInterceptors = _matsFactory.getFactoryConfig()
-                .getPlugins(MatsStageInterceptor.class);
-
-        if (!(initiationInterceptors.isEmpty() && stageInterceptors.isEmpty())) {
-            out.append("<b>Installed InitiationInterceptors:</b><br/>\n");
-            for (MatsInitiateInterceptor initiationInterceptor : initiationInterceptors) {
-                out.append("&nbsp;&nbsp;<code>" + initiationInterceptor.getClass().getName() + "</code>: "
-                        + initiationInterceptor + "<br/>\n");
-            }
-            out.append("<b>Installed StageInterceptors:</b><br/>\n");
-            for (MatsStageInterceptor stageInterceptor : stageInterceptors) {
-                out.append("&nbsp;&nbsp;<code>" + stageInterceptor.getClass().getName() + "</code>: "
-                        + stageInterceptor + "<br/>\n");
+        if (!matsPlugins.isEmpty()) {
+            out.append("<b>Installed Plugins:</b><br/>\n");
+            for (MatsPlugin matsPlugin : matsPlugins) {
+                out.append("&nbsp;&nbsp;<code>" + matsPlugin.getClass().getName() + "</code>: "
+                        + matsPlugin);
+                if (matsPlugin instanceof MatsStageInterceptor) {
+                    out.append(" - <i>MatsStageInterceptor</i>");
+                }
+                if (matsPlugin instanceof MatsInitiateInterceptor) {
+                    out.append(" - <i>MatsInitiateInterceptor</i>");
+                }
+                out.append("<br/>\n");
             }
             out.append("<br/>\n");
         }
         out.append("</div>");
+
+        out.append("<div class='matsli_report matsli_system_information'>\n");
+        out.append("  <div class='matsli_heading'><h3>MatsFactory SystemInformation</h3> ");
+        out.append("<button id='matsli_systeminformation_heighttoggle'"
+                + " onclick='matsli_systeminformation_toggle_height(event)'>Expand to full</button></div>");
+        out.append("  <div class='matsli_system_information_content'>");
+        out.append(_matsFactory.getFactoryConfig().getSystemInformation());
+        out.append("  </div>\n</div>\n");
+        out.append("<hr/>");
 
         // :: Initiators
 

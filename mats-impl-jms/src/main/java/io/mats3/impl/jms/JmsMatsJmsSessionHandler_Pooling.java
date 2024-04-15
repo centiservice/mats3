@@ -235,6 +235,59 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
         return liveConnectionsWithPoolAfter;
     }
 
+    @Override
+    public String getSystemInformation() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("JMS Mats Pooling Session Handler: " + this);
+        sb.append("\n  Pooling Keys: Initiator:" + _poolingKeyInitiator
+                + ", StageProcessor:" + _poolingKeyStageProcessor);
+        sb.append("\n  JMS ConnectionFactory: " + id(_jmsConnectionFactory));
+        synchronized (this) {
+            int liveEmployedSessions = _connectionWithSessionPools_live.values().stream()
+                    .mapToInt(pool -> pool._employedSessionHolders.size()).sum();
+            int liveAvailableSessions = _connectionWithSessionPools_live.values().stream()
+                    .mapToInt(pool -> pool._availableSessionHolders.size()).sum();
+            int crashedSessoins = _connectionWithSessionPools_crashed.values().stream()
+                    .mapToInt(pool -> pool._employedSessionHolders.size() + pool._availableSessionHolders.size())
+                    .sum();
+            sb.append("\n  JMS Objects: Connections:" + (_connectionWithSessionPools_live.size()
+                    + _connectionWithSessionPools_crashed.size())
+                            + ", Sessions Employed:" + liveEmployedSessions
+                            + " + Available:" + liveAvailableSessions
+                            + " + Crashed:" + crashedSessoins
+                            + " = Total:" + (liveEmployedSessions + liveAvailableSessions + crashedSessoins));
+            sb.append("\n  JMS Session Pools:"
+                    + " Current Live:" + _connectionWithSessionPools_live.size()
+                    + ", Lifetime Disposed:" + _lifetimeDisposedPools
+                    + ", Current Crashed:" + _connectionWithSessionPools_crashed.size()
+                    + ", Lifetime Crashed:" + _lifetimeCrashedPools);
+            BiConsumer<String, IdentityHashMap<Object, ConnectionWithSessionPool>> summarizer = (what,
+                    poolSet) -> poolSet.forEach((key, pool) -> {
+                        synchronized (pool) {
+                            sb.append("\n    == " + what
+                                    + " Pool (employed:" + pool._employedSessionHolders.size()
+                                    + ", interest:" + pool._interest
+                                    + ", available:" + pool._availableSessionHolders.size()
+                                    + ") -#- " + key + " -> " + pool + "\n");
+                            if (pool._poolIsCrashed_StackTrace != null) {
+                                StringWriter sw = new StringWriter();
+                                pool._poolIsCrashed_StackTrace.printStackTrace(new PrintWriter(sw));
+                                sb.append("      !! POOL CRASHED! StackTrace: " + sw + "\n");
+                            }
+                            for (JmsSessionHolderImpl value : pool._employedSessionHolders) {
+                                sb.append("      ++ Employed Session: " + value + "\n");
+                            }
+                            for (JmsSessionHolderImpl value : pool._availableSessionHolders) {
+                                sb.append("      -- Available Session: " + value + "\n");
+                            }
+                        }
+                    });
+            summarizer.accept("Live", _connectionWithSessionPools_live);
+            summarizer.accept("Crashed", _connectionWithSessionPools_crashed);
+        }
+        return sb.toString();
+    }
+
     // Synched by _connectionCreationSerializer
     private int _failedAttemptCounter = 0;
 
@@ -378,38 +431,7 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
 
     @Override
     public String toString() {
-        synchronized (this) {
-            StringBuilder sb = new StringBuilder("JMS Session Pools -"
-                    + " Current Live: " + _connectionWithSessionPools_live.size()
-                    + ", Lifetime Disposed: " + _lifetimeDisposedPools
-                    + ", Current Crashed: " + _connectionWithSessionPools_crashed.size()
-                    + ", Lifetime Crashed: " + _lifetimeCrashedPools
-                    + ", Id: " + idThis());
-            BiConsumer<String, IdentityHashMap<Object, ConnectionWithSessionPool>> summarizer = (what,
-                    poolSet) -> poolSet.forEach((key, pool) -> {
-                        synchronized (pool) {
-                            sb.append("\n  == " + what
-                                    + " Pool (employed:" + pool._employedSessionHolders.size()
-                                    + ", interest:" + pool._interest
-                                    + ", available:" + pool._availableSessionHolders.size()
-                                    + ") -#- " + key + " -> " + pool + "\n");
-                            if (pool._poolIsCrashed_StackTrace != null) {
-                                StringWriter sw = new StringWriter();
-                                pool._poolIsCrashed_StackTrace.printStackTrace(new PrintWriter(sw));
-                                sb.append("    !! POOL CRASHED! StackTrace: " + sw + "\n");
-                            }
-                            for (JmsSessionHolderImpl value : pool._employedSessionHolders) {
-                                sb.append("    ++ Employed Session: " + value + "\n");
-                            }
-                            for (JmsSessionHolderImpl value : pool._availableSessionHolders) {
-                                sb.append("    -- Available Session: " + value + "\n");
-                            }
-                        }
-                    });
-            summarizer.accept("Live", _connectionWithSessionPools_live);
-            summarizer.accept("Crashed", _connectionWithSessionPools_crashed);
-            return sb.toString();
-        }
+        return idThis();
     }
 
     // Map<PoolingKey, Pool>

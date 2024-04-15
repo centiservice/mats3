@@ -206,7 +206,9 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
 
     @Override
     public String idThis() {
-        return id("JmsMatsEndpoint{" + _endpointId + "}", this) + "@" + _parentFactory;
+        return id("JmsMatsEndpoint{" + _endpointId
+                + " (" + _stages.size() + "S" + ")}", this)
+                + "_" + id("F", _parentFactory);
     }
 
     @Override

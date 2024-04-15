@@ -17,6 +17,9 @@ dependencies {
     testImplementation project(':mats-util')
     // Mats SpringConfig, since we want to test the "debug info" from SpringConfig.
     testImplementation project(":mats-spring")
+    // Mats Spring JMS, to test the Spring TX: JmsMatsTransactionManager_JmsAndSpringManagedSqlTx
+    testImplementation project(":mats-spring-jms")
+    testRuntimeOnly "org.springframework:spring-jdbc:$springVersion"
 
     // Spring
     testImplementation "org.springframework:spring-context:$springVersion"

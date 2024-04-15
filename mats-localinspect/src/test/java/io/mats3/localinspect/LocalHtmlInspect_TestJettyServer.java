@@ -35,16 +35,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
-import ch.qos.logback.core.CoreConstants;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.KeepTrace;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
+import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
+
+import ch.qos.logback.core.CoreConstants;
 
 /**
  * Test server for the HTML interface generation. Pulling up a bunch of endpoints, and having a traffic generator to put
@@ -79,7 +81,7 @@ public class LocalHtmlInspect_TestJettyServer {
             // ## Create DataSource using H2
             JdbcDataSource h2Ds = new JdbcDataSource();
             h2Ds.setURL("jdbc:h2:~/temp/matsproject_dev_h2database/matssocket_dev"
-                    + ";AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE");
+                    + ";AUTO_SERVER=TRUE");
             JdbcConnectionPool dataSource = JdbcConnectionPool.create(h2Ds);
             dataSource.setMaxConnections(5);
 
@@ -94,10 +96,10 @@ public class LocalHtmlInspect_TestJettyServer {
 
             // ## Create MatsFactory 1
             // Create the MatsFactory
-            _matsFactory1 = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
+            _matsFactory1 = JmsMatsFactory.createMatsFactory(
                     SERVICE_ORDER, "*testing*",
                     JmsMatsJmsSessionHandler_Pooling.create(connFactory),
-                    dataSource,
+                    JmsMatsTransactionManager_JmsAndSpringManagedSqlTx.create(dataSource),
                     matsSerializer);
             // Hold start
             _matsFactory1.holdEndpointsUntilFactoryIsStarted();

@@ -554,7 +554,8 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
     @Override
     public String idThis() {
-        return id("JmsMatsInitiator{" + _name + "}", this) + "@" + _parentFactory;
+        return id("JmsMatsInitiator{" + _name + "}", this)
+                + "_" + id("F", getParentFactory());
     }
 
     @Override

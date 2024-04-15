@@ -17,6 +17,21 @@ function matsli_messages_details(event) {
     parentSpan.querySelector(".matsli_msgs_summary_btn").classList.remove("matsli_msgs_summary_or_details_btn_active");
 }
 
+function matsli_systeminformation_toggle_height(event) {
+    console.log(event);
+    let button = event.target;
+    let parentDiv = button.closest(".matsli_system_information");
+    console.log(parentDiv)
+    let contentBox = parentDiv.querySelector(".matsli_system_information_content");
+    if (contentBox.style.maxHeight === "none") {
+        contentBox.style.maxHeight = "22.5em";
+        button.textContent = "Expand to full";
+    } else {
+        contentBox.style.maxHeight = "none";
+        button.textContent = "Contract to small";
+    }
+}
+
 // ::: CODE TO BE RUN AFTER DOMContentLoaded and on resize :::
 
 function matsli_debounce(func, wait) {

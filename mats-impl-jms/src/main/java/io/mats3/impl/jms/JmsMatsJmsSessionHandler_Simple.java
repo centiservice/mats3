@@ -61,6 +61,16 @@ public class JmsMatsJmsSessionHandler_Simple implements JmsMatsJmsSessionHandler
         return _numberOfOutstandingConnections.get();
     }
 
+    @Override
+    public String getSystemInformation() {
+        return "JMS Mats Simple Session Handler: " + this;
+    }
+
+    @Override
+    public String toString() {
+        return idThis();
+    }
+
     protected JmsSessionHolder getSessionHolder_internal(JmsMatsTxContextKey txContextKey) throws JmsMatsJmsException {
         Connection jmsConnection;
         try {

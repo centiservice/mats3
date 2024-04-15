@@ -288,17 +288,34 @@
 }
 
 /* Boxes for each part. */
-.matsli_factory, .matsli_initiator, .matsli_endpoint, .matsli_stage {
+
+/* The "scrollbox" for the System Information */
+.matsli_system_information {
+    background: #f0f0f0;
+    /*width: max-content;*/
+    /*box-sizing: border-box;*/
+    /*max-width: 100%;*/
+}
+/* The content of the "scrollbox" for the System Information */
+.matsli_system_information_content {
+    background: white;
+    display: block;
+    overflow: auto;
+    max-height: 22.5em;
+    padding: 0.1em;
+    white-space: pre;
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;;
+    font-size: 0.9em;
+    line-height: 1.3;
+}
+
+.matsli_system_information, .matsli_factory, .matsli_initiator, .matsli_endpoint, .matsli_stage {
     border-radius: 3px;
-    box-shadow: 2px 2px 2px 0px rgba(0, 0, 0, 0.37);
+    box-shadow: 2px 2px 2px 0 rgba(0, 0, 0, 0.37);
     border: thin solid #a0a0a0;
     margin: 0.5em 0.5em 0.7em 0.5em;
     padding: 0.1em 0.5em 0.5em 0.5em;
 }
-
-/*.matsli_initiator, .matsli_endpoint {*/
-/*    margin: 0.5em 0.5em 2em 0.5em;*/
-/*}*/
 
 .matsli_factory {
     background: #f0f0f0;

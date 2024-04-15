@@ -200,7 +200,9 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
 
     @Override
     public String idThis() {
-        return id("JmsMatsStage{" + _stageId + "}", this) + "@" + _parentFactory;
+        return id("JmsMatsStage{" + _stageId + "}", this)
+                + "_" + id("EP", _parentEndpoint)
+                + "_" + id("F", _parentFactory);
     }
 
     @Override

@@ -543,6 +543,21 @@ public class JmsMatsTransactionManager_JmsAndSpringManagedSqlTx extends JmsMatsT
                 defaultTransactionDefinition, _dataSource);
     }
 
+    @Override
+    public String getSystemInformation() {
+        try {
+            return "JMS Mats TransactionManager with Spring JDBC Tx Management: " + idThis()
+                    + "\n  DataSource: " + _dataSource
+                    + "\n  Unwrapped DataSource: " + getDataSourceUnwrapped()
+                    + "\n  PlatformTransactionManager: " + _platformTransactionManager;
+        }
+        catch (Throwable t) {
+            return "JMS Mats TransactionManager with Spring JDBC Tx Management: " + idThis()
+                    + "\n  Got Exception when trying to get information: " + t.getClass().getSimpleName()
+                    + ": " + t.getMessage();
+        }
+    }
+
     /**
      * The {@link TransactionContext}-implementation for {@link JmsMatsTransactionManager_JmsAndSpringManagedSqlTx}.
      */

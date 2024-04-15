@@ -1570,6 +1570,29 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
     }
 
     /**
+     * @return <code>System.identityHashCode(this)</code>, implying that if the Endpoint is stopped and then started,
+     * the hashCode of the StageProcessors will change (they are created anew).
+     */
+    @Override
+    public int hashCode() {
+        // Use default since that makes some sense wrt. hashmaps - just to be explicit about it
+        return System.identityHashCode(this);
+    }
+
+    @Override
+    public String idThis() {
+        return id("JmsMatsStageProcessor{" + _jmsMatsStage.getStageId() + "}", this)
+                + "_" + id("S", _jmsMatsStage)
+                + "_" + id("EP", _jmsMatsStage.getParentEndpoint())
+                + "_" + id("F", _jmsMatsStage.getParentFactory());
+    }
+
+    @Override
+    public String toString() {
+        return idThis();
+    }
+
+    /**
      * Implementation of {@link StageCommonContext}, used as a container for the common fields for the subsequent
      * interface implementations.
      */
@@ -2241,10 +2264,5 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         public Optional<Throwable> getThrowable() {
             return Optional.ofNullable(_throwable);
         }
-    }
-
-    @Override
-    public String toString() {
-        return idThis();
     }
 }

@@ -345,8 +345,8 @@ public interface MatsFactory extends StartStoppable {
 
     /**
      * Starts all endpoints that has been created by this factory, by invoking {@link MatsEndpoint#start()} on them.
-     * (Any plugins which aren't started will also be started - this will happen if the MatsFactory has actively
-     * been {@link #stop(int) stopped} after start, and then started again).
+     * (Any plugins which aren't started will also be started - this will happen if the MatsFactory has actively been
+     * {@link #stop(int) stopped} after start, and then started again).
      * <p/>
      * Clears the {@link #holdEndpointsUntilFactoryIsStarted()}-flag, so that any endpoints created after this method
      * has been invoked will start immediately.
@@ -573,6 +573,17 @@ public interface MatsFactory extends StartStoppable {
          *         time.
          */
         String getAppVersion();
+
+        /**
+         * Returns a plain text textual description of the MatsFactory setup, meant for human consumption, for simple
+         * introspection and monitoring. It will be a multi-line string, and should contain information about the setup.
+         * It may many lines. The default JMS implementation will include some information about number of Endpoints,
+         * Stages, and Initiators, and the JMS ConnectionFactory setup, including the session pooler.
+         *
+         * @return a plain text textual description of the MatsFactory setup, meant for human consumption, for simple
+         *         introspection and monitoring.
+         */
+        String getSystemInformation();
 
         /**
          * Sets the nodename that {@link #getNodename()} should return. This is not necessary if the current hosts's

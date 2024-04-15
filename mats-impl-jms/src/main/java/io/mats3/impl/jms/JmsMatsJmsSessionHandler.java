@@ -68,6 +68,16 @@ public interface JmsMatsJmsSessionHandler {
     int closeAllAvailableSessions();
 
     /**
+     * Returns a plain text textual description of the Session Handler setup, meant for human consumption, for simple
+     * introspection and monitoring. It will be a multi-line string, and should contain information about the setup.
+     * It may many lines.
+     *
+     * @return a plain text textual description of the Session Handler setup, meant for human consumption, for simple
+     *         introspection and monitoring.
+     */
+    String getSystemInformation();
+
+    /**
      * A "sidecar object" for the JMS Session, so that additional stuff can be bound to it.
      */
     interface JmsSessionHolder {

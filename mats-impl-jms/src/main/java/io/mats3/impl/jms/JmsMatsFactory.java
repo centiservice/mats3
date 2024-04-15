@@ -1059,6 +1059,9 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         return this == o;
     }
 
+    /**
+     * @return <code>System.identityHashCode(this)</code>, as the JmsMatsFactory is a long-lived singleton.
+     */
     @Override
     public int hashCode() {
         return System.identityHashCode(this);
@@ -1212,6 +1215,34 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         @Override
         public String getAppVersion() {
             return _appVersion;
+        }
+
+        @Override
+        public String getSystemInformation() {
+            int totalNumStages = 0;
+            int totalStageProcessors = 0;
+            for (JmsMatsEndpoint<?, ?, ?> createdEndpoint : _createdEndpoints) {
+                totalNumStages += createdEndpoint.getStages().size();
+                // loop stages
+                for (MatsStage<?, ?, ?> stage : createdEndpoint.getStages()) {
+                    totalStageProcessors += stage.getStageConfig().getRunningStageProcessors();
+                }
+
+            }
+
+
+            return "JMS MatsFactory: " + idThis()
+                    + "\n  Endpoints: "
+                    + _createdEndpoints.size() + " (total stages:" + totalNumStages
+                    + ", stage processors:" + totalStageProcessors
+                    + ")\n  Initiators: " + _createdInitiators.size()
+                    + "\n  TransactionManager: " + id(_jmsMatsTransactionManager)
+                    + "\n  JMS Session Handler: " + id(_jmsMatsJmsSessionHandler)
+                    + "\n  MatsSerializer: " + id(_matsSerializer)
+                    + "\n\n"
+                    + _jmsMatsTransactionManager.getSystemInformation()
+                    + "\n\n"
+                    + _jmsMatsJmsSessionHandler.getSystemInformation();
         }
 
         @Override

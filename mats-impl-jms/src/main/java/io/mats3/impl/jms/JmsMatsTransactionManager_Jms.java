@@ -54,6 +54,11 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
         return new TransactionalContext_Jms(txContextKey);
     }
 
+    @Override
+    public String getSystemInformation() {
+        return "JMS Mats TransactionManager with JMS Only: " + idThis();
+    }
+
     /**
      * The {@link JmsMatsTransactionManager.TransactionContext} implementation for
      * {@link JmsMatsTransactionManager_Jms}.
