@@ -27,11 +27,13 @@ import io.mats3.impl.jms.JmsMatsTransactionManager.JmsMatsTxContextKey;
 
 /**
  * Pooling implementation of {@link JmsMatsJmsSessionHandler} which in addition to the pooling mechanism, also
- * serializes the creation of JMS Connections to avoid thundering herds. Upon
- * {@link #create(ConnectionFactory, PoolingKeyInitiator, PoolingKeyStageProcessor) creation}, you decide how
- * Connections are shared for {@link JmsMatsStageProcessor}s and {@link MatsInitiator}s.
+ * serializes the creation of JMS Connections to avoid thundering herds upon connect at startup, and in particular
+ * reconnects after a broker reboot. You may use the method
+ * {@link #create(ConnectionFactory, PoolingKeyInitiator, PoolingKeyStageProcessor)} to decide how Connections are
+ * shared for {@link JmsMatsStageProcessor}s and {@link MatsInitiator}s, or use the convenience method
+ * {@link #create(ConnectionFactory)} which employs one JMS Connection per Initiator and one per Endpoint.
  *
- * @author Endre Stølsvik, 2015, 2023-12-06 22:07 - http://stolsvik.com/, endre@stolsvik.com
+ * @author Endre Stølsvik, 2015, 2023-12-06 22:07, 2024-04-13 - http://stolsvik.com/, endre@stolsvik.com
  */
 public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandler, JmsMatsStatics {
 
@@ -127,18 +129,17 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
     }
 
     /**
-     * Returns a JmsMatsJmsSessionHandler which uses the {@link PoolingKeyInitiator#INITIATOR INITIATOR} pooling key for
-     * Initiators (i.e. a JMS Connection per Initiator), and {@link PoolingKeyStageProcessor#ENDPOINT ENDPOINT} pooling
-     * key for Endpoints (i.e. a JMS Connection per Endpoint).
-     * <p/>
-     * Note that is seems like ActiveMQ is not all that great at multiplexing multiple sessions and consumers over the
-     * same connection. You get lower latency by using {@link PoolingKeyStageProcessor#STAGE STAGE} and even better with
-     * {@link PoolingKeyStageProcessor#STAGE_PROCESSOR STAGE_PROCESSOR}, but when your set of services using Mats gets
-     * large, this results in an awful lot of connections.
+     * Convenience method returning a JmsMatsJmsSessionHandler which uses the {@link PoolingKeyInitiator#INITIATOR
+     * INITIATOR} pooling key for Initiators (i.e. a JMS Connection per Initiator), and
+     * {@link PoolingKeyStageProcessor#ENDPOINT ENDPOINT} pooling key for Endpoints (i.e. a JMS Connection per
+     * Endpoint). Read the JavaDoc of {@link #create(ConnectionFactory, PoolingKeyInitiator, PoolingKeyStageProcessor)}
+     * for a discussion on the pooling keys.
      *
      * @param jmsConnectionFactory
      *            the JMS {@link ConnectionFactory} to get JMS Connections from.
      * @return a JmsMatsJmsSessionHandler which employs one JMS Connection per Initiator and one per Endpoint.
+     *
+     * @see #create(ConnectionFactory, PoolingKeyInitiator, PoolingKeyStageProcessor)
      */
     public static JmsMatsJmsSessionHandler_Pooling create(ConnectionFactory jmsConnectionFactory) {
         return new JmsMatsJmsSessionHandler_Pooling(jmsConnectionFactory, PoolingKeyInitiator.INITIATOR,
@@ -146,7 +147,15 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
     }
 
     /**
-     * Returns a JmsMatsJmsSessionHandler which have specific pooling derivation.
+     * Returns a JmsMatsJmsSessionHandler which uses the specified pooling derivation.
+     * <p/>
+     * Note that is seems like ActiveMQ is not all that great at multiplexing multiple sessions and consumers over the
+     * same connection. The setting FACTORY,FACTORY ends up using only a single JMS Connection for the entire
+     * MatsFactory. A good compromise seems to be the default used in the convenience method
+     * {@link #create(ConnectionFactory)}: INITIATOR,ENDPOINT. You may get even lower latency by using
+     * {@link PoolingKeyStageProcessor#STAGE STAGE} and even better with {@link PoolingKeyStageProcessor#STAGE_PROCESSOR
+     * STAGE_PROCESSOR}, but when your set of services using Mats gets large, this results in an awful lot of
+     * connections.
      *
      * @param jmsConnectionFactory
      *            the JMS {@link ConnectionFactory} to get JMS Connections from.
@@ -155,6 +164,8 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
      * @param poolingKeyStageProcessor
      *            what kind of JMS Connection sharing to employ for StageProcessors.
      * @return a JmsMatsJmsSessionHandler which has the specified pooling derivation.
+     *
+     * @see #create(ConnectionFactory)
      */
     public static JmsMatsJmsSessionHandler_Pooling create(ConnectionFactory jmsConnectionFactory,
             PoolingKeyInitiator poolingKeyInitiator, PoolingKeyStageProcessor poolingKeyStageProcessor) {
@@ -167,42 +178,6 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
         _jmsConnectionFactory = jmsConnectionFactory;
         _poolingKeyInitiator = poolingKeyInitiator;
         _poolingKeyStageProcessor = poolingKeyStageProcessor;
-    }
-
-    @Override
-    public String toString() {
-        synchronized (this) {
-            StringBuilder sb = new StringBuilder("JMS Session Pools -"
-                    + " Current Live: " + _connectionWithSessionPools_live.size()
-                    + ", Lifetime Disposed: " + _lifetimeDisposedPools
-                    + ", Current Crashed: " + _connectionWithSessionPools_crashed.size()
-                    + ", Lifetime Crashed: " + _lifetimeCrashedPools
-                    + ", Id: " + idThis());
-            BiConsumer<String, IdentityHashMap<Object, ConnectionWithSessionPool>> summarizer = (what,
-                    poolSet) -> poolSet.forEach((key, pool) -> {
-                        synchronized (pool) {
-                            sb.append("\n  == " + what
-                                    + " Pool (employed:" + pool._employedSessionHolders.size()
-                                    + ", interest:" + pool._interest
-                                    + ", available:" + pool._availableSessionHolders.size()
-                                    + ") -#- " + key + " -> " + pool + "\n");
-                            if (pool._poolIsCrashed_StackTrace != null) {
-                                StringWriter sw = new StringWriter();
-                                pool._poolIsCrashed_StackTrace.printStackTrace(new PrintWriter(sw));
-                                sb.append("    !! POOL CRASHED! StackTrace: " + sw + "\n");
-                            }
-                            for (JmsSessionHolderImpl value : pool._employedSessionHolders) {
-                                sb.append("    ++ Employed Session: " + value + "\n");
-                            }
-                            for (JmsSessionHolderImpl value : pool._availableSessionHolders) {
-                                sb.append("    -- Available Session: " + value + "\n");
-                            }
-                        }
-                    });
-            summarizer.accept("Live", _connectionWithSessionPools_live);
-            summarizer.accept("Crashed", _connectionWithSessionPools_crashed);
-            return sb.toString();
-        }
     }
 
     @Override
@@ -401,6 +376,42 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
         }
     }
 
+    @Override
+    public String toString() {
+        synchronized (this) {
+            StringBuilder sb = new StringBuilder("JMS Session Pools -"
+                    + " Current Live: " + _connectionWithSessionPools_live.size()
+                    + ", Lifetime Disposed: " + _lifetimeDisposedPools
+                    + ", Current Crashed: " + _connectionWithSessionPools_crashed.size()
+                    + ", Lifetime Crashed: " + _lifetimeCrashedPools
+                    + ", Id: " + idThis());
+            BiConsumer<String, IdentityHashMap<Object, ConnectionWithSessionPool>> summarizer = (what,
+                    poolSet) -> poolSet.forEach((key, pool) -> {
+                        synchronized (pool) {
+                            sb.append("\n  == " + what
+                                    + " Pool (employed:" + pool._employedSessionHolders.size()
+                                    + ", interest:" + pool._interest
+                                    + ", available:" + pool._availableSessionHolders.size()
+                                    + ") -#- " + key + " -> " + pool + "\n");
+                            if (pool._poolIsCrashed_StackTrace != null) {
+                                StringWriter sw = new StringWriter();
+                                pool._poolIsCrashed_StackTrace.printStackTrace(new PrintWriter(sw));
+                                sb.append("    !! POOL CRASHED! StackTrace: " + sw + "\n");
+                            }
+                            for (JmsSessionHolderImpl value : pool._employedSessionHolders) {
+                                sb.append("    ++ Employed Session: " + value + "\n");
+                            }
+                            for (JmsSessionHolderImpl value : pool._availableSessionHolders) {
+                                sb.append("    -- Available Session: " + value + "\n");
+                            }
+                        }
+                    });
+            summarizer.accept("Live", _connectionWithSessionPools_live);
+            summarizer.accept("Crashed", _connectionWithSessionPools_crashed);
+            return sb.toString();
+        }
+    }
+
     // Map<PoolingKey, Pool>
     // Synchronized by /this/ (i.e. the JmsMatsJmsSessionHandler_Pooling instance)
     protected IdentityHashMap<Object, ConnectionWithSessionPool> _connectionWithSessionPools_live = new IdentityHashMap<>();
@@ -422,10 +433,10 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
         // Synchronized by /this/ (i.e. the ConnectionWithSessionPool instance)
         final Set<JmsSessionHolderImpl> _employedSessionHolders = new HashSet<>();
         /*
-         * This is to mark "interest" in this ConnectionWithSessionPool, so that it is not ditched while we're trying to
-         * get a Session. This race happens during getSessionHolder(..), and the "interest" is to prevent that if we're
-         * in the process of creating a new SessionHolder with JMS Session, we don't ditch the underlying pool (and the
-         * JMS Connection!) while we're trying to create it.
+         * This counter is to mark "interest" in this ConnectionWithSessionPool, so that it is not ditched while we're
+         * trying to get a Session. This race happens during getSessionHolder_internal(..), and the "interest" is to
+         * prevent that if we're in the process of creating a new SessionHolder with JMS Session, we don't ditch the
+         * underlying pool (and the JMS Connection!) while we're trying to create it.
          */
         // Synchronized by /this/ (i.e. the ConnectionWithSessionPool instance)
         int _interest = 0;
@@ -448,7 +459,7 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
             }
         }
 
-        public void incrementInterest() {
+        void incrementInterest() {
             // Synch: Allowed here: none, mother, or mother + this.
             assertBigToSmallLockOrder();
             // So, good sync assert - we only need to sync on this since we'll only be touching this instance.
@@ -457,9 +468,10 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
             }
         }
 
-        public void decrementInterestAndHandleIfEmpty() {
+        void decrementInterestAndHandleIfEmpty() {
             // Synch: Allowed here: none, mother, or mother + this.
             assertBigToSmallLockOrder();
+            // Sync on both mother and this, since we might be disposing the pool.
             synchronized (JmsMatsJmsSessionHandler_Pooling.this) {
                 synchronized (this) {
                     _interest--;
@@ -564,7 +576,7 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
          * @param jmsSessionHolder
          *            the session holder to be returned.
          */
-        void releaseSession(JmsSessionHolderImpl jmsSessionHolder) {
+        void releaseAndEnpoolSession(JmsSessionHolderImpl jmsSessionHolder) {
             // ?: Is the pool already crashed?
             if (_poolIsCrashed_StackTrace != null) {
                 jmsSessionHolder.setCurrentContext("crashed+released");
@@ -672,10 +684,10 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
             closeJmsConnection();
         }
 
-        protected void assertHoldLockToPool() {
-            if (!Thread.holdsLock(this)) {
+        protected void assertHoldLockToMotherAndPool() {
+            if (!(Thread.holdsLock(JmsMatsJmsSessionHandler_Pooling.this) && Thread.holdsLock(this))) {
                 throw new AssertionError("When invoking methods on a " + ConnectionWithSessionPool.class.getSimpleName()
-                        + ", one shall hold the lock to the pool.");
+                        + ", one shall hold the lock to both 'mother' and the pool.");
             }
         }
 
@@ -749,22 +761,21 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
         }
 
         private boolean disposePoolIfEmpty() {
-            assertHoldLockToPool();
-            assertBigToSmallLockOrder();
+            assertHoldLockToMotherAndPool();
             // ?: Is the ConnectionWithSessionPool now empty?
             if (_employedSessionHolders.isEmpty()
                     && _availableSessionHolders.isEmpty()
                     && (_interest == 0)) {
-                // -> Yes, none in either employed nor available set.
+                // -> Yes, none in neither employed nor available set - and no "interest".
                 _lifetimeDisposedPools++;
                 // Remove us from live map, if this is where this ConnectionWithSessionPool resides
                 _connectionWithSessionPools_live.remove(_poolingKey);
                 // Remove us fom crashed map, if this is where this ConnectionWithSessionPool resides
                 _connectionWithSessionPools_crashed.remove(_poolingKey);
-                // We removed the ConnectionWithSessionPool - so close the actual JMS Connection.
-                // (Log and return outside of synch)
                 log.info(LOG_PREFIX + "Pool was empty of Sessions and no 'interest',"
                         + " so removed it from the pool-sets [" + this + "].");
+                // We removed the ConnectionWithSessionPool - so close the actual JMS Connection.
+                // (Log and return outside of synch)
                 return true;
             }
             // -> We did not remove the ConnectionWithSessionPool, so keep the JMS Connection open.
@@ -807,12 +818,12 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
         }
     }
 
-    public static class JmsSessionHolderImpl implements JmsSessionHolder, JmsMatsStatics {
+    protected static class JmsSessionHolderImpl implements JmsSessionHolder, JmsMatsStatics {
         protected final ConnectionWithSessionPool _connectionWithSessionPool;
         protected final Session _jmsSession;
         protected final MessageProducer _messageProducer;
 
-        public JmsSessionHolderImpl(ConnectionWithSessionPool connectionWithSessionPool,
+        protected JmsSessionHolderImpl(ConnectionWithSessionPool connectionWithSessionPool,
                 Session jmsSession,
                 MessageProducer messageProducer) {
             _connectionWithSessionPool = connectionWithSessionPool;
@@ -820,7 +831,7 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
             _messageProducer = messageProducer;
         }
 
-        protected String _currentContext;
+        protected volatile String _currentContext;
 
         protected void setCurrentContext(String currentContext) {
             _currentContext = currentContext;
@@ -846,9 +857,13 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
         @Override
         public void close() {
             boolean alreadyClosedOrCrashed = _closedOrCrashed.getAndSet(true);
+            // ?: Is this a double close or a close after a crash?
             if (alreadyClosedOrCrashed) {
+                // -> Yes, already closed or crashed, so ignore the close.
                 log.info(LOG_PREFIX + "When about to close [" + this + " from " + _connectionWithSessionPool
                         + "], it was already closed or crashed. Ignoring.");
+                // NOTE again: We have _already_ informed the pool about the fate of this SessionHolder, so we do not
+                // need to inform it again.
                 return;
             }
             _connectionWithSessionPool.closeSession(this);
@@ -860,25 +875,32 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
              * NOTE! The JmsSessionHolder is a shared object, which is the one that resides in the pool.
              */
             // :: Check whether it was already closed or crashed, in which case we must ignore the release call.
+            // NOTE! 'release' is an 'enpool' operation, and the SessionHolder is the actual pooled object. We will
+            // therefore not set the _closedOrCrashed flag here, as it is not closed, but released back to the pool
+            // for reuse by another thread.
             // ?: Already closed or crashed?
             boolean alreadyClosedOrCrashed = _closedOrCrashed.get();
             if (alreadyClosedOrCrashed) {
                 // -> Yes, already closed or crashed, so ignore the release.
                 log.info(LOG_PREFIX + "When about to release [" + this + " from " + _connectionWithSessionPool
-                        + "], it was already closed or crashed. Ignoring.");
+                        + "], it was already closed or crashed. Ignoring: Not enpooling.");
+                // NOTE again: We have _already_ informed the pool about the fate of this SessionHolder, so we do not
+                // need to inform it again.
                 return;
             }
-            // NOTE! NOT setting the "closed or crashed" boolean here, since the JmsSessionHolder is a shared object,
-            // and not a "single use proxy" as e.g. a pooled SQL Connection typically is.
-            _connectionWithSessionPool.releaseSession(this);
+            _connectionWithSessionPool.releaseAndEnpoolSession(this);
         }
 
         @Override
         public void crashed(Throwable t) {
             boolean alreadyClosedOrCrashed = _closedOrCrashed.getAndSet(true);
+            // ?: Is this a double crash or a crash after a close?
             if (alreadyClosedOrCrashed) {
+                // -> Yes, already closed or crashed, so ignore the crash.
                 log.info(LOG_PREFIX + "When about to crash [" + this + " from " + _connectionWithSessionPool
                         + "], it was already closed or crashed. Ignoring.");
+                // NOTE again: We have _already_ informed the pool about the fate of this SessionHolder, so we do not
+                // need to inform it again.
                 return;
             }
             _connectionWithSessionPool.sessionCrashed(this, t);
