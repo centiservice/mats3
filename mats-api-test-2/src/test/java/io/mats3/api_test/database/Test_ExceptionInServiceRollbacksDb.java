@@ -12,9 +12,9 @@ import org.junit.Test;
 
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
+import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestLatch.Result;
-import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.TestH2DataSource;
 import io.mats3.test.junit.Rule_Mats;
 
