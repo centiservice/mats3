@@ -33,7 +33,9 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
     JmsMatsEndpoint(JmsMatsFactory<Z> parentFactory, String endpointId, boolean queue, Class<S> stateClass,
             Class<R> replyClass) {
         _parentFactory = parentFactory;
-        _endpointId = endpointId;
+        _endpointId = endpointId.startsWith(".")
+                ? parentFactory.getFactoryConfig().getCommonEndpointGroupId() + endpointId
+                : endpointId;
         _queue = queue;
         _stateClass = stateClass;
         _replyClass = replyClass;

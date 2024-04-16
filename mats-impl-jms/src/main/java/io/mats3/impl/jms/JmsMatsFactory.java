@@ -197,6 +197,9 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     // Set to default, which is what returned from command 'hostname', failing that, InetAddress..getHostName().
     private String _nodename = getHostname_internal();
 
+    // Default is null, which means to use the AppName
+    private String _commonEndpointGroupId;
+
     // Set to default, which is false. Volatile since quite probably set by differing threads.
     private volatile boolean _holdEndpointsUntilFactoryIsStarted = false;
 
@@ -1263,6 +1266,17 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         @Override
         public FactoryConfig setNodename(String nodename) {
             _nodename = nodename;
+            return this;
+        }
+
+        @Override
+        public String getCommonEndpointGroupId() {
+            return _commonEndpointGroupId == null ? getAppName() : _commonEndpointGroupId;
+        }
+
+        @Override
+        public FactoryConfig setCommonEndpointGroupId(String commonEndpointGroupId) {
+            _commonEndpointGroupId = commonEndpointGroupId;
             return this;
         }
 

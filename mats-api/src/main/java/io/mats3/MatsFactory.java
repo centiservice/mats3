@@ -23,12 +23,12 @@ import io.mats3.MatsStage.StageConfig;
  * perform a request and publish a message. Getting hold of a MatsFactory is an implementation specific feature: The
  * <code>JmsMatsFactory</code> is the standard, providing static factory methods, and can be backed by an ActiveMQ- or
  * Artemis-specific JMS ConnectionFactory.
- * <p/>
+ * <p>
  * <i>An alternative to Java-based programmatic creation of Mats Endpoints is using Mats SpringConfig integration where
  * you use annotations like <code>@EnableMats</code>, <code>@MatsMapping</code> and <code>@MatsClassMapping</code>.
  * Employing Mats SpringConfig, you'll need to get an instance of MatsFactory into the Spring context. The module is
  * called "mats-spring".</i>
- * <p/>
+ * <p>
  * It is worth realizing that all of the methods {@link #staged(String, Class, Class) staged(..., config)},
  * {@link #single(String, Class, Class, ProcessSingleLambda) single(...)} +
  * {@link #single(String, Class, Class, Consumer, Consumer, ProcessSingleLambda) w/configs};
@@ -37,19 +37,19 @@ import io.mats3.MatsStage.StageConfig;
  * methods to the main {@link #staged(String, Class, Class) staged(...)}. These specializations could just as well have
  * resided in a utility class. They are included in the API since these relatively few methods seem to cover most
  * scenarios.
- * <p/>
+ * <p>
  * <i>(Exception to this are the {@link #subscriptionTerminator(String, Class, Class, ProcessTerminatorLambda)
  * subscriptionTerminator(...)} +
  * {@link #subscriptionTerminator(String, Class, Class, Consumer, Consumer, ProcessTerminatorLambda) w/configs}, as they
  * have different semantics, read the JavaDoc).</i>
- * <p/>
+ * <p>
  * Regarding order of the Reply Message, State and Incoming Message, which can be a bit annoying to remember when
  * creating endpoints, and when writing {@link ProcessLambda process lambdas}: They are always ordered like this: <b>R,
  * S, I</b>, i.e. <i>Reply, State, Incoming</i>. This is to resemble a method signature having the implicit {@code this}
  * (or {@code self}) reference as the first argument: {@code ReturnType methodName(this, arguments)}. Thus, if you
  * remember that Mats is created to enable you to write messaging oriented endpoints that <i>look like</i> they are
  * methods, then it might stick! The process lambda thus has args (context, state, incomingMsg), unless it lacks state.
- * Even if it lacks state, the context is always first, and the incoming message is always last.<br/>
+ * Even if it lacks state, the context is always first, and the incoming message is always last.
  * <ul>
  * <li>For a MultiStage endpoint, you will have all of reply message type, state type, and incoming message type. The
  * params of the {@link #staged(String, Class, Class) staged(..)}-method of MatsFactory is [EndpointId, <b>Reply</b>
@@ -70,10 +70,14 @@ import io.mats3.MatsStage.StageConfig;
  * - also here specifying the process lambda directly. The lambda params of the {@link ProcessTerminatorLambda process
  * terminator lambda} are: [Context, <b>State</b>, <b>Incoming</b>]</li>
  * </ul>
- * <p/>
+ * <p>
  * All these type arguments and lambdas and whatnot in the JavaDoc can seem a bit overwhelming at first, but when
  * actually coding Mats Endpoints, it clicks into place and hopefully gives a smooth experience.
- * <p/>
+ * <p>
+ * Note: If upon creation of an Endpoint provide an <code>endpointId</code> argument which starts with a ".", the
+ * endpointId will be prefixed with the {@link FactoryConfig#getCommonEndpointGroupId() CommonEndpointGroupId}. This may
+ * be a good way to ensure consistency in endpoint naming.
+ * <p>
  * Note: It should be possible to use instances of <code>MatsFactory</code> as keys in a <code>HashMap</code>, i.e.
  * their equals and hashCode should remain stable throughout the life of the MatsFactory. Depending on the
  * implementation, instance equality may be sufficient. Note that the {@link MatsFactoryWrapper} is implemented to
@@ -99,7 +103,7 @@ public interface MatsFactory extends StartStoppable {
      * Sets up a {@link MatsEndpoint} on which you will add stages. The first stage is the one that will receive the
      * incoming (typically request) DTO, while any subsequent stage is invoked when the service that the previous stage
      * sent a request to, replies.
-     * <p/>
+     * <p>
      * Unless the state object was sent along with the {@link MatsInitiate#request(Object, Object) request} or
      * {@link MatsInitiate#send(Object, Object) send}, the first stage will get a newly constructed empty state
      * instance, while the subsequent stages will get the state instance in the form it was left in the previous stage.
@@ -109,6 +113,8 @@ public interface MatsFactory extends StartStoppable {
      *            {@link MatsInitiate#to(String)} or {@link MatsInitiate#replyTo(String, Object)} methods for this
      *            endpoint to get the message. Typical structure is <code>"OrderService.placeOrder"</code> for public
      *            endpoints, or <code>"OrderService.private.validateOrder"</code> for private (app-internal) endpoints.
+     *            If you start with a ".", the endpointId will be prefixed with the
+     *            {@link FactoryConfig#getCommonEndpointGroupId() CommonEndpointGroupId}.
      * @param replyClass
      *            the class that this endpoint shall return.
      * @param stateClass
@@ -128,7 +134,7 @@ public interface MatsFactory extends StartStoppable {
      * this/these personId(s)" scenarios. This sole stage is supplied directly, using a specialization of the processor
      * lambda which does not have state (as there is only one stage, there is no other stage to pass state to), but
      * which can return the reply by simply returning it on exit from the lambda.
-     * <p/>
+     * <p>
      * Do note that this is just a convenience for the often-used scenario where for example a request will just be
      * looked up in the backing data store, and replied directly, using only one stage, not needing any multi-stage
      * processing.
@@ -138,6 +144,8 @@ public interface MatsFactory extends StartStoppable {
      *            {@link MatsInitiate#to(String)} or {@link MatsInitiate#replyTo(String, Object)} methods for this
      *            endpoint to get the message. Typical structure is <code>"OrderService.placeOrder"</code> for public
      *            endpoints, or <code>"OrderService.private.validateOrder"</code> for private (app-internal) endpoints.
+     *            If you start with a ".", the endpointId will be prefixed with the
+     *            {@link FactoryConfig#getCommonEndpointGroupId() CommonEndpointGroupId}.
      * @param replyClass
      *            the class that this endpoint shall return.
      * @param incomingClass
@@ -166,13 +174,13 @@ public interface MatsFactory extends StartStoppable {
      * {@link MatsInitiate#request(Object, Object) request initiation}, or that can be used to directly send a
      * "fire-and-forget" style {@link MatsInitiate#send(Object) invocation} to. The sole stage is supplied directly.
      * This type of endpoint cannot reply, as it has no-one to reply to (hence "terminator").
-     * <p/>
+     * <p>
      * Do note that this is just a convenience for the often-used scenario where an initiation requests out to some
      * service, and then the reply needs to be handled - and with that the process is finished. That last endpoint which
      * handles the reply is what is referred to as a terminator, in that it has nowhere to reply to. Note that there is
      * nothing hindering you in setting the replyTo endpointId in a request initiation to point to a single-stage or
      * multi-stage endpoint - however, any replies from those endpoints will just go void.
-     * <p/>
+     * <p>
      * It is possible to {@link ProcessContext#initiate(InitiateLambda) initiate} from within a terminator, and one
      * interesting scenario here is to do a {@link MatsInitiate#publish(Object) publish} to a
      * {@link #subscriptionTerminator(String, Class, Class, ProcessTerminatorLambda) subscriptionTerminator}. The idea
@@ -181,7 +189,7 @@ public interface MatsFactory extends StartStoppable {
      * caches" message to all the nodes of the app, so that they all have the new state of the order in their caches
      * (or, in a push-based GUI logic, you might want to update all users' view of that order). Note that you (as in the
      * processing node) will also get that published message on your instance of the SubscriptionTerminator.
-     * <p/>
+     * <p>
      * It is technically possible {@link ProcessContext#reply(Object) reply} from within a terminator - but it hard to
      * envision many wise usage scenarios for this, as the stack at a terminator would probably be empty.
      *
@@ -192,7 +200,8 @@ public interface MatsFactory extends StartStoppable {
      *            endpoints (which then is of a "fire-and-forget" style, since a terminator is not meant to reply), or
      *            <code>"OrderService.terminator.validateOrder"</code> for private (app-internal) terminators that is
      *            targeted by the {@link MatsInitiate#replyTo(String, Object) replyTo(endpointId,..)} invocation of an
-     *            initiation.
+     *            initiation. If you start with a ".", the endpointId will be prefixed with the
+     *            {@link FactoryConfig#getCommonEndpointGroupId() CommonEndpointGroupId}.
      * @param stateClass
      *            the class of the State DTO that will may be provided by the
      *            {@link MatsInitiate#request(Object, Object) request initiation} (or that was sent along with the
@@ -224,7 +233,7 @@ public interface MatsFactory extends StartStoppable {
      * it uses "pub-sub"-style messaging, instead of queue-based). You may only communicate with this type of endpoints
      * by using the {@link MatsInitiate#publish(Object)} or {@link MatsInitiate#replyToSubscription(String, Object)}
      * methods.
-     * <p/>
+     * <p>
      * <b>Notice that the concurrency of a SubscriptionTerminator is always 1, as it makes no sense to have multiple
      * processors for a subscription - all of the processors would just get an identical copy of each message.</b> If
      * you do need to handle massive amounts of messages, or your work handling is slow, you should instead of handling
@@ -235,7 +244,8 @@ public interface MatsFactory extends StartStoppable {
      * @param endpointId
      *            the identification of this {@link MatsEndpoint}, which are the strings that should be provided to the
      *            {@link MatsInitiate#to(String)} or {@link MatsInitiate#replyTo(String, Object)} methods for this
-     *            endpoint to get the message.
+     *            endpoint to get the message. If you start with a ".", the endpointId will be prefixed with the
+     *            {@link FactoryConfig#getCommonEndpointGroupId() CommonEndpointGroupId}.
      * @param stateClass
      *            the class of the State DTO that will may be provided by the
      *            {@link MatsInitiate#request(Object, Object) request initiation} (or that was sent along with the
@@ -347,7 +357,7 @@ public interface MatsFactory extends StartStoppable {
      * Starts all endpoints that has been created by this factory, by invoking {@link MatsEndpoint#start()} on them.
      * (Any plugins which aren't started will also be started - this will happen if the MatsFactory has actively been
      * {@link #stop(int) stopped} after start, and then started again).
-     * <p/>
+     * <p>
      * Clears the {@link #holdEndpointsUntilFactoryIsStarted()}-flag, so that any endpoints created after this method
      * has been invoked will start immediately.
      */
@@ -363,7 +373,7 @@ public interface MatsFactory extends StartStoppable {
      * all this is running, <i>then</i> fire up the endpoints. If this is not done, the endpoints might start consuming
      * messages off of the MQ (there might already be messages waiting when the service boots), and thus invoke
      * services/components that are not yet fully started.
-     * <p/>
+     * <p>
      * Note: To implement delayed start for a specific endpoint, simply hold off on invoking
      * {@link MatsEndpoint#finishSetup()} until you are OK with it being started and hence starts consuming messages
      * (e.g. when the needed cache service is finished populated); This semantics works both when
@@ -387,7 +397,7 @@ public interface MatsFactory extends StartStoppable {
      * Stops all endpoints and initiators, by invoking {@link MatsEndpoint#stop(int)} on all the endpoints, and
      * {@link MatsInitiator#close()} on all initiators that has been created by this factory. They can be started again
      * individually, or all at once by invoking {@link #start()}
-     * <p/>
+     * <p>
      * Should be invoked at application shutdown.
      *
      * @return <code>true</code> if all Endpoints (incl. e.g. threads) and resources (e.g. JMS Connections) closed
@@ -450,7 +460,7 @@ public interface MatsFactory extends StartStoppable {
          * {@link MatsStage}, the return value will be the same as if the relevant <code>getAttribute(..)</code> method
          * was invoked. Otherwise, if the current thread is not processing a stage or performing an initiation,
          * <code>Optional.empty()</code> is returned.
-         * <p/>
+         * <p>
          * If the Mats implementation has a transactional SQL Connection, it shall be available by
          * <code>ContextLocal.getAttribute(Connection.class)</code> when in the relevant contexts (init or stage).
          *
@@ -599,6 +609,38 @@ public interface MatsFactory extends StartStoppable {
         FactoryConfig setNodename(String nodename);
 
         /**
+         * Returns the "Common EndpointGroupId" which will be used if Mats3 Endpoints are registered with a leading ".",
+         * i.e. without specifying the <i>EndpointGroupId</i>. This is a convenience feature, as it is often the case
+         * that all Endpoints in a given application should be part of the same <i>EndpointGroupId</i>, and then it is
+         * cumbersome to have to specify this for each and every Endpoint.
+         * <p>
+         * The default is to return the vale of {@link #getAppName()}, unless overridden by
+         * {@link #setCommonEndpointGroupId(String)} - this should be a sensible default!
+         * <p>
+         * The rationale for overriding it with {@link #setCommonEndpointGroupId(String)} is that you might have a
+         * different naming scheme for application names than what you want to use for the common <i>EndpointGroupId</i>
+         * for Endpoints.
+         *
+         * @return the common name to use for Endpoints that are registered with a leading ".", i.e. without specifying
+         *         an </i>EndpointGroupId</i>.
+         */
+        String getCommonEndpointGroupId();
+
+        /**
+         * Overrides the "Common EndpointGroupId" returned by {@link #getCommonEndpointGroupId()} - read its JavaDoc for
+         * information about what it is.
+         * <p>
+         * The rationale for overriding it with {@link #setCommonEndpointGroupId(String)} is that you might have a
+         * different naming scheme for application names than what you want to use for the common <i>EndpointGroupId</i>
+         * for Endpoints.
+         *
+         * @param commonEndpointGroupId
+         *            the common <i>EndpointGroupId</i> to return from {@link #getCommonEndpointGroupId()}.
+         * @return <code>this</code> for chaining.
+         */
+        FactoryConfig setCommonEndpointGroupId(String commonEndpointGroupId);
+
+        /**
          * Returns a node-specific identifier, that is, a name which is different between different instances of the
          * same app running of different nodes. This can be used to make node-specific topics, which are nice when you
          * need a message to return to the node that sent it, due to some synchronous process waiting for the message
@@ -649,7 +691,7 @@ public interface MatsFactory extends StartStoppable {
          * {@link MatsPlugin#removedEndpoint(MatsEndpoint) endpointRemoved(MatsEndpoint)} methods invoked as Endpoints
          * are added and removed from the MatsFactory. All these operations are done within a synchronized construct, so
          * that the plugin shall be able to have a consistent view of the MatsFactory.
-         * <p/>
+         * <p>
          * The MatsFactory might have special handling for a given plugin based on the interfaces it implements. For
          * example, the JMS implementation know about the 'mats-intercept-api' module, and will act accordingly.
          *
@@ -703,7 +745,7 @@ public interface MatsFactory extends StartStoppable {
          * MatsFactory is effectively locked while this method is invoked - so that you can get a consistent view of
          * what Endpoints is already added to the MatsFactory, vs. what endpoints are
          * {@link #addingEndpoint(MatsEndpoint) added} and {@link #removedEndpoint(MatsEndpoint removed)} later.
-         * <p/>
+         * <p>
          * Notice again that it is not added to the MatsFactory unless this method returns without throwing an
          * exception. This also means that if you register any Endpoints in this method, or create Initiators, the
          * corresponding {@link #addingEndpoint(MatsEndpoint) addingEndpoint(..)} or
@@ -741,7 +783,7 @@ public interface MatsFactory extends StartStoppable {
          * endpoints when the plugin is {@link FactoryConfig#removePlugin(MatsPlugin) removed} or the MatsFactory is
          * {@link MatsFactory#stop(int) stopped}, so you must handle any per-Endpoint cleanup in {@link #preStop()} and
          * {@link #stop()}.
-         * <p/>
+         * <p>
          * Note that removing an Endpoint is primarily meant for testing procedures, so this should not be a common
          * scenario in production.
          *
@@ -757,7 +799,7 @@ public interface MatsFactory extends StartStoppable {
          * MatsFactory, or when the MatsFactory is {@link MatsFactory#stop(int) stopped}. The plugin is not removed upon
          * MatsFactory stop (and neither are Initiators and Endpoints), and will be started again by invoking
          * {@link MatsFactory#start()}).
-         * <p/>
+         * <p>
          * Note: Upon MatsFactory stopping, this method is invoked <b>before</b> the Initiators and Endpoints are
          * stopped. The state of the MatsFactory is effectively locked while this method is invoked.
          */
@@ -770,7 +812,7 @@ public interface MatsFactory extends StartStoppable {
          * MatsFactory, or when the MatsFactory is {@link MatsFactory#stop(int) stopped}. The plugin it is not removed
          * upon MatsFactory stop (and neither are Initiators and Endpoints), and will be started again by invoking
          * {@link MatsFactory#start()}).
-         * <p/>
+         * <p>
          * Note: Upon MatsFactory stopping, this method is invoked <b>after</b> the Initiators and Endpoints are
          * stopped. The state of the MatsFactory is effectively locked while this method is invoked.
          */
