@@ -509,11 +509,10 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             initiate(lambda);
         }
         catch (MatsMessageSendException e) {
-            throw new MatsMessageSendRuntimeException("Wrapping the MatsMessageSendException in a unchecked variant",
-                    e);
+            throw new MatsMessageSendRuntimeException("[Unchecked] " + e.getMessage(), e);
         }
         catch (MatsBackendException e) {
-            throw new MatsBackendRuntimeException("Wrapping the MatsBackendException in a unchecked variant", e);
+            throw new MatsBackendRuntimeException("[Unchecked] " + e.getMessage(), e);
         }
     }
 

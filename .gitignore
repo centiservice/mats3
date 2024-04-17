@@ -11,6 +11,7 @@ out/
 
 # ActiveMQ KahaDB
 kahadb/
+activemq-data/
 
 # Idea
 .idea
