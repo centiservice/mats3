@@ -241,26 +241,28 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
                         + "VERY BAD! " + stageOrInit(_txContextKey) + " " + sqlEmployed
                         + " After processing finished correctly, and any external, potentially state changing"
                         + " operations have committed OK, we could not commit the JMS Session! If this happened within"
-                        + " a Mats message initiation, the state changing operations (e.g. database insert/update) have"
-                        + " been committed, while the message was not sent. If this is not caught by the initiation"
-                        + " code ('manually' rolling back the state change), the global state is probably out of sync"
-                        + " (i.e. the order-row is marked 'processing started', while the corresponding process-order"
-                        + " message was not sent). On the other hand, if this happened within a Mats Stage (inside an"
-                        + " endpoint), this will most probably lead to a redelivery (as in 'double delivery'), which"
-                        + " should be handled by your endpoint's idempotent handling of incoming messages: On the next"
-                        + " (re)delivery, your code should realize that it already e.g. have inserted the DB row in"
-                        + " question, and thus skip directly to the end of the stage, where it performs a request,"
-                        + " reply, next or nextDirect. If you instead just throw an exception (e.g. 'duplicate key' or"
-                        + " similar), you'll DLQ the message, and thus stop processing of this Mats flow. Reissuing"
-                        + " won't help unless you have deleted the offending row.", t);
+                        + " a Mats message initiation, any state changing operations inside the Init lambda (e.g."
+                        + " database insert/update) have been committed, while the message was not sent. If this is not"
+                        + " caught by the initiation code ('manually' rolling back the state change), the global state"
+                        + " is probably out of sync (i.e. the order-row is marked 'processing started', while the"
+                        + " corresponding process-order message was not sent). On the other hand, if this happened"
+                        + " within a Mats Stage (inside a Stage lambda of an Endpoint), this will most probably lead to"
+                        + " a redelivery (as in 'double delivery'), which should be handled by your endpoint's"
+                        + " idempotent handling of incoming messages: On the next (re)delivery, your code should"
+                        + " realize that it already e.g. have inserted the DB row in question, and thus skip directly"
+                        + " to the end of the stage, where it performs a request, reply, next or nextDirect. If you"
+                        + " instead just throw an exception (e.g. 'duplicate key' or similar), you'll DLQ the message,"
+                        + " and thus stop processing of this Mats flow. Reissuing won't then help unless you have"
+                        + " deleted the offending row.", t);
                 /*
                  * This certainly calls for reestablishing the JMS Session, so we need to throw out a
                  * JmsMatsJmsException. However, in addition, this is the specific type of error ("VERY BAD!") that
                  * MatsInitiator.MatsMessageSendException is created for.
                  */
-                throw new JmsMatsMessageSendException("VERY BAD! After " + stageOrInit(_txContextKey) + " finished"
-                        + " processing correctly, and any external, potentially state changing operations have"
-                        + " committed OK, we could not commit the JMS Session! " + sqlEmployed, t);
+                throw new JmsMatsMessageSendException("VERY BAD! After " + stageOrInit(_txContextKey)
+                        + " lambda finished processing correctly, and any external, potentially state changing"
+                        + " operations have committed OK, we could not commit the JMS Session! (And any outgoing"
+                        + " messages weren't sent!) " + sqlEmployed, t);
             }
 
             // -> The JMS Session nicely committed.
