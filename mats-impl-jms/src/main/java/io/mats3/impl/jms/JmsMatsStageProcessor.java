@@ -1874,18 +1874,23 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             // E-> Not NEXT_DIRECT, so calculate
             DetachedProcessContext processContext = getProcessContext();
 
+            // Note: The following calculation is also done in JmsMatsMessage.getMessageSystemTotalWireSize(),
+            // for outgoing messages. This is for the incoming message.
+
             // Calculate extra sizes we know as implementation
             // (Sizes of all the JMS properties we stick on the messages, and their values).
             int jmsImplSizes = TOTAL_JMS_MSG_PROPS_SIZE
                     + processContext.getTraceId().length()
                     + processContext.getMatsMessageId().length()
-                    // missing DISPATCH_TYPE
+                    // Missing DISPATCH_TYPE
                     + getIncomingMessageType().toString().length()
                     + processContext.getFromStageId().length()
                     + processContext.getInitiatingAppName().length()
                     + processContext.getInitiatorId().length()
                     + processContext.getStageId().length() // To
                     + Boolean.valueOf(!processContext.isNoAudit()).toString().length();
+            // Missing all DLQ values, but this will in ~100% null/0 since this is not a DLQ message!
+            // (Could be reissued from DLQ, though - and thus have some of them. Ignoring, this is best-effort)
 
             return StageCommonContext.super.getMessageSystemTotalWireSize() + jmsImplSizes;
         }

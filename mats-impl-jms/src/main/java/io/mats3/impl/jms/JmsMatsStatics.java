@@ -103,6 +103,7 @@ public interface JmsMatsStatics {
     String JMS_MSG_PROP_DLQ_APP_VERSION_AND_HOST = "mats_dlq_AppAndVersion"; // String
     String JMS_MSG_PROP_DLQ_STAGE_ORIGIN = "mats_dlq_StageOrigin"; // String
 
+    // NOTE: Ignoring all the DLQ properties for the "Mats Managed DLQ Divert": they are only set when diverting to DLQ.
     int TOTAL_JMS_MSG_PROPS_SIZE = JMS_MSG_PROP_TRACE_ID.length()
             + JMS_MSG_PROP_MATS_MESSAGE_ID.length()
             + JMS_MSG_PROP_DISPATCH_TYPE.length()
@@ -111,13 +112,7 @@ public interface JmsMatsStatics {
             + JMS_MSG_PROP_INITIALIZING_APP.length()
             + JMS_MSG_PROP_INITIATOR_ID.length()
             + JMS_MSG_PROP_TO.length()
-            + JMS_MSG_PROP_AUDIT.length()
-            + JMS_MSG_PROP_DLQ_EXCEPTION.length()
-            + JMS_MSG_PROP_DLQ_REFUSED.length()
-            + JMS_MSG_PROP_DLQ_DELIVERY_COUNT.length()
-            + JMS_MSG_PROP_DLQ_DLQ_COUNT.length()
-            + JMS_MSG_PROP_DLQ_APP_VERSION_AND_HOST.length()
-            + JMS_MSG_PROP_DLQ_STAGE_ORIGIN.length();
+            + JMS_MSG_PROP_AUDIT.length();
 
     /**
      * Number of milliseconds to "extra wait" after timeoutMillis or gracefulShutdownMillis is gone.
