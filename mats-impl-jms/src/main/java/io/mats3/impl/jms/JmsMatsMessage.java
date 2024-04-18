@@ -197,7 +197,13 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
             return MessageType.REQUEST;
         }
         else if (callType == CallType.REPLY) {
-            return MessageType.REPLY;
+            // -> REPLY, so must evaluate REPLY or REPLY_SUBSCRIPTION
+            if (_matsTrace.getCurrentCall().getTo().getMessagingModel() == MessagingModel.QUEUE) {
+                return MessageType.REPLY;
+            }
+            else {
+                return MessageType.REPLY_SUBSCRIPTION;
+            }
         }
         else if (callType == CallType.NEXT) {
             return MessageType.NEXT;
@@ -311,7 +317,8 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
 
     @Override
     public void setSameStackHeightExtraState(String key, Object object) {
-        if (getMessageType() == MessageType.REQUEST) {
+        MessageType messageType = getMessageType();
+        if (messageType == MessageType.REQUEST) {
             // :: This is a REQUEST: We want to add extra-state to the level where the subsequent REPLY will lie.
             /*
              * Note: Check the implementation for MatsTraceFieldImpl.addRequestCall(..). The StackState we need is
@@ -343,7 +350,7 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
             // :: Add the extra-state
             stateToModify.setExtraState(key, _matsSerializer.serializeObject(object));
         }
-        else if ((getMessageType() == MessageType.NEXT) || (getMessageType() == MessageType.GOTO)) {
+        else if ((messageType == MessageType.NEXT) || (messageType == MessageType.GOTO)) {
             // :: This is a NEXT or GOTO: We want to add extra-state to the same level, as receiver is immediate next.
             /*
              * Note: Check the implementation for MatsTraceFieldImpl.addNextCall(..). The StackState we need is
@@ -360,7 +367,7 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
         }
         else {
             throw new IllegalStateException("setExtraStateForReply(..) is only applicable for MessageType.REQUEST,"
-                    + " MessageType.NEXT and MessageType.GOTO messages, this is [" + getMessageType() + "].");
+                    + " MessageType.NEXT and MessageType.GOTO messages, this is [" + messageType + "].");
         }
     }
 
@@ -442,6 +449,10 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
     public int getMessageSystemTotalWireSize() {
         // Calculate extra sizes we know as implementation
         // (Sizes of all the JMS properties we stick on the messages, and their values).
+
+        // Note: The following calculation is also done in JmsMatsStageProcessor.StageCommonContextImpl
+        // .getMessageSystemTotalWireSize(), for the incoming message. This is for outgoing messages.
+
         int jmsImplSizes = JmsMatsStatics.TOTAL_JMS_MSG_PROPS_SIZE
                 + getTraceId().length()
                 + getMatsMessageId().length()

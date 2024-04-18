@@ -384,6 +384,8 @@ public interface MatsStageInterceptor extends MatsPlugin {
 
             REPLY,
 
+            REPLY_SUBSCRIPTION,
+
             NEXT,
 
             NEXT_DIRECT,

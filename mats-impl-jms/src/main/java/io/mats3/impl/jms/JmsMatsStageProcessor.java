@@ -1371,9 +1371,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         // :: Find any "result" message (REPLY, NEXT, GOTO)
         // NOTE! This cannot be NEXT_DIRECT, as that would already have been handled in the processing code above.
         MatsSentOutgoingMessage resultMessage = stageMessagesProduced.stream()
-                .filter(m -> (m.getMessageType() == MessageType.REPLY)
-                        || (m.getMessageType() == MessageType.NEXT)
-                        || (m.getMessageType() == MessageType.GOTO))
+                .filter(m -> {
+                    MessageType messageType = m.getMessageType();
+                    return (messageType == MessageType.REPLY)
+                            || (messageType == MessageType.REPLY_SUBSCRIPTION)
+                            || (messageType == MessageType.NEXT)
+                            || (messageType == MessageType.GOTO);
+                })
                 .findFirst().orElse(null);
         // :: Find any Flow Request messages (note that Requests can be produced both by stage and init, and we only
         // want the actual stage Requests (i.e. Flow) - not STAGE_INIT)
@@ -1398,9 +1402,13 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
         else if (resultMessage != null) {
             // -> Yes, result message
             // ?: Which type is it?
-            switch (resultMessage.getMessageType()) {
+            MessageType resultMessageType = resultMessage.getMessageType();
+            switch (resultMessageType) {
                 case REPLY:
                     stageProcessResult = StageProcessResult.REPLY;
+                    break;
+                case REPLY_SUBSCRIPTION:
+                    stageProcessResult = StageProcessResult.REPLY_SUBSCRIPTION;
                     break;
                 case NEXT:
                     stageProcessResult = StageProcessResult.NEXT;
@@ -1411,8 +1419,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                 default:
                     // NOTE: NEXT_DIRECT is handled directly in the processing code, read comment at start!
                     // This shalln't happen, see code above where we only pick out those three.
-                    throw new AssertionError("Unknown result message type [" + resultMessage
-                            .getMessageType() + "].");
+                    throw new AssertionError("Unknown result message type [" + resultMessageType + "].");
             }
         }
         // ?: No "result message", did we get any requests?

@@ -740,8 +740,9 @@ public class LocalHtmlInspectForMatsFactoryImpl implements LocalHtmlInspectForMa
                 // :: Outgoing Messages Summary: Calculate ..
                 for (Entry<OutgoingMessageRepresentation, Long> entry : outgoingMessageCounts.entrySet()) {
                     OutgoingMessageRepresentation msg = entry.getKey();
-                    // Different handling whether REPLY or any other
-                    boolean replyMsg = msg.getMessageType() == MessageType.REPLY;
+                    // Different handling whether REPLY/REPLY_SUBSCRIPTION or any other
+                    boolean replyMsg = (msg.getMessageType() == MessageType.REPLY)
+                            || (msg.getMessageType() == MessageType.REPLY_SUBSCRIPTION);
                     String messageClassName = msg.getMessageClass() == null
                             ? "null"
                             : msg.getMessageClass().getSimpleName();

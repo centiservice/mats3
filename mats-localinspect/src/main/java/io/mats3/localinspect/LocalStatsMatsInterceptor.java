@@ -342,9 +342,10 @@ public class LocalStatsMatsInterceptor
         stageStats.recordSpentQueueTimeNanos(durationBetweenSentReceived.toNanos());
 
         // :: TIME BETWEEN STAGES:
-        // ?: Is this NOT the Initial stage, AND it is a REPLY or NEXT?
+        // ?: Is this NOT the Initial stage, AND it is a REPLY/REPLY_SUBSCRIPTION or NEXT?
         if ((!stageStats.isInitial()) &&
-                ((incomingMessageType == MessageType.REPLY) || (incomingMessageType == MessageType.NEXT))) {
+                ((incomingMessageType == MessageType.REPLY) || (incomingMessageType == MessageType.REPLY_SUBSCRIPTION)
+                        || (incomingMessageType == MessageType.NEXT))) {
             // -> Yes, so then we should have extra-state for the time the previous stage's request/send happened
             String requestNodename = i_context.getIncomingSameStackHeightExtraState(EXTRA_STATE_REQUEST_NODENAME, String.class)
                     .orElse(null);
@@ -364,8 +365,9 @@ public class LocalStatsMatsInterceptor
             // -> Yes, initial and Terminator.
             boolean initiatedOnSameApp = stage.getParentEndpoint().getParentFactory()
                     .getFactoryConfig().getAppName().equals(p_context.getInitiatingAppName());
-            // ?: Is this a REPLY?
-            if (i_context.getIncomingMessageType() == MessageType.REPLY) {
+            // ?: Is this a REPLY/REPLY_SUBSCRIPTION?
+            if ((i_context.getIncomingMessageType() == MessageType.REPLY)
+                    || (i_context.getIncomingMessageType() == MessageType.REPLY_SUBSCRIPTION)) {
                 // -> Yes, this is a reply - thus extra-state is employed
                 // ?: Is this from the same app?
                 if (initiatedOnSameApp) {
@@ -434,7 +436,8 @@ public class LocalStatsMatsInterceptor
         List<MatsEditableOutgoingMessage> outgoingMessages = context.getOutgoingMessages();
         for (MatsEditableOutgoingMessage msg : outgoingMessages) {
             // ?: Is this a REQUEST or a NEXT call? (those have a subsequent N+1 stage)
-            if ((msg.getMessageType() == MessageType.REQUEST) || (msg.getMessageType() == MessageType.NEXT)) {
+            MessageType messageType = msg.getMessageType();
+            if ((messageType == MessageType.REQUEST) || (messageType == MessageType.NEXT)) {
                 // :: TIME BETWEEN STAGES:
                 // Need to record the REQUEST timestamp for the subsequent stage which gets the REPLY
                 // NOTE: This is /overwriting/ the state between each stage, as it is only needed between each
@@ -474,7 +477,9 @@ public class LocalStatsMatsInterceptor
 
         // :: TIME ENDPOINT TOTAL PROCESSING:
         // ?: Is this a "finishing process result", i.e. either REPLY (service) or NONE (terminator/terminating flow)?
-        if (stageProcessResult == StageProcessResult.REPLY || (stageProcessResult == StageProcessResult.NONE)) {
+        if (stageProcessResult == StageProcessResult.REPLY
+                || (stageProcessResult == StageProcessResult.REPLY_SUBSCRIPTION)
+                || (stageProcessResult == StageProcessResult.NONE)) {
             // -> Yes, "exiting process result" - record endpoint total processing time
             // ?: Is this the initial stage?
             if (stageStats.isInitial()) {
@@ -761,8 +766,7 @@ public class LocalStatsMatsInterceptor
         }
 
         private void recordOutgoingMessage(MessageType messageType, String to, Class<?> messageClass,
-                String initiatingAppName,
-                String initiatorId) {
+                String initiatingAppName, String initiatorId) {
             // ?: If we've added more than some Max of such entries, we stop adding.
             // NOTE: Known race condition: This is purely a "best effort" way to try to avoid adding unlimited number
             // of such measures, and if we overshoot, that is not a problem.

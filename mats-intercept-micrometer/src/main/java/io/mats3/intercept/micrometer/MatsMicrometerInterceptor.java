@@ -466,7 +466,11 @@ public class MatsMicrometerInterceptor
              * that if stage1 sometimes run NEXT or GOTO instead of REQUEST (thus different 'to') - but which won't
              * explode the cardinality to the same level (if it does REPLY, that is still excluded).
              */
-            String to = (!_includeAllTags) && (msg.getMessageType() == MessageType.REPLY) ? "" : msg.getTo();
+            MessageType messageType = msg.getMessageType();
+            String to = (!_includeAllTags) &&
+                    ((messageType == MessageType.REPLY) || (messageType == MessageType.REPLY_SUBSCRIPTION))
+                                    ? ""
+                                    : msg.getTo();
             /*
              * NOTICE: We use the current stageId as "from", not 'msg.getFrom()'. The reason here is both that a) in a
              * normal Mats flow situation (REQUEST/REPLY/NEXT/GOTO), it will be the same anyway, b) the latter can
@@ -477,7 +481,7 @@ public class MatsMicrometerInterceptor
              * stage).
              */
             MessageSentMetrics messageSentMetrics = _messageMetricsCache.getOrCreate(new MessageSentMetricsParams(
-                    "stage", msg.getMessageType().toString(), initiatingAppName, initiatorId,
+                    "stage", messageType.toString(), initiatingAppName, initiatorId,
                     stageId, stageId, stageIndex, to));
             // ?: Did we get a MessageMetrics?
             if (messageSentMetrics != null) {

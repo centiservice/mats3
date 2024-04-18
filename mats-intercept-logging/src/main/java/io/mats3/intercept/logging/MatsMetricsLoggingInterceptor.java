@@ -818,7 +818,8 @@ public class MatsMetricsLoggingInterceptor
                 MDC.put(MDC_MATS_IN_DELIVERY_COUNT, Integer.toString(ctx.getDeliveryCount()));
             }
             MDC.put(MDC_MATS_IN_MATS_MESSAGE_ID, processContext.getMatsMessageId());
-            MDC.put(MDC_MATS_IN_MESSAGE_TYPE, ctx.getIncomingMessageType().toString());
+            MessageType incomingMessageType = ctx.getIncomingMessageType();
+            MDC.put(MDC_MATS_IN_MESSAGE_TYPE, incomingMessageType.toString());
             MDC.put(MDC_MATS_IN_FROM_APP_NAME, processContext.getFromAppName());
             MDC.put(MDC_MATS_IN_FROM_ID, processContext.getFromStageId());
 
@@ -831,9 +832,10 @@ public class MatsMetricsLoggingInterceptor
                     Long.toString(now - processContext.getFromTimestamp().toEpochMilli()));
 
             // :: Time since previous stage (or, actually, initiation) on same stack height
-            if ((ctx.getIncomingMessageType() == MessageType.REPLY)
-                    || (ctx.getIncomingMessageType() == MessageType.NEXT)
-                    || (ctx.getIncomingMessageType() == MessageType.GOTO)) {
+            if ((incomingMessageType == MessageType.REPLY)
+                    || (incomingMessageType == MessageType.REPLY_SUBSCRIPTION)
+                    || (incomingMessageType == MessageType.NEXT)
+                    || (incomingMessageType == MessageType.GOTO)) {
                 MDC.put(MDC_MATS_IN_TIME_SINCE_PRECEDING_ENDPOINT_STAGE,
                         Long.toString(now - ctx.getPrecedingSameStackHeightOutgoingTimestamp().toEpochMilli()));
             }
@@ -852,7 +854,7 @@ public class MatsMetricsLoggingInterceptor
             MDC.put(MDC_MATS_IN_SIZE_DATA_SERIAL, Integer.toString(ctx.getDataSerializedSize()));
             MDC.put(MDC_MATS_IN_SIZE_TOTAL_WIRE, Integer.toString(ctx.getMessageSystemTotalWireSize()));
 
-            log_stage.info(LOG_PREFIX + "RECEIVED [" + ctx.getIncomingMessageType()
+            log_stage.info(LOG_PREFIX + "RECEIVED [" + incomingMessageType
                     + "] message from [" + processContext.getFromStageId()
                     + "@" + processContext.getFromAppName() + ",v." + processContext.getFromAppVersion()
                     + "], totPreprocAndDeserial:[" + ms(ctx.getTotalPreprocessAndDeserializeNanos())
@@ -944,8 +946,9 @@ public class MatsMetricsLoggingInterceptor
         completedMDC.put(MDC_MATS_PROCESS_RESULT, ctx.getStageProcessResult().toString());
 
         // ?: Has the endpoint completed with this stage?
-        if ((ctx.getStageProcessResult() == StageProcessResult.REPLY) || (ctx
-                .getStageProcessResult() == StageProcessResult.NONE)) {
+        if ((ctx.getStageProcessResult() == StageProcessResult.REPLY)
+                || (ctx.getStageProcessResult() == StageProcessResult.REPLY_SUBSCRIPTION)
+                || (ctx.getStageProcessResult() == StageProcessResult.NONE)) {
             // -> Yes, either it REPLYed, or it didn't send any outgoing message (as if a Terminator)
             // This means that the Mats Endpoint has completed.
             String totalEndpointTimeString = "0";

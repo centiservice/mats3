@@ -484,9 +484,8 @@ public interface MatsTrace<Z> {
 
             NEXT,
 
-            REPLY,
+            REPLY, // Also used for Reply-to-Subscription, as it is technically the same, just sent over a topic
 
-            /** Not yet used. Ref issue #69 */
             GOTO
         }
 

@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import io.mats3.MatsEndpoint.ProcessContext;
+import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.api.intercept.MatsStageInterceptor.StageCommonContext;
 
 /**
@@ -35,8 +36,7 @@ public interface MatsOutgoingMessage {
      * Note: For messages out of an initiator, this method and {@link #getFrom()} returns the same value, i.e. it is
      * "initiated from", and "from", the same source.
      *
-     * @return the value supplied to {@link io.mats3.MatsInitiator.MatsInitiate#from(String)} at the time of the Mats
-     *         flow initiation.
+     * @return the value supplied to {@link MatsInitiate#from(String)} at the time of the Mats flow initiation.
      */
     String getInitiatorId();
 
@@ -116,8 +116,20 @@ public interface MatsOutgoingMessage {
 
         /**
          * Only for {@link DispatchType#STAGE}.
+         *
+         * @see #REPLY_SUBSCRIPTION
          */
         REPLY,
+
+        /**
+         * "Specialization" of {@link #REPLY} for when the Initiation was done using
+         * {@link MatsInitiate#replyToSubscription(String, Object) MatsInitiate#replyToSubscription(..)}
+         * <p>
+         * Only for {@link DispatchType#STAGE}.
+         *
+         * @see #REPLY
+         */
+        REPLY_SUBSCRIPTION,
 
         /**
          * Only for {@link DispatchType#STAGE}.
