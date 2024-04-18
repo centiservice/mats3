@@ -825,8 +825,8 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         return new MessageReferenceImpl(matsMessageId);
     }
 
-    private String produceMessage(Object incomingDto, Object sameStackHeightState, Object initialTargetSto, long nanosStart,
-            MatsTrace<Z> outgoingMatsTrace) {
+    private String produceMessage(Object incomingDto, Object sameStackHeightState, Object initialTargetSto,
+                                  long nanosStart, MatsTrace<Z> outgoingMatsTrace) {
         String debugInfo;
         // ?: Is this MINIMAL MatsTrace
         if (outgoingMatsTrace.getKeepTrace() == KeepMatsTrace.MINIMAL) {
@@ -848,11 +848,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
                 _parentFactory.getFactoryConfig().getNodename(), debugInfo);
 
         // Produce the JmsMatsMessage to send
-        JmsMatsMessage<Z> next = JmsMatsMessage.produceMessage(DispatchType.STAGE, nanosStart,
+        JmsMatsMessage<Z> msg = JmsMatsMessage.produceMessage(DispatchType.STAGE, nanosStart,
                 _parentFactory.getMatsSerializer(), outgoingMatsTrace,
-                incomingDto, initialTargetSto, null,
+                incomingDto, initialTargetSto, sameStackHeightState,
                 _outgoingProps, _outgoingBinaries, _outgoingStrings);
-        _messagesToSend.add(next);
+        _messagesToSend.add(msg);
 
         // Clear all outgoingProps, outgoingBinaries and outgoingStrings, for any new request(..) or send(..)
         // (Clearing, but copied off by the produceMessage(..) call)
