@@ -176,9 +176,9 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         }
         // E-> No, not NEXT_DIRECT
         // If first call, then there is no CallingAppName on CurrentCall (to save some space), since it would be the
-        // same as initializing.
+        // same as initiating.
         return _incomingMatsTrace.getCallNumber() == 1
-                ? _incomingMatsTrace.getInitializingAppName()
+                ? _incomingMatsTrace.getInitiatingAppName()
                 : _incomingMatsTrace.getCurrentCall().getCallingAppName();
     }
 
@@ -191,9 +191,9 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         }
         // E-> No, not NEXT_DIRECT
         // If first call, then there is no CallingAppVersion on CurrentCall (to save some space), since it would be the
-        // same as initializing.
+        // same as initiating.
         return _incomingMatsTrace.getCallNumber() == 1
-                ? _incomingMatsTrace.getInitializingAppVersion()
+                ? _incomingMatsTrace.getInitiatingAppVersion()
                 : _incomingMatsTrace.getCurrentCall().getCallingAppVersion();
     }
 
@@ -221,12 +221,12 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     @Override
     public String getInitiatingAppName() {
-        return _incomingMatsTrace.getInitializingAppName();
+        return _incomingMatsTrace.getInitiatingAppName();
     }
 
     @Override
     public String getInitiatingAppVersion() {
-        return _incomingMatsTrace.getInitializingAppVersion();
+        return _incomingMatsTrace.getInitiatingAppVersion();
     }
 
     @Override
@@ -236,7 +236,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     @Override
     public Instant getInitiatingTimestamp() {
-        return Instant.ofEpochMilli(_incomingMatsTrace.getInitializedTimestamp());
+        return Instant.ofEpochMilli(_incomingMatsTrace.getInitiatingTimestamp());
     }
 
     @Override

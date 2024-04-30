@@ -50,7 +50,7 @@ public interface MatsTrace<Z> {
      * @return <code>this</code>, for chaining. Note that this is opposed to the add[Request|Send|Next|Reply]Call(..)
      *         methods, which return a new, independent instance.
      */
-    MatsTrace<Z> withDebugInfo(String initializingAppName, String initializingAppVersion, String initializingHost,
+    MatsTrace<Z> withDebugInfo(String initiatingAppName, String initiatingAppVersion, String initiatingHost,
             String initiatorId, String debugInfo);
 
     /**
@@ -88,7 +88,14 @@ public interface MatsTrace<Z> {
      */
     String getFlowId();
 
-    long getInitializedTimestamp();
+    // TODO: Delete ASAP, latest 2025
+    long getInitiatingTimestamp();
+
+    @Deprecated
+    default long getInitializedTimestamp() {
+        return getInitiatingTimestamp();
+    }
+
 
     /**
      * @return to which extent the Call history (with State) should be kept. The default is
@@ -149,11 +156,29 @@ public interface MatsTrace<Z> {
 
     // --- Stuff set with the 'withDebugInfo(...)' method.
 
-    String getInitializingAppName();
+    String getInitiatingAppName();
 
-    String getInitializingAppVersion();
+    String getInitiatingAppVersion();
 
-    String getInitializingHost();
+    String getInitiatingHost();
+
+    // TODO: Delete ASAP, latest 2025
+
+    @Deprecated
+    default String getInitializingAppName() {
+        return getInitiatingAppName();
+    }
+
+    @Deprecated
+    default String getInitializingAppVersion() {
+        return getInitiatingAppVersion();
+    }
+
+    @Deprecated
+    default String getInitializingHost() {
+        return getInitiatingHost();
+    }
+
 
     /**
      * @return a fictive "endpointId" of the initiator, see <code>MatsInitiator.MatsInitiate.from(String)</code>.

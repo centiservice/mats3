@@ -172,12 +172,12 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
 
     @Override
     public String getInitiatingAppName() {
-        return _matsTrace.getInitializingAppName();
+        return _matsTrace.getInitiatingAppName();
     }
 
     @Override
     public String getInitiatingAppVersion() {
-        return _matsTrace.getInitializingAppName();
+        return _matsTrace.getInitiatingAppName();
     }
 
     @Override

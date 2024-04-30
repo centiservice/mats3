@@ -304,7 +304,7 @@ public interface MatsInitiator extends Closeable {
          * retain. The default (unless configured otherwise), {@link KeepTrace#COMPACT}, keeps a trail of all the stages
          * the flow has been through, but drops state and DTOs that aren't relevant for the current message. You might
          * want to use {@link KeepTrace#FULL} while developing new functionality, while once a certain call flow
-         * stabilizes, without much errors or DLQs, you should consider initializing it with {@link KeepTrace#COMPACT}
+         * stabilizes, without much errors or DLQs, you should consider initiating it with {@link KeepTrace#COMPACT}
          * or even {@link KeepTrace#MINIMAL} (the latter also dropping the "trail", thus only keeping information
          * strictly relevant for the current message).
          * <p />

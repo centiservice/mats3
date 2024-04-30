@@ -53,13 +53,13 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
 
     private int d; // For future Debug options, issue #79
 
-    private String an; // Initializing AppName
-    private String av; // Initializing AppVersion
-    private String h; // Initializing Host/Node
+    private String an; // Initiating AppName
+    private String av; // Initiating AppVersion
+    private String h; // Initiating Host/Node
     private String iid; // Initiator Id, "from" on initiation
     private String x; // Debug info (free-form..)
 
-    private String auth; // For future Auth support: Initializing Authorization header, e.g. "Bearer: ....".
+    private String auth; // For future Auth support: Initiating Authorization header, e.g. "Bearer: ....".
 
     private String sig; // For future Signature support: Signature of central pieces of information in the trace.
     // Note regarding signature: This is meant for the initial elements of the trace, kept in the trace.
@@ -77,11 +77,11 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     private long[] eets; // Endpoint Entered timestamp: "compressed" against the initiation time
 
     @Override
-    public MatsTrace<Z> withDebugInfo(String initializingAppName, String initializingAppVersion,
-            String initializingHost, String initiatorId, String debugInfo) {
-        an = initializingAppName;
-        av = initializingAppVersion;
-        h = initializingHost;
+    public MatsTrace<Z> withDebugInfo(String initiatingAppName, String initiatingAppVersion,
+            String initiatingHost, String initiatorId, String debugInfo) {
+        an = initiatingAppName;
+        av = initiatingAppVersion;
+        h = initiatingHost;
         iid = initiatorId;
         x = debugInfo;
         return this;
@@ -131,7 +131,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     /**
      * <b>NOTICE! This is NOT meant for public usage!</b>
      */
-    public void overrideInitializationTimestamp(long timestamp) {
+    public void overrideInitiatingTimestamp_ForTests(long timestamp) {
         this.ts = timestamp;
         // Set the initialization timestamp as "endpoint entered", so that if the init is a REQUEST, you can get
         // the "total endpoint time" on the terminator, as init-to-terminator.
@@ -152,7 +152,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     }
 
     @Override
-    public long getInitializedTimestamp() {
+    public long getInitiatingTimestamp() {
         return ts;
     }
 
@@ -182,17 +182,17 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
     }
 
     @Override
-    public String getInitializingAppName() {
+    public String getInitiatingAppName() {
         return an == null ? NULLED : an;
     }
 
     @Override
-    public String getInitializingAppVersion() {
+    public String getInitiatingAppVersion() {
         return av == null ? NULLED : av;
     }
 
     @Override
-    public String getInitializingHost() {
+    public String getInitiatingHost() {
         return h == null ? NULLED : h;
     }
 
@@ -261,7 +261,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         // Prune the data and stack from current call if KeepMatsTrace says so.
         clone.dropValuesOnCurrentCallIfAny();
         // Add the new Call
-        clone.c.add(new CallImpl<Z>(CallType.REQUEST, getFlowId(), getInitializedTimestamp(), getCallNumber(), from,
+        clone.c.add(new CallImpl<Z>(CallType.REQUEST, getFlowId(), getInitiatingTimestamp(), getCallNumber(), from,
                 new ToChannel(to, toMessagingModel), data, newCallReplyStack));
         // Add any state meant for the initial stage ("stage0") of the "to" endpointId.
         if (initialState != null) {
@@ -283,7 +283,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         // Prune the data and stack from current call if KeepMatsTrace says so.
         clone.dropValuesOnCurrentCallIfAny();
         // Add the new Call
-        clone.c.add(new CallImpl<Z>(CallType.SEND, getFlowId(), getInitializedTimestamp(), getCallNumber(), from,
+        clone.c.add(new CallImpl<Z>(CallType.SEND, getFlowId(), getInitiatingTimestamp(), getCallNumber(), from,
                 new ToChannel(to, toMessagingModel), data, newCallReplyStack));
         // Add any state meant for the initial stage ("stage0") of the "to" endpointId.
         if (initialState != null) {
@@ -306,7 +306,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         // Prune the data and stack from current call if KeepMatsTrace says so.
         clone.dropValuesOnCurrentCallIfAny();
         // Add the new Call.
-        clone.c.add(new CallImpl<Z>(CallType.NEXT, getFlowId(), getInitializedTimestamp(), getCallNumber(), from,
+        clone.c.add(new CallImpl<Z>(CallType.NEXT, getFlowId(), getInitiatingTimestamp(), getCallNumber(), from,
                 new ToChannel(to, MessagingModel.QUEUE), data, newCallReplyStack));
         // Add the state meant for the next stage (Notice again that we do not change the reply stack here)
         StackStateImpl<Z> newState = new StackStateImpl<Z>(newCallReplyStack.size(), state);
@@ -337,7 +337,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         // Pop the last element off the stack, since this is where we'll reply to, and the rest is the new stack.
         ReplyChannel to = newCallReplyStack.remove(newCallReplyStack.size() - 1);
         // Add the new Call, adding the ReplyForSpanId.
-        CallImpl<Z> replyCall = new CallImpl<Z>(CallType.REPLY, getFlowId(), getInitializedTimestamp(), getCallNumber(),
+        CallImpl<Z> replyCall = new CallImpl<Z>(CallType.REPLY, getFlowId(), getInitiatingTimestamp(), getCallNumber(),
                 from, new ToChannel(to.i, to.m), data, newCallReplyStack).setReplyForSpanId(getCurrentSpanId());
         clone.c.add(replyCall);
         // Prune the StackStates if KeepMatsTrace says so.
@@ -354,7 +354,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         // Prune the data and stack from current call if KeepMatsTrace says so.
         clone.dropValuesOnCurrentCallIfAny();
         // Add the new Call.
-        clone.c.add(new CallImpl<Z>(CallType.GOTO, getFlowId(), getInitializedTimestamp(), getCallNumber(), from,
+        clone.c.add(new CallImpl<Z>(CallType.GOTO, getFlowId(), getInitiatingTimestamp(), getCallNumber(), from,
                 new ToChannel(to, MessagingModel.QUEUE), data, newCallReplyStack));
         if (initialState != null) {
             // Add the state meant for the goto'ed endpoint (Notice again that we do not change the reply stack here)
@@ -392,7 +392,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         }
 
         // Find difference between initiation and timestamp
-        long diff = (timestamp - getInitializedTimestamp());
+        long diff = (timestamp - getInitiatingTimestamp());
 
         // ?: Is this a REQUEST?
         if (cc.t == CallType.REQUEST) {
@@ -432,7 +432,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
 
         int stackHeight = getCurrentCall().getReplyStackHeight();
         // Must handle null due to old impls.
-        return this.ots == null ? 0 : this.ots[stackHeight] + getInitializedTimestamp();
+        return this.ots == null ? 0 : this.ots[stackHeight] + getInitiatingTimestamp();
     }
 
     @Override
@@ -470,7 +470,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         int stackHeight = cc.getReplyStackHeight();
 
         // Find difference between initiation and timestamp
-        long diff = (timestamp - getInitializedTimestamp());
+        long diff = (timestamp - getInitiatingTimestamp());
 
         // If we are at stack height 1, then there are 2 timestamps in play (height 0, 1).
         // We're the one at stack height 1, so setting our timestamp there
@@ -490,7 +490,7 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         // If we are at stack height 1, then there are 2 timestamps in play (height 0, 1).
         // We want the one at stack height 1.
         // Must handle null due to old impls.
-        return this.eets == null ? 0 : this.eets[stackHeight] + getInitializedTimestamp();
+        return this.eets == null ? 0 : this.eets[stackHeight] + getInitiatingTimestamp();
     }
 
     private void forwardExtraStateIfExist(StackStateImpl<Z> newState) {
@@ -747,7 +747,6 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
 
         private long ts; // Calling TimeStamp
         private String id; // MatsMessageId.
-
 
         private final CallType t; // type.
         private String f; // from, may be nulled.
@@ -1154,11 +1153,11 @@ public class MatsTraceFieldImpl<Z> implements MatsTrace<Z>, Cloneable {
         buf.append("MatsTrace").append('\n')
                 .append("  Call Flow / Initiation:").append('\n')
                 .append("    Timestamp _________ : ").append(Instant.ofEpochMilli(
-                        getInitializedTimestamp()).atZone(ZoneId.systemDefault()).toString()).append('\n')
+                        getInitiatingTimestamp()).atZone(ZoneId.systemDefault())).append('\n')
                 .append("    TraceId ___________ : ").append(getTraceId()).append('\n')
                 .append("    FlowId ____________ : ").append(getFlowId()).append('\n')
-                .append("    Initializing App __ : ").append(getInitializingAppName()).append(",v.").append(
-                        getInitializingAppVersion()).append('\n')
+                .append("    Initiating App ____ : ").append(getInitiatingAppName()).append(",v.").append(
+                        getInitiatingAppVersion()).append('\n')
                 .append("    Initiator (from)___ : ").append(getInitiatorId()).append('\n')
                 .append("    Init debug info ___ : ").append(getDebugInfo() != null
                         ? getDebugInfo()

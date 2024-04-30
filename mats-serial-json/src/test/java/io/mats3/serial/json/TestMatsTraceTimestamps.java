@@ -33,7 +33,7 @@ public class TestMatsTraceTimestamps {
         // :: Perform a REQUEST
         MatsTrace<String> mt = ser.createNewMatsTrace("traceId", "flowId", KeepMatsTrace.FULL, false, false, 0, false);
         // @10 Initialized
-        ((MatsTraceFieldImpl<String>) mt).overrideInitializationTimestamp(10);
+        ((MatsTraceFieldImpl<String>) mt).overrideInitiatingTimestamp_ForTests(10);
         mt = mt.addRequestCall("from", "Leaf", MessagingModel.QUEUE, "Terminator", MessagingModel.QUEUE, "dataRequest", "replyState", null);
         // @100 Send from initiator
         mt.setOutgoingTimestamp(100);
@@ -88,7 +88,7 @@ public class TestMatsTraceTimestamps {
         // :: Perform a SEND
         MatsTrace<String> mt = ser.createNewMatsTrace("traceId", "flowId", KeepMatsTrace.FULL, false, false, 0, false);
         // @10 Initialized
-        ((MatsTraceFieldImpl<String>) mt).overrideInitializationTimestamp(10);
+        ((MatsTraceFieldImpl<String>) mt).overrideInitiatingTimestamp_ForTests(10);
         mt = mt.addSendCall("from", "2Stage", MessagingModel.QUEUE, "dataSend", null);
         // @100 Send from initiator
         mt.setOutgoingTimestamp(100);
@@ -168,7 +168,7 @@ public class TestMatsTraceTimestamps {
         // :: Perform a REQUEST
         MatsTrace<String> mt = ser.createNewMatsTrace("traceId", "flowId", KeepMatsTrace.FULL, false, false, 0, false);
         // @10 Initialized
-        ((MatsTraceFieldImpl<String>) mt).overrideInitializationTimestamp(10);
+        ((MatsTraceFieldImpl<String>) mt).overrideInitiatingTimestamp_ForTests(10);
         mt = mt.addRequestCall("from", "2Stage", MessagingModel.QUEUE, "Terminator", MessagingModel.QUEUE, "dataRequest", "replyState", null);
         // @100 Send from initiator
         mt.setOutgoingTimestamp(100);

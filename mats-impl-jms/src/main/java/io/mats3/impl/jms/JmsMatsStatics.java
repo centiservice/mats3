@@ -90,10 +90,16 @@ public interface JmsMatsStatics {
     String JMS_MSG_PROP_DISPATCH_TYPE = "mats_DispatchType"; // String
     String JMS_MSG_PROP_MESSAGE_TYPE = "mats_MsgType"; // String
     String JMS_MSG_PROP_FROM = "mats_From"; // String
-    String JMS_MSG_PROP_INITIALIZING_APP = "mats_InitApp"; // String
+    String JMS_MSG_PROP_INITIATING_APP = "mats_InitApp"; // String
     String JMS_MSG_PROP_INITIATOR_ID = "mats_InitId"; // String
     String JMS_MSG_PROP_TO = "mats_To"; // String (needed if a message ends up on a global/common DLQ)
-    String JMS_MSG_PROP_AUDIT = "mats_Audit"; // Boolean
+    // Three next are set if non-default:
+    String JMS_MSG_PROP_INTERACTIVE = "mats_IA"; // Boolean - not set if false
+    String JMS_MSG_PROP_NON_PERSISTENT = "mats_NP"; // Boolean - not set if false
+    String JMS_MSG_PROP_NO_AUDIT = "mats_NA"; // Boolean - not set if false
+    String JMS_MSG_PROP_EXPIRES = "mats_Expires"; // Long - not set if 'never expires'
+    // TODO: Delete 'JMS_MSG_PROP_AUDIT' ASAP, latest 2025
+    String JMS_MSG_PROP_AUDIT = "mats_Audit"; // Boolean - not set if false
 
     // :: For 'Mats Managed DLQ Divert' - Note that most of these shall be cleared when reissued from DLQ!
     String JMS_MSG_PROP_DLQ_EXCEPTION = "mats_dlq_Exception"; // String (not set if DLQed on receive-side)
@@ -109,10 +115,9 @@ public interface JmsMatsStatics {
             + JMS_MSG_PROP_DISPATCH_TYPE.length()
             + JMS_MSG_PROP_MESSAGE_TYPE.length()
             + JMS_MSG_PROP_FROM.length()
-            + JMS_MSG_PROP_INITIALIZING_APP.length()
+            + JMS_MSG_PROP_INITIATING_APP.length()
             + JMS_MSG_PROP_INITIATOR_ID.length()
-            + JMS_MSG_PROP_TO.length()
-            + JMS_MSG_PROP_AUDIT.length();
+            + JMS_MSG_PROP_TO.length();
 
     /**
      * Number of milliseconds to "extra wait" after timeoutMillis or gracefulShutdownMillis is gone.
@@ -186,11 +191,25 @@ public interface JmsMatsStatics {
                         outgoingMatsTrace.getCurrentCall().getMatsMessageId());
                 mm.setStringProperty(JMS_MSG_PROP_DISPATCH_TYPE, jmsMatsMessage.getDispatchType().toString());
                 mm.setStringProperty(JMS_MSG_PROP_MESSAGE_TYPE, jmsMatsMessage.getMessageType().toString());
-                mm.setStringProperty(JMS_MSG_PROP_INITIALIZING_APP, outgoingMatsTrace.getInitializingAppName());
+                mm.setStringProperty(JMS_MSG_PROP_INITIATING_APP, outgoingMatsTrace.getInitiatingAppName());
                 mm.setStringProperty(JMS_MSG_PROP_INITIATOR_ID, outgoingMatsTrace.getInitiatorId());
                 mm.setStringProperty(JMS_MSG_PROP_FROM, outgoingMatsTrace.getCurrentCall().getFrom());
                 mm.setStringProperty(JMS_MSG_PROP_TO, toChannel.getId());
+                // TODO: Delete 'JMS_MSG_PROP_AUDIT' ASAP, latest 2025
                 mm.setBooleanProperty(JMS_MSG_PROP_AUDIT, !outgoingMatsTrace.isNoAudit());
+                if (outgoingMatsTrace.isNoAudit()) {
+                    mm.setBooleanProperty(JMS_MSG_PROP_NO_AUDIT, true);
+                }
+                if (outgoingMatsTrace.isInteractive()) {
+                    mm.setBooleanProperty(JMS_MSG_PROP_INTERACTIVE, true);
+                }
+                if (outgoingMatsTrace.isNonPersistent()) {
+                    mm.setBooleanProperty(JMS_MSG_PROP_NON_PERSISTENT, true);
+                }
+                if (outgoingMatsTrace.getTimeToLive() != 0) {
+                    mm.setLongProperty(JMS_MSG_PROP_EXPIRES, System.currentTimeMillis()
+                            + outgoingMatsTrace.getTimeToLive());
+                }
 
                 // Setting DeliveryMode: NonPersistent or Persistent
                 int deliveryMode = outgoingMatsTrace.isNonPersistent()
