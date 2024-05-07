@@ -840,7 +840,12 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                             && t.getCause().getClass().isAssignableFrom(InterruptedException.class)) {
                         log.info(LOG_PREFIX + "Got [" + t.getClass().getSimpleName() + "]->cause:InterruptedException,"
                                 + " inside the message processing loop, and the run-flag was false,"
-                                + " so we shortcut to exit.");
+                                + " so we shortcut to exit. Exception message: '" + t.getMessage() + "'.");
+                    }
+                    else if (isThreadInterrupted) {
+                        log.info(LOG_PREFIX + "Got [" + t.getClass().getSimpleName() + "] inside the message processing"
+                                + "loop, but the Thread was in state interrupted, and the run-flag was false,"
+                                + " so we shortcut to exit. Exception message: '" + t.getMessage() + "'.");
                     }
                     else {
                         log.warn(LOG_PREFIX + "Got [" + t.getClass().getSimpleName() + "] inside the message processing"
@@ -1578,7 +1583,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
     /**
      * @return <code>System.identityHashCode(this)</code>, implying that if the Endpoint is stopped and then started,
-     * the hashCode of the StageProcessors will change (they are created anew).
+     *         the hashCode of the StageProcessors will change (they are created anew).
      */
     @Override
     public int hashCode() {
