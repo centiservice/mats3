@@ -1,5 +1,7 @@
 package io.mats3;
 
+import java.util.Optional;
+
 import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsInitiator.MatsInitiate;
 
@@ -128,14 +130,45 @@ public interface MatsConfig {
     MatsConfig setAttribute(String key, Object value);
 
     /**
+     * Returning the attribute value for the specified key, or <code>null</code> if no attribute is set for the key.
+     * Practical if you do assignment in the same line as you use the value, e.g. <code>String name =
+     * config.getAttribute("name");</code>, and check for <code>null</code>. There's also a variant which takes a
+     * <code>Class</code> parameter, which will do the casting for you: {@link #getAttribute(String, Class)}.
+     *
      * @param key
      *            the key name for this attribute.
      * @param <T>
      *            the type of this attribute, to avoid explicit casting - but you should really know the type, otherwise
      *            request <code>Object</code>.
      * @return the attribute value.
+     * @see #getAttribute(String, Class)
      */
     <T> T getAttribute(String key);
+
+    /**
+     * Returning the attribute value for the specified key, wrapped in Optional. If no attribute is set for the key, an
+     * empty Optional is returned. If the attribute is set, but is not of the requested type, a ClassCastException is
+     * thrown. This method is practical if you want to check if the attribute is set, and then immediately use it, e.g.
+     * <code>String name = config.getAttribute("name", String.class).orElse("DefaultName");</code>.
+     *
+     * @param key
+     *            the key name for this attribute.
+     * @param <T>
+     *            the type of this attribute - or you may request <code>Object</code> if you do not know the type.
+     * @return Optional of the attribute value.
+     * @see #getAttribute(String)
+     */
+    default <T> Optional<T> getAttribute(String key, Class<T> type) {
+        Object value = getAttribute(key);
+        if (value == null) {
+            return Optional.empty();
+        }
+        if (!type.isInstance(value)) {
+            throw new ClassCastException("Attribute with key '" + key + "' is not of type " + type.getName() + ", but "
+                    + value.getClass().getName());
+        }
+        return Optional.of(type.cast(value));
+    }
 
     /**
      * All three of {@link MatsFactory}, {@link MatsEndpoint} and {@link MatsStage} implements this interface.
