@@ -807,11 +807,8 @@ public interface MatsFactory extends StartStoppable {
         }
 
         /**
-         * Stop step 2/2: E.g. wait for threads to finish and close resources - make sure this happens in a timely
-         * fashion. Invoked after the plugin is {@link FactoryConfig#removePlugin(MatsPlugin) removed} from the
-         * MatsFactory, or when the MatsFactory is {@link MatsFactory#stop(int) stopped}. The plugin it is not removed
-         * upon MatsFactory stop (and neither are Initiators and Endpoints), and will be started again by invoking
-         * {@link MatsFactory#start()}).
+         * Stop step 2/2: Same sematics as {@link #preStop()}, but invoked after the Initiators and Endpoints are
+         * stopped, read below "Note".
          * <p>
          * Note: Upon MatsFactory stopping, this method is invoked <b>after</b> the Initiators and Endpoints are
          * stopped. The state of the MatsFactory is effectively locked while this method is invoked.

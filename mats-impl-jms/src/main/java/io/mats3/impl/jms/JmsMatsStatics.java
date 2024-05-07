@@ -93,7 +93,7 @@ public interface JmsMatsStatics {
     String JMS_MSG_PROP_INITIATING_APP = "mats_InitApp"; // String
     String JMS_MSG_PROP_INITIATOR_ID = "mats_InitId"; // String
     String JMS_MSG_PROP_TO = "mats_To"; // String (needed if a message ends up on a global/common DLQ)
-    // Three next are set if non-default:
+    // Four next are set if non-default:
     String JMS_MSG_PROP_INTERACTIVE = "mats_IA"; // Boolean - not set if false
     String JMS_MSG_PROP_NON_PERSISTENT = "mats_NP"; // Boolean - not set if false
     String JMS_MSG_PROP_NO_AUDIT = "mats_NA"; // Boolean - not set if false
