@@ -709,8 +709,8 @@ public interface MatsTestBroker {
                 // :: Configuring for common DLQs (since we can't get individual DLQs to work!!)
                 config.addAddressSetting("#",
                         new AddressSettings()
-                                .setDeadLetterAddress(SimpleString.toSimpleString("DLQ"))
-                                .setExpiryAddress(SimpleString.toSimpleString("ExpiryQueue"))
+                                .setDeadLetterAddress(SimpleString.of("DLQ"))
+                                .setExpiryAddress(SimpleString.of("ExpiryQueue"))
                                 .setRedeliveryDelay(TEST_REDELIVERY_DELAY)
                                 .setRedeliveryMultiplier(2) // No effect since we only have 1 redelivery, just for docs.
                                 .setMaxDeliveryAttempts(TEST_TOTAL_DELIVERY_ATTEMPTS));
@@ -722,13 +722,13 @@ public interface MatsTestBroker {
                         new CoreAddressConfiguration()
                                 .setName("DLQ")
                                 .addRoutingType(RoutingType.ANYCAST)
-                                .addQueueConfiguration(new QueueConfiguration("DLQ")
+                                .addQueueConfiguration(QueueConfiguration.of("DLQ")
                                         .setRoutingType(RoutingType.ANYCAST)));
                 config.addAddressConfiguration(
                         new CoreAddressConfiguration()
                                 .setName("ExpiryQueue")
                                 .addRoutingType(RoutingType.ANYCAST)
-                                .addQueueConfiguration(new QueueConfiguration("ExpiryQueue")
+                                .addQueueConfiguration(QueueConfiguration.of("ExpiryQueue")
                                         .setRoutingType(RoutingType.ANYCAST)));
             }
             catch (Exception e) {
@@ -784,15 +784,15 @@ public interface MatsTestBroker {
                 // :: Configuring for separate DLQs, with pattern (which is default) "DLQ." as prefix.
                 config.addAddressSetting("#",
                         new AddressSettings()
-                                .setExpiryAddress(SimpleString.toSimpleString("ExpiryQueue"))
-                                .setDeadLetterAddress(SimpleString.toSimpleString("DLQ"))
+                                .setExpiryAddress(SimpleString.of("ExpiryQueue"))
+                                .setDeadLetterAddress(SimpleString.of("DLQ"))
                                 .setMaxDeliveryAttempts(3)
                                 .setAutoCreateQueues(true) // default true
                                 .setAutoCreateAddresses(true) // default true
                                 .setAutoDeleteQueues(false)
                                 .setAutoCreateDeadLetterResources(true) // CHANGED! default false
-                                .setDeadLetterQueuePrefix(SimpleString.toSimpleString("DLQ.")) // default "DLQ."
-                                .setDeadLetterQueueSuffix(SimpleString.toSimpleString("")) // default ""
+                                .setDeadLetterQueuePrefix(SimpleString.of("DLQ.")) // default "DLQ."
+                                .setDeadLetterQueueSuffix(SimpleString.of("")) // default ""
                 );
                 // :: This is just trying to emulate the default config from default broker.xml - inspired by Spring
                 // Boot which also got problems with default config in embedded mode being a tad lacking.
@@ -802,13 +802,13 @@ public interface MatsTestBroker {
                         new CoreAddressConfiguration()
                                 .setName("DLQ")
                                 .addRoutingType(RoutingType.ANYCAST)
-                                .addQueueConfiguration(new QueueConfiguration("DLQ")
+                                .addQueueConfiguration(QueueConfiguration.of("DLQ")
                                         .setRoutingType(RoutingType.ANYCAST)));
                 config.addAddressConfiguration(
                         new CoreAddressConfiguration()
                                 .setName("ExpiryQueue")
                                 .addRoutingType(RoutingType.ANYCAST)
-                                .addQueueConfiguration(new QueueConfiguration("ExpiryQueue")
+                                .addQueueConfiguration(QueueConfiguration.of("ExpiryQueue")
                                         .setRoutingType(RoutingType.ANYCAST)));
             }
             catch (Exception e) {
