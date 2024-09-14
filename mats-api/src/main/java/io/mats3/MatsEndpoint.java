@@ -23,6 +23,9 @@ import io.mats3.MatsStage.StageConfig;
  * and similar instances but with different MatsFactory are <i>not</i> equals. Depending on the implementation, instance
  * equality may be sufficient.</i>
  *
+ * @param <R> the reply DTO type for this endpoint.
+ * @param <S> the state STO type for this endpoint.
+ *
  * @author Endre Stølsvik - 2015-07-11 - http://endre.stolsvik.com
  */
 public interface MatsEndpoint<R, S> extends StartStoppable {
