@@ -3,32 +3,20 @@ package io.mats3.serial.json;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.StreamReadConstraints;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.introspect.AnnotatedClass;
-import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
-import com.fasterxml.jackson.databind.introspect.VisibilityChecker;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
+import io.mats3.util.DeflateTools.DeflaterOutputStreamWithStats;
+import io.mats3.util.DeflateTools.InflaterInputStreamWithStats;
+import io.mats3.util.FieldBasedJacksonMapper;
 
 /**
  * Implementation of {@link MatsSerializer} that employs <a href="https://github.com/FasterXML/jackson">Jackson JSON
@@ -97,22 +85,6 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         return new MatsSerializerJson(compressionLevel);
     }
 
-    // TODO: Remove once all are > 0.19.9, and the world has gotten over to Jackson 2.15
-    // Make it possible to run with both Jackson 2.14 and 2.15
-    private final static boolean _jackson2_15;
-    static {
-        boolean jackson2_15 = false;
-        try {
-            // If this works, we are on 2.15.+
-            JsonFactory.class.getMethod("setStreamReadConstraints", StreamReadConstraints.class);
-            jackson2_15 = true;
-        }
-        catch (Throwable e) {
-            /* ignore */
-        }
-        _jackson2_15 = jackson2_15;
-    }
-
     /**
      * Constructs a MatsSerializer, using the specified Compression Level - refer to {@link Deflater}'s constants and
      * levels.
@@ -123,83 +95,17 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     protected MatsSerializerJson(int compressionLevel) {
         _compressionLevel = compressionLevel;
 
-        ObjectMapper mapper = new ObjectMapper();
-
-        // Read and write any access modifier fields (e.g. private)
-        mapper.setVisibility(PropertyAccessor.ALL, Visibility.NONE);
-        mapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
-
-        // Drop nulls
-        mapper.setSerializationInclusion(Include.NON_NULL);
-
-        // If props are in JSON that aren't in Java DTO, do not fail.
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-        // Write e.g. Dates as "1975-03-11" instead of timestamp, and instead of array-of-ints [1975, 3, 11].
-        // Uses ISO8601 with milliseconds and timezone (if present).
-        mapper.registerModule(new JavaTimeModule());
-        mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
-
-        // Handle Optional, OptionalLong, OptionalDouble
-        mapper.registerModule(new Jdk8Module());
-
-        // :: Temporary solution for https://github.com/FasterXML/jackson-databind/issues/3906
-        // I.e. actually get records to work again on 2.15.0.
-        if (_jackson2_15) {
-            mapper.registerModule(new SimpleModule() {
-                @Override
-                public void setupModule(SetupContext context) {
-                    super.setupModule(context);
-                    context.insertAnnotationIntrospector(new NopAnnotationIntrospector() {
-                        @Override
-                        public VisibilityChecker<?> findAutoDetectVisibility(AnnotatedClass ac, VisibilityChecker<?> checker) {
-                            if (ac.getType() == null) {
-                                return checker;
-                            }
-                            if (!ac.getType().isRecordType()) {
-                                return checker;
-                            }
-                            // If this is a Record, then increase the "creator" visibility again, so that it is actually
-                            // possible to create records!
-                            return checker.withCreatorVisibility(Visibility.ANY);
-                        }
-                    });
-                }
-            });
-        }
-
-        // :: Heavy-handed hack-solution for handling compatibility with both Jackson 2.14 and 2.15
-        try {
-            adjustStreamReadConstraints(mapper);
-        }
-        catch (Throwable t) {
-            // We couldn't adjust the 2.15 constraints, since either StreamReadConstraints or the setter was not there.
-        }
+        ObjectMapper mapper = FieldBasedJacksonMapper.createJacksonObjectMapper();
 
         // Allow for configuration in override - which is not recommended, but if you need..
         extraConfigureObjectMapper(mapper);
 
+        // Store the ObjectMapper
+        _objectMapper = mapper;
+
         // Make specific Reader and Writer for MatsTraceStringImpl
         _matsTraceJson_Reader = mapper.readerFor(MatsTraceStringImpl.class);
         _matsTraceJson_Writer = mapper.writerFor(MatsTraceStringImpl.class);
-
-        // Done.
-        _objectMapper = mapper;
-    }
-
-    // TODO: Inline once all are > 0.19.9, and the world has gotten over to Jackson 2.15
-    protected void adjustStreamReadConstraints(ObjectMapper mapper) {
-        // Effectively disable / heavily adjust Jackson 2.15.0's new StreamReadConstraints, in particular for Strings.
-        // A problem is that it hits on the reading side of serialized objects, not write. You can thus serialize an
-        // object with an ObjectMapper, but then not deserialize the same object with the same ObjectMapper.
-        // It introduced a problem with Mats's "nested DTOs" within MatsTrace, as those DTOs might be >5M chars.
-        StreamReadConstraints streamReadConstraints = StreamReadConstraints
-                .builder()
-                .maxNestingDepth(10000) // default 1000
-                .maxNumberLength(10000) // default 1000
-                .maxStringLength(Integer.MAX_VALUE)
-                .build();
-        mapper.getFactory().setStreamReadConstraints(streamReadConstraints);
     }
 
     /**
@@ -214,10 +120,8 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         if (meta == null) {
             return false;
         }
-        // If it starts with the old "plain" or "deflate", then we handle it, as well as if it is the new identification
-        // "MatsTrace_JSON_v1".
-        // TODO: When everybody >v0.19.1, the old "plain" or "deflate" can be removed.
-        return meta.startsWith(COMPRESS_DEFLATE) || meta.startsWith(COMPRESS_PLAIN) | meta.startsWith(IDENTIFICATION);
+        // ?: If the meta starts with the identification String "MatsTrace_JSON_v1", we handle it.
+        return meta.startsWith(IDENTIFICATION);
     }
 
     @Override
@@ -234,32 +138,34 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     @Override
     public SerializedMatsTrace serializeMatsTrace(MatsTrace<String> matsTrace) {
         try {
-            long nanosAtStart_Serialization = System.nanoTime();
-            byte[] serializedBytes = _matsTraceJson_Writer.writeValueAsBytes(matsTrace);
-            long now = System.nanoTime();
-            long nanosTaken_Serialization = now - nanosAtStart_Serialization;
-            long nanosAtStart_Compression = now;
+            long nanosAtStart_SerializationAndCompression = System.nanoTime();
+            // :: We now always compress since we don't know whether the result will be small.
+            // Target for compression is a ByteArrayOutputStream, which we then get the byte[] from.
+            ByteArrayOutputStream baos = new ByteArrayOutputStream(1024);
+            // Compress using DeflaterOutputStreamWithStats, which will give us the time taken for compression.
+            DeflaterOutputStreamWithStats out = new DeflaterOutputStreamWithStats(baos, 1024);
+            // Write the MatsTrace to the compressed stream.
+            // NOTE: Upon having fully written the MatsTrace, it will close the underlying DeflaterOutputStream,
+            // which will close the underlying ByteArrayOutputStream.
+            _matsTraceJson_Writer.writeValue(out, matsTrace);
+            // Get the time taken for compression.
+            long nanosTaken_Compression = out.getDeflateTimeNanos();
+            // Calculate the time taken for serialization, by subtracting the compression time from the total.
+            long nanosTaken_Serialization = System.nanoTime() - nanosAtStart_SerializationAndCompression
+                    - nanosTaken_Compression;
 
-            String meta;
-            byte[] resultBytes;
-            long nanosTaken_Compression;
+            // Get the compressed bytes from the ByteArrayOutputStream.
+            byte[] resultBytes = baos.toByteArray();
+            // Get the actual MatsTrace serialized length from the DeflaterOutputStreamWithStats, which holds of how
+            // many bytes were written to it by Jackson.
+            long serializedBytesLength = out.getUncompressedBytesInput();
+            // Create the meta string, which is the identification, the compression method, and the decompressed size.
+            String meta = IDENTIFICATION + ':' + COMPRESS_DEFLATE + DECOMPRESSED_SIZE_ATTRIBUTE + serializedBytesLength;
 
-            if (serializedBytes.length > 900) {
-                resultBytes = compress(serializedBytes);
-                nanosTaken_Compression = System.nanoTime() - nanosAtStart_Compression;
-                // Add the uncompressed size, for precise buffer allocation for decompression.
-                meta = IDENTIFICATION + ':' + COMPRESS_DEFLATE + DECOMPRESSED_SIZE_ATTRIBUTE + serializedBytes.length;
-            }
-            else {
-                resultBytes = serializedBytes;
-                nanosTaken_Compression = 0;
-                meta = IDENTIFICATION + ':' + COMPRESS_PLAIN;
-            }
-
-            return new SerializedMatsTraceImpl(resultBytes, meta, serializedBytes.length, nanosTaken_Serialization,
+            return new SerializedMatsTraceImpl(resultBytes, meta, (int) serializedBytesLength, nanosTaken_Serialization,
                     nanosTaken_Compression);
         }
-        catch (JsonProcessingException e) {
+        catch (IOException e) {
             throw new SerializationException("Couldn't serialize MatsTrace, which is crazy!\n" + matsTrace, e);
         }
     }
@@ -315,10 +221,8 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     public DeserializedMatsTrace<String> deserializeMatsTrace(byte[] matsTraceBytes, int offset, int length,
             String meta) {
         try {
-            long nanosStart = System.nanoTime();
-            long decompressionNanos;
-            long nanosStartDeserialization;
-
+            long nanosTaken_Decompression;
+            long nanosTaken_Deserialization;
             int decompressedBytesLength;
 
             // ?: Is there a colon in the meta string?
@@ -327,54 +231,43 @@ public class MatsSerializerJson implements MatsSerializer<String> {
                 meta = meta.substring(meta.indexOf(':') + 1);
             }
 
+            // NOTE: As of 2024-09-15, we only serialize with "deflate", but due to the existing user base, we need to
+            // handle both "deflate" and "plain" for incoming - the latter for when we didn't compress small payloads.
+
             MatsTrace<String> matsTrace;
             if (meta.startsWith(COMPRESS_DEFLATE)) {
                 // -> Compressed, so decompress the incoming bytes
-                // Do an initial guess on the decompressed size
-                int bestGuessDecompressedSize = length * 4;
-                // Find actual decompressed size from meta, if present
-                int decompressedBytesAttributeIndex = meta.indexOf(DECOMPRESSED_SIZE_ATTRIBUTE);
-                // ?: Was the size attribute present?
-                if (decompressedBytesAttributeIndex != -1) {
-                    // -> Yes, present.
-                    // Find the start of the number
-                    int start = decompressedBytesAttributeIndex + DECOMPRESSED_SIZE_ATTRIBUTE.length();
-                    // Find the end of the number - either to next ';', or till end.
-                    int end = meta.indexOf(';', start);
-                    end = (end != -1) ? end : meta.length();
-                    String sizeString = meta.substring(start, end);
-                    bestGuessDecompressedSize = Integer.parseInt(sizeString);
-                }
-
-                // Decompress
-                byte[] decompressedBytes = decompress(matsTraceBytes, offset, length, bestGuessDecompressedSize);
-                // Begin deserialization time
-                nanosStartDeserialization = System.nanoTime();
-                // Store how long it took to decompress (shall not be zero, since we did decompress).
-                decompressionNanos = Math.max(1L, nanosStartDeserialization - nanosStart);
-                // Store the size of the decompressed array
-                decompressedBytesLength = decompressedBytes.length;
-                // Deserialize using the entire decompressed byte array
-                matsTrace = _matsTraceJson_Reader.readValue(decompressedBytes);
+                long nanosStart_DecompressionAndDeserialization = System.nanoTime();
+                // Decompress using InflaterInputStreamWithStats, and the offset and length.
+                InflaterInputStreamWithStats in = new InflaterInputStreamWithStats(matsTraceBytes, offset, length);
+                // Read the MatsTrace from the decompressed stream.
+                // NOTE: Upon having fully read the MatsTrace, it will close the underlying InflaterOutputStream
+                matsTrace = _matsTraceJson_Reader.readValue(in);
+                // Get the decompressed bytes length, and the decompression time.
+                decompressedBytesLength = (int) in.getUncompressedBytesOutput();
+                nanosTaken_Decompression = in.getInflateTimeNanos();
+                // Calculate the time taken for deserialization, by subtracting the decompression time from the total.
+                nanosTaken_Deserialization = System.nanoTime() - nanosStart_DecompressionAndDeserialization
+                        - nanosTaken_Decompression;
             }
             else if (meta.startsWith(COMPRESS_PLAIN)) {
                 // -> Plain, no compression - use the incoming bytes directly
                 // There is no decompression, so we "start deserialization timer" at the beginning.
-                nanosStartDeserialization = nanosStart;
+                long nanosStart_Deserialization = System.nanoTime();
                 // It per definition (and API contract) takes 0 nanos to NOT decompress.
-                decompressionNanos = 0L;
+                nanosTaken_Decompression = 0L;
                 // The decompressed bytes length is the same as the incoming length, since we do not decompress.
                 decompressedBytesLength = length;
                 // Deserialize directly from the incoming bytes, using offset and length.
                 matsTrace = _matsTraceJson_Reader.readValue(matsTraceBytes, offset, length);
+                nanosTaken_Deserialization = System.nanoTime() - nanosStart_Deserialization;
             }
             else {
                 throw new AssertionError("Can only deserialize 'plain' and 'deflate'.");
             }
 
-            long deserializationNanos = System.nanoTime() - nanosStartDeserialization;
             return new DeserializedMatsTraceImpl(matsTrace, matsTraceBytes.length, decompressedBytesLength,
-                    deserializationNanos, decompressionNanos);
+                    nanosTaken_Deserialization, nanosTaken_Decompression);
         }
         catch (IOException e) {
             throw new SerializationException("Couldn't deserialize MatsTrace from given JSON, which is crazy!\n"
@@ -497,171 +390,6 @@ public class MatsSerializerJson implements MatsSerializer<String> {
 
     private static class CannotCreateEmptyInstanceException extends SerializationException {
         CannotCreateEmptyInstanceException(String message, Throwable cause) {
-            super(message, cause);
-        }
-    }
-
-    private static final NonblockingStack<Deflater> _deflaterPool = new NonblockingStack<>();
-
-    protected byte[] compress(byte[] data) {
-        // Get a Deflater from the pool
-        Deflater deflater = _deflaterPool.pop();
-        // ?: Did we get a Deflater from the pool?
-        if (deflater == null) {
-            // -> No, so make a new one.
-            deflater = new Deflater(_compressionLevel);
-        }
-
-        // Whether we should enpool the Deflater at end
-        boolean reuseDeflater = false;
-        try {
-            deflater.setInput(data);
-            deflater.finish();
-            // Hoping for at least 50% reduction, so set "best guess" to half incoming
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream_internal(data.length / 2);
-            byte[] buffer = new byte[1024];
-            while (!deflater.finished()) {
-                int count = deflater.deflate(buffer);
-                outputStream.write(buffer, 0, count);
-            }
-            try {
-                outputStream.close();
-            }
-            catch (IOException e) {
-                // Just in case this leaves the Deflater in some strange state, ditch it instead of reuse.
-                // NOT setting reuseDeflater to true.
-                throw new DecompressionException("Shall not throw IOException here.", e);
-            }
-            // We can reuse this Deflater, since things behaved correctly
-            reuseDeflater = true;
-            return outputStream.toByteArray();
-        }
-        finally {
-            // ?: Still reuse this Inflater?
-            if (reuseDeflater) {
-                // -> Yes reuse, so reset() it, and enpool.
-                deflater.reset();
-                _deflaterPool.push(deflater);
-            }
-            else {
-                // -> No, not reuse, so ditch it: end(), and do NOT enpool.
-                // Invoke the "end()" method to timely release off-heap resource, thus not depending on finalization.
-                deflater.end();
-            }
-        }
-    }
-
-    private static final NonblockingStack<Inflater> _inflaterPool = new NonblockingStack<>();
-
-    protected byte[] decompress(byte[] data, int offset, int length, int bestGuessDecompressedSize) {
-        // Get an Inflater from the pool
-        Inflater inflater = _inflaterPool.pop();
-        // ?: Did we get an Inflater from the pool?
-        if (inflater == null) {
-            // -> No, so make a new one.
-            inflater = new Inflater();
-        }
-
-        // Whether we should enpool the Inflater at end
-        boolean reuseInflater = false;
-        try {
-            inflater.setInput(data, offset, length);
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream_internal(bestGuessDecompressedSize);
-            byte[] buffer = new byte[bestGuessDecompressedSize > 32768 ? 4096 : 2048];
-            while (!inflater.finished()) {
-                try {
-                    int count = inflater.inflate(buffer);
-                    outputStream.write(buffer, 0, count);
-                }
-                catch (DataFormatException e) {
-                    // Just in case this leaves the Inflater in some strange state, ditch it instead of reuse.
-                    // NOT setting reuseInflater to true.
-                    throw new DecompressionException("DataFormatException was bad here.", e);
-                }
-            }
-            try {
-                outputStream.close();
-            }
-            catch (IOException e) {
-                throw new DecompressionException("Shall not throw IOException here.", e);
-            }
-            // We can reuse this Inflater, since things behaved correctly
-            reuseInflater = true;
-            return outputStream.toByteArray();
-        }
-        finally {
-            // ?: Still reuse this Inflater?
-            if (reuseInflater) {
-                // -> Yes reuse, so reset() it, and enpool.
-                inflater.reset();
-                _inflaterPool.push(inflater);
-            }
-            else {
-                // -> No, not reuse, so ditch it: end(), and do NOT enpool.
-                // Invoke the "end()" method to timely release off-heap resource, thus not depending on finalization.
-                inflater.end();
-            }
-        }
-    }
-
-    /**
-     * If the byte array actually is identically sized as the count, then just return the byte array instead of copying
-     * it one time more. This will hopefully always happen for decompression, since we know the target length then.
-     */
-    private static class ByteArrayOutputStream_internal extends ByteArrayOutputStream {
-        ByteArrayOutputStream_internal(int size) {
-            super(size);
-        }
-
-        @Override
-        public byte[] toByteArray() {
-            if (buf.length == count) {
-                return buf;
-            }
-            return super.toByteArray();
-        }
-    }
-
-    /**
-     * By Brian Goetz; Nonblocking stack using Treiber's algorithm.
-     */
-    private static class NonblockingStack<E> {
-        AtomicReference<Node<E>> head = new AtomicReference<>();
-
-        public void push(E item) {
-            Node<E> newHead = new Node<E>(item);
-            Node<E> oldHead;
-            do {
-                oldHead = head.get();
-                newHead.next = oldHead;
-            } while (!head.compareAndSet(oldHead, newHead));
-        }
-
-        public E pop() {
-            Node<E> oldHead;
-            Node<E> newHead;
-            do {
-                oldHead = head.get();
-                if (oldHead == null) {
-                    return null;
-                }
-                newHead = oldHead.next;
-            } while (!head.compareAndSet(oldHead, newHead));
-            return oldHead.item;
-        }
-
-        static class Node<E> {
-            final E item;
-            Node<E> next;
-
-            public Node(E item) {
-                this.item = item;
-            }
-        }
-    }
-
-    private static class DecompressionException extends SerializationException {
-        DecompressionException(String message, Throwable cause) {
             super(message, cause);
         }
     }
