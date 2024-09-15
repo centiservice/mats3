@@ -7,7 +7,7 @@ dependencies {
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
     // JMS API. This is only relevant for the JMS ConnectionFactoryWrapper, and you must depend yourself.
     compileOnly "$jmsApiDependency"
-    // Jackson - used by the Cache implementations. CompileOnly, so that you can use the util without Jackson.
+    // Jackson, for the FieldBasedJacksonMapper and caches. CompileOnly, so that you can use the util without Jackson.
     // If you use mats-serial-json, you will get Jackson on the classpath, and the Cache implementations will use it.
     compileOnly "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
     compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
@@ -27,6 +27,12 @@ dependencies {
     testCompileOnly "org.slf4j:slf4j-api:$slf4jVersion"
     testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
+    // Jackson for the tests, ref compileOnly above.
+    testImplementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    testImplementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
+    testImplementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${jacksonVersion}"
+    // Including the Blackbird module for Jackson, which is dynamically loaded by the FieldBasedJacksonMapper.
+    testImplementation "com.fasterxml.jackson.module:jackson-module-blackbird:${jacksonVersion}"
 }
 
 publishing {

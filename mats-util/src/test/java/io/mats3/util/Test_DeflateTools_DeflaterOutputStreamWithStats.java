@@ -32,7 +32,7 @@ public class Test_DeflateTools_DeflaterOutputStreamWithStats {
 
         // Compress the data to be used in the tests using standard Java
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DeflaterOutputStream out = new DeflaterOutputStream(baos, new Deflater(DeflateTools.COMPRESSION_LEVEL));
+        DeflaterOutputStream out = new DeflaterOutputStream(baos, new Deflater(DeflateTools.getCompressionLevel()));
         try {
             out.write(_dataUncompressed);
             out.close();
@@ -47,7 +47,7 @@ public class Test_DeflateTools_DeflaterOutputStreamWithStats {
     public void simpleUseBaos() throws Exception {
         // :: Use the new variant where we use the DeflaterOutputStreamWithStats
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DeflaterOutputStreamWithStats out = new DeflaterOutputStreamWithStats(baos, 1024);
+        DeflaterOutputStreamWithStats out = new DeflaterOutputStreamWithStats(baos);
         out.write(_dataUncompressed);
         out.close();
 
@@ -85,7 +85,7 @@ public class Test_DeflateTools_DeflaterOutputStreamWithStats {
                     latch_StartThreads.await();
                     // :: Use the new variant where we use the DeflaterOutputStreamWithStats
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    DeflaterOutputStreamWithStats out = new DeflaterOutputStreamWithStats(baos, 1024);
+                    DeflaterOutputStreamWithStats out = new DeflaterOutputStreamWithStats(baos);
                     out.write(_dataUncompressed);
                     out.close();
                     byte[] compressed = baos.toByteArray();

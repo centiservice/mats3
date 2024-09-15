@@ -62,7 +62,7 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
 
     @Test
     @Ignore
-    public void performanceTest() throws Exception {
+    public void performanceTest_BAOS_vs_ByteArray() throws Exception {
         // Warmup
         for (int i = 0; i < 100; i++) {
             multipleThreadsUseBaos();

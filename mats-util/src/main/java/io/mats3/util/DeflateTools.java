@@ -22,23 +22,59 @@ import org.slf4j.LoggerFactory;
  */
 public class DeflateTools {
     private static final Logger log = LoggerFactory.getLogger(DeflateTools.class);
-    static final int COMPRESSION_LEVEL = Integer.parseInt(
-            System.getProperty("mats.deflate.compressionLevel", "6")); // 6 is evidently default in zlib
+
+    /**
+     * The compression level to use when compressing data. Based on some performance tests (look in the
+     * 'Test_SerializationPerformance' class), using synthetic JSON data, the size reductions diminishes very fast,
+     * while the CPU and time usage increases substantially. There seems to be an inflection point at level 3: At higher
+     * levels, the time used goes up rather fast, while the size reduction is minimal. So we use level 3 as default.
+     * <p>
+     * <i>(Note that when using "DEFAULT_COMPRESSION = -1", the default level for Zlib is 6, and this checks out when
+     * comparing the timings and sizes from the tests - they are the same as with explicit 6.)</i>
+     * <p>
+     * You can override this by setting the system property "mats.deflate.compressionLevel" to the desired level.
+     */
+    public static int getCompressionLevel() {
+        return Integer.parseInt(System.getProperty("mats.deflate.compressionLevel", "3"));
+    }
 
     /**
      * An {@link OutputStream} that compresses data using the Deflate algorithm. It extends {@link DeflaterOutputStream}
-     * and provides statistics about the compression process.
-     * <p>
-     * It uses a small pool of {@link Deflater} instances (default up to 10, implemented with a simple non-blocking
-     * stack) to reduce the overhead of creating new instances for each operation.
+     * and provides statistics about the compression process. Notice that it doesn't seem like the Jackson library uses
+     * single-byte output at all, but rather performs its writes in chunks of 8000 bytes or less. This alleviates the
+     * need to use a BufferedOutputStream on top of this DeflaterOutputStreamWithStats, as the Jackson library evidently
+     * does its own buffering.
      */
     public static class DeflaterOutputStreamWithStats extends DeflaterOutputStream {
         private long _uncompressedBytesInput = -1;
         private long _compressedBytesOutput = -1;
         private long _deflateTimeNanos;
 
+        /**
+         * Constructor which takes an {@link OutputStream} as the destination for compressed data. The internal default
+         * buffer size is 512 bytes - the same as the default in {@link DeflaterOutputStream} - and which seems to offer
+         * a great balance between memory usage and performance: 1024, 2048 and 4096 didn't offer any significant
+         * performance improvements in the performance testing.
+         *
+         * @param out
+         *            the destination for the compressed data.
+         */
+        public DeflaterOutputStreamWithStats(OutputStream out) {
+            super(out, new Deflater(getCompressionLevel()), 512);
+        }
+
+        /**
+         * Constructor which takes an {@link OutputStream} as the destination for compressed data, as well as a buffer
+         * size. You should really check whether anything else than 512 (as the default) is beneficial, as the
+         * performance testing didn't show any significant improvements for higher than 512.
+         *
+         * @param out
+         *            the destination for the compressed data.
+         * @param bufferSize
+         *            the size of the buffer to use when compressing the data.
+         */
         public DeflaterOutputStreamWithStats(OutputStream out, int bufferSize) {
-            super(out, new Deflater(COMPRESSION_LEVEL), bufferSize);
+            super(out, new Deflater(getCompressionLevel()), bufferSize);
         }
 
         /**
@@ -80,16 +116,6 @@ public class DeflateTools {
             }
         }
 
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            super.write(b, off, len);
-        }
-
-        @Override
-        public void write(int b) throws IOException {
-            super.write(b);
-        }
-
         private boolean _closed;
 
         @Override
@@ -118,9 +144,6 @@ public class DeflateTools {
      * An {@link InputStream} that decompresses data using the Deflate algorithm. It extends {@link InflaterInputStream}
      * and provides statistics about the decompression process. It has the ability to use a byte array as the input
      * data, which is useful when you have the data in memory already.
-     * <p>
-     * It uses a small pool of {@link Inflater} instances (default up to 10, implemented with a simple non-blocking
-     * stack) to reduce the overhead of creating new instances for each operation.
      */
     public static class InflaterInputStreamWithStats extends InflaterInputStream {
         private long _compressedBytesInput = -1;
@@ -134,10 +157,18 @@ public class DeflateTools {
         private boolean _inputArrayUsed;
 
         /**
+         * Constructor which takes an {@link InputStream} as the source of compressed data, using a buffer size of 512,
+         * same default as {@link InflaterInputStream}.
+         */
+        public InflaterInputStreamWithStats(InputStream in) {
+            this(in, 512);
+        }
+
+        /**
          * Constructor which takes an {@link InputStream} as the source of compressed data, as well as a buffer size.
-         * The buffer is used to read compressed data from the source, and then feeding it the Inflater. The internal
-         * default size is 512 bytes, but if the data is known to be large, a larger buffer size can be used to reduce
-         * the number of interactions over JNI to the native zlib library.
+         * The buffer is used to read compressed data from the source, and then setting the buffer as input to the
+         * Inflater. Subsequent calls to read() are invoked on the Inflater, which reads and decompresses from the
+         * buffer.
          */
         public InflaterInputStreamWithStats(InputStream in, int bufferSize) {
             super(in, new Inflater(), bufferSize);

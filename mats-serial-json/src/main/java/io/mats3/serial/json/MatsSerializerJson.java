@@ -95,7 +95,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     protected MatsSerializerJson(int compressionLevel) {
         _compressionLevel = compressionLevel;
 
-        ObjectMapper mapper = FieldBasedJacksonMapper.createJacksonObjectMapper();
+        ObjectMapper mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
 
         // Allow for configuration in override - which is not recommended, but if you need..
         extraConfigureObjectMapper(mapper);
@@ -143,7 +143,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
             // Target for compression is a ByteArrayOutputStream, which we then get the byte[] from.
             ByteArrayOutputStream baos = new ByteArrayOutputStream(1024);
             // Compress using DeflaterOutputStreamWithStats, which will give us the time taken for compression.
-            DeflaterOutputStreamWithStats out = new DeflaterOutputStreamWithStats(baos, 1024);
+            DeflaterOutputStreamWithStats out = new DeflaterOutputStreamWithStats(baos);
             // Write the MatsTrace to the compressed stream.
             // NOTE: Upon having fully written the MatsTrace, it will close the underlying DeflaterOutputStream,
             // which will close the underlying ByteArrayOutputStream.

@@ -1,5 +1,8 @@
 package io.mats3.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
@@ -7,6 +10,7 @@ import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
@@ -28,15 +32,103 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * to high values. (In particular the accepted string length must be very high, since the DTOs and STOs are "doubly
  * serialized" and will be present in the MatsTrace DTO as Strings.)</li>
  * </ul>
+ * Note: If Jackson's Blackbird Module is on the classpath, it will be used. It is a moderate performance improvement,
+ * in extreme cases up to 20% faster on the deserialization side. The detection logic can be overridden using system
+ * property "mats.jackson.useBlackbird", setting it to "true" or "false" before this class is loaded - if true, and the
+ * module is not on the classpath, it will throw an exception. Add it to your project with:<br>
+ * <code>implementation "com.fasterxml.jackson.module:jackson-module-blackbird:${jacksonVersion}"</code>
  */
 public class FieldBasedJacksonMapper {
+    private static final Logger log = LoggerFactory.getLogger(FieldBasedJacksonMapper.class);
+
+    private static final Class<?> __blackbirdModuleClass;
+    private static final boolean __useBlackbird;
+    static {
+        // Check if 'com.fasterxml.jackson.module.blackbird.BlackbirdModule' is on the classpath, and if so, store
+        // the class (since we need to instantiate it reflectively), and decide on the __useBlackbird flag.
+        Class<?> blackbirdModuleClass;
+        try {
+            blackbirdModuleClass = Class.forName("com.fasterxml.jackson.module.blackbird.BlackbirdModule");
+
+        }
+        catch (ClassNotFoundException e) {
+            blackbirdModuleClass = null;
+        }
+        __blackbirdModuleClass = blackbirdModuleClass;
+
+        __useBlackbird = System.getProperty("mats.jackson.useBlackbird",
+                blackbirdModuleClass != null ? "true" : "false").equalsIgnoreCase("true");
+    }
+
+    // "Initialization-on-demand holder idiom", using a static inner class to hold the singleton instance.
+    private static class SingletonObjectMapperHolder {
+        private static final ObjectMapper INSTANCE = internalJacksonObjectMapper(__useBlackbird,
+                "Creating default Mats3 singleton");
+    }
+
     /**
-     * Used by all Mats3 components to get a Jackson ObjectMapper.
-     * 
-     * @return a Jackson ObjectMapper configured for Mats3.
+     * Returns the singleton ObjectMapper used by all Mats3 components. It is thread-safe, meant for sharing. You must
+     * not further configure this ObjectMapper instance, as it is shared by all Mats3 components.
+     *
+     * @return the default ObjectMapper used by Mats3 components - <b>do not mess with this!</b>
+     */
+    public static ObjectMapper getMats3DefaultJacksonObjectMapper() {
+        return SingletonObjectMapperHolder.INSTANCE;
+    }
+
+    /**
+     * Creates a new Jackson ObjectMapper configured exactly the same as the default ObjectMapper used by Mats3
+     * components. It is thread-safe, meant for sharing. Note that it is imperative that you do not create a new
+     * ObjectMapper for each JSON serialization or deserialization, as this is an expensive operation, but worse, it
+     * will - according to documentation for the Blackbird module - lead to a memory leak.
+     *
+     * @return a new Jackson ObjectMapper configured as if for Mats3.
      */
     public static ObjectMapper createJacksonObjectMapper() {
-        ObjectMapper mapper = new ObjectMapper();
+        return internalJacksonObjectMapper(__useBlackbird, "Instantiating new");
+    }
+
+    private static ObjectMapper internalJacksonObjectMapper(boolean useBlackbird, String sayWhat) {
+        // Use StackWalker to get the caller's stack frame
+        String callerInfo;
+        StackWalker walker = StackWalker.getInstance();
+        StackWalker.StackFrame callerFrame = walker.walk(stream -> stream.skip(1)
+                .filter(f -> !f.getClassName().contains(".FieldBasedJacksonMapper"))
+                .findFirst().orElse(null));
+
+        if (callerFrame != null) {
+            String callingClassName = callerFrame.getClassName();
+            String callingMethodName = callerFrame.getMethodName();
+            callerInfo = callingClassName + "." + callingMethodName;
+        }
+        else {
+            callerInfo = "Unknown";
+        }
+        ObjectMapper mapper;
+        String currentJavaVersion = System.getProperty("java.version");
+        if (useBlackbird) {
+            log.info(sayWhat + " Jackson JsonMapper, USING Jackson Blackbird Module! (Java: "
+                    + currentJavaVersion + ", caller: " + callerInfo + ")");
+            if (__blackbirdModuleClass == null) {
+                throw new IllegalStateException("You have requested to use Jackson Blackbird Module, but it is not on"
+                        + " the classpath. Add it to your project with: "
+                        + "implementation \"com.fasterxml.jackson.module:jackson-module-blackbird:${jacksonVersion}\"");
+            }
+            com.fasterxml.jackson.databind.Module blackbirdModule;
+            try {
+                blackbirdModule = (com.fasterxml.jackson.databind.Module) __blackbirdModuleClass
+                        .getDeclaredConstructor().newInstance();
+            }
+            catch (Throwable t) {
+                throw new RuntimeException(t);
+            }
+            mapper = JsonMapper.builder().addModule(blackbirdModule).build();
+        }
+        else {
+            log.info(sayWhat + " Jackson JsonMapper, NOT using Jackson Blackbird Module. (Java: "
+                    + currentJavaVersion + ", caller: " + callerInfo + ")");
+            mapper = JsonMapper.builder().build();
+        }
 
         // Read and write any access modifier fields (e.g. private)
         mapper.setVisibility(PropertyAccessor.ALL, Visibility.NONE);
