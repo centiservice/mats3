@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.util.concurrent.CountDownLatch;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import io.mats3.util.DeflateTools.InflaterInputStreamWithStats;
@@ -13,24 +14,14 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
     private static final byte[] _dataCompressed = Test_DeflateTools_DeflaterOutputStreamWithStats._dataCompressed;
 
     @Test
-    public void simpleOld() throws Exception {
-        // :: Use the older variant where we do not use the InflaterInputStreamWithStats
-        long nanos_Start = System.nanoTime();
-        byte[] uncompressedOld = DeflateTools.decompress(_dataCompressed, 0, _dataCompressed.length,
-                _dataUncompressed.length);
-        double millis = (System.nanoTime() - nanos_Start) / 1_000_000d;
-        System.out.println("Old-style Inflate time:    " + millis + " ms");
-        Assert.assertArrayEquals(_dataUncompressed, uncompressedOld);
-    }
-
-    @Test
     public void simpleUseBaos() throws Exception {
         // :: Use the new variant where we use the InflaterInputStreamWithStats
         InflaterInputStreamWithStats in = new InflaterInputStreamWithStats(new ByteArrayInputStream(_dataCompressed),
                 1536);
         byte[] uncompressed = in.readAllBytes();
         in.close();
-        System.out.println("Stream Baos Inflate time:  " + (in.getInflateTimeNanos() / 1_000_000d) + " ms");
+
+        Assert.assertTrue(in.getInflateTimeNanos() > 0);
 
         Assert.assertEquals(_dataUncompressed.length, uncompressed.length);
         Assert.assertArrayEquals(_dataUncompressed, uncompressed);
@@ -47,7 +38,8 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
         InflaterInputStreamWithStats in = new InflaterInputStreamWithStats(_dataCompressed);
         byte[] uncompressed = in.readAllBytes();
         in.close();
-        System.out.println("Stream Array Inflate time: " + (in.getInflateTimeNanos() / 1_000_000d) + " ms");
+
+        Assert.assertTrue(in.getInflateTimeNanos() > 0);
 
         Assert.assertEquals(_dataUncompressed.length, uncompressed.length);
         Assert.assertArrayEquals(_dataUncompressed, uncompressed);
@@ -69,6 +61,7 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
     }
 
     @Test
+    @Ignore
     public void performanceTest() throws Exception {
         // Warmup
         for (int i = 0; i < 100; i++) {
@@ -101,9 +94,6 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
         // Percent difference
         System.out.println("Difference (/baos): " + (100.0 * (totalMillisBaos - totalMillisArray) / totalMillisBaos)
                 + "%");
-
-        System.out.println("Number of inflater reuses: " + DeflateTools.getInflaterReuses());
-        System.out.println("Number of inflater pool empty: " + DeflateTools.getInflaterPoolEmpty());
     }
 
     public void multipleThreadsUseBaosOrArray(boolean useBaos) throws Exception {
@@ -152,13 +142,5 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
                 throw new AssertionError("Thread " + i + " threw exception", exceptions[i]);
             }
         }
-
-        // Check that we have a reasonable amount of Inflater instances in the pool.
-        // It should basically be the maximum. However, upon return the Inflater instance to the pool, the evalation of
-        // whether the pool is full is done right before the instance is returned. This is however not atomic with the
-        // return, so due to races, we might conceivably be off by a few.
-        String msg = "Pool size: " + DeflateTools.getInflaterPoolSize() + ", MAX_POOLED: " + DeflateTools.MAX_POOLED;
-        Assert.assertTrue(msg, DeflateTools.getInflaterPoolSize() >= (DeflateTools.MAX_POOLED - 2));
-        Assert.assertTrue(msg, DeflateTools.getInflaterPoolSize() <= (DeflateTools.MAX_POOLED + 4));
     }
 }

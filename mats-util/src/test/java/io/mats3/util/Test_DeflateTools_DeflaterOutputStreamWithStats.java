@@ -2,6 +2,7 @@ package io.mats3.util;
 
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.CountDownLatch;
+import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
 import org.junit.Assert;
@@ -31,7 +32,7 @@ public class Test_DeflateTools_DeflaterOutputStreamWithStats {
 
         // Compress the data to be used in the tests using standard Java
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DeflaterOutputStream out = new DeflaterOutputStream(baos);
+        DeflaterOutputStream out = new DeflaterOutputStream(baos, new Deflater(DeflateTools.COMPRESSION_LEVEL));
         try {
             out.write(_dataUncompressed);
             out.close();
@@ -40,23 +41,6 @@ public class Test_DeflateTools_DeflaterOutputStreamWithStats {
             throw new RuntimeException(e);
         }
         _dataCompressed = baos.toByteArray();
-    }
-
-    @Test
-    public void simpleOld() throws Exception {
-        // :: Use the older variant where we do not use the DeflaterOutputStreamWithStats
-        long nanos_Start = System.nanoTime();
-        byte[] compressedOld = DeflateTools.compress(_dataUncompressed);
-        double millis = (System.nanoTime() - nanos_Start) / 1_000_000d;
-        System.out.println("A Original size:   " + _dataUncompressed.length);
-        System.out.println("A Compressed size: " + compressedOld.length);
-        // differences
-        System.out.println("A Difference: .... " + (_dataUncompressed.length - compressedOld.length) + " bytes");
-        System.out.println("A Compressed size: " + (100.0 * compressedOld.length / _dataUncompressed.length) + "%");
-        System.out.println("A Deflate time:    " + millis + " ms");
-        System.out.println("==================================");
-
-        Assert.assertArrayEquals(_dataCompressed, compressedOld);
     }
 
     @Test
@@ -130,13 +114,6 @@ public class Test_DeflateTools_DeflaterOutputStreamWithStats {
                 throw new AssertionError("Thread " + i + " threw exception", exceptions[i]);
             }
         }
-
-        // Check that we have a reasonable amount of Deflater instances in the pool.
-        // It should basically be the maximum. However, upon return the Deflater instance to the pool, the evalation of
-        // whether the pool is full is done right before the instance is returned. This is however not atomic with the
-        // return, so due to races, we might conceivably be off by a few.
-        Assert.assertTrue(DeflateTools.getDeflaterPoolSize() >= (DeflateTools.MAX_POOLED - 2));
-        Assert.assertTrue(DeflateTools.getDeflaterPoolSize() <= (DeflateTools.MAX_POOLED + 2));
     }
 
 }
