@@ -1,4 +1,4 @@
-package io.mats3.util;
+package io.mats3.util.compression;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -6,21 +6,23 @@ import java.util.function.Consumer;
 import org.junit.Assert;
 import org.junit.Test;
 
-import io.mats3.util.DeflateTools.ByteArrayDeflaterOutputStreamWithStats;
-
 /**
  * Tests the {@link ByteArrayDeflaterOutputStreamWithStats} with a set of scenarios.
  */
-public class Test_DeflateTools_ByteArrayDeflaterOutputStreamWithStats {
+public class Test_ByteArrayDeflaterOutputStreamWithStats {
 
-    private static final byte[] _dataUncompressed = Test_DeflateTools_DeflaterOutputStreamWithStats._dataUncompressed;
-    private static final byte[] _dataCompressed = Test_DeflateTools_DeflaterOutputStreamWithStats._dataCompressed;
+    private static final byte[] _dataUncompressed = Test_DeflaterOutputStreamWithStats._dataUncompressed;
+    private static final byte[] _dataCompressed = Test_DeflaterOutputStreamWithStats._dataCompressed;
 
     private final Consumer<ByteArrayDeflaterOutputStreamWithStats> full = out -> out.write(_dataUncompressed);
 
     private final Consumer<ByteArrayDeflaterOutputStreamWithStats> single = out -> {
         for (byte b : _dataUncompressed) {
             out.write(b);
+            // Randomly flush
+            if (Math.random() < 0.25) {
+                out.flush();
+            }
         }
     };
 
@@ -31,6 +33,10 @@ public class Test_DeflateTools_ByteArrayDeflaterOutputStreamWithStats {
             len = Math.min(len, _dataUncompressed.length - pos);
             out.write(_dataUncompressed, pos, len);
             pos += len;
+            // Randomly flush
+            if (Math.random() < 0.25) {
+                out.flush();
+            }
         }
     };
 

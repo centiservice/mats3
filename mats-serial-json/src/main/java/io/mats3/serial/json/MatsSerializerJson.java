@@ -14,9 +14,9 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
-import io.mats3.util.DeflateTools.DeflaterOutputStreamWithStats;
-import io.mats3.util.DeflateTools.InflaterInputStreamWithStats;
 import io.mats3.util.FieldBasedJacksonMapper;
+import io.mats3.util.compression.DeflaterOutputStreamWithStats;
+import io.mats3.util.compression.InflaterInputStreamWithStats;
 
 /**
  * Implementation of {@link MatsSerializer} that employs <a href="https://github.com/FasterXML/jackson">Jackson JSON
@@ -245,7 +245,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
                 matsTrace = _matsTraceJson_Reader.readValue(in);
                 // Get the decompressed bytes length, and the decompression time.
                 decompressedBytesLength = (int) in.getUncompressedBytesOutput();
-                nanosTaken_Decompression = in.getInflateTimeNanos();
+                nanosTaken_Decompression = in.getReadAndInflateTimeNanos();
                 // Calculate the time taken for deserialization, by subtracting the decompression time from the total.
                 nanosTaken_Deserialization = System.nanoTime() - nanosStart_DecompressionAndDeserialization
                         - nanosTaken_Decompression;

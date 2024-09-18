@@ -1,17 +1,14 @@
-package io.mats3.util;
+package io.mats3.util.compression;
 
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.CountDownLatch;
 
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
-import io.mats3.util.DeflateTools.InflaterInputStreamWithStats;
-
-public class Test_DeflateTools_InflaterInputStreamWithStats {
-    private static final byte[] _dataUncompressed = Test_DeflateTools_DeflaterOutputStreamWithStats._dataUncompressed;
-    private static final byte[] _dataCompressed = Test_DeflateTools_DeflaterOutputStreamWithStats._dataCompressed;
+public class Test_InflaterInputStreamWithStats {
+    private static final byte[] _dataUncompressed = Test_DeflaterOutputStreamWithStats._dataUncompressed;
+    private static final byte[] _dataCompressed = Test_DeflaterOutputStreamWithStats._dataCompressed;
 
     @Test
     public void simpleUseBaos() throws Exception {
@@ -21,15 +18,12 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
         byte[] uncompressed = in.readAllBytes();
         in.close();
 
-        Assert.assertTrue(in.getInflateTimeNanos() > 0);
-
-        Assert.assertEquals(_dataUncompressed.length, uncompressed.length);
         Assert.assertArrayEquals(_dataUncompressed, uncompressed);
 
-        // Assert the stats
-        Assert.assertEquals(_dataCompressed.length, in.getCompressedBytesInput());
-        Assert.assertEquals(_dataUncompressed.length, in.getUncompressedBytesOutput());
-        Assert.assertTrue(in.getInflateTimeNanos() > 0);
+        System.out.println("ReadTimeNanos: " + in.getReadTimeNanos());
+        System.out.println("InflateTimeNanos: " + in.getInflateTimeNanos());
+        System.out.println("ReadAndInflateTimeNanos: " + in.getReadAndInflateTimeNanos());
+        assertStatsBaosVariant(in, uncompressed);
     }
 
     @Test
@@ -39,15 +33,33 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
         byte[] uncompressed = in.readAllBytes();
         in.close();
 
-        Assert.assertTrue(in.getInflateTimeNanos() > 0);
-
-        Assert.assertEquals(_dataUncompressed.length, uncompressed.length);
         Assert.assertArrayEquals(_dataUncompressed, uncompressed);
 
-        // Assert the stats
+        System.out.println("ReadTimeNanos: " + in.getReadTimeNanos());
+        System.out.println("InflateTimeNanos: " + in.getInflateTimeNanos());
+        System.out.println("ReadAndInflateTimeNanos: " + in.getReadAndInflateTimeNanos());
+        assertStatsArrayVariant(in, uncompressed);
+    }
+
+    private static void assertStatsBaosVariant(InflaterInputStreamWithStats in, byte[] uncompressed) {
+        Assert.assertTrue("Read time should be > 0", in.getReadTimeNanos() > 0);
+        Assert.assertTrue("Inflate time should be > 0", in.getInflateTimeNanos() > 0);
+        assertStatsCommon(in, uncompressed);
+    }
+
+    private static void assertStatsArrayVariant(InflaterInputStreamWithStats in, byte[] uncompressed) {
+        Assert.assertEquals("Read time should be == 0, not " + in.getReadTimeNanos(), 0, in.getReadTimeNanos());
+        Assert.assertTrue("Inflate time should be > 0", in.getInflateTimeNanos() > 0);
+        Assert.assertEquals("Read+Inflate time should be same as Inflate time",
+                in.getReadAndInflateTimeNanos(), in.getInflateTimeNanos());
+        assertStatsCommon(in, uncompressed);
+    }
+
+    private static void assertStatsCommon(InflaterInputStreamWithStats in, byte[] uncompressed) {
+        Assert.assertEquals(_dataUncompressed.length, uncompressed.length);
         Assert.assertEquals(_dataCompressed.length, in.getCompressedBytesInput());
         Assert.assertEquals(_dataUncompressed.length, in.getUncompressedBytesOutput());
-        Assert.assertTrue(in.getInflateTimeNanos() > 0);
+        Assert.assertTrue("Read+Inflate time should be > 0", in.getReadAndInflateTimeNanos() > 0);
     }
 
     @Test
@@ -61,10 +73,12 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
     }
 
     @Test
-    @Ignore
     public void performanceTest_BAOS_vs_ByteArray() throws Exception {
+        int warmpupIterations = 1; // Use 250 for a good warmup
+        int performanceIterations = 5; // Use 1500 for a good performance test
+
         // Warmup
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < warmpupIterations; i++) {
             multipleThreadsUseBaos();
             multipleThreadsUseArray();
         }
@@ -75,7 +89,7 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
 
         double totalMillisBaos = 0;
         double totalMillisArray = 0;
-        for (int i = 0; i < 1500; i++) {
+        for (int i = 0; i < performanceIterations; i++) {
             long nanos_Start = System.nanoTime();
             multipleThreadsUseBaos();
             double millisBaos = (System.nanoTime() - nanos_Start) / 1_000_000d;
@@ -117,12 +131,12 @@ public class Test_DeflateTools_InflaterInputStreamWithStats {
                     byte[] uncompressed = in.readAllBytes();
                     in.close();
 
-                    // Assert that the two compressed arrays are equal
-                    Assert.assertArrayEquals(_dataUncompressed, uncompressed);
-                    // Assert the stats
-                    Assert.assertEquals(_dataUncompressed.length, in.getUncompressedBytesOutput());
-                    Assert.assertEquals(_dataCompressed.length, in.getCompressedBytesInput());
-                    Assert.assertTrue(in.getInflateTimeNanos() > 0);
+                    if (useBaos) {
+                        assertStatsBaosVariant(in, uncompressed);
+                    }
+                    else {
+                        assertStatsArrayVariant(in, uncompressed);
+                    }
                 }
                 catch (Throwable t) {
                     exceptions[threadNo] = t;

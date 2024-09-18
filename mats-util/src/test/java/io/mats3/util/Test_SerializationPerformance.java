@@ -1,6 +1,6 @@
 package io.mats3.util;
 
-import static io.mats3.util.Test_DeserializationPerformance.ms2;
+import static io.mats3.util.Tools.ms2;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -10,8 +10,8 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 
-import io.mats3.util.DeflateTools.DeflaterOutputStreamWithStats;
 import io.mats3.util.DummyFinancialService.ReplyDTO;
+import io.mats3.util.compression.DeflaterOutputStreamWithStats;
 
 /**
  * Small home-grown performance test harness to evaluate the compression levels and buffer sizes. Seems like level 3 is
@@ -61,6 +61,7 @@ public class Test_SerializationPerformance {
         }
 
         // WITHOUT Blackbird:
+        // ====================
         // tot: 1531.47 ms, ser: 1361.20 ms, deflate: 170.27 ms, 100 rounds, lvl:0, 512 B, custs:1000 = 2485059 B
         // tot: 1589.85 ms, ser: 1418.12 ms, deflate: 171.72 ms, 100 rounds, lvl:0, 512 B, custs:1000 = 2485059 B
         // tot: 1481.42 ms, ser: 1312.59 ms, deflate: 168.83 ms, 100 rounds, lvl:0, 512 B, custs:1000 = 2485059 B
@@ -118,6 +119,8 @@ public class Test_SerializationPerformance {
         // tot: 5739.04 ms, ser: 1252.39 ms, deflate: 4486.65 ms, 100 rounds, lvl:4, 512 B, custs:1000 = 659132 B
 
         // USING Blackbird (Doesn't really seem to du much for this serialization side, more impact on deser):
+        // ====================
+
         // tot: 1532.51 ms, ser: 1365.49 ms, deflate: 167.02 ms, 100 rounds, lvl:0, 512 B, custs:1000 = 2485059 B
         // tot: 1606.84 ms, ser: 1438.90 ms, deflate: 167.94 ms, 100 rounds, lvl:0, 512 B, custs:1000 = 2485059 B
         // tot: 1514.98 ms, ser: 1346.02 ms, deflate: 168.97 ms, 100 rounds, lvl:0, 512 B, custs:1000 = 2485059 B
@@ -447,7 +450,7 @@ public class Test_SerializationPerformance {
         return nanos_Total;
     }
 
-    byte[] serializeDto(int level, int bufferSize, ReplyDTO replyDto) throws IOException {
+    public byte[] serializeDto(int level, int bufferSize, ReplyDTO replyDto) throws IOException {
         System.setProperty("mats.deflate.compressionLevel", Integer.toString(level));
         var baos = new ByteArrayOutputStream();
         var deflaterStream = new DeflaterOutputStreamWithStats(baos, bufferSize);

@@ -1,4 +1,4 @@
-package io.mats3.util;
+package io.mats3.util.compression;
 
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.CountDownLatch;
@@ -8,9 +8,7 @@ import java.util.zip.DeflaterOutputStream;
 import org.junit.Assert;
 import org.junit.Test;
 
-import io.mats3.util.DeflateTools.DeflaterOutputStreamWithStats;
-
-public class Test_DeflateTools_DeflaterOutputStreamWithStats {
+public class Test_DeflaterOutputStreamWithStats {
     static final byte[] _dataUncompressed = new byte[1024 * 1024 - 18765];
     static final byte[] _dataCompressed;
     static {
@@ -32,7 +30,8 @@ public class Test_DeflateTools_DeflaterOutputStreamWithStats {
 
         // Compress the data to be used in the tests using standard Java
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DeflaterOutputStream out = new DeflaterOutputStream(baos, new Deflater(DeflateTools.getCompressionLevel()));
+        DeflaterOutputStream out = new DeflaterOutputStream(baos, new Deflater(DeflaterOutputStreamWithStats
+                .getDefaultCompressionLevel()));
         try {
             out.write(_dataUncompressed);
             out.close();
@@ -65,7 +64,10 @@ public class Test_DeflateTools_DeflaterOutputStreamWithStats {
         // Assert the stats
         Assert.assertEquals(_dataUncompressed.length, out.getUncompressedBytesInput());
         Assert.assertEquals(_dataCompressed.length, out.getCompressedBytesOutput());
-        Assert.assertTrue(out.getDeflateTimeNanos() > 0);
+        Assert.assertTrue("Deflate time should be > 0", out.getDeflateTimeNanos() > 0);
+        Assert.assertTrue("DeflateAndWrite time should be > 0", out.getDeflateAndWriteTimeNanos() > 0);
+        Assert.assertTrue("DeflateAndWrite time should be >= Deflate time",
+                out.getDeflateAndWriteTimeNanos() >= out.getDeflateTimeNanos());
     }
 
     @Test

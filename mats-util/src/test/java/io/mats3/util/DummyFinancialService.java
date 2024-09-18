@@ -2,9 +2,17 @@ package io.mats3.util;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.*;
-import java.util.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
 
+/**
+ * Dummy "financial service" for creating DTOs that can be serialized and deserialized in tests. Provides
+ * methods to create random data for customers, orders, and transactions.
+ */
 public class DummyFinancialService {
 
     public static class ReplyDTO {
@@ -131,7 +139,8 @@ public class DummyFinancialService {
     }
 
     // Helper method to create a TransactionDTO with random data
-    private static TransactionDTO createRandomTransactionDTO(BigDecimal amount, Random random, LocalDateTime orderDateTime) {
+    private static TransactionDTO createRandomTransactionDTO(BigDecimal amount, Random random,
+            LocalDateTime orderDateTime) {
         TransactionDTO transaction = new TransactionDTO();
         transaction.transactionId = UUID.nameUUIDFromBytes(("transaction-" + random.nextInt()).getBytes()).toString();
         transaction.transactionDateTime = generateRandomTransactionDateTime(random, orderDateTime);
@@ -146,8 +155,10 @@ public class DummyFinancialService {
 
     // Random data generation methods with Random parameter
     private static String generateRandomName(Random random) {
-        String[] firstNames = {"John", "Jane", "Alex", "Emily", "Chris", "Katie", "Michael", "Sarah", "David", "Laura"};
-        String[] lastNames = {"Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez"};
+        String[] firstNames = { "John", "Jane", "Alex", "Emily", "Chris", "Katie", "Michael", "Sarah", "David",
+                "Laura" };
+        String[] lastNames = { "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
+                "Rodriguez", "Martinez" };
 
         String firstName = firstNames[random.nextInt(firstNames.length)];
         String lastName = lastNames[random.nextInt(lastNames.length)];
@@ -162,9 +173,9 @@ public class DummyFinancialService {
     }
 
     private static String generateRandomAddress(Random random) {
-        String[] streets = {"Main St", "Oak Ave", "Pine Rd", "Maple Dr", "Cedar Ln"};
-        String[] cities = {"New York", "Los Angeles", "Chicago", "Houston", "Phoenix"};
-        String[] states = {"NY", "CA", "IL", "TX", "AZ"};
+        String[] streets = { "Main St", "Oak Ave", "Pine Rd", "Maple Dr", "Cedar Ln" };
+        String[] cities = { "New York", "Los Angeles", "Chicago", "Houston", "Phoenix" };
+        String[] states = { "NY", "CA", "IL", "TX", "AZ" };
         int streetNumber = random.nextInt(9900) + 100; // Between 100 and 9999
 
         String street = streets[random.nextInt(streets.length)];
@@ -176,7 +187,7 @@ public class DummyFinancialService {
     }
 
     private static String generateRandomEmail(String name, Random random) {
-        String[] domains = {"example.com", "test.com", "mail.com", "email.com"};
+        String[] domains = { "example.com", "test.com", "mail.com", "email.com" };
         String domain = domains[random.nextInt(domains.length)];
         String emailName = name.toLowerCase().replaceAll(" ", ".");
         return emailName + "@" + domain;
@@ -204,37 +215,38 @@ public class DummyFinancialService {
     }
 
     private static String generateRandomOrderStatus(Random random) {
-        String[] statuses = {"Pending", "Processing", "Shipped", "Delivered", "Cancelled", "Returned"};
+        String[] statuses = { "Pending", "Processing", "Shipped", "Delivered", "Cancelled", "Returned" };
         return statuses[random.nextInt(statuses.length)];
     }
 
     private static String generateRandomPaymentMethod(Random random) {
-        String[] methods = {"Credit Card", "Debit Card", "PayPal", "Bank Transfer", "Cash"};
+        String[] methods = { "Credit Card", "Debit Card", "PayPal", "Bank Transfer", "Cash" };
         return methods[random.nextInt(methods.length)];
     }
 
     private static String generateRandomProductName(Random random) {
-        String[] products = {"Laptop", "Smartphone", "Tablet", "Headphones", "Camera", "Watch", "Printer", "Monitor", "Keyboard", "Mouse"};
+        String[] products = { "Laptop", "Smartphone", "Tablet", "Headphones", "Camera", "Watch", "Printer", "Monitor",
+                "Keyboard", "Mouse" };
         return products[random.nextInt(products.length)];
     }
 
     private static String generateRandomCurrency(Random random) {
-        String[] currencies = {"USD", "EUR", "GBP", "JPY", "AUD", "CAD"};
+        String[] currencies = { "USD", "EUR", "GBP", "JPY", "AUD", "CAD" };
         return currencies[random.nextInt(currencies.length)];
     }
 
     private static String generateRandomTransactionType(Random random) {
-        String[] types = {"Debit", "Credit", "Refund", "Chargeback", "Adjustment"};
+        String[] types = { "Debit", "Credit", "Refund", "Chargeback", "Adjustment" };
         return types[random.nextInt(types.length)];
     }
 
     private static String generateRandomTransactionStatus(Random random) {
-        String[] statuses = {"Pending", "Completed", "Failed", "Cancelled"};
+        String[] statuses = { "Pending", "Completed", "Failed", "Cancelled" };
         return statuses[random.nextInt(statuses.length)];
     }
 
     private static String generateRandomTransactionDescription(Random random) {
-        String[] descriptions = {"Payment for order", "Refund issued", "Chargeback processed", "Adjustment applied"};
+        String[] descriptions = { "Payment for order", "Refund issued", "Chargeback processed", "Adjustment applied" };
         return descriptions[random.nextInt(descriptions.length)];
     }
 }

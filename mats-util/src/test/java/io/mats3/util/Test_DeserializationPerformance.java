@@ -1,5 +1,7 @@
 package io.mats3.util;
 
+import static io.mats3.util.Tools.ms2;
+
 import java.io.IOException;
 
 import org.junit.Test;
@@ -7,8 +9,8 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 
-import io.mats3.util.DeflateTools.InflaterInputStreamWithStats;
 import io.mats3.util.DummyFinancialService.ReplyDTO;
+import io.mats3.util.compression.InflaterInputStreamWithStats;
 
 public class Test_DeserializationPerformance {
     private final ObjectMapper _mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
@@ -47,19 +49,10 @@ public class Test_DeserializationPerformance {
             performanceRun(level, seed, rounds, cumstomers);
         }
 
-        // Excluded compression, WITH Blackbird (level ignored):
-        // tot: 2130.59, inflate: 0.00, deser: 2130.59 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
-        // tot: 2126.50, inflate: 0.00, deser: 2126.50 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
-        // tot: 2127.38, inflate: 0.00, deser: 2127.38 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
-        // tot: 2110.07, inflate: 0.00, deser: 2110.07 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
-        // tot: 2132.23, inflate: 0.00, deser: 2132.23 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
-        // tot: 2116.11, inflate: 0.00, deser: 2116.11 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
-        // tot: 2117.14, inflate: 0.00, deser: 2117.14 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
-        // tot: 2113.93, inflate: 0.00, deser: 2113.93 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
-        // tot: 2113.61, inflate: 0.00, deser: 2113.61 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
-        // tot: 2120.66, inflate: 0.00, deser: 2120.66 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+        // WITHOUT Blackbird
+        // ===================
 
-        // Excluded compression, WITHOUT Blackbird (level ignored):
+        // Excluded compression (level ignored):
         // tot: 2236.49, inflate: 0.00, deser: 2236.49 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
         // tot: 2241.04, inflate: 0.00, deser: 2241.04 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
         // tot: 2231.31, inflate: 0.00, deser: 2231.31 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
@@ -95,7 +88,22 @@ public class Test_DeserializationPerformance {
         // tot: 3054.90, inflate: 810.13, deser: 2244.77 ms, 100 rounds, lvl:3, 687898 B, custs:1000
         // tot: 3051.52, inflate: 809.06, deser: 2242.47 ms, 100 rounds, lvl:3, 687898 B, custs:1000
 
-        // USING Blackbird, level=0:
+        // USING Blackbird
+        // ===================
+
+        // Excluded compression (level ignored):
+        // tot: 2130.59, inflate: 0.00, deser: 2130.59 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+        // tot: 2126.50, inflate: 0.00, deser: 2126.50 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+        // tot: 2127.38, inflate: 0.00, deser: 2127.38 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+        // tot: 2110.07, inflate: 0.00, deser: 2110.07 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+        // tot: 2132.23, inflate: 0.00, deser: 2132.23 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+        // tot: 2116.11, inflate: 0.00, deser: 2116.11 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+        // tot: 2117.14, inflate: 0.00, deser: 2117.14 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+        // tot: 2113.93, inflate: 0.00, deser: 2113.93 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+        // tot: 2113.61, inflate: 0.00, deser: 2113.61 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+        // tot: 2120.66, inflate: 0.00, deser: 2120.66 ms, 100 rounds, lvl:0, 2484728 B, custs:1000
+
+        // level=0:
         // tot: 2197.49, inflate: 112.68, deser: 2084.81 ms, 100 rounds, lvl:0, 2485059 B, custs:1000
         // tot: 2174.55, inflate: 107.73, deser: 2066.83 ms, 100 rounds, lvl:0, 2485059 B, custs:1000
         // tot: 2173.82, inflate: 108.17, deser: 2065.65 ms, 100 rounds, lvl:0, 2485059 B, custs:1000
@@ -107,7 +115,7 @@ public class Test_DeserializationPerformance {
         // tot: 2152.18, inflate: 105.10, deser: 2047.09 ms, 100 rounds, lvl:0, 2485059 B, custs:1000
         // tot: 2141.62, inflate: 104.48, deser: 2037.13 ms, 100 rounds, lvl:0, 2485059 B, custs:1000
 
-        // USING Blackbird, level=3:
+        // level=3:
         // tot: 3026.66, inflate: 867.03, deser: 2159.63 ms, 100 rounds, lvl:3, 687898 B, custs:1000
         // tot: 3016.71, inflate: 866.34, deser: 2150.37 ms, 100 rounds, lvl:3, 687898 B, custs:1000
         // tot: 3024.25, inflate: 867.39, deser: 2156.86 ms, 100 rounds, lvl:3, 687898 B, custs:1000
@@ -119,7 +127,7 @@ public class Test_DeserializationPerformance {
         // tot: 2948.48, inflate: 811.98, deser: 2136.50 ms, 100 rounds, lvl:3, 687898 B, custs:1000
         // tot: 2927.72, inflate: 808.84, deser: 2118.88 ms, 100 rounds, lvl:3, 687898 B, custs:1000
 
-        // USING Blackbird, level=6:
+        // level=6:
         // tot: 3047.57, inflate: 809.67, deser: 2237.90 ms, 100 rounds, lvl:6, 612162 B, custs:1000
         // tot: 3017.13, inflate: 803.87, deser: 2213.26 ms, 100 rounds, lvl:6, 612162 B, custs:1000
         // tot: 3007.59, inflate: 802.50, deser: 2205.09 ms, 100 rounds, lvl:6, 612162 B, custs:1000
@@ -147,17 +155,13 @@ public class Test_DeserializationPerformance {
             deserialized = _replyDtoReader.readValue(inflaterStream);
             long nanosTaken_Total = System.nanoTime() - nanosStart_Total;
             nanos_Total += nanosTaken_Total;
-            nanos_Inflate_Total += inflaterStream.getInflateTimeNanos();
-            nanos_Deserialize_Total += nanosTaken_Total - inflaterStream.getInflateTimeNanos();
+            nanos_Inflate_Total += inflaterStream.getReadAndInflateTimeNanos();
+            nanos_Deserialize_Total += nanosTaken_Total - inflaterStream.getReadAndInflateTimeNanos();
         }
 
         assert deserialized != null;
         System.out.println("tot: " + ms2(nanos_Total) + ", inflate: " + ms2(nanos_Inflate_Total)
                 + ", deser: " + ms2(nanos_Deserialize_Total) + " ms, " + rounds + " rounds, lvl:"
                 + level + ", " + serComp.length + " B, custs:" + deserialized.customers.size());
-    }
-
-    static String ms2(long nanos) {
-        return String.format("%.2f", nanos / 1_000_000d);
     }
 }
