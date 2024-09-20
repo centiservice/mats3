@@ -10,7 +10,7 @@ import java.util.zip.DeflaterOutputStream;
  * provides statistics about the compression process.
  * <p>
  * Notice for usage within Mats3: It doesn't seem like the Jackson library uses single-byte output at all, but rather
- * internally buffers and performs its writes in chunks of close up to and including 8000 bytes. This alleviates the
+ * internally buffers and performs its writes in chunks of close up to, and including, 8000 bytes. This alleviates the
  * need to use a BufferedOutputStream on top of this DeflaterOutputStreamWithStats.
  * <p>
  * Thread-safety: This class is not thread-safe.

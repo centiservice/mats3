@@ -16,7 +16,6 @@ import java.util.zip.DeflaterOutputStream;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 
 import io.mats3.util.DummyFinancialService;
@@ -32,23 +31,26 @@ import io.mats3.util.FieldBasedJacksonMapper;
  * <li>{@link ByteArrayDeflaterOutputStreamWithStats}.
  * </ul>
  * <p>
- * <h3>Results</h3> For larger sizes (e.g. 20k "customers"), there are no discernible difference between the different
- * setups! The variability between runs is so much larger than the difference between the different setups that it is
- * impossible to say that one is better than the other.
+ * <h3>Results</h3>
+ * <p>
+ * For larger sizes (e.g. 20k "customers"), there are no discernible difference between the different setups! The
+ * variability between runs is so much larger than the difference between the different setups that it is impossible to
+ * say that one is better than the other.
  * <p>
  * For many small sizes (e.g. 10 "customers"), there seems to be a stable result: the reuse of the Deflater is slightly
- * faster than creating a new one each time, from 0.26 to 0.31 ms per compression - 0.05 ms. The statistics adds an
- * extra &lt; 0.01 ms per compression.
+ * faster than creating a new one each time: E.g. 0.26 ms vs. 0.31 ms per compression - a stable 0.05 ms improvement.
+ * The statistics adds an extra &lt; 0.01 ms per compression.
  * <p>
  * <b>Net result is, IMHO:</b> These variants with stats, and the one with the built-in byte array, are just as fast as
  * the standard Java, while providing statistics and convenience. To shave off 0.05 ms per compression, one could go for
- * reusing Deflaters - which I have chosen to provide constructors for in these classes - but the overhead of managing
- * the reuse (pooling), with the potential for bugs and memory bloat, are not worth it.
+ * reusing Deflaters - which I have chosen to <b>not</b> provide constructors for in these classes - but the overhead of
+ * managing the reuse with pooling, with the potential for bugs and memory bloat, could easily outweigh the minuscule
+ * gain. <i>(Note that there is a version of this in the git history a few commits back - where there was two static
+ * pools of Deflaters and Inflaters which was removed due to the above reasoning).</i>
+ * 
+ * @see Test_Performance_InflaterInputStreamSetups
  */
 public class Test_Performance_DeflaterOutputStreamsSetups {
-
-    private final ObjectMapper _mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
-    private final ObjectWriter _replyDtoWriter = _mapper.writerFor(ReplyDTO.class);
 
     @Test
     public void test() throws IOException {
@@ -88,20 +90,20 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
         holder = pristine.fork();
         holder.useDumpStream = useDumpStream;
         runPerf("Warmup run", holder, warmupCount, perfCount,
-                this::compressDeflaterInputStream);
+                this::compressDeflaterOutputStream);
 
         // :: Performance runs
 
         holder = pristine.fork();
         holder.useDumpStream = useDumpStream;
         runPerf("DeflaterOutputStream with own Deflater", holder, warmupCount, perfCount,
-                this::compressDeflaterInputStream);
+                this::compressDeflaterOutputStream);
 
         holder = pristine.fork();
         holder.deflater = new Deflater(1);
         holder.useDumpStream = useDumpStream;
         runPerf("DeflaterOutputStream with reused Deflater", holder, warmupCount, perfCount,
-                this::compressDeflaterInputStream);
+                this::compressDeflaterOutputStream);
         holder.deflater.end();
 
         holder = pristine.fork();
@@ -152,16 +154,17 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
         System.out.println("\\-AVERAGE: " + msg.apply(adder));
     }
 
-    private void compressDeflaterInputStream(Holder holder) throws IOException {
+    private void compressDeflaterOutputStream(Holder holder) throws IOException {
         long nanosAtStart_Compressing = System.nanoTime();
         var dumpOutput = holder.getOutputStream();
 
-        Deflater deflater = holder.deflater == null ? new Deflater(1) : holder.deflater;
-        var deflaterOutputStream = new DeflaterOutputStream(dumpOutput, deflater);
+        var deflaterOutputStream = holder.deflater != null
+                ? new DeflaterOutputStream(dumpOutput, holder.deflater)
+                : new DeflaterOutputStream(dumpOutput);
         deflaterOutputStream.write(holder.uncompressed);
         deflaterOutputStream.close();
         if (holder.deflater != null) {
-            deflater.reset();
+            holder.deflater.reset();
         }
 
         holder.compressedNanos += System.nanoTime() - nanosAtStart_Compressing;
@@ -194,6 +197,8 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
 
         Assert.assertEquals(holder.compressed.length, deflaterOutputStream.getCurrentPosition());
     }
+
+    // ============= Internals =============
 
     static class Holder {
         // :: Configuration
@@ -252,14 +257,15 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
         }
     }
 
-    // ============= MISC =============
-
-    private Holder createHolder(int customers) {
+    private static Holder createHolder(int customers) {
         ReplyDTO randomReplyDTO = DummyFinancialService.createRandomReplyDTO(1234L, customers);
         try {
 
             long nanosAtStart_Total = System.nanoTime();
-            byte[] serialized = _replyDtoWriter.writeValueAsBytes(randomReplyDTO);
+            ObjectWriter replyDtoWriter = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper()
+                    .writerFor(ReplyDTO.class);
+
+            byte[] serialized = replyDtoWriter.writeValueAsBytes(randomReplyDTO);
 
             var bais = new ByteArrayInputStream(serialized);
             Deflater deflater = new Deflater(1);
