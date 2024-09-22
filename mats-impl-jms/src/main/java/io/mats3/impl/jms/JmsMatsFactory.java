@@ -245,11 +245,11 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
                     + " was [" + numberOfDeliveryAttemptsBeforeDlq + "]");
         }
         if (numberOfDeliveryAttemptsBeforeDlq > 0) {
-            log.info("Enabling MatsManagedDlqDivert, with max delivery attempts to ["
+            log.info(LOG_PREFIX + "Enabling MatsManagedDlqDivert, with max delivery attempts to ["
                     + numberOfDeliveryAttemptsBeforeDlq + "].");
         }
         else {
-            log.info("Disabling MatsManagedDlqDivert - letting the broker handle DLQing.");
+            log.info(LOG_PREFIX + "Disabling MatsManagedDlqDivert - letting the broker handle DLQing.");
         }
         _numberOfDeliveryAttemptsBeforeMatsManagedDlqDivert = numberOfDeliveryAttemptsBeforeDlq;
     }
@@ -263,10 +263,10 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
             boolean useMatsManagedDlqDivertOnMatsRefuseException) {
         _useMatsManagedDlqDivertOnMatsRefuseException = useMatsManagedDlqDivertOnMatsRefuseException;
         if (useMatsManagedDlqDivertOnMatsRefuseException) {
-            log.info("Enabling MatsManagedDlqDivertOnMatsRefuseException.");
+            log.info(LOG_PREFIX + "Enabling MatsManagedDlqDivertOnMatsRefuseException.");
         }
         else {
-            log.info("Disabling MatsManagedDlqDivertOnMatsRefuseException.");
+            log.info(LOG_PREFIX + "Disabling MatsManagedDlqDivertOnMatsRefuseException.");
         }
     }
 
@@ -1232,7 +1232,6 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
                 }
 
             }
-
 
             return "JMS MatsFactory: " + idThis()
                     + "\n  Endpoints: "

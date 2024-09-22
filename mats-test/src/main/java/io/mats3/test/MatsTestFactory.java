@@ -1,5 +1,7 @@
 package io.mats3.test;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import javax.sql.DataSource;
 
 import org.slf4j.Logger;
@@ -14,7 +16,9 @@ import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.broker.MatsTestBroker;
 
 /**
- * Creates a {@link AutoCloseable} MatsFactory for testing purposes, backed by the in-vm broker from MatsTestBroker.
+ * Convenience solution for quickly creating a {@link AutoCloseable} MatsFactory configured for testing purposes (max
+ * delivery:2, concurrency:2, names), backed by the in-vm broker from MatsTestBroker - which is also closed when this
+ * MatsFactory is closed (but note the method {@link #createWithBroker(MatsTestBroker, MatsSerializer, DataSource)}).
  *
  * @author Endre Stølsvik 2023-09-02 23:51 - http://stolsvik.com/, endre@stolsvik.com
  */
@@ -23,17 +27,16 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
     /**
      * The total number of attempted deliveries when in test-mode: 2. It does not make sense to redeliver a bunch of
      * times, with exponential fallback and whatnot, in test-scenarios. If you in a test want to check that a specific
-     * message DLQs, then it would suffice with 1 attempt. But to get a tad more realistic, we'll run with one
-     * extra attempt (which also suites the Mats3 own tests better, to actually ensure that the same message is
-     * redelivered).
+     * message DLQs, then it would suffice with 1 attempt. But to get a tad more realistic, we'll run with one extra
+     * attempt (which also suites the Mats3 own tests better, to actually ensure that the same message is redelivered).
      */
     int TEST_MAX_DELIVERY_ATTEMPTS = 2;
 
     /**
-     * For most test scenarios, it really makes little meaning to have a concurrency of more than 1 - unless
-     * explicitly testing Mats' handling of concurrency. However, due to some testing scenarios might come to rely
-     * on such sequential processing, we set it to 2, to try to weed out such dependencies - hopefully tests will
-     * (at least occasionally) fail by two consumers each getting a message and thus processing them concurrently.
+     * For most test scenarios, it really makes little meaning to have a concurrency of more than 1 - unless explicitly
+     * testing Mats' handling of concurrency. However, due to some testing scenarios might come to rely on such
+     * sequential processing, we set it to 2, to try to weed out such dependencies - hopefully tests will (at least
+     * occasionally) fail by two consumers each getting a message and thus processing them concurrently.
      */
     int TEST_CONCURRENCY = 2;
 
@@ -46,40 +49,69 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
      * @return a simple, {@link AutoCloseable}, JMS-tx only MatsFactory, backed by an in-vm broker from MatsTestBroker.
      */
     static MatsTestFactory create() {
-        return create(MatsTestBroker.create(), null, MatsSerializerJson.create());
+        return create(MatsSerializerJson.create());
     }
 
     /**
-     * @param matsTestBroker
-     *            the MatsTestBroker from which to get the ConnectionFactory, and to close when this MatsFactory is
-     *            closed.
+     * Creates an {@link AutoCloseable}, JMS-tx only MatsFactory for testing purposes, backed by the in-vm broker from a
+     * MatsTestBroker and using {@link MatsSerializerJson}. When the returned MatsFactory's close() method is invoked,
+     * the MatsTestBroker is also closed. (Note that the stop(graceful) method does <b>not</b> close the
+     * MatsTestBroker.)
+     *
+     * @param <Z>
+     *            the type of the object that the MatsSerializer serializes to/from.
      * @param matsSerializer
      *            the MatsSerializer to use
      *
      * @return a simple, {@link AutoCloseable}, JMS-tx only MatsFactory, using the provided MatsSerializer, backed by an
      *         in-vm broker from the supplied MatsTestBroker.
      */
-    static <Z> MatsTestFactory create(MatsTestBroker matsTestBroker, MatsSerializer<Z> matsSerializer) {
-        return create(matsTestBroker, null, matsSerializer);
+    static <Z> MatsTestFactory create(MatsSerializer<Z> matsSerializer) {
+        return create(matsSerializer, null);
     }
 
     /**
-     * @param matsTestBroker
-     *            the MatsTestBroker from which to get the ConnectionFactory, and to close when this MatsFactory is
-     *            closed.
-     * @param dataSource
-     *            the DataSource to use, or {@code null} if no DataSource should be used.
-     * @param matsSerializer
-     *            the MatsSerializer to use
+     * Creates an {@link AutoCloseable}, MS-only or JMS-plus-JDBC (if dataSource arg is non-null) MatsFactory for
+     * testing purposes, backed by the in-vm broker from a MatsTestBroker and using {@link MatsSerializerJson}. When the
+     * returned MatsFactory's close() method is invoked, the MatsTestBroker is also closed. (Note that the
+     * stop(graceful) method does <b>not</b> close the MatsTestBroker.)
      *
-     * @return a simple, {@link AutoCloseable}, JMS-onoy or JMS-plus-JDBC transacted MatsFactory, using the provided
-     *         MatsSerializer, backed by an in-vm broker from the supplied MatsTestBroker.
      * @param <Z>
      *            the type of the object that the MatsSerializer serializes to/from.
+     * @param matsSerializer
+     *            the MatsSerializer to use
+     * @param dataSource
+     *            the DataSource to use, or {@code null} if no DataSource should be used.
+     * @return a simple, {@link AutoCloseable}, JMS-only or JMS-plus-JDBC transacted MatsFactory, using the provided
+     *         MatsSerializer, backed by an in-vm broker from the supplied MatsTestBroker.
      */
-    static <Z> MatsTestFactory create(MatsTestBroker matsTestBroker, DataSource dataSource,
-            MatsSerializer<Z> matsSerializer) {
+    static <Z> MatsTestFactory create(MatsSerializer<Z> matsSerializer, DataSource dataSource) {
+        MatsTestBroker matsTestBroker = MatsTestBroker.create();
+        MatsFactory matsFactory = createWithBroker(matsTestBroker, matsSerializer, dataSource);
 
+        return new MatsTestFactoryImpl(matsFactory, matsTestBroker);
+    }
+
+    /**
+     * Creates a plain MatsFactory using the specified {@link MatsTestBroker}, configured for testing as the other
+     * methods, but without the AutoCloseable wrapping - which then also do not take down the MatsTestBroker when
+     * closed.
+     */
+    static <Z> MatsFactory createWithBroker(MatsTestBroker matsTestBroker) {
+        return createWithBroker(matsTestBroker, MatsSerializerJson.create(), null);
+    }
+
+    /**
+     * Creates a plain MatsFactory using the specified {@link MatsTestBroker}, configured for testing as the other
+     * methods, but without the AutoCloseable wrapping - which then also do not take down the MatsTestBroker when
+     * closed. Argument 'dataSource' can be {@code null}, and is used to determine if this MatsFactory should be
+     * JMS-only or JMS+JDBC tx managed.
+     */
+    static <Z> MatsFactory createWithBroker(MatsTestBroker matsTestBroker, MatsSerializer<Z> matsSerializer,
+            DataSource dataSource) {
+        if (matsSerializer == null) {
+            throw new NullPointerException("matsSerializer");
+        }
         JmsMatsJmsSessionHandler sessionHandler = JmsMatsJmsSessionHandler_Pooling
                 .create(matsTestBroker.getConnectionFactory());
 
@@ -98,21 +130,23 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
 
         }
 
+        // Set name
+        matsFactory.getFactoryConfig().setName(MatsTestFactory.class.getSimpleName() + "_MF#"
+                + MatsTestFactoryImpl.__instanceCounter.getAndIncrement());
+
         // Reduce number of redeliveries
         matsFactory.setMatsManagedDlqDivert(TEST_MAX_DELIVERY_ATTEMPTS);
 
-        // Set name
-        matsFactory.getFactoryConfig().setName(MatsTestFactory.class.getSimpleName() + "_MF");
-
+        // Reduce concurrency
         matsFactory.getFactoryConfig().setConcurrency(TEST_CONCURRENCY);
-
-        return new MatsTestFactoryImpl(matsFactory, matsTestBroker);
+        return matsFactory;
     }
 
     @Override
     void close();
 
     class MatsTestFactoryImpl extends MatsFactoryWrapper implements MatsTestFactory {
+        private static final AtomicInteger __instanceCounter = new AtomicInteger(0);
         private static final Logger log = LoggerFactory.getLogger(MatsTestFactory.class);
 
         private final MatsTestBroker _matsTestBroker;
@@ -120,7 +154,8 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
         public MatsTestFactoryImpl(MatsFactory matsFactory, MatsTestBroker matsTestBroker) {
             setWrappee(matsFactory);
             _matsTestBroker = matsTestBroker;
-            log.info("MatsTestFactory created, with MatsFactory [" + matsFactory + "].");
+            log.info("MatsTestFactory created, with MatsFactory [" + matsFactory + "], and MatsTestBroker [" +
+                    matsTestBroker + "].");
         }
 
         @Override
@@ -134,9 +169,9 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
          */
         @Override
         public void close() {
-            log.info("MatsTestFactory closing: Closing wrapped MatsFactory [" + unwrap() + "].");
+            log.info("MatsTestFactory closing: Stopping wrapped MatsFactory [" + unwrap() + "].");
             super.close();
-            log.info("MatsTestFactory closed, now closing MatsTestBroker [" + _matsTestBroker + "].");
+            log.info("MatsTestFactory stopped, now closing MatsTestBroker [" + _matsTestBroker + "].");
             try {
                 _matsTestBroker.close();
             }

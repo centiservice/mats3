@@ -202,8 +202,8 @@ public abstract class AbstractMatsTest {
      * @return a <i>new, separate</i> {@link MatsFactory} in addition to the one provided by {@link #getMatsFactory()}.
      */
     public MatsFactory createMatsFactory() {
-        MatsFactory matsFactory = MatsTestFactory.create(_matsTestBroker, _dataSource, _matsSerializer);
-
+        // We handle life cycling in the Rule, so we don't need the auto-closing feature of the MatsTestFactory.
+        MatsFactory matsFactory = MatsTestFactory.createWithBroker(_matsTestBroker, _matsSerializer, _dataSource);
         // Add it to the list of created MatsFactories.
         _createdMatsFactories.add(matsFactory);
         return matsFactory;
@@ -233,7 +233,8 @@ public abstract class AbstractMatsTest {
      * MatsFactory. Another scenario is that you have a bunch of @Test methods, which inside the test sets up an
      * endpoint in the "Arrange" section. If you employ the same endpointId for each of those setups (that is, inside
      * the @Test method itself), you will get "duplicate endpoint" (which is good, as your test would probably randomly
-     * fail anyhow). Thus, as the first statement of each test, before creating the endpoint, invoke this method.
+     * fail anyhow). Thus, in such a scenario, as the first statement of each test, before creating the endpoint(s),
+     * invoke this method.
      */
     public void cleanMatsFactories() {
         // :: Since removing all endpoints will destroy the MatsFuturizer if it is made, we'll first close that
