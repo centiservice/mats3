@@ -27,6 +27,9 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.CacheSourceData;
 public class Test_EagerCache {
     private static final Logger log = LoggerFactory.getLogger(Test_EagerCache.class);
 
+    private ObjectMapper _objectMapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
+    private ObjectWriter _replyWriter = _objectMapper.writerFor(ReplyDTO.class);
+
     @Test
     public void test() throws InterruptedException, JsonProcessingException {
         run();
@@ -39,10 +42,7 @@ public class Test_EagerCache {
 
         ReplyDTO sourceData = DummyFinancialService.createRandomReplyDTO(1234L, 10);
 
-        ObjectMapper objectMapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
-        ObjectWriter replyWriter = objectMapper.writerFor(ReplyDTO.class);
-
-        String serializedSourceData = replyWriter.writeValueAsString(sourceData);
+        String serializedSourceData = _replyWriter.writeValueAsString(sourceData);
 
         MatsEagerCacheServer cacheServer = new MatsEagerCacheServer(serverMatsFactory, "Customers",
                 CustomerTransferDTO.class,
@@ -97,9 +97,10 @@ public class Test_EagerCache {
         ReplyDTO cacheData = new ReplyDTO();
         cacheData.customers = dataCarrier.customers;
 
-        String serializedReceivedData = replyWriter.writeValueAsString(sourceData);
+        String serializedCacheData = _replyWriter.writeValueAsString(cacheData);
 
-        Assert.assertEquals("The serialized data should be the same.", serializedSourceData, serializedReceivedData);
+        Assert.assertEquals("The serialized data should be the same from source, via server-to-client,"
+                + " and from cache.", serializedSourceData, serializedCacheData);
 
         // Shutdown
         serverMatsFactory.close();
