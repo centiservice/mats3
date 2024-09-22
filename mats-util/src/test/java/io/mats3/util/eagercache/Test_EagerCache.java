@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,8 @@ public class Test_EagerCache {
 
         ObjectMapper objectMapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
         ObjectWriter replyWriter = objectMapper.writerFor(ReplyDTO.class);
+
+        String serializedSourceData = replyWriter.writeValueAsString(sourceData);
 
         MatsEagerCacheServer cacheServer = new MatsEagerCacheServer(serverMatsFactory, "Customers",
                 CustomerTransferDTO.class,
@@ -93,6 +96,10 @@ public class Test_EagerCache {
 
         ReplyDTO cacheData = new ReplyDTO();
         cacheData.customers = dataCarrier.customers;
+
+        String serializedReceivedData = replyWriter.writeValueAsString(sourceData);
+
+        Assert.assertEquals("The serialized data should be the same.", serializedSourceData, serializedReceivedData);
 
         // Shutdown
         serverMatsFactory.close();
