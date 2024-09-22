@@ -27,7 +27,7 @@ import java.io.OutputStream;
  * <p>
  * The method {@link #toByteArray()} returns the compressed data as a byte array of the correct size (chopped to the
  * correct size). The method {@link #getUncroppedInternalArray()} returns the internal byte array that the compressed
- * data is written to, which might be the original array if supplied in the construction and the data fit, or a new,
+ * data is written to, which might be the original array if supplied in the construction and the data fits, or a new,
  * larger array after growing. It is probably not of the correct size. The reason why you would use this latter method
  * is if you want to add more data to the array, e.g. by using it as the target in a new instance of this class for
  * adding another compressed "file". The current position in the array is given by {@link #getCurrentPosition()}.

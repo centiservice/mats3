@@ -7,7 +7,10 @@ import java.util.zip.DeflaterOutputStream;
 
 /**
  * An {@link OutputStream} that compresses data using the Deflate algorithm. It extends {@link DeflaterOutputStream} and
- * provides statistics about the compression process.
+ * provides statistics about the compression process. It uses a {@link #getDefaultCompressionLevel() default compression
+ * level of 1} (instead of 6), as this class's main intended use case is for compressing data for sending many unique
+ * packets over the network, where low time and CPU usage is much more important than additional unimpressive size
+ * reductions.
  * <p>
  * Notice for usage within Mats3: It doesn't seem like the Jackson library uses single-byte output at all, but rather
  * internally buffers and performs its writes in chunks of close up to, and including, 8000 bytes. This alleviates the
@@ -19,10 +22,11 @@ public class DeflaterOutputStreamWithStats extends DeflaterOutputStream {
     /**
      * The compression level to use when compressing data. Based on some performance tests (look in the
      * 'Test_SerializationPerformance' class), using synthetic JSON data, the size reductions diminishes very fast,
-     * while the CPU and time usage increases substantially. There seems to be an inflection point at level 3: At higher
-     * levels, the time used goes up rather fast, while the size reduction is minimal. However, the time used at level 3
-     * is quite a bit higher for larger data sets: 205MB "random JSON" down to 60MB (level 1, 2.2sec) or 50MB (level 3,
-     * 5.4 sec). We thus set the default to 1.
+     * while the CPU and time usage increases substantially. Of note, there seems to be an inflection point at level 3:
+     * At higher levels, the time used goes up rather fast, while the size reduction is minimal. But even then, the time
+     * used at level 3 is quite a bit higher for larger data sets: 205MB "random JSON" down to 60MB in 2.2 sec for level
+     * 1, compared to 5.4 seconds for 50MB at level 3. We thus set the default to 1, as time (and CPU use) is much more
+     * important than size reduction.
      * <p>
      * <i>(Note that when using "DEFAULT_COMPRESSION = -1", the default level for Zlib is 6, and this checks out when
      * comparing the timings and sizes from the tests - they are the same as with explicit 6.)</i>

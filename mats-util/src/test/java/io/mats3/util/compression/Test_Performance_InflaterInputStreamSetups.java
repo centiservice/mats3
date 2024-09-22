@@ -34,17 +34,18 @@ import io.mats3.util.FieldBasedJacksonMapper;
  * <h3>Results</h3>
  * <p>
  * For larger sizes (e.g. 20k customers), the difference between the setups is negligible. With or without reused
- * Inflater is not measurable. The {@link InflaterInputStreamWithStats} is a measurable bit slower, (176.96 ms to 179.21
- * ms, ~1.2%), but when using the ArrayInput, it is a small tad faster (175.46 ms).
+ * Inflater is not measurable. The {@link InflaterInputStreamWithStats} is a fraction slower, (176.96 ms to 179.21 ms,
+ * ~1.2%), but when using the ArrayInput, it is a small tad faster (175.46 ms).
  * <p>
- * For smaller sizes (e.g. 10 customers), the differences are really small in absolute terms (0.0951 ms vs. 0.0905 ms,
- * 0.05 ms) . The {@link InflaterInputStreamWithStats} is a tad slower (0.0905 ms vs. 0.1093 ms, %lt;0.02 ms, ~2%). For
- * such small sizes, the ArrayInput variant's improvement is also negligible, &lt;0.01 ms).
+ * For smaller sizes (e.g. 10 customers), the differences of reusing are minuscule in absolute terms (0.0951 ms vs.
+ * 0.0905 ms, 0.05 ms) . The {@link InflaterInputStreamWithStats} is a tad slower (0.0905 ms vs. 0.1093 ms, %lt;0.02 ms,
+ * ~2%). For such small sizes, the ArrayInput variant's improvement is also negligible, &lt;0.01 ms).
  * <p>
- * <b>Net result is, IMHO:</b> These performance difference between these variants with stats and ArrayInput is so
- * small that it makes no difference, while they do have statistics and the convenience of using ArrayInput. As with
- * the DeflaterOutputStream testing, the performance difference between reusing Inflater or not is about 0.05 ms, which
- * is not worth the trouble of reusing the Inflater.
+ * <b>Net result is, IMHO:</b> These performance difference between these variants with stats and ArrayInput is so small
+ * that it makes no difference, while they do provide statistics and the convenience of using ArrayInput. As with the
+ * DeflaterOutputStream testing, the performance difference of reusing Inflater is about 0.05 ms, which is not worth the
+ * trouble of pooling or similar. It could make sense if you <i>in a particular process</i> need to decompress multiple
+ * chunks (e.g. in a loop): You could create and reuse an Inflater for that process, and end() it when done.
  *
  * @see Test_Performance_DeflaterOutputStreamsSetups
  */
@@ -52,7 +53,7 @@ public class Test_Performance_InflaterInputStreamSetups {
 
     @Test
     public void test() throws IOException {
-        smaller();
+        checkedinFast();
     }
 
     public void checkedinFast() throws IOException {
