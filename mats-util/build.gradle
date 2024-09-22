@@ -19,6 +19,10 @@ dependencies {
 
     // The JUnit library
     testImplementation "junit:junit:$junitVersion"
+    // Serialization
+    testImplementation project(":mats-serial-json")
+    // MatsTestBroker
+    testImplementation project(":mats-test-broker")
     // Mats-specific JUnit test classes
     testImplementation project(":mats-test-junit")
     // We want the standard logging, which will be auto-installed by being on the classpath.
