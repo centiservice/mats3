@@ -427,11 +427,11 @@ public class Test_SerializationPerformance {
         long nanos_Deflate_Total = 0;
         byte[] output = null;
         for (int i = 0; i < rounds; i++) {
-            System.setProperty("mats.deflate.compressionLevel", Integer.toString(level));
             long nanosStart_Total = System.nanoTime();
 
             var baos = new ByteArrayOutputStream();
             var deflaterStream = new DeflaterOutputStreamWithStats(baos, bufferSize);
+            deflaterStream.setCompressionLevel(level);
             _replyDtoWriter.writeValue(deflaterStream, replyDto);
             output = baos.toByteArray();
 
@@ -451,11 +451,10 @@ public class Test_SerializationPerformance {
     }
 
     public byte[] serializeDto(int level, int bufferSize, ReplyDTO replyDto) throws IOException {
-        System.setProperty("mats.deflate.compressionLevel", Integer.toString(level));
         var baos = new ByteArrayOutputStream();
         var deflaterStream = new DeflaterOutputStreamWithStats(baos, bufferSize);
+        deflaterStream.setCompressionLevel(level);
         _replyDtoWriter.writeValue(deflaterStream, replyDto);
-
         return baos.toByteArray();
     }
 }

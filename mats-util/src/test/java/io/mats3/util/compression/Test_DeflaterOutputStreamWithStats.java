@@ -31,7 +31,7 @@ public class Test_DeflaterOutputStreamWithStats {
         // Compress the data to be used in the tests using standard Java
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DeflaterOutputStream out = new DeflaterOutputStream(baos, new Deflater(DeflaterOutputStreamWithStats
-                .getDefaultCompressionLevel()));
+                .DEFAULT_COMPRESSION_LEVEL));
         try {
             out.write(_dataUncompressed);
             out.close();

@@ -70,7 +70,6 @@ public class Test_BasicJavaSerComp_Performance {
 
     @Test
     public void basic() throws IOException {
-        // System.setProperty("mats.deflate.compressionLevel", "1");
         for (int i = 0; i < 5; i++) {
             // Se above: 84_000 gives about 50MB compressed with level 3, and 60MB with level 1.
             runTest(5);

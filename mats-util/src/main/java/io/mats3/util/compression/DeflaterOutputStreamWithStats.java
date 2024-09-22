@@ -7,7 +7,7 @@ import java.util.zip.DeflaterOutputStream;
 
 /**
  * An {@link OutputStream} that compresses data using the Deflate algorithm. It extends {@link DeflaterOutputStream} and
- * provides statistics about the compression process. It uses a {@link #getDefaultCompressionLevel() default compression
+ * provides statistics about the compression process. It uses a {@link #DEFAULT_COMPRESSION_LEVEL default compression
  * level of 1} (instead of 6), as this class's main intended use case is for compressing data for sending many unique
  * packets over the network, where low time and CPU usage is much more important than additional unimpressive size
  * reductions.
@@ -31,12 +31,10 @@ public class DeflaterOutputStreamWithStats extends DeflaterOutputStream {
      * <i>(Note that when using "DEFAULT_COMPRESSION = -1", the default level for Zlib is 6, and this checks out when
      * comparing the timings and sizes from the tests - they are the same as with explicit 6.)</i>
      * <p>
-     * You can override this default setting the system property "mats.deflate.compressionLevel" to the desired level.
-     * It is read dynamically, so you can change the default at runtime.
+     * 
+     * "mats.deflate.compressionLevel"
      */
-    public static int getDefaultCompressionLevel() {
-        return Integer.parseInt(System.getProperty("mats.deflate.compressionLevel", "1"));
-    }
+    public static int DEFAULT_COMPRESSION_LEVEL = 1;
 
     private long _uncompressedBytesInput = -1;
     private long _compressedBytesOutput = -1;
@@ -54,7 +52,7 @@ public class DeflaterOutputStreamWithStats extends DeflaterOutputStream {
      *            the destination for the compressed data.
      */
     public DeflaterOutputStreamWithStats(OutputStream out) {
-        super(out, new Deflater(getDefaultCompressionLevel()), 512);
+        super(out, new Deflater(DEFAULT_COMPRESSION_LEVEL), 512);
     }
 
     /**
@@ -68,7 +66,21 @@ public class DeflaterOutputStreamWithStats extends DeflaterOutputStream {
      *            the size of the buffer to use when compressing the data.
      */
     public DeflaterOutputStreamWithStats(OutputStream out, int bufferSize) {
-        super(out, new Deflater(getDefaultCompressionLevel()), bufferSize);
+        super(out, new Deflater(DEFAULT_COMPRESSION_LEVEL), bufferSize);
+    }
+
+    /**
+     * @param level
+     *            the compression level to use when compressing data. {@link #DEFAULT_COMPRESSION_LEVEL The default is
+     *            1}, which is adequate for messaging scenarios, where time and CPU usage is much more important than
+     *            additional unimpressive size reductions.
+     */
+    public void setCompressionLevel(int level) {
+        // NOTE: If we ever allow to supply a Deflater, we should let this method throw an IllegalStateException if the
+        // user has supplied a Deflater: He should rather set the compression level on the Deflater itself. Changing
+        // it via this innocuous method would affect the outside-provided Deflater, which might get unintened
+        // consequences if it was a part of a pool.
+        def.setLevel(level);
     }
 
     /**

@@ -104,7 +104,7 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
                 this::compressDeflaterOutputStream);
 
         holder = pristine.fork();
-        holder.deflater = new Deflater(DeflaterOutputStreamWithStats.getDefaultCompressionLevel());
+        holder.deflater = new Deflater(DeflaterOutputStreamWithStats.DEFAULT_COMPRESSION_LEVEL);
         holder.useDumpStream = useDumpStream;
         runPerf("DeflaterOutputStream with reused Deflater", holder, warmupCount, perfCount,
                 this::compressDeflaterOutputStream);
@@ -168,7 +168,7 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
         // ?: Do we need to create the Deflater ourselves?
         if (holder.deflater == null) {
             // -> Yes, create it, and remember that we need to end and clean up after ourselves.
-            holder.deflater = new Deflater(DeflaterOutputStreamWithStats.getDefaultCompressionLevel());
+            holder.deflater = new Deflater(DeflaterOutputStreamWithStats.DEFAULT_COMPRESSION_LEVEL);
             singleUseDeflater = true;
         }
 
@@ -287,7 +287,7 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
             byte[] serialized = replyDtoWriter.writeValueAsBytes(randomReplyDTO);
 
             var bais = new ByteArrayInputStream(serialized);
-            Deflater deflater = new Deflater(ByteArrayDeflaterOutputStreamWithStats.getDefaultCompressionLevel());
+            Deflater deflater = new Deflater(ByteArrayDeflaterOutputStreamWithStats.DEFAULT_COMPRESSION_LEVEL);
             var deflaterInputStream = new DeflaterInputStream(bais, deflater);
             byte[] compressed = deflaterInputStream.readAllBytes();
             deflaterInputStream.close();
