@@ -54,10 +54,14 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
 
     @Test
     public void test() throws IOException {
+        checkedInFast();
+    }
+
+    private void checkedInFast() throws IOException {
         int customers = 10;
         int warmupCount = 10;
         int perfCount = 50;
-        boolean useDumpStream = false;
+        boolean useDumpStream = true;
 
         run(customers, warmupCount, perfCount, useDumpStream);
     }
@@ -66,7 +70,7 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
         int customers = 10;
         int warmupCount = 200;
         int perfCount = 1000;
-        boolean useDumpStream = false;
+        boolean useDumpStream = true;
 
         run(customers, warmupCount, perfCount, useDumpStream);
     }
@@ -100,7 +104,7 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
                 this::compressDeflaterOutputStream);
 
         holder = pristine.fork();
-        holder.deflater = new Deflater(1);
+        holder.deflater = new Deflater(DeflaterOutputStreamWithStats.getDefaultCompressionLevel());
         holder.useDumpStream = useDumpStream;
         runPerf("DeflaterOutputStream with reused Deflater", holder, warmupCount, perfCount,
                 this::compressDeflaterOutputStream);
@@ -158,12 +162,27 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
         long nanosAtStart_Compressing = System.nanoTime();
         var dumpOutput = holder.getOutputStream();
 
-        var deflaterOutputStream = holder.deflater != null
-                ? new DeflaterOutputStream(dumpOutput, holder.deflater)
-                : new DeflaterOutputStream(dumpOutput);
+        // Oops, since we're now using level=1 as default, we can't use the standard set of constructors, as
+        // they will create a new "standard deflater" with level=6. So we need to create the Deflater ourselves.
+        boolean singleUseDeflater = false;
+        // ?: Do we need to create the Deflater ourselves?
+        if (holder.deflater == null) {
+            // -> Yes, create it, and remember that we need to end and clean up after ourselves.
+            holder.deflater = new Deflater(DeflaterOutputStreamWithStats.getDefaultCompressionLevel());
+            singleUseDeflater = true;
+        }
+
+        var deflaterOutputStream = new DeflaterOutputStream(dumpOutput, holder.deflater);
         deflaterOutputStream.write(holder.uncompressed);
         deflaterOutputStream.close();
-        if (holder.deflater != null) {
+        // ?: Did we create the Deflater ourselves?
+        if (singleUseDeflater) {
+            // -> Yes, we need to end it, and then null it out to leave it intact for the next run.
+            holder.deflater.end();
+            holder.deflater = null;
+        }
+        else {
+            // -> No, we need to reset it.
             holder.deflater.reset();
         }
 
@@ -268,7 +287,7 @@ public class Test_Performance_DeflaterOutputStreamsSetups {
             byte[] serialized = replyDtoWriter.writeValueAsBytes(randomReplyDTO);
 
             var bais = new ByteArrayInputStream(serialized);
-            Deflater deflater = new Deflater(1);
+            Deflater deflater = new Deflater(ByteArrayDeflaterOutputStreamWithStats.getDefaultCompressionLevel());
             var deflaterInputStream = new DeflaterInputStream(bais, deflater);
             byte[] compressed = deflaterInputStream.readAllBytes();
             deflaterInputStream.close();
