@@ -1,6 +1,5 @@
 package io.mats3.serial.json;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.Deflater;
@@ -15,7 +14,7 @@ import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
 import io.mats3.util.FieldBasedJacksonMapper;
-import io.mats3.util.compression.DeflaterOutputStreamWithStats;
+import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
 import io.mats3.util.compression.InflaterInputStreamWithStats;
 
 /**
@@ -140,25 +139,23 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         try {
             long nanosAtStart_SerializationAndCompression = System.nanoTime();
             // :: We now always compress since we don't know whether the result will be small.
-            // Target for compression is a ByteArrayOutputStream, which we then get the byte[] from.
-            ByteArrayOutputStream baos = new ByteArrayOutputStream(1024);
             // Compress using DeflaterOutputStreamWithStats, which will give us the time taken for compression.
-            DeflaterOutputStreamWithStats out = new DeflaterOutputStreamWithStats(baos);
+            ByteArrayDeflaterOutputStreamWithStats out = new ByteArrayDeflaterOutputStreamWithStats();
+            // Set the compression level on the underlying Deflater.
+            out.setCompressionLevel(_compressionLevel);
             // Write the MatsTrace to the compressed stream.
             // NOTE: Upon having fully written the MatsTrace, it will close the underlying DeflaterOutputStream,
             // which will close the underlying ByteArrayOutputStream.
             _matsTraceJson_Writer.writeValue(out, matsTrace);
             // Get the time taken for compression.
-            long nanosTaken_Compression = out.getDeflateTimeNanos();
+            long nanosTaken_Compression = out.getDeflateAndWriteTimeNanos();
             // Calculate the time taken for serialization, by subtracting the compression time from the total.
             long nanosTaken_Serialization = System.nanoTime() - nanosAtStart_SerializationAndCompression
                     - nanosTaken_Compression;
 
             // Get the compressed bytes from the ByteArrayOutputStream.
-            byte[] resultBytes = baos.toByteArray();
-            // Get the actual MatsTrace serialized length from the DeflaterOutputStreamWithStats, which holds of how
-            // many bytes were written to it by Jackson.
-            long serializedBytesLength = out.getUncompressedBytesInput();
+            byte[] resultBytes = out.toByteArray(); // Note: Closes the stream.
+            long serializedBytesLength = resultBytes.length;
             // Create the meta string, which is the identification, the compression method, and the decompressed size.
             String meta = IDENTIFICATION + ':' + COMPRESS_DEFLATE + DECOMPRESSED_SIZE_ATTRIBUTE + serializedBytesLength;
 
@@ -231,8 +228,9 @@ public class MatsSerializerJson implements MatsSerializer<String> {
                 meta = meta.substring(meta.indexOf(':') + 1);
             }
 
-            // NOTE: As of 2024-09-15, we only serialize with "deflate", but due to the existing user base, we need to
-            // handle both "deflate" and "plain" for incoming - the latter for when we didn't compress small payloads.
+            // NOTE: As of 2024-09-15, we always serialize with "deflate", but due to the existing user base, we need
+            // to handle both "deflate" and "plain" for incoming - the latter for when we earlier didn't compress small
+            // payloads.
 
             MatsTrace<String> matsTrace;
             if (meta.startsWith(COMPRESS_DEFLATE)) {
