@@ -232,7 +232,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     /**
      * Sets the number of delivery attempts before MatsFactory "manually" moves a message over to the DLQ. Zero means
      * unlimited, i.e. that the broker must handle it. The default is <code>6</code>: If
-     * 'message.getIntProperty("JMSXDeliveryCount")' >= 6, then move to DLQ - using the
+     * 'message.getIntProperty("JMSXDeliveryCount")' &ge; 6, then move to DLQ - using the
      * {@link #setDestinationNameModifierForDlqs(Function)} to modify the destination name to the DLQ.
      *
      * @param numberOfDeliveryAttemptsBeforeDlq
