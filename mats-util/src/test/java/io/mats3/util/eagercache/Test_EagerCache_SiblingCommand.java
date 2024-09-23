@@ -6,7 +6,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,78 +23,82 @@ import io.mats3.util.DummyFinancialService.ReplyDTO;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheReceivedData;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheSourceDataCallback;
+import io.mats3.util.eagercache.MatsEagerCacheServer.SiblingCommand;
 
-public class Test_EagerCache {
-    private static final Logger log = LoggerFactory.getLogger(Test_EagerCache.class);
+public class Test_EagerCache_SiblingCommand {
+    private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_SiblingCommand.class);
 
-    private ObjectMapper _objectMapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
-    private ObjectWriter _replyWriter = _objectMapper.writerFor(ReplyDTO.class);
-
-    public void test() throws InterruptedException, JsonProcessingException {
-        run();
-    }
+    private final ObjectMapper _objectMapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
+    private final ObjectWriter _replyWriter = _objectMapper.writerFor(ReplyDTO.class);
 
     @Test
     public void run() throws InterruptedException, JsonProcessingException {
         // ## ARRANGE:
 
         // Create the source data.
-        ReplyDTO sourceData = DummyFinancialService.createRandomReplyDTO(1234L, 10);
-        // For comparison on the client side: Serialize the source data.
-        String serializedSourceData = _replyWriter.writeValueAsString(sourceData);
+        ReplyDTO sourceData = DummyFinancialService.createRandomReplyDTO(1234L, 1);
 
         // :: Create the two MatsFactories, representing two different services:
         MatsTestBroker matsTestBroker = MatsTestBroker.create();
-        MatsFactory serverMatsFactory = MatsTestFactory.createWithBroker(matsTestBroker);
-        MatsFactory clientMatsFactory = MatsTestFactory.createWithBroker(matsTestBroker);
+        MatsFactory serverMatsFactory1 = MatsTestFactory.createWithBroker(matsTestBroker);
+        MatsFactory serverMatsFactory2 = MatsTestFactory.createWithBroker(matsTestBroker);
 
         // :: Create the CacheServer.
-        MatsEagerCacheServer cacheServer = new MatsEagerCacheServer(serverMatsFactory,
+        MatsEagerCacheServer cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
                 "Customers", CustomerCacheDTO.class, 1,
                 () -> new CustomerDTOCacheSourceDataCallback(sourceData),
                 CustomerCacheDTO::fromCustomerDTO);
 
-        // :: Create the CacheClient.
-        MatsEagerCacheClient<DataCarrier> cacheClient = new MatsEagerCacheClient<>(clientMatsFactory,
-                "Customers", CustomerCacheDTO.class,
-                DataCarrier::new, null);
+        MatsEagerCacheServer cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
+                "Customers", CustomerCacheDTO.class, 1,
+                () -> new CustomerDTOCacheSourceDataCallback(sourceData),
+                CustomerCacheDTO::fromCustomerDTO);
 
-        CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch[] latch = new CountDownLatch[1];
+        latch[0] = new CountDownLatch(3);
 
-        // .. testing that the initial population is done.
-        cacheClient.addOnInitialPopulationTask(() -> {
-            log.info("Initial population done!");
-            latch.countDown();
+        SiblingCommand[] siblingCommand = new SiblingCommand[3];
+
+        cacheServer1.addSiblingCommandListener(command -> {
+            log.info("CacheServer1 #A: Got sibling command: " + command);
+            siblingCommand[0] = command;
+            latch[0].countDown();
+        });
+
+        cacheServer1.addSiblingCommandListener(command -> {
+            log.info("CacheServer1 #B: Got sibling command: " + command);
+            siblingCommand[1] = command;
+            latch[0].countDown();
+        });
+
+        cacheServer2.addSiblingCommandListener(command -> {
+            log.info("CacheServer2: Got sibling command: " + command);
+            siblingCommand[2] = command;
+            latch[0].countDown();
         });
 
         // ## ACT:
 
-        log.info("\n\n######### Starting the CacheServer and CacheClient.\n\n");
+        log.info("\n\n######### Starting the CacheServers, waiting for receivive loops.\n\n");
 
-        cacheServer.start();
-        cacheClient.start();
+        cacheServer1.start();
+        cacheServer2.start();
+        cacheServer1._waitForReceiving();
+        cacheServer2._waitForReceiving();
 
-        log.info("\n\n######### Waiting for initial population to be done.\n\n");
-        latch.await(10, TimeUnit.SECONDS);
 
-        log.info("\n\n######### Latched!\n\n");
+        log.info("\n\n######### Sending SiblingCommand from CacheServer 1.\n\n");
+
+        cacheServer1.sendSiblingCommand("Hello, CacheServers siblings!", "Customers", new byte[0]);
+
+        log.info("\n\n######### Waiting for sibling command to be received.\n\n");
+        latch[0].await(10, TimeUnit.SECONDS);
 
         // ## ASSERT:
 
-        DataCarrier dataCarrier = cacheClient.get();
-        log.info("######### Got the data! Size:[" + dataCarrier.customers.size() + "]");
-
-        ReplyDTO cacheData = new ReplyDTO();
-        cacheData.customers = dataCarrier.customers;
-
-        String serializedCacheData = _replyWriter.writeValueAsString(cacheData);
-
-        Assert.assertEquals("The serialized data should be the same from source, via server-to-client,"
-                + " and from cache.", serializedSourceData, serializedCacheData);
-
         // Shutdown
-        serverMatsFactory.close();
-        clientMatsFactory.close();
+        serverMatsFactory1.close();
+        serverMatsFactory2.close();
         matsTestBroker.close();
     }
 
@@ -135,4 +138,5 @@ public class Test_EagerCache {
             _sourceData.customers.forEach(consumer);
         }
     }
+
 }

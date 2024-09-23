@@ -13,8 +13,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
 
+import io.mats3.MatsEndpoint;
 import io.mats3.MatsFactory;
 import io.mats3.util.FieldBasedJacksonMapper;
+import io.mats3.util.TraceId;
 import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
 
 /**
@@ -89,6 +91,10 @@ public class MatsEagerCacheServer {
         // Configure as NDJSON (Newline Delimited JSON), which is a good format for streaming.
         _sentDataTypeWriter = mapper.writerFor(sentDataType).withRootValueSeparator("\n");
     }
+
+    private volatile boolean _running;
+    private volatile MatsEndpoint<Void, Void> _broadcastTerminator;
+    private volatile MatsEndpoint<Void, Void> _requestTerminator;
 
     /**
      * The service must provide an implementation of this interface to the cache-server, via a {@link Supplier}, so that
@@ -174,6 +180,26 @@ public class MatsEagerCacheServer {
      *            binary data is to be sent.
      */
     public void sendSiblingCommand(String command, String stringData, byte[] binaryData) {
+        if (!_running) {
+            throw new IllegalStateException("The MatsEagerCacheServer has not been started yet.");
+        }
+
+        BroadcastDto broadcast = new BroadcastDto();
+        broadcast.command = BroadcastDto.COMMAND_SIBLING_COMMAND;
+        broadcast.siblingCommand = command;
+        broadcast.siblingStringData = stringData;
+        broadcast.siblingBinaryData = binaryData;
+        broadcast.sentTimestamp = System.currentTimeMillis();
+        broadcast.sentNanoTime = System.nanoTime();
+
+        broadcast.sentNodename = _matsFactory.getFactoryConfig().getNodename();
+
+        _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
+            init.traceId(TraceId.create("EagerCache." + _dataName, "SiblingCommand").add("cmd", command))
+                    .from("EagerCache." + _dataName)
+                    .to(getBroadcastTopic(_dataName))
+                    .publish(broadcast);
+        });
     }
 
     /**
@@ -286,6 +312,14 @@ public class MatsEagerCacheServer {
     }
 
     public void close() {
+        // ?: Are we started? Note: we accept multiple close() invocations, as the close-part is harder to lifecycle
+        // manage than the start-part (It might e.g. be closed by Spring too, in addition to by the user).
+        if (_running) {
+            // -> Yes, we are started, so close down.
+            _broadcastTerminator.stop(30_000);
+            _requestTerminator.stop(30_000);
+            _running = false;
+        }
     }
 
     /**
@@ -300,9 +334,14 @@ public class MatsEagerCacheServer {
      * @return this instance, for chaining.
      */
     public MatsEagerCacheServer start() {
+        // ?: Have we already started?
+        if (_running) {
+            // -> Yes, we have already started - so you evidently have no control over the lifecycle of this object!
+            throw new IllegalStateException("The MatsEagerCacheServer has already been started.");
+        }
         // ::: Create the Mats endpoints
         // :: The endpoint that the clients will send requests to
-        _matsFactory.terminator("mats.MatsEagerCache." + _dataName + ".UpdateRequest", void.class,
+        _requestTerminator = _matsFactory.terminator(getCacheRequestQueue(_dataName), void.class,
                 CacheRequestDto.class, (ctx, state, msg) -> {
                     ByteArrayDeflaterOutputStreamWithStats out = new ByteArrayDeflaterOutputStreamWithStats();
 
@@ -364,13 +403,67 @@ public class MatsEagerCacheServer {
         // server will have to receive the update, even though it already has the data. However, we won't have to
         // deserialize the data, so the hit won't be that big. The obvious alternative is to have a separate topic for
         // the commands, but that would pollute the MQ Destination namespace with one extra topic per cache.
-        _matsFactory.subscriptionTerminator("mats.MatsEagerCache." + _dataName + ".BroadcastUpdate", void.class,
-                BroadcastDto.class, (ctx, state, msg) -> {
-                    log.info("Got a broadcast update: " + msg);
+        _broadcastTerminator = _matsFactory.subscriptionTerminator(getBroadcastTopic(_dataName), void.class,
+                BroadcastDto.class, (ctx, state, broadcastDto) -> {
+                    log.info("Got a broadcast update: " + broadcastDto);
+                    // ?: Is this a sibling command?
+                    if (broadcastDto.command.equals(BroadcastDto.COMMAND_SIBLING_COMMAND)) {
+                        // -> Yes, this is a sibling command.
+                        SiblingCommand siblingCommand = new SiblingCommand() {
+                            @Override
+                            public boolean commandOriginatedOnThisInstance() {
+                                return broadcastDto.sentNodename.equals(_matsFactory.getFactoryConfig().getNodename());
+                            }
+
+                            @Override
+                            public long getSentTimestamp() {
+                                return broadcastDto.sentTimestamp;
+                            }
+
+                            @Override
+                            public long getSentNanoTime() {
+                                return broadcastDto.sentNanoTime;
+                            }
+
+                            @Override
+                            public String getCommand() {
+                                return broadcastDto.siblingCommand;
+                            }
+
+                            @Override
+                            public String getStringData() {
+                                // TODO: Send sideloaded!
+                                return broadcastDto.siblingStringData;
+                            }
+
+                            @Override
+                            public byte[] getBinaryData() {
+                                // TODO: Send sideloaded!
+                                return broadcastDto.siblingBinaryData;
+                            }
+                        };
+                        for (SiblingCommandEventListener listener : _siblingCommandEventListeners) {
+                            try {
+                                listener.onSiblingCommand(siblingCommand);
+                            }
+                            catch (Throwable t) {
+                                log.error("Got exception from SiblingCommandEventListener [" + listener
+                                        + "], ignoring.", t);
+                            }
+                        }
+                    }
                 });
+
+        // We're now started.
+        _running = true;
 
         // For chaining
         return this;
+    }
+
+    void _waitForReceiving() {
+        _broadcastTerminator.waitForReceiving(30_000);
+        _requestTerminator.waitForReceiving(30_000);
     }
 
     static final class CacheRequestDto {
@@ -388,6 +481,7 @@ public class MatsEagerCacheServer {
     static final class BroadcastDto {
         static final String COMMAND_UPDATE_FULL = "UPDATE_FULL";
         static final String COMMAND_UPDATE_PARTIAL = "UPDATE_PARTIAL";
+        static final String COMMAND_SIBLING_COMMAND = "SIBLING_COMMAND";
 
         String command;
         String correlationId;
@@ -400,9 +494,16 @@ public class MatsEagerCacheServer {
         long sentNanoTime;
 
         int dataCount;
+        String metadata;
         long uncompressedSize;
         long compressedSize;
-        String metadata;
-    }
 
+        // The actual data is added as a sideload.
+
+        // For sibling commands
+        String siblingCommand;
+        String siblingStringData;
+        byte[] siblingBinaryData;
+        String sentNodename;
+    }
 }
