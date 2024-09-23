@@ -3,8 +3,8 @@ package io.mats3.util.eagercache;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -22,7 +22,8 @@ import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.CustomerDTO;
 import io.mats3.util.DummyFinancialService.ReplyDTO;
 import io.mats3.util.FieldBasedJacksonMapper;
-import io.mats3.util.eagercache.MatsEagerCacheServer.CacheSourceData;
+import io.mats3.util.eagercache.MatsEagerCacheClient.CacheReceivedData;
+import io.mats3.util.eagercache.MatsEagerCacheServer.CacheSourceDataCallback;
 
 public class Test_EagerCache {
     private static final Logger log = LoggerFactory.getLogger(Test_EagerCache.class);
@@ -30,56 +31,44 @@ public class Test_EagerCache {
     private ObjectMapper _objectMapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
     private ObjectWriter _replyWriter = _objectMapper.writerFor(ReplyDTO.class);
 
-    @Test
     public void test() throws InterruptedException, JsonProcessingException {
         run();
     }
 
+    @Test
     public void run() throws InterruptedException, JsonProcessingException {
+        // ## ARRANGE:
+
+        // Create the source data.
+        ReplyDTO sourceData = DummyFinancialService.createRandomReplyDTO(1234L, 10);
+        // For comparison on the client side: Serialize the source data.
+        String serializedSourceData = _replyWriter.writeValueAsString(sourceData);
+
+        // :: Create the two MatsFactories, representing two different services:
         MatsTestBroker matsTestBroker = MatsTestBroker.create();
         MatsFactory serverMatsFactory = MatsTestFactory.createWithBroker(matsTestBroker);
         MatsFactory clientMatsFactory = MatsTestFactory.createWithBroker(matsTestBroker);
 
-        ReplyDTO sourceData = DummyFinancialService.createRandomReplyDTO(1234L, 10);
+        // :: Create the CacheServer.
+        MatsEagerCacheServer cacheServer = new MatsEagerCacheServer(serverMatsFactory,
+                "Customers", CustomerCacheDTO.class, 1,
+                () -> new CustomerDTOCacheSourceDataCallback(sourceData),
+                CustomerCacheDTO::fromCustomerDTO);
 
-        String serializedSourceData = _replyWriter.writeValueAsString(sourceData);
-
-        MatsEagerCacheServer cacheServer = new MatsEagerCacheServer(serverMatsFactory, "Customers",
-                CustomerTransferDTO.class,
-                () -> new CacheSourceData<>() {
-                    @Override
-                    public int getDataCount() {
-                        return sourceData.customers.size();
-                    }
-
-                    @Override
-                    public String getMetadata() {
-                        return "Dummy Data!";
-                    }
-
-                    @Override
-                    public Stream<CustomerDTO> getSourceDataStream() {
-                        return sourceData.customers.stream();
-                    }
-                }, CustomerTransferDTO::fromCustomerDTO, 1);
-
-        MatsEagerCacheClient<DataCarrier> cacheClient = new MatsEagerCacheClient<>(
-                clientMatsFactory,
-                "Customers", CustomerTransferDTO.class, receivedData -> {
-                    log.info("Got the data! Meta:[" + receivedData.getMetadata() + "], Size:[" + receivedData
-                            .getDataCount() + "]");
-                    List<CustomerDTO> customers = receivedData.getReceivedDataStream()
-                            .map(CustomerTransferDTO::toCustomerDTO)
-                            .collect(Collectors.toList());
-                    return new DataCarrier(customers);
-                }, null);
+        // :: Create the CacheClient.
+        MatsEagerCacheClient<DataCarrier> cacheClient = new MatsEagerCacheClient<>(clientMatsFactory,
+                "Customers", CustomerCacheDTO.class,
+                DataCarrier::new, null);
 
         CountDownLatch latch = new CountDownLatch(1);
 
+        // .. testing that the initial population is done.
         cacheClient.addOnInitialPopulationTask(() -> {
             log.info("Initial population done!");
             latch.countDown();
         });
+
+        // ## ACT:
 
         log.info("\n\n######### Starting the CacheServer and CacheClient.\n\n");
 
@@ -90,6 +79,8 @@ public class Test_EagerCache {
         latch.await(10, TimeUnit.SECONDS);
 
         log.info("\n\n######### Latched!\n\n");
+
+        // ## ASSERT:
 
         DataCarrier dataCarrier = cacheClient.get();
         log.info("######### Got the data! Size:[" + dataCarrier.customers.size() + "]");
@@ -109,11 +100,39 @@ public class Test_EagerCache {
     }
 
     public static class DataCarrier {
+        private static final Logger log = LoggerFactory.getLogger(DataCarrier.class);
+
         public final List<CustomerDTO> customers;
 
-        public DataCarrier(List<CustomerDTO> customers) {
-            this.customers = customers;
+        DataCarrier(CacheReceivedData<CustomerCacheDTO> receivedData) {
+            log.info("Creating DataCarrier! Meta:[" + receivedData.getMetadata()
+                    + "], Size:[" + receivedData.getDataCount() + "]");
+            customers = receivedData.getReceivedDataStream()
+                    .map(CustomerCacheDTO::toCustomerDTO)
+                    .collect(Collectors.toList());
+        }
+    }
+
+    private static class CustomerDTOCacheSourceDataCallback implements CacheSourceDataCallback<CustomerDTO> {
+        private final ReplyDTO _sourceData;
+
+        public CustomerDTOCacheSourceDataCallback(ReplyDTO sourceData) {
+            _sourceData = sourceData;
         }
 
+        @Override
+        public int provideDataCount() {
+            return _sourceData.customers.size();
+        }
+
+        @Override
+        public String provideMetadata() {
+            return "Dummy Data!";
+        }
+
+        @Override
+        public void provideSourceData(Consumer<CustomerDTO> consumer) {
+            _sourceData.customers.forEach(consumer);
+        }
     }
 }

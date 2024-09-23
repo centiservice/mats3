@@ -1,10 +1,10 @@
 package io.mats3.util.eagercache;
 
 import java.io.IOException;
-import java.util.Iterator;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,12 +38,13 @@ import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
  * apply the update directly to the source data. It is beneficial if the originator also employs this event to update
  * its version of the source data, to ensure consistency between the nodes. A boolean will tell whether the command
  * originated on this instance - the one that originated (=<code>true</code>) will then propagate the update to the
- * MatsEagerCache via {@link #scheduleBroadcastFullUpdate()} or {@link #broadcastPartialUpdate(CacheSourceData)}.
+ * MatsEagerCache via {@link #scheduleBroadcastFullUpdate()} or
+ * {@link #broadcastPartialUpdate(CacheSourceDataCallback)}.
  * <p>
- * The source data is accessed by the cache server via the {@link CacheSourceData} supplier provided in the constructor.
- * It is important that the source data can be read in a consistent manner, so some kind of synchronization or locking
- * of the source data should be employed while the cache server reads it (mainly relevant if the source data is held in
- * memory).
+ * The source data is accessed by the cache server via the {@link CacheSourceDataCallback} supplier provided in the
+ * constructor. It is important that the source data can be read in a consistent manner, so some kind of synchronization
+ * or locking of the source data should be employed while the cache server reads it (mainly relevant if the source data
+ * is held in memory).
  * 
  * @author Endre Stølsvik 2024-09-03 19:30 - http://stolsvik.com/, endre@stolsvik.com
  */
@@ -54,13 +55,15 @@ public class MatsEagerCacheServer {
 
     private final MatsFactory _matsFactory;
     private final String _dataName;
-    private final Supplier<CacheSourceData<?>> _dataSupplier;
+    private final Supplier<CacheSourceDataCallback<?>> _dataSupplier;
     private final Function<?, ?> _dataTypeMapper;
     private final int _forcedUpdateIntervalMinutes;
 
     private final ObjectWriter _sentDataTypeWriter;
 
-    static String getCacheRequestTopic(String dataName) {
+    private final CopyOnWriteArrayList<SiblingCommandEventListener> _siblingCommandEventListeners = new CopyOnWriteArrayList<>();
+
+    static String getCacheRequestQueue(String dataName) {
         return "mats.MatsEagerCache." + dataName + ".UpdateRequest";
     }
 
@@ -70,12 +73,12 @@ public class MatsEagerCacheServer {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public <SRC, SENT> MatsEagerCacheServer(MatsFactory matsFactory, String dataName, Class<SENT> sentDataType,
-            Supplier<CacheSourceData<SRC>> dataSupplier, Function<SRC, SENT> dataTypeMapper,
-            int forcedUpdateIntervalMinutes) {
+            int forcedUpdateIntervalMinutes, Supplier<CacheSourceDataCallback<SRC>> dataSupplier,
+            Function<SRC, SENT> dataTypeMapper) {
 
         _matsFactory = matsFactory;
         _dataName = dataName;
-        _dataSupplier = (Supplier<CacheSourceData<?>>) (Supplier) dataSupplier;
+        _dataSupplier = (Supplier<CacheSourceDataCallback<?>>) (Supplier) dataSupplier;
         _dataTypeMapper = dataTypeMapper;
         _forcedUpdateIntervalMinutes = forcedUpdateIntervalMinutes;
 
@@ -87,21 +90,111 @@ public class MatsEagerCacheServer {
         _sentDataTypeWriter = mapper.writerFor(sentDataType).withRootValueSeparator("\n");
     }
 
-    public void addSiblingCommandListener(SiblingCommandEventListener siblingCommandEventListener) {
+    /**
+     * The service must provide an implementation of this interface to the cache-server, via a {@link Supplier}, so that
+     * the cache-server may request the information when it needs it. The cache server may ask for the source data at
+     * any time, and the supplier must provide a consistent snapshot of the source data. The only required method to
+     * implement, {@link #provideSourceData(Consumer)}, is invoked by the cache server to retrieve the source data. The
+     * service must invoke the provided DTO-{@link Consumer} repeatedly until the entire dataset (for full updates), or
+     * the partial dataset (for partial updates), has been provided, and then close any resources (e.g. SQL Connection),
+     * and return - thus marking the end of data, which will be sent to the cache clients.
+     *
+     * @param <SRC>
+     *            the source type of the data.
+     */
+    @FunctionalInterface
+    public interface CacheSourceDataCallback<SRC> {
+        /**
+         * Get the count of the data (i.e. how many entities), if known beforehand. The default implementation returns
+         * {@code -1}, which means that the count is not known. If the size is known, it may be used to optimize the
+         * cache server's handling of message byte arrays when getting data, e.g. not resize to 2x if there is only one
+         * of 1000s entities left. Note: Do <b>not</b> make any effort to get this value if not immediately available,
+         * e.g. by issuing a SELECT COUNT(1), as the memory savings will not be worth the performance penalty.
+         * <p>
+         * Note: The corresponding method on the client side is always correct, as we then have read the source data and
+         * know the count!
+         *
+         * @return the size of the data, or {@code -1} if not known.
+         */
+        default int provideDataCount() {
+            return -1;
+        }
+
+        /**
+         * Get the metadata. This is an optional method that can be used to provide some metadata about the data, which
+         * the client can use to log and display to the user (i.e. developers/operators) in the cache GUI. The default
+         * implementation returns {@code null}.
+         *
+         * @return the metadata, or {@code null} if not provided.
+         */
+        default String provideMetadata() {
+            return null;
+        }
+
+        /**
+         * The cache server will invoke this method to retrieve the source data to send to cache clients. You invoke the
+         * supplied consumer repeatedly until you've provided the entire dataset (for full updates), or the partial
+         * dataset (for partial updates), and then close any resources (e.g. SQL Connection), and return - thus marking
+         * the end of data, which will be sent to the cache clients
+         * <p>
+         * Care must be taken to ensure that the stream represent a consistent snapshot of the data, and that the data
+         * is not modified while the stream is being read, so some kind of synchronization or locking of the source data
+         * should probably be employed (mainly relevant if the source data is held in memory).
+         */
+        void provideSourceData(Consumer<SRC> consumer);
     }
 
+    /**
+     * Add a listener for sibling commands. {@link SiblingCommand Sibling commands} are messages sent from one sibling
+     * to all the other siblings, including the one that originated the command. This can be useful to propagate updates
+     * to the source data to all the siblings, to ensure that the source data is consistent between the siblings.
+     *
+     * @param siblingCommandEventListener
+     *            the listener to add.
+     */
+    public void addSiblingCommandListener(SiblingCommandEventListener siblingCommandEventListener) {
+        _siblingCommandEventListeners.add(siblingCommandEventListener);
+    }
+
+    /**
+     * Sends a {@link SiblingCommand sibling command}. This is a message sent from one sibling to all the other
+     * siblings, including the one that originated the command. This can be useful to propagate updates to the source
+     * data to all the siblings, to ensure that the source data is consistent between the siblings.
+     *
+     * @param command
+     *            the command name. This is a string that the siblings can use to determine what to do. It has no
+     *            meaning to the Cache Server or the Cache Clients.
+     * @param stringData
+     *            the string data to send with the command. This is a string that the siblings can use to determine what
+     *            to do. It has no meaning to the Cache Server or the Cache Clients. This can be {@code null} if no
+     *            string data is to be sent.
+     * @param binaryData
+     *            the binary data to send with the command. This is a byte array that the siblings can use to determine
+     *            what to do. It has no meaning to the Cache Server or the Cache Clients. This can be {@code null} if no
+     *            binary data is to be sent.
+     */
+    public void sendSiblingCommand(String command, String stringData, byte[] binaryData) {
+    }
+
+    /**
+     * The sibling command event listener. This is invoked when a sibling command is received.
+     */
     @FunctionalInterface
     public interface SiblingCommandEventListener {
         void onSiblingCommand(SiblingCommand command);
     }
 
+    /**
+     * A sibling command. This is a message sent from one sibling to all the other siblings, including the one that
+     * originated the command.
+     */
     public interface SiblingCommand {
         /**
          * Since all nodes will receive the command, including the one that originated it, this method tells whether the
          * command originated on this instance. This is useful to know whether to propagate the command to the
          * MatsEagerCache via {@link MatsEagerCacheServer#scheduleBroadcastFullUpdate()} or
-         * {@link MatsEagerCacheServer#broadcastPartialUpdate(CacheSourceData)}. Also, the {@link #getSentNanoTime()}
-         * will only be meaningful on the instance that originated the command.
+         * {@link MatsEagerCacheServer#broadcastPartialUpdate(CacheSourceDataCallback)}. Also, the
+         * {@link #getSentNanoTime()} will only be meaningful on the instance that originated the command.
          * 
          * @return whether the command originated on this instance.
          */
@@ -130,19 +223,16 @@ public class MatsEagerCacheServer {
         byte[] getBinaryData();
     }
 
-    public void sendSiblingCommand(String command, String stringData, byte[] binaryData) {
-    }
-
     /**
      * Schedules a full update of the cache. It is scheduled to run after a little while, the delay being a function of
      * how soon since the last time this was invoked. If it is a long time since last invocation, it will be scheduled
      * to run soon (~ within 1 second), while if the previous time was a short time ago, it will be scheduled to run a
      * bit later (~ within 7 seconds). The reason for this logic is to avoid "thundering herd" problems, where all
-     * clients request a full update at the same time (resulting in a lot of full updates being done in parallel), which
-     * may happen if all clients are booted at the same time.
+     * clients request a full update at the same time (which otherwise would result in a lot of full updates being sent
+     * in parallel), which may happen if all clients are booted at the same time.
      * <p>
-     * The data to send is retrieved by the cache server using the {@link CacheSourceData} supplier provided in the
-     * constructor.
+     * The data to send is retrieved by the cache server using the {@link CacheSourceDataCallback} supplier provided in
+     * the constructor.
      * <p>
      * The method is asynchronous, and returns immediately.
      */
@@ -163,22 +253,24 @@ public class MatsEagerCacheServer {
      * Correctly applying a partial update on the client can be more complex than consuming a full update, as the client
      * must merge the partial update into the existing data structures, taking care to overwrite where appropriate, but
      * insert if the entity is new. This is why the feature is optional, and should only be used if the source data is
-     * frequently updated in a way that makes the use of partial updates actually make a dent.
+     * frequently updated in a way that makes the use of partial updates actually make a performance dent.
      * <p>
      * The method is synchronous, and returns when the data has been consumed and the partial update has been sent out
      * to clients.
      * <p>
      * If the cache server is currently in the process of sending a full or partial update, this method will be held
      * until current update is finished - there is an exclusive lock around sending updates. It is also important to let
-     * the stream of partial data returned from {@link CacheSourceData#getSourceDataStream()} read directly from the
-     * source data structures, and not from some temporary not-applied representation, as otherwise the partial update
-     * might send out data that is older than what is currently present and which might have already been sent via a
-     * concurrent update (think about races here). Thus, always first apply the update to the source data in some atomic
-     * fashion, and then retrieve the partial update from the source data, also in an atomic fashion.
+     * the stream of partial data returned from {@link CacheSourceDataCallback#provideSourceData(Consumer)} read
+     * directly from the source data structures, and not from some temporary not-applied representation, as otherwise
+     * the partial update might send out data that is older than what is currently present and which might have already
+     * been sent via a concurrent update (think about races here). Thus, always first apply the update to the source
+     * data in some atomic fashion, and then retrieve the partial update from the source data, also in an atomic fashion
+     * (e.g. use synchronization or locking).
      * <p>
-     * It is advisable to not send a lot of partial updates in a short time span, as this will result in memory churn on
-     * the clients. Rather coalesce the partial updates into a single update, or wait until the source data has
-     * stabilized before sending out a partial update.
+     * It is advisable to not send a lot of partial updates in a short time span, as this will result in memory churn
+     * and higher memory usage on the clients due to message reception and partial update merge. Rather coalesce the
+     * partial updates into a single update, or use a waiting mechanism until the source data has stabilized before
+     * sending out a partial update - or just send a full update.
      * <p>
      * Also, if the partial update is of a substantial part of the data, it is advisable to send a full update instead -
      * this can actually give lower peak memory load on the clients, as they can then just throw away the old data
@@ -190,43 +282,10 @@ public class MatsEagerCacheServer {
      * @param data
      *            the data to send out as a partial update.
      */
-    public <SRC> void broadcastPartialUpdate(CacheSourceData<SRC> data) {
+    public <SRC> void broadcastPartialUpdate(CacheSourceDataCallback<SRC> data) {
     }
 
     public void close() {
-    }
-
-    public interface CacheSourceData<T> {
-        /**
-         * Get the size of the data, if known beforehand. The default implementation returns -1, which means that the
-         * size is not known. If the size is known, it may be used to optimize the cache server's handling of the data
-         * stream by allocating a buffer of a relevant size. (Note that the corresponding method on the client side is
-         * always correct, as we then have read the data stream and know the size).
-         *
-         * @return the size of the data, or -1 if not known.
-         */
-        default int getDataCount() {
-            return -1;
-        }
-
-        /**
-         * Get the metadata. This is an optional method that can be used to provide some metadata about the data, which
-         * the client can use to e.g. log or display to the user. The default implementation returns null.
-         *
-         * @return the metadata, or null if not provided.
-         */
-        default String getMetadata() {
-            return null;
-        }
-
-        /**
-         * Get the source data stream. This is the method that the cache server will invoke to retrieve the source data
-         * to send out to the cache clients. Care must be taken to ensure that the stream represent a consistent
-         * snapshot of the data, and that the data is not modified while the stream is being read, so some kind of
-         * synchronization or locking of the source data should probably be employed (mainly relevant if the source data
-         * is held in memory).
-         */
-        Stream<T> getSourceDataStream();
     }
 
     /**
@@ -247,26 +306,26 @@ public class MatsEagerCacheServer {
                 CacheRequestDto.class, (ctx, state, msg) -> {
                     ByteArrayDeflaterOutputStreamWithStats out = new ByteArrayDeflaterOutputStreamWithStats();
 
-                    int dataCount = 0;
-                    CacheSourceData<?> source = _dataSupplier.get();
-
-                    // We checked this at construction time. We'll just have to live with the uncheckedness.
-                    Function<Object, Object> uncheckedApplier = new Function<>() {
-                        @SuppressWarnings({ "unchecked", "rawtypes" })
-                        @Override
-                        public Object apply(Object o) {
-                            return ((Function) _dataTypeMapper).apply(o);
-                        }
-                    };
+                    int[] dataCount = new int[1];
+                    CacheSourceDataCallback<?> sourceProvider = _dataSupplier.get();
+                    // We checked these at construction time. We'll just have to live with the uncheckedness.
+                    @SuppressWarnings("unchecked")
+                    CacheSourceDataCallback<Object> uncheckedSourceProvider = (CacheSourceDataCallback<Object>) sourceProvider;
+                    @SuppressWarnings({ "unchecked", "rawtypes" })
+                    Function<Object, Object> uncheckedDataTypeMapper = o -> ((Function) _dataTypeMapper).apply(o);
 
                     try {
                         SequenceWriter jacksonSeq = _sentDataTypeWriter.writeValues(out);
-                        Stream<?> sentData = source.getSourceDataStream().map(uncheckedApplier);
-                        Iterator<?> iterator = sentData.iterator();
-                        while (iterator.hasNext()) {
-                            dataCount++;
-                            jacksonSeq.write(iterator.next());
-                        }
+                        Consumer<Object> consumer = o -> {
+                            try {
+                                jacksonSeq.write(uncheckedDataTypeMapper.apply(o));
+                            }
+                            catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                            dataCount[0]++;
+                        };
+                        uncheckedSourceProvider.provideSourceData(consumer);
                         jacksonSeq.close();
                     }
                     catch (IOException e) {
@@ -283,10 +342,10 @@ public class MatsEagerCacheServer {
                     broadcast.requestSentNanoTime = msg.sentNanoTime;
                     broadcast.sentTimestamp = System.currentTimeMillis();
                     broadcast.sentNanoTime = System.nanoTime();
-                    broadcast.dataCount = dataCount; // Actual data count, not the one from the source.
+                    broadcast.dataCount = dataCount[0]; // Actual data count, not the one from the sourceProvider.
                     broadcast.uncompressedSize = out.getUncompressedBytesInput();
                     broadcast.compressedSize = out.getCompressedBytesOutput();
-                    broadcast.metadata = source.getMetadata();
+                    broadcast.metadata = sourceProvider.provideMetadata();
 
                     ctx.initiate(init -> {
                         init.traceId("RequestReply")
