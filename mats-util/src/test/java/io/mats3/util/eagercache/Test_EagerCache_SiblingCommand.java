@@ -30,12 +30,12 @@ public class Test_EagerCache_SiblingCommand {
         // Create the source data.
         ReplyDTO sourceData = DummyFinancialService.createRandomReplyDTO(1234L, 1);
 
-        // :: Create the two MatsFactories, representing two different services:
+        // :: Create the two MatsFactories, representing two different instances of the server-side service:
         MatsTestBroker matsTestBroker = MatsTestBroker.create();
         MatsFactory serverMatsFactory1 = MatsTestFactory.createWithBroker(matsTestBroker);
         MatsFactory serverMatsFactory2 = MatsTestFactory.createWithBroker(matsTestBroker);
 
-        // :: Create the CacheServer.
+        // :: Create the CacheServers:
         MatsEagerCacheServer cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
                 "Customers", CustomerCacheDTO.class, 1,
                 () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),

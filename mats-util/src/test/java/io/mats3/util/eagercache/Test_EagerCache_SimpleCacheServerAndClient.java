@@ -1,10 +1,8 @@
 package io.mats3.util.eagercache;
 
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -22,14 +20,14 @@ import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.CustomerDTO;
 import io.mats3.util.DummyFinancialService.ReplyDTO;
 import io.mats3.util.FieldBasedJacksonMapper;
-import io.mats3.util.eagercache.MatsEagerCacheClient.CacheReceivedData;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheSourceDataCallback;
 
 /**
- * Tests the {@link MatsEagerCacheServer} and {@link MatsEagerCacheClient}.
+ * Simple/basic test of the {@link MatsEagerCacheServer} and {@link MatsEagerCacheClient}: A single server and a single
+ * client, where the server has data, and the client is then expected to get the same data.
  */
-public class Test_EagerCache_Basic {
-    private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_Basic.class);
+public class Test_EagerCache_SimpleCacheServerAndClient {
+    private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_SimpleCacheServerAndClient.class);
 
     private final ObjectMapper _objectMapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
     private final ObjectWriter _replyWriter = _objectMapper.writerFor(ReplyDTO.class);
@@ -62,7 +60,7 @@ public class Test_EagerCache_Basic {
         CountDownLatch latch = new CountDownLatch(1);
 
         // .. testing that the initial population is done.
-        cacheClient.addOnInitialPopulationTask(() -> {
+        cacheClient.addAfterInitialPopulationTask(() -> {
             log.info("Initial population done!");
             latch.countDown();
         });
@@ -96,20 +94,6 @@ public class Test_EagerCache_Basic {
         serverMatsFactory.close();
         clientMatsFactory.close();
         matsTestBroker.close();
-    }
-
-    public static class DataCarrier {
-        private static final Logger log = LoggerFactory.getLogger(DataCarrier.class);
-
-        public final List<CustomerDTO> customers;
-
-        DataCarrier(CacheReceivedData<CustomerCacheDTO> receivedData) {
-            log.info("Creating DataCarrier! Meta:[" + receivedData.getMetadata()
-                    + "], Size:[" + receivedData.getDataCount() + "]");
-            customers = receivedData.getReceivedDataStream()
-                    .map(CustomerCacheDTO::toCustomerDTO)
-                    .collect(Collectors.toList());
-        }
     }
 
     private static class CustomerDTOCacheSourceDataCallback implements CacheSourceDataCallback<CustomerDTO> {

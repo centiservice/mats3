@@ -36,13 +36,12 @@ import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
  * the event receiver, whereupon it should tell all instances to update their view of the source data. The Mats Eager
  * Cache system have a feature for this, where you can send "command messages" to all the siblings via the
  * {@link #sendSiblingCommand(String, String, byte[]) sendSiblingCommand(..)} method and the corresponding
- * {@link #addSiblingCommandListener(SiblingCommandEventListener) addSiblingCommandListener(..)} method. All instances -
- * including the originator - will then receive the command, and can either refresh the source data from database, or
- * apply the update directly to the source data. It is beneficial if the originator also employs this event to update
- * its version of the source data, to ensure consistency between the nodes. A boolean will tell whether the command
- * originated on this instance - the one that originated (=<code>true</code>) will then propagate the update to the
- * MatsEagerCache via {@link #scheduleBroadcastFullUpdate()} or
- * {@link #broadcastPartialUpdate(CacheSourceDataCallback)}.
+ * {@link #addSiblingCommandListener(Consumer) addSiblingCommandListener(..)} method. All instances - including the
+ * originator - will then receive the command, and can either refresh the source data from database, or apply the update
+ * directly to the source data. It is beneficial if the originator also employs this event to update its version of the
+ * source data, to ensure consistency between the nodes. A boolean will tell whether the command originated on this
+ * instance - the one that originated (=<code>true</code>) will then propagate the update to the MatsEagerCache via
+ * {@link #scheduleBroadcastFullUpdate()} or {@link #broadcastPartialUpdate(CacheSourceDataCallback)}.
  * <p>
  * The source data is accessed by the cache server via the {@link CacheSourceDataCallback} supplier provided in the
  * constructor. It is important that the source data can be read in a consistent manner, so some kind of synchronization
@@ -66,7 +65,7 @@ public class MatsEagerCacheServer {
 
     private final ObjectWriter _sentDataTypeWriter;
 
-    private final CopyOnWriteArrayList<SiblingCommandEventListener> _siblingCommandEventListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Consumer<SiblingCommand>> _siblingCommandEventListeners = new CopyOnWriteArrayList<>();
 
     static String getCacheRequestQueue(String dataName) {
         return "mats.MatsEagerCache." + dataName + ".UpdateRequest";
@@ -167,7 +166,7 @@ public class MatsEagerCacheServer {
      * @param siblingCommandEventListener
      *            the listener to add.
      */
-    public void addSiblingCommandListener(SiblingCommandEventListener siblingCommandEventListener) {
+    public void addSiblingCommandListener(Consumer<SiblingCommand> siblingCommandEventListener) {
         _siblingCommandEventListeners.add(siblingCommandEventListener);
     }
 
@@ -215,14 +214,6 @@ public class MatsEagerCacheServer {
                     .to(getBroadcastTopic(_dataName))
                     .publish(broadcast);
         });
-    }
-
-    /**
-     * The sibling command event listener. This is invoked when a sibling command is received.
-     */
-    @FunctionalInterface
-    public interface SiblingCommandEventListener {
-        void onSiblingCommand(SiblingCommand command);
     }
 
     /**
@@ -456,9 +447,9 @@ public class MatsEagerCacheServer {
                                 return bytes;
                             }
                         };
-                        for (SiblingCommandEventListener listener : _siblingCommandEventListeners) {
+                        for (Consumer<SiblingCommand> listener : _siblingCommandEventListeners) {
                             try {
-                                listener.onSiblingCommand(siblingCommand);
+                                listener.accept(siblingCommand);
                             }
                             catch (Throwable t) {
                                 log.error("Got exception from SiblingCommandEventListener [" + listener

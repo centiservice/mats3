@@ -3,6 +3,7 @@ package io.mats3.util.eagercache;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -13,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -97,36 +99,6 @@ public class MatsEagerCacheClient<DATA> {
                 + _dataName + "-receiveExecutor");
     }
 
-    /**
-     * Single threaded, blocking {@link ExecutorService}. This is used to "distance" ourselves from Mats, so that the
-     * large JMS Message can be GC'ed: We've fetched the data we need from the JMS Message, and now we're done with it,
-     * but we need to exit the Mats StageProcessor to let the Mats thread let go of the JMS Message reference. However,
-     * we still want the data to be sequentially processed - thus use a single-threaded executor with synchronous queue,
-     * and special rejection handler, to ensure that the submitting works as follows: Either the task is immediately
-     * handed over to the single thread, or the submitting thread is blocked.
-     */
-    static ExecutorService _getSingleThreadedExecutorService(String threadName) {
-        return new ThreadPoolExecutor(1, 1, 1L, TimeUnit.MINUTES,
-                new SynchronousQueue<>(),
-                r -> {
-                    Thread t = new Thread(r, threadName);
-                    t.setDaemon(true);
-                    return t;
-                },
-                (r, executor) -> { // Trick: For Rejections, we'll just block until able to enqueue the task.
-                    try {
-                        // Block until able to enqueue the task anyway.
-                        executor.getQueue().put(r);
-                    }
-                    catch (InterruptedException e) {
-                        // Remember, this is the *submitting* thread that is interrupted, not the pool thread.
-                        Thread.currentThread().interrupt();
-                        // We gotta get outta here.
-                        throw new RejectedExecutionException("Interrupted while waiting to enqueue task", e);
-                    }
-                });
-    }
-
     // ReadWriteLock to guard the cache content.
     // Not using "fair" mode: I don't envision that the cache will be read-hammered so hard that it will be a problem.
     // This will be taken in read mode for .get(), and write mode for updates.
@@ -139,16 +111,56 @@ public class MatsEagerCacheClient<DATA> {
     private volatile CountDownLatch _initialPopulationLatch = new CountDownLatch(1);
 
     // Tasks to run after initial population.
-    // Synchronized on this
     // Note: Also used as a fast-path indicator for addOnInitialPopulationTask(), by being nulled.
+    // Synchronized on this, but also volatile since we use it as fast-path indicator.
     private volatile List<Runnable> _onInitialPopulationTasks = new ArrayList<>();
 
-    private DATA _data;
+    // Listeners for cache updates
+    private final CopyOnWriteArrayList<Consumer<CacheUpdated>> _cacheUpdatedListeners = new CopyOnWriteArrayList<>();
 
     private final AtomicInteger _updateRequestCounter = new AtomicInteger();
 
+    private DATA _data;
+
     private volatile boolean _running;
     private volatile MatsEndpoint<?, ?> _broadcastTerminator;
+
+    /**
+     * Metadata about the cache update.
+     */
+    public interface CacheReceived {
+        /**
+         * @return whether this was a full update.
+         */
+        boolean isFullUpdate();
+
+        /**
+         * @return number of data items received.
+         */
+        int getDataCount();
+
+        /**
+         * @return the size of the compressed data, in bytes.
+         */
+        long getCompressedSize();
+
+        /**
+         * @return the size of the uncompressed data (probably JSON), in bytes.
+         */
+        long getUncompressedSize();
+
+        /**
+         * @return the metadata that was sent along with the data, if any - otherwise {@code null}.
+         */
+        String getMetadata();
+    }
+
+    /**
+     * Object provided to any cache update listener, containing the metadata about the cache update.
+     */
+    public interface CacheUpdated extends CacheReceived {
+        double getUpdateDurationMillis();
+    }
 
     /**
      * Object that is provided to the 'fullUpdateMapper' {@link Function} which was provided to the constructor of
@@ -158,18 +170,10 @@ public class MatsEagerCacheClient<DATA> {
      * @param <RECV>
      *            the type of the received data.
      */
-    public interface CacheReceivedData<RECV> {
+    public interface CacheReceivedData<RECV> extends CacheReceived {
         /**
-         * @return number of data items received.
+         * @return the received data as a Stream.
          */
-        int getDataCount();
-
-        long getUncompressedSize();
-
-        long getCompressedSize();
-
-        String getMetadata();
-
         Stream<RECV> getReceivedDataStream();
     }
 
@@ -208,9 +212,8 @@ public class MatsEagerCacheClient<DATA> {
      *            the runnable to invoke after the initial population is done.
      * @return this instance, for chaining.
      */
-    public MatsEagerCacheClient<DATA> addOnInitialPopulationTask(Runnable runnable) {
+    public MatsEagerCacheClient<DATA> addAfterInitialPopulationTask(Runnable runnable) {
         boolean runNow = true;
-
         // ?: Is the initial population list still present, that is, are we still in the initial population phase?
         if (_onInitialPopulationTasks != null) {
             // -> Yes, still present, so we're still in the initial population phase.
@@ -232,6 +235,11 @@ public class MatsEagerCacheClient<DATA> {
             runnable.run();
         }
         // For chaining
+        return this;
+    }
+
+    public MatsEagerCacheClient<DATA> addCacheUpdatedListener(Consumer<CacheUpdated> listener) {
+        _cacheUpdatedListeners.add(listener);
         return this;
     }
 
@@ -284,22 +292,14 @@ public class MatsEagerCacheClient<DATA> {
         }
     }
 
-    public void close() {
-        if (_running) {
-            _running = false;
-            _broadcastTerminator.stop(30_000);
-            _receiveExecutorService.shutdown();
-        }
-    }
-
     /**
      * Immediately start the cache client - startup is performed in a separate thread, so this method immediately
-     * returns - to wait for initial population, use the {@link #addOnInitialPopulationTask(Runnable) dedicated
+     * returns - to wait for initial population, use the {@link #addAfterInitialPopulationTask(Runnable) dedicated
      * functionality}. The cache client creates a SubscriptionTerminator for receiving cache updates based on the
      * dataName. Once we're sure this endpoint {@link MatsEndpoint#waitForReceiving(int) has entered the receive loop},
      * a message to the server requesting update is performed. The {@link #get()} method will block until the initial
      * full population is received and processed. When the initial population is done, any
-     * {@link #addOnInitialPopulationTask(Runnable) onInitialPopulationTasks} will be invoked.
+     * {@link #addAfterInitialPopulationTask(Runnable) onInitialPopulationTasks} will be invoked.
      * 
      * @return this instance, for chaining.
      */
@@ -344,7 +344,7 @@ public class MatsEagerCacheClient<DATA> {
                 throw new IllegalStateException(msg);
             }
 
-            _sendUpdateRequest();
+            _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_INITIAL);
         });
         thread.setName("MatsEagerCacheClient-" + _dataName + "-initialCacheUpdateRequest");
         // If the JVM is shut down due to bad boot, this thread should not prevent it from exiting.
@@ -358,21 +358,67 @@ public class MatsEagerCacheClient<DATA> {
         return this;
     }
 
-    private void _sendUpdateRequest() {
+    public void requestFullUpdate() {
+        _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_MANUAL);
+    }
+
+    public void close() {
+        if (_running) {
+            _running = false;
+            _broadcastTerminator.stop(30_000);
+            _receiveExecutorService.shutdown();
+        }
+    }
+
+    // ======== INTERNALS ========
+
+    /**
+     * Single threaded, blocking {@link ExecutorService}. This is used to "distance" ourselves from Mats, so that the
+     * large JMS Message can be GC'ed: We've fetched the data we need from the JMS Message, and now we're done with it,
+     * but we need to exit the Mats StageProcessor to let the Mats thread let go of the JMS Message reference. However,
+     * we still want the data to be sequentially processed - thus use a single-threaded executor with synchronous queue,
+     * and special rejection handler, to ensure that the submitting works as follows: Either the task is immediately
+     * handed over to the single thread, or the submitting thread is blocked.
+     */
+    static ExecutorService _getSingleThreadedExecutorService(String threadName) {
+        return new ThreadPoolExecutor(1, 1, 1L, TimeUnit.MINUTES,
+                new SynchronousQueue<>(),
+                r -> {
+                    Thread t = new Thread(r, threadName);
+                    t.setDaemon(true);
+                    return t;
+                },
+                (r, executor) -> { // Trick: For Rejections, we'll just block until able to enqueue the task.
+                    try {
+                        // Block until able to enqueue the task anyway.
+                        executor.getQueue().put(r);
+                    }
+                    catch (InterruptedException e) {
+                        // Remember, this is the *submitting* thread that is interrupted, not the pool thread.
+                        Thread.currentThread().interrupt();
+                        // We gotta get outta here.
+                        throw new RejectedExecutionException("Interrupted while waiting to enqueue task", e);
+                    }
+                });
+    }
+
+    private void _sendUpdateRequest(String command) {
         // :: Request initial population
         CacheRequestDto req = new CacheRequestDto();
         req.nodename = _matsFactory.getFactoryConfig().getNodename();
         req.sentTimestamp = System.currentTimeMillis();
         req.sentNanoTime = System.nanoTime();
-        req.command = CacheRequestDto.COMMAND_REQUEST_INITIAL;
+        req.command = command;
         try {
-            _matsFactory.getDefaultInitiator().initiate(init -> {
-                init.traceId(TraceId.create(_matsFactory.getFactoryConfig().getAppName(),
-                        "MatsEagerCacheClient-" + _dataName, "initialCacheUpdateRequest"))
-                        .from("MatsEagerCacheClient-" + _dataName + "-initialCacheUpdateRequest")
-                        .to("mats.MatsEagerCache." + _dataName + ".UpdateRequest")
-                        .send(req);
-            });
+            String reason = command.equals(CacheRequestDto.COMMAND_REQUEST_INITIAL)
+                    ? "initialCacheUpdateRequest"
+                    : "manualCacheUpdateRequest";
+            _matsFactory.getDefaultInitiator().initiate(init -> init.traceId(
+                    TraceId.create(_matsFactory.getFactoryConfig().getAppName(),
+                            "MatsEagerCacheClient-" + _dataName, reason))
+                    .from("MatsEagerCacheClient-" + _dataName + "." + reason)
+                    .to("mats.MatsEagerCache." + _dataName + ".UpdateRequest")
+                    .send(req));
         }
         catch (Exception e) {
             // TODO: Log exception to monitor and HealthCheck.
@@ -391,6 +437,7 @@ public class MatsEagerCacheClient<DATA> {
         // Write lock
         _cacheContentWriteLock.lock();
         // Handle it.
+        long nanosAsStart_update = System.nanoTime();
         try {
             int dataSize = msg.dataCount;
             String metadata = msg.metadata;
@@ -426,7 +473,7 @@ public class MatsEagerCacheClient<DATA> {
                 try {
                     // Invoke the full update mapper
                     // (Note: we hold onto as little as possible while invoking the mapper, to let the GC do its job.)
-                    _data = _fullUpdateMapper.apply(new CacheReceivedDataImpl<>(dataSize, metadata,
+                    _data = _fullUpdateMapper.apply(new CacheReceivedDataImpl<>(true, dataSize, metadata,
                             getReceiveStreamFromPayload(payload), msg.uncompressedSize, msg.compressedSize));
                 }
                 catch (Throwable e) {
@@ -470,7 +517,7 @@ public class MatsEagerCacheClient<DATA> {
                 try {
                     // Invoke the partial update mapper to get the new data.
                     // (Note: we hold onto as little as possible while invoking the mapper, to let the GC do its job.)
-                    _data = _partialUpdateMapper.apply(new CacheReceivedPartialDataImpl<>(_data,
+                    _data = _partialUpdateMapper.apply(new CacheReceivedPartialDataImpl<>(false, _data,
                             dataSize, metadata,
                             getReceiveStreamFromPayload(payload),
                             msg.uncompressedSize, msg.compressedSize));
@@ -483,6 +530,23 @@ public class MatsEagerCacheClient<DATA> {
         finally {
             _cacheContentWriteLock.unlock();
         }
+        double millisTaken_update = (System.nanoTime() - nanosAsStart_update) / 1_000_000d;
+
+        // FIRST: Notify CacheUpdatedListeners
+
+        // :: Notify listeners
+        CacheUpdated cacheUpdated = new CacheUpdatedImpl(msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL),
+                msg.dataCount, msg.metadata, msg.uncompressedSize, msg.compressedSize, millisTaken_update);
+        for (Consumer<CacheUpdated> listener : _cacheUpdatedListeners) {
+            try {
+                listener.accept(cacheUpdated);
+            }
+            catch (Exception e) {
+                // TODO: Handle exception.
+                log.error("Got exception when notifying cacheUpdatedListener [" + listener
+                        + "], ignoring but this is probably pretty bad.", e);
+            }
+        }
 
         // :: Handle initial population obligations
         // NOTE: There is only one thread running a SubscriptionTerminator, and it is only us that
@@ -490,37 +554,45 @@ public class MatsEagerCacheClient<DATA> {
         // ?: Fast check if we've already done initial population obligations.
         if (_initialPopulationLatch != null) {
             // -> No, we haven't done initial population obligations yet.
+
+            // SECOND: Release threads hanging on "get", waiting for initial population.
+
             // Release threads hanging on "get", waiting for initial population.
             _initialPopulationLatch.countDown();
             // Null out the reference to the latch (volatile field), since we use it for fast-path
             // evaluation in get().
             _initialPopulationLatch = null;
 
-            // Run all the runnables that have been added, waiting for this moment. (Typically adding
-            // and/or starting endpoints that depend on the cache being populated.)
-            // Note: Since we synch on the list both here and in addOnInitialPopulationTask(), there
-            // can't be any ambiguous state: Either the task is present here and not yet run, or it is not
-            // present, and was then run in addOnInitialPopulationTask().
+
+            // THIRD, an final: Run all the initial population runnables that have been added.
+
+            /*
+             * Run all the runnables that have been added, waiting for this moment. (Typically adding and/or starting
+             * endpoints that depend on the cache being populated.) Note: Since we synch while accessing the list both
+             * here and in addOnInitialPopulationTask(), there can't be any ambiguous state: Either the task is present
+             * here and not yet run, or it is not present, and was then run in addOnInitialPopulationTask().
+             */
+
             // NOTE: It is nulled by us only, which hasn't happened yet, so it will be non-null now.
-            List<Runnable> localOnInitialPopulationTasks = _onInitialPopulationTasks;
-            synchronized (localOnInitialPopulationTasks) {
-                // Copy the field to local variable
+            List<Runnable> localOnInitialPopulationTasks;
+            synchronized (this) {
+                // Copy the field to local variable, which we'll run through outside the synchronized block.
+                localOnInitialPopulationTasks = _onInitialPopulationTasks;
                 // Null out the reference to the list (volatile field), since we in the .get() use it as
                 // evaluation of whether we're still in the initial population phase, or have passed it.
-                // NOTE: This is the only place the field is nulled, and it is nulled within synch on the
-                // list object.
+                // NOTE: This is the only place the field is nulled, and it is nulled within synch on this.
                 _onInitialPopulationTasks = null;
-                // Run all the runnables that have been added.
-                for (Runnable onInitialPopulationTask : localOnInitialPopulationTasks) {
-                    try {
-                        onInitialPopulationTask.run();
-                    }
-                    catch (Exception e) {
-                        // TODO: Handle exception.
-                        log.error("Got exception when running onInitialPopulationTask ["
-                                + onInitialPopulationTask
-                                + "], ignoring but this is probably pretty bad.", e);
-                    }
+            }
+            // Run all the runnables that have been added.
+            for (Runnable onInitialPopulationTask : localOnInitialPopulationTasks) {
+                try {
+                    onInitialPopulationTask.run();
+                }
+                catch (Exception e) {
+                    // TODO: Handle exception.
+                    log.error("Got exception when running onInitialPopulationTask ["
+                            + onInitialPopulationTask
+                            + "], ignoring but this is probably pretty bad.", e);
                 }
             }
         }
@@ -536,19 +608,26 @@ public class MatsEagerCacheClient<DATA> {
     }
 
     private static class CacheReceivedDataImpl<RECV> implements CacheReceivedData<RECV> {
+        private final boolean _fullUpdate;
         private final int _dataSize;
         private final String _metadata;
         private final Stream<RECV> _rStream;
         private final long _receivedUncompressedSize;
         private final long _receivedCompressedSize;
 
-        public CacheReceivedDataImpl(int dataSize, String metadata, Stream<RECV> recvStream,
+        public CacheReceivedDataImpl(boolean fullUpdate, int dataSize, String metadata, Stream<RECV> recvStream,
                 long receivedUncompressedSize, long receivedCompressedSize) {
+            _fullUpdate = fullUpdate;
             _dataSize = dataSize;
             _metadata = metadata;
             _rStream = recvStream;
             _receivedUncompressedSize = receivedUncompressedSize;
             _receivedCompressedSize = receivedCompressedSize;
+        }
+
+        @Override
+        public boolean isFullUpdate() {
+            return _fullUpdate;
         }
 
         @Override
@@ -577,13 +656,29 @@ public class MatsEagerCacheClient<DATA> {
         }
     }
 
+    private static class CacheUpdatedImpl extends CacheReceivedDataImpl<Void> implements CacheUpdated {
+        private final double _updateDurationMillis;
+
+        public CacheUpdatedImpl(boolean fullUpdate, int dataSize, String metadata,
+                long receivedUncompressedSize, long receivedCompressedSize, double updateDurationMillis) {
+            super(fullUpdate, dataSize, metadata, null, receivedUncompressedSize, receivedCompressedSize);
+            _updateDurationMillis = updateDurationMillis;
+        }
+
+        @Override
+        public double getUpdateDurationMillis() {
+            return _updateDurationMillis;
+        }
+    }
+
     private static class CacheReceivedPartialDataImpl<RECV, DATA> extends CacheReceivedDataImpl<RECV>
             implements CacheReceivedPartialData<RECV, DATA> {
         private final DATA _data;
 
-        public CacheReceivedPartialDataImpl(DATA data, int dataSize, String metadata, Stream<RECV> rStream,
+        public CacheReceivedPartialDataImpl(boolean fullUpdate, DATA data, int dataSize, String metadata,
+                Stream<RECV> rStream,
                 long receivedUncompressedSize, long receivedCompressedSize) {
-            super(dataSize, metadata, rStream, receivedUncompressedSize, receivedCompressedSize);
+            super(fullUpdate, dataSize, metadata, rStream, receivedUncompressedSize, receivedCompressedSize);
             _data = data;
         }
 
