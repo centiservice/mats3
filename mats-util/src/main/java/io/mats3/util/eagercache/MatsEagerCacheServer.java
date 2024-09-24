@@ -481,8 +481,8 @@ public class MatsEagerCacheServer {
     }
 
     static final class CacheRequestDto {
-        static final String COMMAND_REQUEST_AT_BOOT = "BOOT";
-        static final String COMMAND_MANUAL_REQUEST = "MANUAL";
+        static final String COMMAND_REQUEST_INITIAL = "INITIAL";
+        static final String COMMAND_REQUEST_MANUAL = "MANUAL";
 
         String command;
         String correlationId;
