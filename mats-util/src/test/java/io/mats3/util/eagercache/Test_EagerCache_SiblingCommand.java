@@ -1,35 +1,27 @@
 package io.mats3.util.eagercache;
 
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
 
 import io.mats3.MatsFactory;
 import io.mats3.test.MatsTestFactory;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.DummyFinancialService;
-import io.mats3.util.DummyFinancialService.CustomerDTO;
 import io.mats3.util.DummyFinancialService.ReplyDTO;
-import io.mats3.util.FieldBasedJacksonMapper;
-import io.mats3.util.eagercache.MatsEagerCacheClient.CacheReceivedData;
-import io.mats3.util.eagercache.MatsEagerCacheServer.CacheSourceDataCallback;
 import io.mats3.util.eagercache.MatsEagerCacheServer.SiblingCommand;
 
+/**
+ * Tests the {@link SiblingCommand} concept between {@link MatsEagerCacheServer}s.
+ */
 public class Test_EagerCache_SiblingCommand {
     private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_SiblingCommand.class);
-
-    private final ObjectMapper _objectMapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
-    private final ObjectWriter _replyWriter = _objectMapper.writerFor(ReplyDTO.class);
 
     @Test
     public void run() throws InterruptedException, JsonProcessingException {
@@ -46,16 +38,15 @@ public class Test_EagerCache_SiblingCommand {
         // :: Create the CacheServer.
         MatsEagerCacheServer cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
                 "Customers", CustomerCacheDTO.class, 1,
-                () -> new CustomerDTOCacheSourceDataCallback(sourceData),
+                () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),
                 CustomerCacheDTO::fromCustomerDTO);
 
         MatsEagerCacheServer cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
                 "Customers", CustomerCacheDTO.class, 1,
-                () -> new CustomerDTOCacheSourceDataCallback(sourceData),
+                () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),
                 CustomerCacheDTO::fromCustomerDTO);
 
         CountDownLatch[] latch = new CountDownLatch[1];
-        latch[0] = new CountDownLatch(3);
 
         SiblingCommand[] siblingCommand = new SiblingCommand[3];
 
@@ -79,22 +70,32 @@ public class Test_EagerCache_SiblingCommand {
 
         // ## ACT:
 
-        log.info("\n\n######### Starting the CacheServers, waiting for receivive loops.\n\n");
+        log.info("\n\n######### Starting the CacheServers, waiting for receive loops.\n\n");
 
         cacheServer1.start();
         cacheServer2.start();
         cacheServer1._waitForReceiving();
         cacheServer2._waitForReceiving();
 
-
         log.info("\n\n######### Sending SiblingCommand from CacheServer 1.\n\n");
 
-        cacheServer1.sendSiblingCommand("Hello, CacheServers siblings!", "Customers", new byte[0]);
+        // Random byte array
+        byte[] randomBytes = new byte[100];
+        for (int i = 0; i < randomBytes.length; i++) {
+            randomBytes[i] = (byte) (Math.random() * 256);
+        }
+        // Random String
+        String randomString = "Random String: " + Math.random();
 
-        log.info("\n\n######### Waiting for sibling command to be received.\n\n");
-        latch[0].await(10, TimeUnit.SECONDS);
+        String commandName = "Hello, CacheServers siblings! Here's some values!";
+        latch[0] = new CountDownLatch(3);
+        cacheServer1.sendSiblingCommand(commandName, randomString, randomBytes);
+        latchWaitAndAssert(latch, siblingCommand, commandName, randomString, randomBytes);
 
-        // ## ASSERT:
+        commandName = "Hello, CacheServers siblings! Here's are som nulls!";
+        latch[0] = new CountDownLatch(3);
+        cacheServer1.sendSiblingCommand(commandName, null, null);
+        latchWaitAndAssert(latch, siblingCommand, commandName, null, null);
 
         // Shutdown
         serverMatsFactory1.close();
@@ -102,41 +103,30 @@ public class Test_EagerCache_SiblingCommand {
         matsTestBroker.close();
     }
 
-    public static class DataCarrier {
-        private static final Logger log = LoggerFactory.getLogger(DataCarrier.class);
+    private static void latchWaitAndAssert(CountDownLatch[] latch, SiblingCommand[] siblingCommand, String commandName, String randomString, byte[] randomBytes) throws InterruptedException {
+        log.info("\n\n######### Waiting for sibling command to be received.\n\n");
+        latch[0].await(10, TimeUnit.SECONDS);
 
-        public final List<CustomerDTO> customers;
+        // ## ASSERT:
 
-        DataCarrier(CacheReceivedData<CustomerCacheDTO> receivedData) {
-            log.info("Creating DataCarrier! Meta:[" + receivedData.getMetadata()
-                    + "], Size:[" + receivedData.getDataCount() + "]");
-            customers = receivedData.getReceivedDataStream()
-                    .map(CustomerCacheDTO::toCustomerDTO)
-                    .collect(Collectors.toList());
+        log.info("\n\n######### Latched!\n\n");
+
+        // Check that the sibling commands are as expected.
+        for (int i = 0; i < 3; i++) {
+            log.info("SiblingCommand[" + i + "]: " + siblingCommand[i]);
+            // Compare the elements
+            Assert.assertEquals("SiblingCommand[" + i + "]: commandName", commandName, siblingCommand[i].getCommand());
+            Assert.assertEquals("SiblingCommand[" + i + "]: string", randomString, siblingCommand[i].getStringData());
+            Assert.assertArrayEquals("SiblingCommand[" + i + "]: bytes", randomBytes, siblingCommand[i]
+                    .getBinaryData());
         }
+
+        // Assert that the "sent from this host" works.
+        Assert.assertTrue("SiblingCommand[0] should be sent from this host", siblingCommand[0]
+                .commandOriginatedOnThisInstance());
+        Assert.assertTrue("SiblingCommand[0] should be sent from this host", siblingCommand[1]
+                .commandOriginatedOnThisInstance());
+        Assert.assertFalse("SiblingCommand[2] should NOT be sent from this host", siblingCommand[2]
+                .commandOriginatedOnThisInstance());
     }
-
-    private static class CustomerDTOCacheSourceDataCallback implements CacheSourceDataCallback<CustomerDTO> {
-        private final ReplyDTO _sourceData;
-
-        public CustomerDTOCacheSourceDataCallback(ReplyDTO sourceData) {
-            _sourceData = sourceData;
-        }
-
-        @Override
-        public int provideDataCount() {
-            return _sourceData.customers.size();
-        }
-
-        @Override
-        public String provideMetadata() {
-            return "Dummy Data!";
-        }
-
-        @Override
-        public void provideSourceData(Consumer<CustomerDTO> consumer) {
-            _sourceData.customers.forEach(consumer);
-        }
-    }
-
 }

@@ -2,6 +2,7 @@ package io.mats3.util.eagercache;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -61,6 +62,8 @@ public class MatsEagerCacheServer {
     private final Function<?, ?> _dataTypeMapper;
     private final int _forcedUpdateIntervalMinutes;
 
+    private final String _privateNodename;
+
     private final ObjectWriter _sentDataTypeWriter;
 
     private final CopyOnWriteArrayList<SiblingCommandEventListener> _siblingCommandEventListeners = new CopyOnWriteArrayList<>();
@@ -83,6 +86,12 @@ public class MatsEagerCacheServer {
         _dataSupplier = (Supplier<CacheSourceDataCallback<?>>) (Supplier) dataSupplier;
         _dataTypeMapper = dataTypeMapper;
         _forcedUpdateIntervalMinutes = forcedUpdateIntervalMinutes;
+
+        // Generate private nodename, which is used to identify the instance amongst the cache servers, e.g. with
+        // Sibling Commands. Doing this since this Cache API does not expose the nodename, only whether it is "us" or
+        // not. This makes testing a tad simpler, than using the default nodename, which is 'hostname'.
+        _privateNodename = matsFactory.getFactoryConfig().getNodename() + "."
+                + Long.toString(ThreadLocalRandom.current().nextLong(), 36);
 
         // :: Jackson JSON ObjectMapper
         ObjectMapper mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
@@ -162,10 +171,16 @@ public class MatsEagerCacheServer {
         _siblingCommandEventListeners.add(siblingCommandEventListener);
     }
 
+    private static final String SIDELOAD_KEY_SIBLING_COMMAND_BYTES = "scb";
+
     /**
      * Sends a {@link SiblingCommand sibling command}. This is a message sent from one sibling to all the other
      * siblings, including the one that originated the command. This can be useful to propagate updates to the source
      * data to all the siblings, to ensure that the source data is consistent between the siblings.
+     * <p>
+     * Remember that in a boot or redeploy situation, your service instances will typically be started in a staggered
+     * fashion - and at any time, a new sibling might be started, or an existing stopped. Thus, you must not expect a
+     * stable cluster where a stable set of siblings are always present.
      *
      * @param command
      *            the command name. This is a string that the siblings can use to determine what to do. It has no
@@ -188,14 +203,14 @@ public class MatsEagerCacheServer {
         broadcast.command = BroadcastDto.COMMAND_SIBLING_COMMAND;
         broadcast.siblingCommand = command;
         broadcast.siblingStringData = stringData;
-        broadcast.siblingBinaryData = binaryData;
         broadcast.sentTimestamp = System.currentTimeMillis();
         broadcast.sentNanoTime = System.nanoTime();
 
-        broadcast.sentNodename = _matsFactory.getFactoryConfig().getNodename();
+        broadcast.sentPrivateNodename = _privateNodename;
 
         _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
             init.traceId(TraceId.create("EagerCache." + _dataName, "SiblingCommand").add("cmd", command))
+                    .addBytes(SIDELOAD_KEY_SIBLING_COMMAND_BYTES, binaryData)
                     .from("EagerCache." + _dataName)
                     .to(getBroadcastTopic(_dataName))
                     .publish(broadcast);
@@ -399,7 +414,7 @@ public class MatsEagerCacheServer {
         // updates. This enables us to not send an update if a sibling has already sent one.
         // This is also the topic which will be used by the siblings to send commands to each other (which the clients
         // will ignore).
-        // There is a pretty hard negative to receiving the actual updates on the servers, as this will mean that the
+        // It is a pretty hard negative to receiving the actual updates on the servers, as this will mean that the
         // server will have to receive the update, even though it already has the data. However, we won't have to
         // deserialize the data, so the hit won't be that big. The obvious alternative is to have a separate topic for
         // the commands, but that would pollute the MQ Destination namespace with one extra topic per cache.
@@ -409,10 +424,11 @@ public class MatsEagerCacheServer {
                     // ?: Is this a sibling command?
                     if (broadcastDto.command.equals(BroadcastDto.COMMAND_SIBLING_COMMAND)) {
                         // -> Yes, this is a sibling command.
+                        byte[] bytes = ctx.getBytes(SIDELOAD_KEY_SIBLING_COMMAND_BYTES);
                         SiblingCommand siblingCommand = new SiblingCommand() {
                             @Override
                             public boolean commandOriginatedOnThisInstance() {
-                                return broadcastDto.sentNodename.equals(_matsFactory.getFactoryConfig().getNodename());
+                                return broadcastDto.sentPrivateNodename.equals(_privateNodename);
                             }
 
                             @Override
@@ -432,14 +448,12 @@ public class MatsEagerCacheServer {
 
                             @Override
                             public String getStringData() {
-                                // TODO: Send sideloaded!
                                 return broadcastDto.siblingStringData;
                             }
 
                             @Override
                             public byte[] getBinaryData() {
-                                // TODO: Send sideloaded!
-                                return broadcastDto.siblingBinaryData;
+                                return bytes;
                             }
                         };
                         for (SiblingCommandEventListener listener : _siblingCommandEventListeners) {
@@ -503,7 +517,7 @@ public class MatsEagerCacheServer {
         // For sibling commands
         String siblingCommand;
         String siblingStringData;
-        byte[] siblingBinaryData;
-        String sentNodename;
+        // Bytes are sideloaded
+        String sentPrivateNodename;
     }
 }
