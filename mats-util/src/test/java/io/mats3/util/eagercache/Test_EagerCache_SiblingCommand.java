@@ -92,10 +92,27 @@ public class Test_EagerCache_SiblingCommand {
         cacheServer1.sendSiblingCommand(commandName, randomString, randomBytes);
         latchWaitAndAssert(latch, siblingCommand, commandName, randomString, randomBytes);
 
+        // Assert that the "sent from this host" works.
+        Assert.assertTrue("SiblingCommand[0] should be sent from this host", siblingCommand[0]
+                .commandOriginatedOnThisInstance());
+        Assert.assertTrue("SiblingCommand[0] should be sent from this host", siblingCommand[1]
+                .commandOriginatedOnThisInstance());
+        Assert.assertFalse("SiblingCommand[2] should NOT be sent from this host", siblingCommand[2]
+                .commandOriginatedOnThisInstance());
+
+
         commandName = "Hello, CacheServers siblings! Here's are som nulls!";
         latch[0] = new CountDownLatch(3);
-        cacheServer1.sendSiblingCommand(commandName, null, null);
+        cacheServer2.sendSiblingCommand(commandName, null, null);
         latchWaitAndAssert(latch, siblingCommand, commandName, null, null);
+
+        // Assert that the "sent from this host" works.
+        Assert.assertFalse("SiblingCommand[0] should NOT be sent from this host", siblingCommand[0]
+                .commandOriginatedOnThisInstance());
+        Assert.assertFalse("SiblingCommand[0] should NOT be sent from this host", siblingCommand[1]
+                .commandOriginatedOnThisInstance());
+        Assert.assertTrue("SiblingCommand[2] should be sent from this host", siblingCommand[2]
+                .commandOriginatedOnThisInstance());
 
         // Shutdown
         serverMatsFactory1.close();
@@ -105,7 +122,7 @@ public class Test_EagerCache_SiblingCommand {
 
     private static void latchWaitAndAssert(CountDownLatch[] latch, SiblingCommand[] siblingCommand, String commandName, String randomString, byte[] randomBytes) throws InterruptedException {
         log.info("\n\n######### Waiting for sibling command to be received.\n\n");
-        latch[0].await(10, TimeUnit.SECONDS);
+        latch[0].await(30, TimeUnit.SECONDS);
 
         // ## ASSERT:
 
@@ -120,13 +137,5 @@ public class Test_EagerCache_SiblingCommand {
             Assert.assertArrayEquals("SiblingCommand[" + i + "]: bytes", randomBytes, siblingCommand[i]
                     .getBinaryData());
         }
-
-        // Assert that the "sent from this host" works.
-        Assert.assertTrue("SiblingCommand[0] should be sent from this host", siblingCommand[0]
-                .commandOriginatedOnThisInstance());
-        Assert.assertTrue("SiblingCommand[0] should be sent from this host", siblingCommand[1]
-                .commandOriginatedOnThisInstance());
-        Assert.assertFalse("SiblingCommand[2] should NOT be sent from this host", siblingCommand[2]
-                .commandOriginatedOnThisInstance());
     }
 }

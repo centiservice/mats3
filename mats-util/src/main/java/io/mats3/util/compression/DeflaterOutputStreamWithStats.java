@@ -78,7 +78,7 @@ public class DeflaterOutputStreamWithStats extends DeflaterOutputStream {
     public void setCompressionLevel(int level) {
         // NOTE: If we ever allow to supply a Deflater, we should let this method throw an IllegalStateException if the
         // user has supplied a Deflater: He should rather set the compression level on the Deflater itself. Changing
-        // it via this innocuous method would affect the outside-provided Deflater, which might get unintened
+        // it via this innocuous method would affect the outside-provided Deflater, which might get unintended
         // consequences if it was a part of a pool.
         def.setLevel(level);
     }

@@ -57,7 +57,7 @@ public class MatsEagerCacheClient<DATA> {
 
     private final ObjectReader _receivedDataTypeReader;
 
-    private final ExecutorService _receiveExecutorService;
+    private final ThreadPoolExecutor _receiveSingleBlockingThreadExecutorService;
 
     /**
      * Constructor for the Mats Eager Cache client. The client will connect to a Mats Eager Cache server, and receive
@@ -95,7 +95,7 @@ public class MatsEagerCacheClient<DATA> {
         _receivedDataTypeReader = mapper.readerFor(receivedDataType);
 
         // :: ExecutorService for handling the received data.
-        _receiveExecutorService = _getSingleThreadedExecutorService("MatsEagerCacheClient-"
+        _receiveSingleBlockingThreadExecutorService = _createSingleThreadedExecutorService("MatsEagerCacheClient-"
                 + _dataName + "-receiveExecutor");
     }
 
@@ -304,8 +304,29 @@ public class MatsEagerCacheClient<DATA> {
      * @return this instance, for chaining.
      */
     public MatsEagerCacheClient<DATA> start() {
-        // Run the startup in a separate thread, as we don't want to block the caller.
+        return _start();
+    }
 
+    public void requestFullUpdate() {
+        _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_MANUAL);
+    }
+
+    public void close() {
+        synchronized (this) {
+            // ?: Are we running? Note: we accept multiple close() invocations, as the close-part is harder to lifecycle
+            // manage than the start-part (It might e.g. be closed by Spring too, in addition to by the user).
+            if (_running) {
+                // -> Yes, we're started, so close down.
+                _broadcastTerminator.stop(30_000);
+                _receiveSingleBlockingThreadExecutorService.shutdown();
+                _running = false;
+            }
+        }
+    }
+
+    // ======== Implementation / Internal methods ========
+
+    private MatsEagerCacheClient<DATA> _start() {
         // :: Listener to the update topic.
         _broadcastTerminator = _matsFactory.subscriptionTerminator(MatsEagerCacheServer.getBroadcastTopic(_dataName),
                 void.class, BroadcastDto.class, (ctx, state, msg) -> {
@@ -318,12 +339,13 @@ public class MatsEagerCacheClient<DATA> {
                     final byte[] payload = ctx.getBytes(MatsEagerCacheServer.MATS_EAGER_CACHE_PAYLOAD);
 
                     // :: Now perform hack to relieve the Mats thread, and do the actual work in a separate thread.
-                    // The rationale is to let the data structures underlying the Mats system (e.g. the JMS Message)
-                    // be GCable.
-                    // NOTE: We do NOT capture the context (i.e. the wrapped JMS Message) in the Runnable, as that
-                    // would prevent the JMS Message from being GC'ed. We only capture the message DTO and the payload.
-                    _receiveExecutorService.submit(() -> {
-                        // :: Handle the update in a separate thread.
+                    // The rationale is to let the data structures underlying in the Mats system (e.g. the
+                    // representation of the incoming JMS Message) be GCable. The thread pool is special in that
+                    // it only accepts a single task, and if it is busy, it will block the submitting thread.
+                    // NOTE: We do NOT capture the context (which holds the MatsTrace and byte arrays) in the Runnable,
+                    // as that would prevent the JMS Message from being GC'ed. We only capture the message DTO and the
+                    // payload.
+                    _receiveSingleBlockingThreadExecutorService.submit(() -> {
                         _handleUpdateInExecutorThread(msg, payload);
                     });
                 });
@@ -358,33 +380,21 @@ public class MatsEagerCacheClient<DATA> {
         return this;
     }
 
-    public void requestFullUpdate() {
-        _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_MANUAL);
-    }
-
-    public void close() {
-        if (_running) {
-            _running = false;
-            _broadcastTerminator.stop(30_000);
-            _receiveExecutorService.shutdown();
-        }
-    }
-
-    // ======== INTERNALS ========
-
     /**
      * Single threaded, blocking {@link ExecutorService}. This is used to "distance" ourselves from Mats, so that the
-     * large JMS Message can be GC'ed: We've fetched the data we need from the JMS Message, and now we're done with it,
-     * but we need to exit the Mats StageProcessor to let the Mats thread let go of the JMS Message reference. However,
-     * we still want the data to be sequentially processed - thus use a single-threaded executor with synchronous queue,
-     * and special rejection handler, to ensure that the submitting works as follows: Either the task is immediately
-     * handed over to the single thread, or the submitting thread is blocked.
+     * large JMS Message can be GC'ed <i>while</i> we're decompressing and deserializing the possibly large set of large
+     * objects: We've fetched the data we need from the JMS Message, and now we're done with it, but we need to exit the
+     * Mats StageProcessor to let the Mats thread let go of the JMS Message reference. However, we still want the data
+     * to be sequentially processed - thus use a single-threaded executor with synchronous queue, and special rejection
+     * handler, to ensure that the submitting works as follows: Either the task is immediately handed over to the single
+     * thread, or the submitting thread (the Mats stage processor thread) is blocked - waiting out the current
+     * deserializing.
      */
-    static ExecutorService _getSingleThreadedExecutorService(String threadName) {
+    static ThreadPoolExecutor _createSingleThreadedExecutorService(String threadName) {
         return new ThreadPoolExecutor(1, 1, 1L, TimeUnit.MINUTES,
                 new SynchronousQueue<>(),
-                r -> {
-                    Thread t = new Thread(r, threadName);
+                runnable -> {
+                    Thread t = new Thread(runnable, threadName);
                     t.setDaemon(true);
                     return t;
                 },
@@ -403,12 +413,14 @@ public class MatsEagerCacheClient<DATA> {
     }
 
     private void _sendUpdateRequest(String command) {
-        // :: Request initial population
+        // Construct the message
         CacheRequestDto req = new CacheRequestDto();
         req.nodename = _matsFactory.getFactoryConfig().getNodename();
         req.sentTimestamp = System.currentTimeMillis();
         req.sentNanoTime = System.nanoTime();
         req.command = command;
+
+        // Send it off
         try {
             String reason = command.equals(CacheRequestDto.COMMAND_REQUEST_INITIAL)
                     ? "initialCacheUpdateRequest"
@@ -416,8 +428,8 @@ public class MatsEagerCacheClient<DATA> {
             _matsFactory.getDefaultInitiator().initiate(init -> init.traceId(
                     TraceId.create(_matsFactory.getFactoryConfig().getAppName(),
                             "MatsEagerCacheClient-" + _dataName, reason))
-                    .from("MatsEagerCacheClient-" + _dataName + "." + reason)
-                    .to("mats.MatsEagerCache." + _dataName + ".UpdateRequest")
+                    .from("MatsEagerCacheClient." + _dataName + "." + reason)
+                    .to(MatsEagerCacheServer.getCacheRequestQueue(_dataName))
                     .send(req));
         }
         catch (Exception e) {
@@ -474,7 +486,7 @@ public class MatsEagerCacheClient<DATA> {
                     // Invoke the full update mapper
                     // (Note: we hold onto as little as possible while invoking the mapper, to let the GC do its job.)
                     _data = _fullUpdateMapper.apply(new CacheReceivedDataImpl<>(true, dataSize, metadata,
-                            getReceiveStreamFromPayload(payload), msg.uncompressedSize, msg.compressedSize));
+                            _getReceiveStreamFromPayload(payload), msg.uncompressedSize, msg.compressedSize));
                 }
                 catch (Throwable e) {
                     // TODO: Log exception to monitor and HealthCheck.
@@ -519,7 +531,7 @@ public class MatsEagerCacheClient<DATA> {
                     // (Note: we hold onto as little as possible while invoking the mapper, to let the GC do its job.)
                     _data = _partialUpdateMapper.apply(new CacheReceivedPartialDataImpl<>(false, _data,
                             dataSize, metadata,
-                            getReceiveStreamFromPayload(payload),
+                            _getReceiveStreamFromPayload(payload),
                             msg.uncompressedSize, msg.compressedSize));
                 }
                 catch (Throwable e) {
@@ -563,7 +575,6 @@ public class MatsEagerCacheClient<DATA> {
             // evaluation in get().
             _initialPopulationLatch = null;
 
-
             // THIRD, an final: Run all the initial population runnables that have been added.
 
             /*
@@ -599,7 +610,7 @@ public class MatsEagerCacheClient<DATA> {
         Thread.currentThread().setName(originalThreadName);
     }
 
-    private Stream<?> getReceiveStreamFromPayload(byte[] payload) throws IOException {
+    private Stream<?> _getReceiveStreamFromPayload(byte[] payload) throws IOException {
         InflaterInputStreamWithStats iis = new InflaterInputStreamWithStats(payload);
         MappingIterator<?> mappingIterator = _receivedDataTypeReader.readValues(iis);
         // Convert iterator to stream

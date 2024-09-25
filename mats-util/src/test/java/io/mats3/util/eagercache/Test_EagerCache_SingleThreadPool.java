@@ -15,7 +15,7 @@ public class Test_EagerCache_SingleThreadPool {
 
     @Test
     public void run() {
-        ExecutorService threadPoolExecutor = MatsEagerCacheClient._getSingleThreadedExecutorService(
+        ExecutorService threadPoolExecutor = MatsEagerCacheClient._createSingleThreadedExecutorService(
                 "EndreXY:test-thread-name");
 
         for (int i = 0; i < 5; i++) {

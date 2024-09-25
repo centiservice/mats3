@@ -2,7 +2,10 @@ package io.mats3.util.eagercache;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -15,6 +18,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
 
 import io.mats3.MatsEndpoint;
+import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsFactory;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.TraceId;
@@ -62,18 +66,8 @@ public class MatsEagerCacheServer {
     private final int _forcedUpdateIntervalMinutes;
 
     private final String _privateNodename;
-
     private final ObjectWriter _sentDataTypeWriter;
-
-    private final CopyOnWriteArrayList<Consumer<SiblingCommand>> _siblingCommandEventListeners = new CopyOnWriteArrayList<>();
-
-    static String getCacheRequestQueue(String dataName) {
-        return "mats.MatsEagerCache." + dataName + ".UpdateRequest";
-    }
-
-    static String getBroadcastTopic(String dataName) {
-        return "mats.MatsEagerCache." + dataName + ".BroadcastUpdate";
-    }
+    private final ThreadPoolExecutor _produceAndSendExecutor;
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public <SRC, SENT> MatsEagerCacheServer(MatsFactory matsFactory, String dataName, Class<SENT> sentDataType,
@@ -98,11 +92,34 @@ public class MatsEagerCacheServer {
         // Make specific Writer for the "sentDataType" - this is what we will need to serialize to send to clients.
         // Configure as NDJSON (Newline Delimited JSON), which is a good format for streaming.
         _sentDataTypeWriter = mapper.writerFor(sentDataType).withRootValueSeparator("\n");
+
+        // Create the single-threaded executor for producing and sending updates.
+        _produceAndSendExecutor = new ThreadPoolExecutor(1, 1, 1L, TimeUnit.MINUTES,
+                new LinkedBlockingQueue<>(),
+                runnable -> {
+                    Thread t = new Thread(runnable, "MatsEagerCacheServer." + dataName + "-ProduceAndSendUpdate");
+                    t.setDaemon(true);
+                    return t;
+                });
     }
 
     private volatile boolean _running;
+    private volatile boolean _initialTestSourceDataProvided;
     private volatile MatsEndpoint<Void, Void> _broadcastTerminator;
     private volatile MatsEndpoint<Void, Void> _requestTerminator;
+
+    private final CopyOnWriteArrayList<Consumer<SiblingCommand>> _siblingCommandEventListeners = new CopyOnWriteArrayList<>();
+
+    private static final int DEFAULT_SHORT_DELAY = 1000;
+    private static final int DEFAULT_LONG_DELAY = 7000;
+
+    private int _shortDelay = DEFAULT_SHORT_DELAY;
+    private int _longDelay = DEFAULT_LONG_DELAY;
+
+    void _setDelays(int shortDelay, int longDelay) {
+        _shortDelay = shortDelay;
+        _longDelay = longDelay;
+    }
 
     /**
      * The service must provide an implementation of this interface to the cache-server, via a {@link Supplier}, so that
@@ -119,11 +136,12 @@ public class MatsEagerCacheServer {
     @FunctionalInterface
     public interface CacheSourceDataCallback<SRC> {
         /**
-         * Get the count of the data (i.e. how many entities), if known beforehand. The default implementation returns
-         * {@code -1}, which means that the count is not known. If the size is known, it may be used to optimize the
-         * cache server's handling of message byte arrays when getting data, e.g. not resize to 2x if there is only one
-         * of 1000s entities left. Note: Do <b>not</b> make any effort to get this value if not immediately available,
-         * e.g. by issuing a SELECT COUNT(1), as the memory savings will not be worth the performance penalty.
+         * Provide the count of the data (i.e. how many entities), if known beforehand. The default implementation
+         * returns {@code -1}, which means that the count is not known. If the size is known, it may be used to optimize
+         * the cache server's handling of message byte arrays when getting data, e.g. not resize to 2x if there is only
+         * one of 1000s entities left. Note: Do <b>not</b> make any effort to get this value if not immediately
+         * available, e.g. by issuing a SELECT COUNT(1), as any memory savings will not be worth the performance
+         * penalty.
          * <p>
          * Note: The corresponding method on the client side is always correct, as we then have read the source data and
          * know the count!
@@ -135,9 +153,9 @@ public class MatsEagerCacheServer {
         }
 
         /**
-         * Get the metadata. This is an optional method that can be used to provide some metadata about the data, which
-         * the client can use to log and display to the user (i.e. developers/operators) in the cache GUI. The default
-         * implementation returns {@code null}.
+         * Provide the metadata. This is an optional method that can be used to provide some metadata about the data,
+         * which the client can use to log and display to the user (i.e. developers/operators) in the cache GUI. The
+         * default implementation returns {@code null}.
          *
          * @return the metadata, or {@code null} if not provided.
          */
@@ -146,10 +164,10 @@ public class MatsEagerCacheServer {
         }
 
         /**
-         * The cache server will invoke this method to retrieve the source data to send to cache clients. You invoke the
-         * supplied consumer repeatedly until you've provided the entire dataset (for full updates), or the partial
-         * dataset (for partial updates), and then close any resources (e.g. SQL Connection), and return - thus marking
-         * the end of data, which will be sent to the cache clients
+         * Provide the actual data: The cache server will invoke this method to retrieve the source data to send to
+         * cache clients. You invoke the supplied consumer repeatedly until you've provided the entire dataset (for full
+         * updates), or the partial dataset (for partial updates), and then close any resources (e.g. SQL Connection),
+         * and return - thus marking the end of data, which will be sent to the cache clients
          * <p>
          * Care must be taken to ensure that the stream represent a consistent snapshot of the data, and that the data
          * is not modified while the stream is being read, so some kind of synchronization or locking of the source data
@@ -160,8 +178,10 @@ public class MatsEagerCacheServer {
 
     /**
      * Add a listener for sibling commands. {@link SiblingCommand Sibling commands} are messages sent from one sibling
-     * to all the other siblings, including the one that originated the command. This can be useful to propagate updates
-     * to the source data to all the siblings, to ensure that the source data is consistent between the siblings.
+     * to all the other siblings, including the one that originated the command (you may ask
+     * {@link SiblingCommand#commandOriginatedOnThisInstance() "whether it was you"}). This can be useful to propagate
+     * updates to the source data to all the siblings, to ensure that the source data is consistent between the
+     * siblings.
      *
      * @param siblingCommandEventListener
      *            the listener to add.
@@ -198,19 +218,23 @@ public class MatsEagerCacheServer {
             throw new IllegalStateException("The MatsEagerCacheServer has not been started yet.");
         }
 
+        // Construct the broadcast DTO
         BroadcastDto broadcast = new BroadcastDto();
         broadcast.command = BroadcastDto.COMMAND_SIBLING_COMMAND;
         broadcast.siblingCommand = command;
         broadcast.siblingStringData = stringData;
         broadcast.sentTimestamp = System.currentTimeMillis();
         broadcast.sentNanoTime = System.nanoTime();
-
         broadcast.sentPrivateNodename = _privateNodename;
 
+        // Ensure that we ourselves can get the ping.
+        _broadcastTerminator.waitForReceiving(30_000);
+
+        // Send the broadcast
         _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
             init.traceId(TraceId.create("EagerCache." + _dataName, "SiblingCommand").add("cmd", command))
                     .addBytes(SIDELOAD_KEY_SIBLING_COMMAND_BYTES, binaryData)
-                    .from("EagerCache." + _dataName)
+                    .from("MatsEagerCacheServer." + _dataName + ".SiblingCommand")
                     .to(getBroadcastTopic(_dataName))
                     .publish(broadcast);
         });
@@ -218,15 +242,19 @@ public class MatsEagerCacheServer {
 
     /**
      * A sibling command. This is a message sent from one sibling to all the other siblings, including the one that
-     * originated the command.
+     * originated the command. You may use the method {@link #commandOriginatedOnThisInstance()} to determine whether
+     * this instance originated the command. This is relevant if you have the source data in memory: If for example a
+     * user makes a change to the source data using the service's GUI, you must now apply it to yourself and all the
+     * siblings. Instead of applying the change directly, you do it via a sibling command, which will then be sent to
+     * all the siblings, including yourself - and apply the change in the sibling command listener. The data will thus
+     * be consistent between all siblings. You then need to propagate the change to the cache clients - and it doesn't
+     * make sense that all the siblings initiate this - so you can use the {@link #commandOriginatedOnThisInstance()} to
+     * determine whether this instance should initiate the cache update.
      */
     public interface SiblingCommand {
         /**
          * Since all nodes will receive the command, including the one that originated it, this method tells whether the
-         * command originated on this instance. This is useful to know whether to propagate the command to the
-         * MatsEagerCache via {@link MatsEagerCacheServer#scheduleBroadcastFullUpdate()} or
-         * {@link MatsEagerCacheServer#broadcastPartialUpdate(CacheSourceDataCallback)}. Also, the
-         * {@link #getSentNanoTime()} will only be meaningful on the instance that originated the command.
+         * command originated on this instance.
          * 
          * @return whether the command originated on this instance.
          */
@@ -241,10 +269,10 @@ public class MatsEagerCacheServer {
 
         /**
          * This is the nanotime ({@link System#nanoTime()}) when the command was sent. This only makes sense on the
-         * instance that {@link #commandOriginatedOnThisInstance() originated the command}, since nanotime is not
+         * instance that {@link #commandOriginatedOnThisInstance() originated the command}, since nano time is not
          * comparable between different JVM instances.
          * 
-         * @return the nanotime when the command was sent.
+         * @return the nano time when the command was sent.
          */
         long getSentNanoTime();
 
@@ -263,12 +291,13 @@ public class MatsEagerCacheServer {
      * clients request a full update at the same time (which otherwise would result in a lot of full updates being sent
      * in parallel), which may happen if all clients are booted at the same time.
      * <p>
-     * The data to send is retrieved by the cache server using the {@link CacheSourceDataCallback} supplier provided in
-     * the constructor.
+     * The data to send is retrieved by the cache server using the {@link CacheSourceDataCallback} supplier provided
+     * when constructing the cache server.
      * <p>
-     * The method is asynchronous, and returns immediately.
+     * The update is asynchronous - this method returns immediately.
      */
     public void scheduleBroadcastFullUpdate() {
+        _scheduleBroadcastFullUpdate(null);
     }
 
     /**
@@ -315,17 +344,7 @@ public class MatsEagerCacheServer {
      *            the data to send out as a partial update.
      */
     public <SRC> void broadcastPartialUpdate(CacheSourceDataCallback<SRC> data) {
-    }
-
-    public void close() {
-        // ?: Are we started? Note: we accept multiple close() invocations, as the close-part is harder to lifecycle
-        // manage than the start-part (It might e.g. be closed by Spring too, in addition to by the user).
-        if (_running) {
-            // -> Yes, we are started, so close down.
-            _broadcastTerminator.stop(30_000);
-            _requestTerminator.stop(30_000);
-            _running = false;
-        }
+        // TODO: Implement
     }
 
     /**
@@ -340,6 +359,33 @@ public class MatsEagerCacheServer {
      * @return this instance, for chaining.
      */
     public MatsEagerCacheServer start() {
+        return _start();
+    }
+
+    public void close() {
+        synchronized (this) {
+            // ?: Are we running? Note: we accept multiple close() invocations, as the close-part is harder to lifecycle
+            // manage than the start-part (It might e.g. be closed by Spring too, in addition to by the user).
+            if (_running) {
+                // -> Yes, we are started, so close down.
+                _broadcastTerminator.stop(30_000);
+                _requestTerminator.stop(30_000);
+                _running = false;
+            }
+        }
+    }
+
+    // ======== Implementation / Internal methods ========
+
+    static String getCacheRequestQueue(String dataName) {
+        return "mats.MatsEagerCache." + dataName + ".UpdateRequest";
+    }
+
+    static String getBroadcastTopic(String dataName) {
+        return "mats.MatsEagerCache." + dataName + ".BroadcastUpdate";
+    }
+
+    private MatsEagerCacheServer _start() {
         // ?: Have we already started?
         if (_running) {
             // -> Yes, we have already started - so you evidently have no control over the lifecycle of this object!
@@ -347,57 +393,15 @@ public class MatsEagerCacheServer {
         }
         // ::: Create the Mats endpoints
         // :: The endpoint that the clients will send requests to
+        // Note: We set concurrency to 1. We have this anti-thundering-herd mechanism whereby if many clients request
+        // updates at the same time, we will only send one update satisfying them all. There is a mechanism to handle
+        // this across multiple cache servers, whereby we broadcast "I'm going to do it". But having multiple stage
+        // processors for the cache request terminator on each node makes no sense.
         _requestTerminator = _matsFactory.terminator(getCacheRequestQueue(_dataName), void.class,
-                CacheRequestDto.class, (ctx, state, msg) -> {
-                    ByteArrayDeflaterOutputStreamWithStats out = new ByteArrayDeflaterOutputStreamWithStats();
-
-                    int[] dataCount = new int[1];
-                    CacheSourceDataCallback<?> sourceProvider = _dataSupplier.get();
-                    // We checked these at construction time. We'll just have to live with the uncheckedness.
-                    @SuppressWarnings("unchecked")
-                    CacheSourceDataCallback<Object> uncheckedSourceProvider = (CacheSourceDataCallback<Object>) sourceProvider;
-                    @SuppressWarnings({ "unchecked", "rawtypes" })
-                    Function<Object, Object> uncheckedDataTypeMapper = o -> ((Function) _dataTypeMapper).apply(o);
-
-                    try {
-                        SequenceWriter jacksonSeq = _sentDataTypeWriter.writeValues(out);
-                        Consumer<Object> consumer = o -> {
-                            try {
-                                jacksonSeq.write(uncheckedDataTypeMapper.apply(o));
-                            }
-                            catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                            dataCount[0]++;
-                        };
-                        uncheckedSourceProvider.provideSourceData(consumer);
-                        jacksonSeq.close();
-                    }
-                    catch (IOException e) {
-                        // TODO: Log exception to monitor and HealthCheck.
-                        throw new RuntimeException("Got interrupted while waiting for initial population to be done.",
-                                e);
-                    }
-
-                    BroadcastDto broadcast = new BroadcastDto();
-                    broadcast.command = BroadcastDto.COMMAND_UPDATE_FULL;
-                    broadcast.correlationId = msg.correlationId;
-                    broadcast.requestNodename = msg.nodename;
-                    broadcast.requestSentTimestamp = msg.sentTimestamp;
-                    broadcast.requestSentNanoTime = msg.sentNanoTime;
-                    broadcast.sentTimestamp = System.currentTimeMillis();
-                    broadcast.sentNanoTime = System.nanoTime();
-                    broadcast.dataCount = dataCount[0]; // Actual data count, not the one from the sourceProvider.
-                    broadcast.uncompressedSize = out.getUncompressedBytesInput();
-                    broadcast.compressedSize = out.getCompressedBytesOutput();
-                    broadcast.metadata = sourceProvider.provideMetadata();
-
-                    ctx.initiate(init -> {
-                        init.traceId("RequestReply")
-                                .to(getBroadcastTopic(_dataName))
-                                .addBytes(MATS_EAGER_CACHE_PAYLOAD, out.toByteArray())
-                                .publish(broadcast);
-                    });
+                CacheRequestDto.class,
+                endpointConfig -> endpointConfig.setConcurrency(1),
+                MatsFactory.NO_CONFIG, (ctx, state, msg) -> {
+                    _scheduleBroadcastFullUpdate(msg);
                 });
 
         // :: Listener to the update topic.
@@ -411,59 +415,370 @@ public class MatsEagerCacheServer {
         // the commands, but that would pollute the MQ Destination namespace with one extra topic per cache.
         _broadcastTerminator = _matsFactory.subscriptionTerminator(getBroadcastTopic(_dataName), void.class,
                 BroadcastDto.class, (ctx, state, broadcastDto) -> {
-                    log.info("Got a broadcast update: " + broadcastDto);
+                    log.info("Got a broadcast: " + broadcastDto.command);
                     // ?: Is this a sibling command?
-                    if (broadcastDto.command.equals(BroadcastDto.COMMAND_SIBLING_COMMAND)) {
+                    if (BroadcastDto.COMMAND_SIBLING_COMMAND.equals(broadcastDto.command)) {
                         // -> Yes, this is a sibling command.
-                        byte[] bytes = ctx.getBytes(SIDELOAD_KEY_SIBLING_COMMAND_BYTES);
-                        SiblingCommand siblingCommand = new SiblingCommand() {
-                            @Override
-                            public boolean commandOriginatedOnThisInstance() {
-                                return broadcastDto.sentPrivateNodename.equals(_privateNodename);
-                            }
-
-                            @Override
-                            public long getSentTimestamp() {
-                                return broadcastDto.sentTimestamp;
-                            }
-
-                            @Override
-                            public long getSentNanoTime() {
-                                return broadcastDto.sentNanoTime;
-                            }
-
-                            @Override
-                            public String getCommand() {
-                                return broadcastDto.siblingCommand;
-                            }
-
-                            @Override
-                            public String getStringData() {
-                                return broadcastDto.siblingStringData;
-                            }
-
-                            @Override
-                            public byte[] getBinaryData() {
-                                return bytes;
-                            }
-                        };
-                        for (Consumer<SiblingCommand> listener : _siblingCommandEventListeners) {
-                            try {
-                                listener.accept(siblingCommand);
-                            }
-                            catch (Throwable t) {
-                                log.error("Got exception from SiblingCommandEventListener [" + listener
-                                        + "], ignoring.", t);
-                            }
-                        }
+                        _handleSiblingCommand(ctx, broadcastDto);
+                    }
+                    else if (BroadcastDto.COMMAND_SCHEDULE_REQUEST_RECEIVED.equals(broadcastDto.command)) {
+                        _msg_scheduleRequestReceived(broadcastDto);
+                    }
+                    else if (BroadcastDto.COMMAND_SCHEDULE_SENDING_NOW.equals(broadcastDto.command)) {
+                        _msg_schedule_SendNow(broadcastDto);
                     }
                 });
 
         // We're now started.
         _running = true;
 
+        // Create thread that checks if we actually can request the Source Data
+        Thread checkThread = new Thread(() -> {
+            // No use in doing this until the system has fully started up.
+            // Proxy-checking this by the user having started the MatsFactory, thus that our endpoints are up.
+            _waitForReceiving();
+
+            // We'll keep trying until we succeed.
+            long sleepTimeBetweenAttempts = 2000;
+            while (_running) {
+                // Try to get the data from the source provider.
+                try {
+                    log.info("Asserting that we can get Source Data.");
+                    SourceDataResult result = _createSourceDataResult();
+                    log.info("Success: We asserted that we can get Source Data! Data count:["
+                            + result.dataCountFromSourceProvider + "]");
+                    _initialTestSourceDataProvided = true;
+                    // We're done - it is possible to get source data.
+                    break;
+                }
+                catch (Throwable t) {
+                    // TODO: Log exception to monitor and HealthCheck.
+                    log.error("Got exception while trying to assert that we could call the source"
+                            + " provider and get data.", t);
+                }
+                // Wait a bit before trying again.
+                try {
+                    Thread.sleep(sleepTimeBetweenAttempts);
+                }
+                catch (InterruptedException e) {
+                    // TODO: Log exception to monitor and HealthCheck.
+                    log.error("Got interrupted while waiting for initial population to be done.", e);
+                    // The _running flag will be checked in the next iteration.
+                }
+                // Increase sleep time between attempts, but cap it at 30 seconds.
+                sleepTimeBetweenAttempts = (long) Math.min(30_000, sleepTimeBetweenAttempts * 1.5);
+            }
+        }, "MatsEagerCacheServer." + _dataName + "-InitialPopulationCheck");
+        checkThread.setDaemon(true);
+        checkThread.start();
+
         // For chaining
         return this;
+    }
+
+    // These are synched on this.
+    private int _updateRequest_OutstandingCount;
+    private volatile long _lastFullUpdateStartedTimestamp;
+
+    /**
+     * We use the broadcast channel to sequence the incoming requests for updates. This should ensure that we get a
+     * unified understanding of the order of incoming requests, and who should handle the update.
+     */
+    private void _scheduleBroadcastFullUpdate(CacheRequestDto incomingCacheRequest) {
+        log.info("\n\n======== Scheduling full update of cache [" + _dataName + "].\n\n");
+        // ?: Have we started?
+        if (!_running) {
+            // -> No, we have not started - so you evidently have no control over the lifecycle of this object!
+            throw new IllegalStateException("The MatsEagerCacheServer has not been started yet.");
+        }
+        // Ensure that we ourselves can get the ping.
+        _broadcastTerminator.waitForReceiving(30_000);
+
+        // Send a message, that we ourselves will get.
+        BroadcastDto broadcast = new BroadcastDto();
+        broadcast.command = BroadcastDto.COMMAND_SCHEDULE_REQUEST_RECEIVED;
+        broadcast.handlingNodename = _privateNodename;
+        broadcast.sentTimestamp = System.currentTimeMillis();
+        broadcast.sentNanoTime = System.nanoTime();
+        if (incomingCacheRequest != null) {
+            broadcast.correlationId = incomingCacheRequest.correlationId;
+            broadcast.requestNodename = incomingCacheRequest.nodename;
+            broadcast.requestSentTimestamp = incomingCacheRequest.sentTimestamp;
+            broadcast.requestSentNanoTime = incomingCacheRequest.sentNanoTime;
+        }
+        _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
+            init.traceId(TraceId.create("EagerCache." + _dataName, "ScheduleRequest"))
+                    .from("EagerCache." + _dataName)
+                    .to(getBroadcastTopic(_dataName))
+                    .publish(broadcast);
+        });
+    }
+
+    private void _msg_scheduleRequestReceived(BroadcastDto broadcastDto) {
+        log.info("\n\n======== Got a schedule request received: " + broadcastDto.handlingNodename
+                + (_privateNodename.equals(broadcastDto.handlingNodename) ? " (THIS IS US!)" : "(Not us!)")
+                + "\n\n");
+        // Should we fire off the thread?
+        boolean weAreInChargeOfHandlingUpdate = false;
+        synchronized (this) {
+            // Increase the count of outstanding requests.
+            _updateRequest_OutstandingCount++;
+            // ?: If this went from 0 to 1, the process is just started.
+            if (_updateRequest_OutstandingCount == 1) {
+                // -> Yes, it went from 0 to 1, so the process just got started!
+                // The one that started it is the one that will handle it. Is it us?
+                weAreInChargeOfHandlingUpdate = _privateNodename.equals(broadcastDto.handlingNodename);
+            }
+        }
+
+        /*
+         * Brute-force solution at ensuring that if the responsible node doesn't manage to do it, someone will. Make a
+         * thread on ALL nodes that in some minutes will check _lastFullUpdateSentTimestamp, and if it is not higher
+         * than when this thread started (which it should be if anyone performed any update), it will initiate a new
+         * full update.
+         */
+        Thread ensurerThread = new Thread(() -> {
+            long timestampWhenEnsurerStarted = System.currentTimeMillis();
+            _takeNap(180_000);
+            // ?: Have anyone already sent the full update?
+            if (_lastFullUpdateStartedTimestamp < timestampWhenEnsurerStarted) {
+                // -> No, we have not sent the full update yet, so we'll do it now.
+                _scheduleBroadcastFullUpdate(null);
+            }
+        }, "MatsEagerCacheServer." + _dataName + "-Ensurer");
+        ensurerThread.setDaemon(true);
+        ensurerThread.start();
+
+        // ?: Are we in charge of handling it?
+        if (weAreInChargeOfHandlingUpdate) {
+            // -> Yes, we are in charge of handling it, so fire off the delay-thread.
+            // The delay-stuff is to handle the "thundering herd" problem, where all clients request a full update at
+            // the same time - which otherwise would result in a lot of full updates being sent in parallel.
+
+            // "If it is a long time since last invocation, it will be scheduled to run soon (~ within 1 second), while
+            // if the previous time was a short time ago, it will be scheduled to run a bit later (~ within 7 seconds)."
+            int initialDelay = (System.currentTimeMillis() - _lastFullUpdateStartedTimestamp) > 30_000
+                    ? _shortDelay
+                    : _longDelay;
+            Thread scheduledUpdateThread = new Thread(() -> {
+                // First sleep the initial delay.
+                _takeNap(initialDelay);
+
+                // ?: Was this a short sleep?
+                if (initialDelay == _shortDelay) {
+                    // -> Yes, short - now evaluate whether there have come in more requests while we slept.
+                    int outstandingCount;
+                    synchronized (this) {
+                        outstandingCount = _updateRequest_OutstandingCount;
+                    }
+                    // ?: Have there come in more than the one that started the process?
+                    if (outstandingCount > 1) {
+                        // -> Yes, more requests incoming, so we'll do the long delay anyway
+                        _takeNap(_longDelay - _shortDelay);
+                    }
+                }
+
+                // ----- Okay, we've waited for more requests, now we'll initiate the update.
+                // We also do this over broadcast, so that all siblings can see that we're doing it.
+
+                BroadcastDto broadcast = new BroadcastDto();
+                broadcast.command = BroadcastDto.COMMAND_SCHEDULE_SENDING_NOW;
+                broadcast.handlingNodename = _privateNodename;
+                broadcast.sentTimestamp = System.currentTimeMillis();
+                broadcast.sentNanoTime = System.nanoTime();
+                // Transfer the correlationId and requestNodename from the incoming message, if present.
+                broadcast.correlationId = broadcastDto.correlationId;
+                broadcast.requestNodename = broadcastDto.requestNodename;
+                broadcast.requestSentTimestamp = broadcastDto.requestSentTimestamp;
+                broadcast.requestSentNanoTime = broadcastDto.requestSentNanoTime;
+
+                _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
+                    init.traceId(TraceId.create("EagerCache." + _dataName, "ScheduleRequest"))
+                            .from("EagerCache." + _dataName)
+                            .to(getBroadcastTopic(_dataName))
+                            .publish(broadcast);
+                });
+
+            }, "MatsEagerCacheServer." + _dataName + "-ScheduledUpdateDelayer");
+            scheduledUpdateThread.setDaemon(true);
+            scheduledUpdateThread.start();
+        }
+    }
+
+    private void _msg_schedule_SendNow(BroadcastDto broadcastDto) {
+        log.info("\n\n======== Got a schedule sending now: " + broadcastDto.handlingNodename
+                + (broadcastDto.handlingNodename.equals(_privateNodename) ? " (THIS IS US!)" : "(Not us!)"));
+
+        // Reset count, starting process over.
+        synchronized (this) {
+            _updateRequest_OutstandingCount = 0;
+        }
+        // A full-update will be sent now, make note (for initialDelay evaluation)
+        _lastFullUpdateStartedTimestamp = System.currentTimeMillis();
+
+        // ?: So, is it us that should handle the actual broadcast of update
+        // AND is there no other update in the queue? (If there are, that task will already send most recent data)
+        if (_privateNodename.equals(broadcastDto.handlingNodename)
+                && _produceAndSendExecutor.getQueue().isEmpty()) {
+            // -> Yes it was us, and there are no other updates already in the queue.
+            _produceAndSendExecutor.execute(() -> {
+                log.info("\n\n======== Sending full update of cache [" + _dataName + "].\n\n");
+                // Get the data
+
+                SourceDataResult result = _createSourceDataResult();
+
+                // Create the Broadcast message (which doesn't contain the actual data, but the metadata).
+                BroadcastDto broadcast = new BroadcastDto();
+                broadcast.command = BroadcastDto.COMMAND_UPDATE_FULL;
+                broadcast.sentTimestamp = System.currentTimeMillis();
+                broadcast.sentNanoTime = System.nanoTime();
+                broadcast.dataCount = result.dataCountFromSourceProvider;
+                broadcast.compressedSize = result.compressedSize;
+                broadcast.uncompressedSize = result.uncompressedSize;
+                broadcast.metadata = result.metadata;
+                broadcast.millisSourceDataAndCompress = result.millisSourceDataAndCompress;
+                broadcast.millisDeflateAndWrite = result.millisDeflateAndWrite;
+                // Transfer the correlationId and requestNodename from the incoming message, if present.
+                broadcast.correlationId = broadcastDto.correlationId;
+                broadcast.requestNodename = broadcastDto.requestNodename;
+                broadcast.requestSentTimestamp = broadcastDto.requestSentTimestamp;
+                broadcast.requestSentNanoTime = broadcastDto.requestSentNanoTime;
+
+                _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
+                    init.traceId(TraceId.create("EagerCache." + _dataName, "FullUpdate"))
+                            .from("EagerCache." + _dataName + ".ScheduledFullUpdate")
+                            .to(getBroadcastTopic(_dataName))
+                            .addBytes(MATS_EAGER_CACHE_PAYLOAD, result.byteArray)
+                            .publish(broadcast);
+                });
+            });
+        }
+    }
+
+    private static void _takeNap(int millis) {
+        try {
+            Thread.sleep(millis);
+        }
+        catch (InterruptedException e) {
+            log.warn("Got interrupted while taking nap.", e);
+            throw new IllegalStateException("Got interrupted while taking nap, unexpected.", e);
+        }
+    }
+
+    private void _handleSiblingCommand(ProcessContext<Void> ctx, BroadcastDto broadcastDto) {
+        byte[] bytes = ctx.getBytes(SIDELOAD_KEY_SIBLING_COMMAND_BYTES);
+        MatsEagerCacheServer.SiblingCommand siblingCommand = new MatsEagerCacheServer.SiblingCommand() {
+            @Override
+            public boolean commandOriginatedOnThisInstance() {
+                return broadcastDto.sentPrivateNodename.equals(_privateNodename);
+            }
+
+            @Override
+            public long getSentTimestamp() {
+                return broadcastDto.sentTimestamp;
+            }
+
+            @Override
+            public long getSentNanoTime() {
+                return broadcastDto.sentNanoTime;
+            }
+
+            @Override
+            public String getCommand() {
+                return broadcastDto.siblingCommand;
+            }
+
+            @Override
+            public String getStringData() {
+                return broadcastDto.siblingStringData;
+            }
+
+            @Override
+            public byte[] getBinaryData() {
+                return bytes;
+            }
+        };
+        for (Consumer<MatsEagerCacheServer.SiblingCommand> listener : _siblingCommandEventListeners) {
+            try {
+                listener.accept(siblingCommand);
+            }
+            catch (Throwable t) {
+                log.error("Got exception from SiblingCommandEventListener [" + listener
+                        + "], ignoring.", t);
+            }
+        }
+    }
+
+    private SourceDataResult _createSourceDataResult() {
+        MatsEagerCacheServer.CacheSourceDataCallback<?> sourceProvider = _dataSupplier.get();
+        // We checked these at construction time. We'll just have to live with the uncheckedness.
+        @SuppressWarnings("unchecked")
+        MatsEagerCacheServer.CacheSourceDataCallback<Object> uncheckedSourceProvider = (CacheSourceDataCallback<Object>) sourceProvider;
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        Function<Object, Object> uncheckedDataTypeMapper = o -> ((Function) _dataTypeMapper).apply(o);
+
+        long nanosAsStart_gettingAndCompressingSourceData = System.nanoTime();
+        ByteArrayDeflaterOutputStreamWithStats out = new ByteArrayDeflaterOutputStreamWithStats();
+        int[] dataCount = new int[1];
+        try {
+            SequenceWriter jacksonSeq = _sentDataTypeWriter.writeValues(out);
+            Consumer<Object> consumer = o -> {
+                try {
+                    jacksonSeq.write(uncheckedDataTypeMapper.apply(o));
+                }
+                catch (IOException e) {
+                    // TODO: Log exception to monitor and HealthCheck.
+                    throw new RuntimeException(e);
+                }
+                dataCount[0]++;
+            };
+            uncheckedSourceProvider.provideSourceData(consumer);
+            jacksonSeq.close();
+        }
+        catch (IOException e) {
+            // TODO: Log exception to monitor and HealthCheck.
+            throw new RuntimeException("Got interrupted while waiting for initial population to be done.",
+                    e);
+        }
+
+        // Actual data count, not the guesstimate from the sourceProvider.
+        int dataCountFromSourceProvider = dataCount[0];
+        // Fetch the resulting byte array.
+        byte[] byteArray = out.toByteArray();
+        // Sizes in bytes
+        long compressedSize = out.getCompressedBytesOutput();
+        long uncompressedSize = out.getUncompressedBytesInput();
+        // Timings
+        double millisTaken_DeflateAndWrite = out.getDeflateAndWriteTimeNanos() / 1_000_000d;
+        double millisTaken_gettingAndCompressingSourceData = (System.nanoTime()
+                - nanosAsStart_gettingAndCompressingSourceData) / 1_000_000d;
+        // Metadata from the source provider
+        String metadata = sourceProvider.provideMetadata();
+        return new SourceDataResult(dataCountFromSourceProvider, byteArray,
+                compressedSize, uncompressedSize, metadata,
+                millisTaken_gettingAndCompressingSourceData, millisTaken_DeflateAndWrite);
+    }
+
+    private static class SourceDataResult {
+        public final int dataCountFromSourceProvider;
+        public final byte[] byteArray;
+        public final long compressedSize;
+        public final long uncompressedSize;
+        public final String metadata;
+        public final double millisSourceDataAndCompress;
+        public final double millisDeflateAndWrite;
+
+        public SourceDataResult(int dataCountFromSourceProvider, byte[] byteArray,
+                long compressedSize, long uncompressedSize, String metadata,
+                double millisSourceDataAndCompress, double millisDeflateAndWrite) {
+            this.dataCountFromSourceProvider = dataCountFromSourceProvider;
+            this.byteArray = byteArray;
+            this.compressedSize = compressedSize;
+            this.uncompressedSize = uncompressedSize;
+            this.metadata = metadata;
+            this.millisSourceDataAndCompress = millisSourceDataAndCompress;
+            this.millisDeflateAndWrite = millisDeflateAndWrite;
+        }
     }
 
     void _waitForReceiving() {
@@ -487,6 +802,8 @@ public class MatsEagerCacheServer {
         static final String COMMAND_UPDATE_FULL = "UPDATE_FULL";
         static final String COMMAND_UPDATE_PARTIAL = "UPDATE_PARTIAL";
         static final String COMMAND_SIBLING_COMMAND = "SIBLING_COMMAND";
+        static final String COMMAND_SCHEDULE_REQUEST_RECEIVED = "SYNCH_NOTIFY";
+        static final String COMMAND_SCHEDULE_SENDING_NOW = "SYNCH_SEND";
 
         String command;
         String correlationId;
@@ -498,17 +815,22 @@ public class MatsEagerCacheServer {
         long sentTimestamp;
         long sentNanoTime;
 
+        // ===== For the actual updates to clients.
         int dataCount;
         String metadata;
         long uncompressedSize;
         long compressedSize;
+        double millisSourceDataAndCompress;
+        double millisDeflateAndWrite;
+        // Note: The actual data is added as a sideload.
 
-        // The actual data is added as a sideload.
-
-        // For sibling commands
+        // ====== For sibling commands
         String siblingCommand;
         String siblingStringData;
-        // Bytes are sideloaded
+        // Note: Bytes are sideloaded
         String sentPrivateNodename;
+
+        // ===== Mechanism to synchronize the updates
+        String handlingNodename;
     }
 }

@@ -73,7 +73,7 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         cacheClient.start();
 
         log.info("\n\n######### Waiting for initial population to be done.\n\n");
-        latch.await(10, TimeUnit.SECONDS);
+        latch.await(30, TimeUnit.SECONDS);
 
         log.info("\n\n######### Latched!\n\n");
 
@@ -82,9 +82,9 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         DataCarrier dataCarrier = cacheClient.get();
         log.info("######### Got the data! Size:[" + dataCarrier.customers.size() + "]");
 
+        // Create cache-side data from the source data, and serialize it.
         ReplyDTO cacheData = new ReplyDTO();
         cacheData.customers = dataCarrier.customers;
-
         String serializedCacheData = _replyWriter.writeValueAsString(cacheData);
 
         Assert.assertEquals("The serialized data should be the same from source, via server-to-client,"
