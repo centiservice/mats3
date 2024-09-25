@@ -13,17 +13,18 @@ import io.mats3.MatsFactory;
 import io.mats3.api_test.DataTO;
 import io.mats3.api_test.StateTO;
 import io.mats3.test.MatsTestHelp;
+import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.junit.Rule_Mats;
 
 /**
- * Tests the Time-To-Live feature, by sending 4 messages with TTL = 150, and then a "flushing" FINAL message without
- * setting the TTL. The service sleeps for 400 ms. The MatsBasicTest has a MatsFactory with concurrency = 1. Therefore,
- * only the first of the TTLed messages should come through, as the rest should have timed out when the service is ready
- * to accept them again. The FINAL message should come through anyway, since it does not have timeout. Therefore, the
- * expected number of delivered messages is 2. Also, a test of the "test infrastructure" is performed, by setting the
- * TTL for the 4 messages to 0, which is "forever", hence all should now be delivered, and the expected number of
- * delivered messages should then be 5.
+ * Tests the Time-To-Live feature, by sending 2 messages with relatively low TT, and then a "flushing" FINAL message
+ * without setting the TTL. The service sleeps for a longer time than the TTL. The MatsBasicTest has a MatsFactory with
+ * concurrency = 1. Therefore, only the first of the TTLed messages should come through, as the other should have timed
+ * out when the service is ready to accept them again. The FINAL message should come through anyway, since it does not
+ * have timeout. Therefore, the expected number of delivered messages is 2. Also, a test of the "test infrastructure" is
+ * performed, by setting the TTL for the 2 messages to 0, which is "forever", hence all should now be delivered, and the
+ * expected number of delivered messages should then be 3.
  *
  * @author Endre Stølsvik 2019-08-25 22:40 - http://stolsvik.com/, endre@stolsvik.com
  * @author Endre Stølsvik 2022-09-19 23:35 - hopefully eliminating instability on Github Actions (formerly instable on
@@ -46,7 +47,7 @@ public class Test_TimeToLive {
                 MatsFactory.NO_CONFIG, (ctx, state, dto) -> {
                     if ("DELAY".equals(dto.string)) {
                         try {
-                            Thread.sleep(400);
+                            Thread.sleep(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE);
                         }
                         catch (InterruptedException e) {
                             throw new IllegalStateException(e);
@@ -68,21 +69,21 @@ public class Test_TimeToLive {
 
     @Test
     public void checkTestInfrastructure() {
-        doTest(0, 5);
+        doTest(0, 3);
     }
 
     @Test
     public void testWithTimeToLive() {
-        doTest(150, 2);
+        doTest(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE / 2, 2);
     }
 
     private void doTest(long timeToLive, int expectedMessages) {
         StateTO sto = new StateTO(420, 420.024);
 
-        // :: First send 4 messages with the specified TTL.
+        // :: First send 2 messages with the specified TTL.
         MATS.getMatsInitiator().initiateUnchecked(
                 (msg) -> {
-                    for (int i = 0; i < 4; i++) {
+                    for (int i = 0; i < 2; i++) {
                         DataTO dto = new DataTO(i, "DELAY");
                         msg.traceId(MatsTestHelp.traceId())
                                 .from(MatsTestHelp.from("first_run_" + i))
