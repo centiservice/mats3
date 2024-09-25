@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 
 import io.mats3.MatsFactory;
 import io.mats3.test.MatsTestFactory;
+import io.mats3.test.MatsTestLatch;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.ReplyDTO;
@@ -90,8 +91,10 @@ public class Test_EagerCache_RequestFullUpdate {
         });
 
         // Setting shorter delays, as we're testing.
-        cacheServer1._setDelays(750, 1500);
-        cacheServer2._setDelays(750, 1500);
+        int shortDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 2; // 2 sec
+        int longDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 4; // 4 sec
+        cacheServer1._setDelays(shortDelay, longDelay);
+        cacheServer2._setDelays(shortDelay, longDelay);
 
         log.info("\n\n######### Starting the CacheServers and CacheClient, waiting for receive loops.\n\n");
 
