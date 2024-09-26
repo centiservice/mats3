@@ -77,17 +77,17 @@ public class Test_EagerCache_RequestFullUpdate {
         // .. testing that we get the updates.
         cacheClient1.addCacheUpdatedListener((receivedData) -> {
             log.info("Cache 1 updated! Size:[" + receivedData.getDataCount() + "]");
+            cache1_updateCount.incrementAndGet();
             cache1_updated[0] = receivedData;
             cache1_latch[0].countDown();
-            cache1_updateCount.incrementAndGet();
         });
 
         // .. testing that we get the same data from the second cache client.
         cacheClient2.addCacheUpdatedListener((receivedData) -> {
             log.info("Cache 2 updated! Size:[" + receivedData.getDataCount() + "]");
+            cache2_updateCount.incrementAndGet();
             cache2_updated[0] = receivedData;
             cache2_latch[0].countDown();
-            cache2_updateCount.incrementAndGet();
         });
 
         // Setting shorter delays, as we're testing.
