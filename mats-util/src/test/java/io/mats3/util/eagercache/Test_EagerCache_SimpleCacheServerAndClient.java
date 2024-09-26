@@ -52,6 +52,9 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
                 () -> new CustomerDTOCacheSourceDataCallback(sourceData),
                 CustomerCacheDTO::fromCustomerDTO);
 
+        // Adjust the timings for fast test.
+        cacheServer._setDelays(250, 500);
+
         // :: Create the CacheClient.
         MatsEagerCacheClient<DataCarrier> cacheClient = new MatsEagerCacheClient<>(clientMatsFactory,
                 "Customers", CustomerCacheDTO.class,

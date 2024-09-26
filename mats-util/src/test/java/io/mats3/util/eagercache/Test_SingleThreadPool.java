@@ -10,8 +10,8 @@ import org.slf4j.LoggerFactory;
  * This is just a "visual inspection of log lines" test to see that the single-threaded ExecutorService works as
  * expected.
  */
-public class Test_EagerCache_SingleThreadPool {
-    private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_SingleThreadPool.class);
+public class Test_SingleThreadPool {
+    private static final Logger log = LoggerFactory.getLogger(Test_SingleThreadPool.class);
 
     @Test
     public void run() {

@@ -366,7 +366,7 @@ public class MatsEagerCacheClient<DATA> {
                 throw new IllegalStateException(msg);
             }
 
-            _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_INITIAL);
+            _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_BOOT);
         });
         thread.setName("MatsEagerCacheClient-" + _dataName + "-initialCacheUpdateRequest");
         // If the JVM is shut down due to bad boot, this thread should not prevent it from exiting.
@@ -422,7 +422,7 @@ public class MatsEagerCacheClient<DATA> {
 
         // Send it off
         try {
-            String reason = command.equals(CacheRequestDto.COMMAND_REQUEST_INITIAL)
+            String reason = command.equals(CacheRequestDto.COMMAND_REQUEST_BOOT)
                     ? "initialCacheUpdateRequest"
                     : "manualCacheUpdateRequest";
             _matsFactory.getDefaultInitiator().initiate(init -> init.traceId(
@@ -567,15 +567,15 @@ public class MatsEagerCacheClient<DATA> {
         if (_initialPopulationLatch != null) {
             // -> No, we haven't done initial population obligations yet.
 
-            // SECOND: Release threads hanging on "get", waiting for initial population.
+            // SECOND: Release threads hanging on "get" waiting for initial population.
 
-            // Release threads hanging on "get", waiting for initial population.
+            // Release threads hanging on "get"
             _initialPopulationLatch.countDown();
             // Null out the reference to the latch (volatile field), since we use it for fast-path
             // evaluation in get().
             _initialPopulationLatch = null;
 
-            // THIRD, an final: Run all the initial population runnables that have been added.
+            // THIRD, and final: Run all the initial population runnables that have been added.
 
             /*
              * Run all the runnables that have been added, waiting for this moment. (Typically adding and/or starting
