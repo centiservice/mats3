@@ -1,6 +1,8 @@
 package io.mats3.util.eagercache;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -156,6 +158,7 @@ public class MatsEagerCacheServer {
     private volatile boolean _currentlyMakingSourceDataResult;
     private volatile boolean _currentlyHavingProblemsCreatingSourceDataResult;
 
+    private volatile long _cacheStartedTimestamp;
     private volatile long _lastUpdateRequestReceivedTimestamp;
     private volatile long _lastUpdateProductionStartedTimestamp;
     private volatile long _lastUpdateReceivedTimestamp;
@@ -504,6 +507,7 @@ public class MatsEagerCacheServer {
                     _createCacheEndpoints();
 
                     // We're now running.
+                    _cacheStartedTimestamp = System.currentTimeMillis();
                     _lifeCycle = LifeCycle.RUNNING;
                     _waitForRunningLatch.countDown();
                     _waitForRunningLatch = null;
@@ -567,7 +571,7 @@ public class MatsEagerCacheServer {
                     if (BroadcastDto.COMMAND_SIBLING_COMMAND.equals(broadcastDto.command)) {
                         _handleSiblingCommand(ctx, broadcastDto);
                     }
-                    // ?: Is this the internal "sync between siblings" abour having received a request for update?
+                    // ?: Is this the internal "sync between siblings" about having received a request for update?
                     else if (BroadcastDto.COMMAND_REQUEST_RECEIVED_BOOT.equals(broadcastDto.command)
                             || BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL.equals(broadcastDto.command)
                             || BroadcastDto.COMMAND_REQUEST_ENSURER_FAILED.equals(broadcastDto.command)) {
@@ -583,7 +587,9 @@ public class MatsEagerCacheServer {
                         // -> Jot down that the clients were sent an update, used when calculating the delays, and in
                         // the health check.
                         _lastUpdateReceivedTimestamp = System.currentTimeMillis();
+                        // ?: Is this a full update?
                         if (broadcastDto.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)) {
+                            // -> Yes, this was a full update, so record the timestamp.
                             _lastFullUpdateReceivedTimestamp = _lastUpdateReceivedTimestamp;
                         }
                     }
@@ -708,8 +714,9 @@ public class MatsEagerCacheServer {
             // was a short time ago, it will be scheduled to run a bit later (~ within 7 seconds)."
 
             // First find the latest time anything wrt. an update happened.
-            long latestActivityTimestamp = Math.max(_lastUpdateRequestReceivedTimestamp,
-                    Math.max(_lastUpdateProductionStartedTimestamp, _lastUpdateReceivedTimestamp));
+            long latestActivityTimestamp = Collections.max(Arrays.asList(_cacheStartedTimestamp,
+                    _lastUpdateRequestReceivedTimestamp, _lastUpdateProductionStartedTimestamp,
+                    _lastUpdateReceivedTimestamp));
             // If it is a "long time" since last activity, we'll do a fast response.
             boolean fastResponse = (System.currentTimeMillis()
                     - latestActivityTimestamp) > FAST_RESPONSE_LAST_RECV_THRESHOLD;
