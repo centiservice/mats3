@@ -10,7 +10,7 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 
-import io.mats3.util.DummyFinancialService.ReplyDTO;
+import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.compression.DeflaterOutputStreamWithStats;
 
 /**
@@ -21,12 +21,12 @@ import io.mats3.util.compression.DeflaterOutputStreamWithStats;
 public class Test_SerializationPerformance {
 
     private final ObjectMapper _mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
-    private final ObjectWriter _replyDtoWriter = _mapper.writerFor(ReplyDTO.class);
+    private final ObjectWriter _replyDtoWriter = _mapper.writerFor(CustomerData.class);
 
     @Test
     public void runSingle() throws IOException {
-        ReplyDTO randomReplyDTO = DummyFinancialService.createRandomReplyDTO(1234L, 1000);
-        byte[] serialized = serializeDto(3, 1024, randomReplyDTO);
+        CustomerData randomCustomerData = DummyFinancialService.createRandomReplyDTO(1234L, 1000);
+        byte[] serialized = serializeDto(3, 1024, randomCustomerData);
         System.out.println("Serialized size: " + serialized.length + " bytes");
     }
 
@@ -44,12 +44,12 @@ public class Test_SerializationPerformance {
             throws Exception {
         Test_SerializationPerformance test = new Test_SerializationPerformance();
 
-        ReplyDTO randomReplyDTO = DummyFinancialService.createRandomReplyDTO(seed, numCustomers);
+        CustomerData randomCustomerData = DummyFinancialService.createRandomReplyDTO(seed, numCustomers);
 
         // Warmup
         System.out.println("Warmup..");
         for (int i = 0; i < 5; i++) {
-            test.performanceRun(level, bufferSize, roundsPer / 10, randomReplyDTO);
+            test.performanceRun(level, bufferSize, roundsPer / 10, randomCustomerData);
         }
         System.out.println("Warmup done!\n");
 
@@ -57,7 +57,7 @@ public class Test_SerializationPerformance {
 
         // Run the test 10 times
         for (int i = 0; i < 10; i++) {
-            test.performanceRun(level, bufferSize, roundsPer, randomReplyDTO);
+            test.performanceRun(level, bufferSize, roundsPer, randomCustomerData);
         }
 
         // WITHOUT Blackbird:
@@ -421,7 +421,7 @@ public class Test_SerializationPerformance {
          */
     }
 
-    private long performanceRun(int level, int bufferSize, int rounds, ReplyDTO replyDto) throws Exception {
+    private long performanceRun(int level, int bufferSize, int rounds, CustomerData customerData) throws Exception {
         long nanos_Total = 0;
         long nanos_Serialize_Total = 0;
         long nanos_Deflate_Total = 0;
@@ -432,7 +432,7 @@ public class Test_SerializationPerformance {
             var baos = new ByteArrayOutputStream();
             var deflaterStream = new DeflaterOutputStreamWithStats(baos, bufferSize);
             deflaterStream.setCompressionLevel(level);
-            _replyDtoWriter.writeValue(deflaterStream, replyDto);
+            _replyDtoWriter.writeValue(deflaterStream, customerData);
             output = baos.toByteArray();
 
             long nanosTaken_Total = System.nanoTime() - nanosStart_Total;
@@ -444,17 +444,17 @@ public class Test_SerializationPerformance {
         assert output != null;
         System.out.println("tot: " + ms2(nanos_Total) + " ms, ser: " + ms2(nanos_Serialize_Total) + " ms,"
                 + " deflate: " + ms2(nanos_Deflate_Total) + " ms, " + rounds + " rounds, lvl:" + level
-                + ", " + bufferSize + " B, custs:" + replyDto.customers.size() + " = " + output.length
+                + ", " + bufferSize + " B, custs:" + customerData.customers.size() + " = " + output.length
                 + " B");
 
         return nanos_Total;
     }
 
-    public byte[] serializeDto(int level, int bufferSize, ReplyDTO replyDto) throws IOException {
+    public byte[] serializeDto(int level, int bufferSize, CustomerData customerData) throws IOException {
         var baos = new ByteArrayOutputStream();
         var deflaterStream = new DeflaterOutputStreamWithStats(baos, bufferSize);
         deflaterStream.setCompressionLevel(level);
-        _replyDtoWriter.writeValue(deflaterStream, replyDto);
+        _replyDtoWriter.writeValue(deflaterStream, customerData);
         return baos.toByteArray();
     }
 }

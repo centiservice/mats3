@@ -9,20 +9,20 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 
-import io.mats3.util.DummyFinancialService.ReplyDTO;
+import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.compression.InflaterInputStreamWithStats;
 
 public class Test_DeserializationPerformance {
     private final ObjectMapper _mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
-    private final ObjectReader _replyDtoReader = _mapper.readerFor(ReplyDTO.class);
+    private final ObjectReader _replyDtoReader = _mapper.readerFor(CustomerData.class);
 
     @Test
     public void runSingle() throws IOException {
-        ReplyDTO randomReplyDTO = DummyFinancialService.createRandomReplyDTO(1234L, 1000);
-        byte[] serComp = new Test_SerializationPerformance().serializeDto(3, 512, randomReplyDTO);
+        CustomerData randomCustomerData = DummyFinancialService.createRandomReplyDTO(1234L, 1000);
+        byte[] serComp = new Test_SerializationPerformance().serializeDto(3, 512, randomCustomerData);
         System.out.println("Serialized and compressed size: " + serComp.length + " bytes");
         var inflaterStream = new InflaterInputStreamWithStats(serComp);
-        ReplyDTO deserialized = _replyDtoReader.readValue(inflaterStream);
+        CustomerData deserialized = _replyDtoReader.readValue(inflaterStream);
         System.out.println("Deserialized DTO with " + deserialized.customers.size() + " customers");
     }
 
@@ -142,13 +142,13 @@ public class Test_DeserializationPerformance {
     }
 
     public void performanceRun(int level, long seed, int rounds, int cumstomers) throws Exception {
-        ReplyDTO randomReplyDTO = DummyFinancialService.createRandomReplyDTO(seed, cumstomers);
-        byte[] serComp = new Test_SerializationPerformance().serializeDto(level, 512, randomReplyDTO);
+        CustomerData randomCustomerData = DummyFinancialService.createRandomReplyDTO(seed, cumstomers);
+        byte[] serComp = new Test_SerializationPerformance().serializeDto(level, 512, randomCustomerData);
 
         long nanos_Total = 0;
         long nanos_Inflate_Total = 0;
         long nanos_Deserialize_Total = 0;
-        ReplyDTO deserialized = null;
+        CustomerData deserialized = null;
         for (int i = 0; i < rounds; i++) {
             long nanosStart_Total = System.nanoTime();
             var inflaterStream = new InflaterInputStreamWithStats(serComp);

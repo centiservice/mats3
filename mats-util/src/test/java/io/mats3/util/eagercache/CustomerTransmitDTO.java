@@ -11,7 +11,7 @@ import io.mats3.util.DummyFinancialService.OrderDTO;
  * A DTO for transferring Customer data, which is a copy of the CustomerDTO from the DummyFinancialService. Just to have
  * a difference, the {@link #address} field is named differently in this DTO.
  */
-public class CustomerCacheDTO {
+public class CustomerTransmitDTO {
     public String customerId;
     public String name;
     public LocalDate birthDate;
@@ -20,13 +20,13 @@ public class CustomerCacheDTO {
     public String phone;
     public List<OrderDTO> orders;
 
-    public CustomerCacheDTO() {
+    public CustomerTransmitDTO() {
         this.orders = new ArrayList<>();
     }
 
     // Static factory method to create a CustomerTransferDTO from a CustomerDTO
-    public static CustomerCacheDTO fromCustomerDTO(CustomerDTO customer) {
-        CustomerCacheDTO customerTransfer = new CustomerCacheDTO();
+    public static CustomerTransmitDTO fromCustomerDTO(CustomerDTO customer) {
+        CustomerTransmitDTO customerTransfer = new CustomerTransmitDTO();
         customerTransfer.customerId = customer.customerId;
         customerTransfer.name = customer.name;
         customerTransfer.birthDate = customer.birthDate;

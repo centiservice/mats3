@@ -14,7 +14,7 @@ import io.mats3.MatsFactory;
 import io.mats3.test.MatsTestFactory;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.DummyFinancialService;
-import io.mats3.util.DummyFinancialService.ReplyDTO;
+import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.eagercache.MatsEagerCacheServer.SiblingCommand;
 
 /**
@@ -28,7 +28,7 @@ public class Test_EagerCache_SiblingCommand {
         // ## ARRANGE:
 
         // Create the source data.
-        ReplyDTO sourceData = DummyFinancialService.createRandomReplyDTO(1234L, 1);
+        CustomerData sourceData = DummyFinancialService.createRandomReplyDTO(1234L, 1);
 
         // :: Create the two MatsFactories, representing two different instances of the server-side service:
         MatsTestBroker matsTestBroker = MatsTestBroker.create();
@@ -37,14 +37,14 @@ public class Test_EagerCache_SiblingCommand {
 
         // :: Create the CacheServers:
         MatsEagerCacheServer cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
-                "Customers", CustomerCacheDTO.class, 1,
+                "Customers", CustomerTransmitDTO.class, 1,
                 () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),
-                CustomerCacheDTO::fromCustomerDTO);
+                CustomerTransmitDTO::fromCustomerDTO);
 
         MatsEagerCacheServer cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
-                "Customers", CustomerCacheDTO.class, 1,
+                "Customers", CustomerTransmitDTO.class, 1,
                 () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),
-                CustomerCacheDTO::fromCustomerDTO);
+                CustomerTransmitDTO::fromCustomerDTO);
 
         CountDownLatch[] latch = new CountDownLatch[1];
 

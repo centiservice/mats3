@@ -15,10 +15,14 @@ import java.util.UUID;
  */
 public class DummyFinancialService {
 
-    public static class ReplyDTO {
+    public static class CustomerData {
         public List<CustomerDTO> customers;
 
-        public ReplyDTO() {
+        public CustomerData(List<CustomerDTO> customers) {
+            this.customers = customers;
+        }
+
+        public CustomerData() {
             this.customers = new ArrayList<>();
         }
     }
@@ -72,9 +76,9 @@ public class DummyFinancialService {
     }
 
     // Method to create a ReplyDTO with random data using a fixed seed
-    public static ReplyDTO createRandomReplyDTO(long seed, int numCustomers) {
+    public static CustomerData createRandomReplyDTO(long seed, int numCustomers) {
         Random random = new Random(seed);
-        ReplyDTO reply = new ReplyDTO();
+        CustomerData reply = new CustomerData();
         for (int i = 0; i < numCustomers; i++) {
             reply.customers.add(createRandomCustomerDTO(random));
         }

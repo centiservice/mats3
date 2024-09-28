@@ -53,7 +53,6 @@ public class MatsEagerCacheClient<DATA> {
     private final MatsFactory _matsFactory;
     private final String _dataName;
     private final Function<CacheReceivedData<?>, DATA> _fullUpdateMapper;
-    private final Function<CacheReceivedPartialData<?, ?>, DATA> _partialUpdateMapper;
 
     private final ObjectReader _receivedDataTypeReader;
 
@@ -63,30 +62,20 @@ public class MatsEagerCacheClient<DATA> {
      * Constructor for the Mats Eager Cache client. The client will connect to a Mats Eager Cache server, and receive
      * data from it. The client will block {@link #get()}-invocations until the initial full population is done, and
      * during subsequent repopulations.
-     * 
-     * @param matsFactory
-     *            the MatsFactory to use for the Mats Eager Cache client.
-     * @param dataName
-     *            the name of the data that the client will receive.
-     * @param receivedDataType
-     *            the type of the received data.
-     * @param fullUpdateMapper
-     *            the function that will be invoked when a full update is received from the server. It is illegal to
-     *            return null from this function, and if the update throws an exception, the cache will be left in a
-     *            nulled state.
-     * @param partialUpdateMapper
-     *            the function that will be invoked when a partial update is received from the server. It is illegal to
-     *            return null from this function, and if the update throws an exception, the cache will be left in a
-     *            nulled state.
+     *
+     * @param matsFactory      the MatsFactory to use for the Mats Eager Cache client.
+     * @param dataName         the name of the data that the client will receive.
+     * @param receivedDataType the type of the received data.
+     * @param fullUpdateMapper the function that will be invoked when a full update is received from the server. It is illegal to
+     *                         return null from this function, and if the update throws an exception, the cache will be left in a
+     *                         nulled state.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public <RECV> MatsEagerCacheClient(MatsFactory matsFactory, String dataName, Class<RECV> receivedDataType,
-            Function<CacheReceivedData<RECV>, DATA> fullUpdateMapper,
-            Function<CacheReceivedPartialData<RECV, DATA>, DATA> partialUpdateMapper) {
+            Function<CacheReceivedData<RECV>, DATA> fullUpdateMapper) {
         _matsFactory = matsFactory;
         _dataName = dataName;
         _fullUpdateMapper = (Function<CacheReceivedData<?>, DATA>) (Function) fullUpdateMapper;
-        _partialUpdateMapper = (Function<CacheReceivedPartialData<?, ?>, DATA>) (Function) partialUpdateMapper;
 
         // :: Jackson JSON ObjectMapper
         ObjectMapper mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
@@ -97,6 +86,15 @@ public class MatsEagerCacheClient<DATA> {
         // :: ExecutorService for handling the received data.
         _receiveSingleBlockingThreadExecutorService = _createSingleThreadedExecutorService("MatsEagerCacheClient-"
                 + _dataName + "-receiveExecutor");
+    }
+
+    private volatile Function<CacheReceivedPartialData<?, DATA>, DATA> _partialUpdateMapper;
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public <RECV> MatsEagerCacheClient<DATA> setPartialUpdateMapper(
+            Function<CacheReceivedPartialData<RECV, DATA>, DATA> partialUpdateMapper) {
+        _partialUpdateMapper = (Function<CacheReceivedPartialData<?, DATA>, DATA>) (Function) partialUpdateMapper;
+        return this;
     }
 
     // ReadWriteLock to guard the cache content.
@@ -307,10 +305,23 @@ public class MatsEagerCacheClient<DATA> {
         return _start();
     }
 
+    /**
+     * If a user in some management GUI wants to force a full update, this method can be invoked. This will send a
+     * request to the server to perform a full update, which will be broadcast to all clients.
+     * <p>
+     * <b>This must NOT be used to "poll" the server for updates on a schedule or similar</b>, as that is utterly
+     * against the design of the Mats Eager Cache system. The Mats Eager Cache system is designed to be a "push" system,
+     * where the server pushes updates to the clients when it has new data - or, as a backup, on a schedule. But this
+     * <i>shall</i> be server handled, not client handled.
+     */
     public void requestFullUpdate() {
         _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_MANUAL);
     }
 
+    /**
+     * Close down the cache client. This will stop the SubscriptionTerminator for receiving cache updates, and shut down
+     * the ExecutorService for handling the received data.
+     */
     public void close() {
         synchronized (this) {
             // ?: Are we running? Note: we accept multiple close() invocations, as the close-part is harder to lifecycle
@@ -328,7 +339,7 @@ public class MatsEagerCacheClient<DATA> {
 
     private MatsEagerCacheClient<DATA> _start() {
         // :: Listener to the update topic.
-        _broadcastTerminator = _matsFactory.subscriptionTerminator(MatsEagerCacheServer.getBroadcastTopic(_dataName),
+        _broadcastTerminator = _matsFactory.subscriptionTerminator(MatsEagerCacheServer._getBroadcastTopic(_dataName),
                 void.class, BroadcastDto.class, (ctx, state, msg) -> {
                     if (!(msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)
                             || msg.command.equals(BroadcastDto.COMMAND_UPDATE_PARTIAL))) {
@@ -336,7 +347,7 @@ public class MatsEagerCacheClient<DATA> {
                         return;
                     }
 
-                    final byte[] payload = ctx.getBytes(MatsEagerCacheServer.MATS_EAGER_CACHE_PAYLOAD);
+                    final byte[] payload = ctx.getBytes(MatsEagerCacheServer.SIDELOAD_KEY_DATA_PAYLOAD);
 
                     // :: Now perform hack to relieve the Mats thread, and do the actual work in a separate thread.
                     // The rationale is to let the data structures underlying in the Mats system (e.g. the
@@ -382,13 +393,14 @@ public class MatsEagerCacheClient<DATA> {
 
     /**
      * Single threaded, blocking {@link ExecutorService}. This is used to "distance" ourselves from Mats, so that the
-     * large JMS Message can be GC'ed <i>while</i> we're decompressing and deserializing the possibly large set of large
-     * objects: We've fetched the data we need from the JMS Message, and now we're done with it, but we need to exit the
-     * Mats StageProcessor to let the Mats thread let go of the JMS Message reference. However, we still want the data
-     * to be sequentially processed - thus use a single-threaded executor with synchronous queue, and special rejection
-     * handler, to ensure that the submitting works as follows: Either the task is immediately handed over to the single
-     * thread, or the submitting thread (the Mats stage processor thread) is blocked - waiting out the current
-     * deserializing.
+     * large ProcessContext and the corresponding JMS Message can be GC'ed <i>while</i> we're decompressing and
+     * deserializing the possibly large set of large objects: We've fetched the data we need from the JMS Message, and
+     * now we're done with it, but we need to exit the Mats StageProcessor to let the Mats thread let go of the
+     * ProcessContext and any JMS Message reference. However, we still want the data to be sequentially processed - thus
+     * use a single-threaded executor with synchronous queue, and special rejection handler, to ensure that the
+     * submitting works as follows: Either the task is immediately handed over to the single thread, or the submitting
+     * thread (the Mats stage processor thread) is blocked - waiting out the current
+     * decompress/deserializing/processing.
      */
     static ThreadPoolExecutor _createSingleThreadedExecutorService(String threadName) {
         return new ThreadPoolExecutor(1, 1, 1L, TimeUnit.MINUTES,
@@ -429,7 +441,7 @@ public class MatsEagerCacheClient<DATA> {
                     TraceId.create(_matsFactory.getFactoryConfig().getAppName(),
                             "MatsEagerCacheClient-" + _dataName, reason))
                     .from("MatsEagerCacheClient." + _dataName + "." + reason)
-                    .to(MatsEagerCacheServer.getCacheRequestQueue(_dataName))
+                    .to(MatsEagerCacheServer._getCacheRequestQueue(_dataName))
                     .send(req));
         }
         catch (Exception e) {

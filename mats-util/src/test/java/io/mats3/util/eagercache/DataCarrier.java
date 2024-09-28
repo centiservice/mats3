@@ -14,11 +14,15 @@ public class DataCarrier {
 
     public final List<CustomerDTO> customers;
 
-    DataCarrier(CacheReceivedData<CustomerCacheDTO> receivedData) {
+    DataCarrier(List<CustomerDTO> customers) {
+        this.customers = customers;
+    }
+
+    DataCarrier(CacheReceivedData<CustomerTransmitDTO> receivedData) {
         log.info("Creating DataCarrier! Meta:[" + receivedData.getMetadata()
                 + "], Size:[" + receivedData.getDataCount() + "]");
         customers = receivedData.getReceivedDataStream()
-                .map(CustomerCacheDTO::toCustomerDTO)
+                .map(CustomerTransmitDTO::toCustomerDTO)
                 .collect(Collectors.toList());
     }
 }

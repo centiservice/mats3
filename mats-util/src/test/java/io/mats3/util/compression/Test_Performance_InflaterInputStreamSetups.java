@@ -19,7 +19,7 @@ import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectWriter;
 
 import io.mats3.util.DummyFinancialService;
-import io.mats3.util.DummyFinancialService.ReplyDTO;
+import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.FieldBasedJacksonMapper;
 
 /**
@@ -236,14 +236,14 @@ public class Test_Performance_InflaterInputStreamSetups {
     }
 
     private static Holder createHolder(int customers) {
-        ReplyDTO randomReplyDTO = DummyFinancialService.createRandomReplyDTO(1234L, customers);
+        CustomerData randomCustomerData = DummyFinancialService.createRandomReplyDTO(1234L, customers);
         try {
 
             long nanosAtStart_Total = System.nanoTime();
             ObjectWriter replyDtoWriter = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper()
-                    .writerFor(ReplyDTO.class);
+                    .writerFor(CustomerData.class);
 
-            byte[] serialized = replyDtoWriter.writeValueAsBytes(randomReplyDTO);
+            byte[] serialized = replyDtoWriter.writeValueAsBytes(randomCustomerData);
 
             var bais = new ByteArrayInputStream(serialized);
             Deflater deflater = new Deflater(1);

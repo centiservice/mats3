@@ -18,7 +18,7 @@ import io.mats3.test.MatsTestFactory;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.CustomerDTO;
-import io.mats3.util.DummyFinancialService.ReplyDTO;
+import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheSourceDataCallback;
 
@@ -30,14 +30,14 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
     private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_SimpleCacheServerAndClient.class);
 
     private final ObjectMapper _objectMapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
-    private final ObjectWriter _replyWriter = _objectMapper.writerFor(ReplyDTO.class);
+    private final ObjectWriter _replyWriter = _objectMapper.writerFor(CustomerData.class);
 
     @Test
     public void run() throws InterruptedException, JsonProcessingException {
         // ## ARRANGE:
 
         // Create the source data.
-        ReplyDTO sourceData = DummyFinancialService.createRandomReplyDTO(1234L, 10);
+        CustomerData sourceData = DummyFinancialService.createRandomReplyDTO(1234L, 10);
         // For comparison on the client side: Serialize the source data.
         String serializedSourceData = _replyWriter.writeValueAsString(sourceData);
 
@@ -48,17 +48,17 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
 
         // :: Create the CacheServer.
         MatsEagerCacheServer cacheServer = new MatsEagerCacheServer(serverMatsFactory,
-                "Customers", CustomerCacheDTO.class, 1,
+                "Customers", CustomerTransmitDTO.class, 1,
                 () -> new CustomerDTOCacheSourceDataCallback(sourceData),
-                CustomerCacheDTO::fromCustomerDTO);
+                CustomerTransmitDTO::fromCustomerDTO);
 
         // Adjust the timings for fast test.
         cacheServer._setDelays(250, 500);
 
         // :: Create the CacheClient.
         MatsEagerCacheClient<DataCarrier> cacheClient = new MatsEagerCacheClient<>(clientMatsFactory,
-                "Customers", CustomerCacheDTO.class,
-                DataCarrier::new, null);
+                "Customers", CustomerTransmitDTO.class,
+                DataCarrier::new);
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -86,7 +86,7 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         log.info("######### Got the data! Size:[" + dataCarrier.customers.size() + "]");
 
         // Create cache-side data from the source data, and serialize it.
-        ReplyDTO cacheData = new ReplyDTO();
+        CustomerData cacheData = new CustomerData();
         cacheData.customers = dataCarrier.customers;
         String serializedCacheData = _replyWriter.writeValueAsString(cacheData);
 
@@ -100,9 +100,9 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
     }
 
     private static class CustomerDTOCacheSourceDataCallback implements CacheSourceDataCallback<CustomerDTO> {
-        private final ReplyDTO _sourceData;
+        private final CustomerData _sourceData;
 
-        public CustomerDTOCacheSourceDataCallback(ReplyDTO sourceData) {
+        public CustomerDTOCacheSourceDataCallback(CustomerData sourceData) {
             _sourceData = sourceData;
         }
 

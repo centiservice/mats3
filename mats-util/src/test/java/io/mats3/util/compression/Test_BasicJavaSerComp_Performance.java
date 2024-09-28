@@ -17,7 +17,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 
 import io.mats3.util.DummyFinancialService;
-import io.mats3.util.DummyFinancialService.ReplyDTO;
+import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.FieldBasedJacksonMapper;
 
 /**
@@ -27,8 +27,8 @@ import io.mats3.util.FieldBasedJacksonMapper;
 public class Test_BasicJavaSerComp_Performance {
 
     private final ObjectMapper _mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
-    private final ObjectWriter _replyDtoWriter = _mapper.writerFor(ReplyDTO.class);
-    private final ObjectReader _replyDtoReader = _mapper.readerFor(ReplyDTO.class);
+    private final ObjectWriter _replyDtoWriter = _mapper.writerFor(CustomerData.class);
+    private final ObjectReader _replyDtoReader = _mapper.readerFor(CustomerData.class);
 
     // For reference, sent:
     // #MATSLOG# STAGE/ENDPOINT completed with result REPLY_SUBSCRIPTION, single outgoing REPLY_SUBSCRIPTION message,
@@ -77,13 +77,13 @@ public class Test_BasicJavaSerComp_Performance {
     }
 
     private void runTest(int customers) {
-        ReplyDTO randomReplyDTO = DummyFinancialService.createRandomReplyDTO(1234L, customers);
+        CustomerData randomCustomerData = DummyFinancialService.createRandomReplyDTO(1234L, customers);
         try {
 
             long nanosAtStart_Total = System.nanoTime();
 
             long nanosAtStart_Serializing = System.nanoTime();
-            byte[] serialized = _replyDtoWriter.writeValueAsBytes(randomReplyDTO);
+            byte[] serialized = _replyDtoWriter.writeValueAsBytes(randomCustomerData);
             long nanosTaken_Serializing = System.nanoTime() - nanosAtStart_Serializing;
 
             System.out.print("Ser:" + ms2(nanosTaken_Serializing) + " ms");
