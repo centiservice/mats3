@@ -50,6 +50,8 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.CacheRequestDto;
 public class MatsEagerCacheClient<DATA> {
     private static final Logger log = LoggerFactory.getLogger(MatsEagerCacheClient.class);
 
+    public static final String LOG_PREFIX = "#MatsEagerCache#S ";
+
     private final MatsFactory _matsFactory;
     private final String _dataName;
     private final Function<CacheReceivedData<?>, DATA> _fullUpdateMapper;
@@ -63,12 +65,16 @@ public class MatsEagerCacheClient<DATA> {
      * data from it. The client will block {@link #get()}-invocations until the initial full population is done, and
      * during subsequent repopulations.
      *
-     * @param matsFactory      the MatsFactory to use for the Mats Eager Cache client.
-     * @param dataName         the name of the data that the client will receive.
-     * @param receivedDataType the type of the received data.
-     * @param fullUpdateMapper the function that will be invoked when a full update is received from the server. It is illegal to
-     *                         return null from this function, and if the update throws an exception, the cache will be left in a
-     *                         nulled state.
+     * @param matsFactory
+     *            the MatsFactory to use for the Mats Eager Cache client.
+     * @param dataName
+     *            the name of the data that the client will receive.
+     * @param receivedDataType
+     *            the type of the received data.
+     * @param fullUpdateMapper
+     *            the function that will be invoked when a full update is received from the server. It is illegal to
+     *            return null from this function, and if the update throws an exception, the cache will be left in a
+     *            nulled state.
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public <RECV> MatsEagerCacheClient(MatsFactory matsFactory, String dataName, Class<RECV> receivedDataType,
@@ -372,7 +378,7 @@ public class MatsEagerCacheClient<DATA> {
             if (!started) {
                 // -> No, so that's bad.
                 String msg = "The Update handler SubscriptionTerminator Endpoint would not start within 10 minutes.";
-                log.error(msg);
+                log.error(LOG_PREFIX + msg);
                 // TODO: Log exception to monitor and HealthCheck.
                 throw new IllegalStateException(msg);
             }
@@ -447,7 +453,7 @@ public class MatsEagerCacheClient<DATA> {
         catch (Exception e) {
             // TODO: Log exception to monitor and HealthCheck.
             String msg = "Got exception when initiating the initial cache update request.";
-            log.error(msg, e);
+            log.error(LOG_PREFIX + msg, e);
             throw new IllegalStateException(msg, e);
         }
     }
@@ -488,7 +494,7 @@ public class MatsEagerCacheClient<DATA> {
                 }
                 catch (InterruptedException e) {
                     // TODO: Log exception to monitor and HealthCheck.
-                    log.info("Was interrupted while sleeping before acting on full update. Assuming"
+                    log.info(LOG_PREFIX + "Was interrupted while sleeping before acting on full update. Assuming"
                             + " shutdown, thus returning immediately.");
                     return;
                 }
@@ -498,7 +504,7 @@ public class MatsEagerCacheClient<DATA> {
                     // Invoke the full update mapper
                     // (Note: we hold onto as little as possible while invoking the mapper, to let the GC do its job.)
                     _data = _fullUpdateMapper.apply(new CacheReceivedDataImpl<>(true, dataSize, metadata,
-                            _getReceiveStreamFromPayload(payload), msg.uncompressedSize, msg.compressedSize));
+                            msg.uncompressedSize, msg.compressedSize, _getReceiveStreamFromPayload(payload)));
                 }
                 catch (Throwable e) {
                     // TODO: Log exception to monitor and HealthCheck.
@@ -510,7 +516,7 @@ public class MatsEagerCacheClient<DATA> {
 
                 if (_data == null) {
                     // TODO: Log exception to monitor and HealthCheck?
-                    log.warn("We got a partial update without having any data. This is probably due"
+                    log.warn(LOG_PREFIX + "We got a partial update without having any data. This is probably due"
                             + " to the initial population not being done yet, or the data being nulled out"
                             + " due to some error. Ignoring the partial update.");
                     return;
@@ -518,7 +524,7 @@ public class MatsEagerCacheClient<DATA> {
 
                 if (_partialUpdateMapper == null) {
                     // TODO: Log exception to monitor and HealthCheck.
-                    log.error("We got a partial update, but we don't have a partial update mapper."
+                    log.error(LOG_PREFIX + "We got a partial update, but we don't have a partial update mapper."
                             + " Ignoring the partial update.");
                     return;
                 }
@@ -532,7 +538,7 @@ public class MatsEagerCacheClient<DATA> {
                 }
                 catch (InterruptedException e) {
                     // TODO: Log exception to monitor and HealthCheck.
-                    log.info("Was interrupted while sleeping before acting on partial update. Assuming"
+                    log.info(LOG_PREFIX + "Was interrupted while sleeping before acting on partial update. Assuming"
                             + " shutdown, thus returning immediately.");
                     return;
                 }
@@ -567,7 +573,7 @@ public class MatsEagerCacheClient<DATA> {
             }
             catch (Exception e) {
                 // TODO: Handle exception.
-                log.error("Got exception when notifying cacheUpdatedListener [" + listener
+                log.error(LOG_PREFIX + "Got exception when notifying cacheUpdatedListener [" + listener
                         + "], ignoring but this is probably pretty bad.", e);
             }
         }
@@ -613,7 +619,7 @@ public class MatsEagerCacheClient<DATA> {
                 }
                 catch (Exception e) {
                     // TODO: Handle exception.
-                    log.error("Got exception when running onInitialPopulationTask ["
+                    log.error(LOG_PREFIX + "Got exception when running onInitialPopulationTask ["
                             + onInitialPopulationTask
                             + "], ignoring but this is probably pretty bad.", e);
                 }
@@ -631,21 +637,23 @@ public class MatsEagerCacheClient<DATA> {
     }
 
     private static class CacheReceivedDataImpl<RECV> implements CacheReceivedData<RECV> {
-        private final boolean _fullUpdate;
-        private final int _dataSize;
-        private final String _metadata;
-        private final Stream<RECV> _rStream;
-        private final long _receivedUncompressedSize;
-        private final long _receivedCompressedSize;
+        protected final boolean _fullUpdate;
+        protected final int _dataCount;
+        protected final String _metadata;
+        protected final long _receivedUncompressedSize;
+        protected final long _receivedCompressedSize;
 
-        public CacheReceivedDataImpl(boolean fullUpdate, int dataSize, String metadata, Stream<RECV> recvStream,
-                long receivedUncompressedSize, long receivedCompressedSize) {
+        private final Stream<RECV> _rStream;
+
+        public CacheReceivedDataImpl(boolean fullUpdate, int dataCount, String metadata, long receivedUncompressedSize,
+                long receivedCompressedSize, Stream<RECV> recvStream) {
             _fullUpdate = fullUpdate;
-            _dataSize = dataSize;
+            _dataCount = dataCount;
             _metadata = metadata;
-            _rStream = recvStream;
             _receivedUncompressedSize = receivedUncompressedSize;
             _receivedCompressedSize = receivedCompressedSize;
+
+            _rStream = recvStream;
         }
 
         @Override
@@ -655,7 +663,7 @@ public class MatsEagerCacheClient<DATA> {
 
         @Override
         public int getDataCount() {
-            return _dataSize;
+            return _dataCount;
         }
 
         @Override
@@ -677,6 +685,67 @@ public class MatsEagerCacheClient<DATA> {
         public Stream<RECV> getReceivedDataStream() {
             return _rStream;
         }
+
+        /**
+         * toString method showing all properties, except the data stream.
+         */
+        @Override
+        public String toString() {
+            return "CacheReceivedData[" + (_fullUpdate ? "FULL" : "PARTIAL") + ",count=" + _dataCount
+                    + ",meta=" + _metadata + ",uncompr=" + formatBytes(_receivedUncompressedSize)
+                    + ",compr=" + formatBytes(_receivedCompressedSize) + "]";
+        }
+    }
+
+    /**
+     * Static method to format a long representing bytes into a human-readable string. Using the IEC standard, which
+     * uses B, KiB, MiB, GiB, TiB. E.g. 1024 bytes is 1 KiB, 1024 KiB is 1 MiB, etc. It formats with 2 decimals.
+     */
+    public static String formatBytes(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        }
+        double kb = bytes / 1024d;
+        if (kb < 1024) {
+            return String.format("%.2f KiB", kb);
+        }
+        double mb = kb / 1024d;
+        if (mb < 1024) {
+            return String.format("%.2f MiB", mb);
+        }
+        double gb = mb / 1024d;
+        if (gb < 1024) {
+            return String.format("%.2f GiB", gb);
+        }
+        double tb = gb / 1024d;
+        return String.format("%.2f TiB", tb);
+    }
+
+    public static String formatNanos(long nanos) {
+        return formatMillis(nanos / 1_000_000d);
+    }
+
+    /**
+     * Static method formatting a double representing duration in milliseconds into a human-readable string. It will
+     * format into hours, minutes, seconds and milliseconds, with the highest unit that is non-zero, and with 3 decimals
+     * if milliseconds only, and 2 decimals if seconds, and no decimals if minutes or hours.
+     * <p>
+     * Examples: "950.123 ms", "23.45s", "12m 34s", "1h 23m".
+     */
+    public static String formatMillis(double millis) {
+        if (millis < 1000) {
+            return String.format("%.3f ms", millis);
+        }
+        double seconds = millis / 1000d;
+        if (seconds < 60) {
+            return String.format("%.2f s", seconds);
+        }
+        double minutes = seconds / 60d;
+        if (minutes < 60) {
+            return String.format("%.0f m %.0f s", minutes, seconds % 60);
+        }
+        double hours = minutes / 60d;
+        return String.format("%.0f h %.0f m", hours, minutes % 60);
     }
 
     private static class CacheUpdatedImpl extends CacheReceivedDataImpl<Void> implements CacheUpdated {
@@ -684,13 +753,24 @@ public class MatsEagerCacheClient<DATA> {
 
         public CacheUpdatedImpl(boolean fullUpdate, int dataSize, String metadata,
                 long receivedUncompressedSize, long receivedCompressedSize, double updateDurationMillis) {
-            super(fullUpdate, dataSize, metadata, null, receivedUncompressedSize, receivedCompressedSize);
+            super(fullUpdate, dataSize, metadata, receivedUncompressedSize, receivedCompressedSize, null);
             _updateDurationMillis = updateDurationMillis;
         }
 
         @Override
         public double getUpdateDurationMillis() {
             return _updateDurationMillis;
+        }
+
+        /**
+         * toString method showing all properties, except the data stream.
+         */
+        @Override
+        public String toString() {
+            return "CacheUpdatedData[" + (_fullUpdate ? "FULL" : "PARTIAL") + ",count=" + _dataCount
+                    + ",meta=" + _metadata + ",uncompr=" + formatBytes(_receivedUncompressedSize)
+                    + ",compr=" + formatBytes(_receivedCompressedSize) + ", update:" + formatMillis(
+                            _updateDurationMillis) + "]";
         }
     }
 
@@ -701,13 +781,23 @@ public class MatsEagerCacheClient<DATA> {
         public CacheReceivedPartialDataImpl(boolean fullUpdate, DATA data, int dataSize, String metadata,
                 Stream<RECV> rStream,
                 long receivedUncompressedSize, long receivedCompressedSize) {
-            super(fullUpdate, dataSize, metadata, rStream, receivedUncompressedSize, receivedCompressedSize);
+            super(fullUpdate, dataSize, metadata, receivedUncompressedSize, receivedCompressedSize, rStream);
             _data = data;
         }
 
         @Override
         public DATA getPreviousData() {
             return _data;
+        }
+
+        /**
+         * toString method showing all properties, except the data stream.
+         */
+        @Override
+        public String toString() {
+            return "CacheReceivedPartialData[" + (_fullUpdate ? "FULL" : "PARTIAL") + ",count=" + _dataCount
+                    + ",meta=" + _metadata + ",uncompr=" + formatBytes(_receivedUncompressedSize)
+                    + ",compr=" + formatBytes(_receivedCompressedSize) + ", prevData=" + _data + "]";
         }
     }
 }

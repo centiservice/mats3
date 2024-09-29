@@ -19,8 +19,7 @@ public class DataCarrier {
     }
 
     DataCarrier(CacheReceivedData<CustomerTransmitDTO> receivedData) {
-        log.info("Creating DataCarrier! Meta:[" + receivedData.getMetadata()
-                + "], Size:[" + receivedData.getDataCount() + "]");
+        log.info("Creating DataCarrier from " + receivedData);
         customers = receivedData.getReceivedDataStream()
                 .map(CustomerTransmitDTO::toCustomerDTO)
                 .collect(Collectors.toList());

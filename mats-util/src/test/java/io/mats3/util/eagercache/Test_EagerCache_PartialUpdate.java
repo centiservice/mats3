@@ -97,31 +97,33 @@ public class Test_EagerCache_PartialUpdate {
 
         // .. recording the updates - and then latching, so that the test can go to next phase.
         cacheClient1.addCacheUpdatedListener((cacheUpdated) -> {
-            log.info("Cache 1 updated! Size:[" + cacheUpdated.getDataCount() + "]");
+            log.info("Cache 1 updated! "+ (cacheUpdated.isFullUpdate() ? "Full" : "PARTIAL") +" " + cacheUpdated);
             cacheClient1_updateCount.incrementAndGet();
             cacheClient1_updated[0] = cacheUpdated;
             cacheClient1_latch[0].countDown();
         });
         cacheClient2.addCacheUpdatedListener((cacheUpdated) -> {
-            log.info("Cache 2 updated! Size:[" + cacheUpdated.getDataCount() + "]");
+            log.info("Cache 2 updated! "+ (cacheUpdated.isFullUpdate() ? "Full" : "PARTIAL") +" " + cacheUpdated);
             cacheClient2_updateCount.incrementAndGet();
             cacheClient2_updated[0] = cacheUpdated;
             cacheClient2_latch[0].countDown();
         });
 
         // Changing delays (towards shorter), as we're testing. But also handle CI, which can be dog slow.
-        int shortDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 3; // On CI: 3 sec
-        int longDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 4; // On CI: 4 sec
+        int shortDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE; // On CI: 1 sec
+        int longDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 2; // On CI: 2 sec
         cacheServer1._setDelays(shortDelay, longDelay);
         cacheServer2._setDelays(shortDelay, longDelay);
 
-        log.info("\n\n######### Starting the CacheServers and CacheClient.\n\n");
+        log.info("\n\n######### Starting the CacheServers and CacheClient, waiting for CacheServers receiving.\n\n");
 
         cacheClient1_latch[0] = new CountDownLatch(1);
         cacheClient2_latch[0] = new CountDownLatch(1);
 
         cacheServer1.start();
         cacheServer2.start();
+        cacheServer1._waitForReceiving();
+        cacheServer2._waitForReceiving();
         cacheClient1.start();
         cacheClient2.start();
 
@@ -288,6 +290,17 @@ public class Test_EagerCache_PartialUpdate {
         Assert.assertEquals("The CacheClient's data should be the same as the CacheServer's data",
                 _customerDataWriter.writeValueAsString(sourceData1), _customerDataWriter.writeValueAsString(
                         cacheData1));
+
+
+        cacheServer1.close();
+        cacheServer2.close();
+        cacheClient1.close();
+        cacheClient2.close();
+
+        serverMatsFactory1.close();
+        serverMatsFactory2.close();
+        clientMatsFactory1.close();
+        clientMatsFactory2.close();
     }
 
     static class SiblingUpdateCommand implements Consumer<SiblingCommand> {

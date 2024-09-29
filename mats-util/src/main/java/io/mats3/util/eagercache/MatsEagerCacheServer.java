@@ -10,6 +10,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -62,6 +63,8 @@ import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
 public class MatsEagerCacheServer {
     private static final Logger log = LoggerFactory.getLogger(MatsEagerCacheServer.class);
 
+    public static final String LOG_PREFIX = "#MatsEagerCache#S ";
+
     /**
      * The compressed data is added as a binary sideload, with this key.
      */
@@ -93,17 +96,26 @@ public class MatsEagerCacheServer {
     public static final int DEFAULT_LONG_DELAY = 7000;
 
     /**
+     * Some commands, e.g. {@link #sendSiblingCommand(String, String, byte[]) sendSiblingCommand(..)} (and the test
+     * method {@link #_waitForReceiving()}) needs to wait for the broadcast terminator to be ready to receive. This is
+     * the maximum time to wait for this to happen. (60 seconds)
+     */
+    public static final int MAX_WAIT_FOR_RECEIVING_SECONDS = 60;
+
+    /**
      * During startup, we need to first ensure that we can make a source data set before firing up the endpoints. If it
      * fails, it will try again until it manages - but sleep an amount between each attempt. Capped exponential from 2
      * seconds, this is the max sleep time between attempts. (30 seconds)
      */
     public static final int MAX_INTERVAL_BETWEEN_STARTUP_ATTEMPTS = 30_000;
 
+    private static final AtomicInteger _instanceCounter = new AtomicInteger();
+
     private final MatsFactory _matsFactory;
     private final String _dataName;
     private final Supplier<CacheSourceDataCallback<?>> _fullDataCallbackSupplier;
     private final Function<?, ?> _dataTypeMapper;
-    private final int _forcedUpdateIntervalMinutes;
+    private final double _forcedFullUpdateIntervalMinutes;
 
     private final String _privateNodename;
     private final ObjectWriter _sentDataTypeWriter;
@@ -111,20 +123,20 @@ public class MatsEagerCacheServer {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public <SRC, SENT> MatsEagerCacheServer(MatsFactory matsFactory, String dataName, Class<SENT> sentDataType,
-            int forcedUpdateIntervalMinutes, Supplier<CacheSourceDataCallback<SRC>> fullDataCallbackSupplier,
+            double forcedFullUpdateIntervalMinutes, Supplier<CacheSourceDataCallback<SRC>> fullDataCallbackSupplier,
             Function<SRC, SENT> dataTypeMapper) {
 
         _matsFactory = matsFactory;
         _dataName = dataName;
         _fullDataCallbackSupplier = (Supplier<CacheSourceDataCallback<?>>) (Supplier) fullDataCallbackSupplier;
         _dataTypeMapper = dataTypeMapper;
-        _forcedUpdateIntervalMinutes = forcedUpdateIntervalMinutes;
+        _forcedFullUpdateIntervalMinutes = forcedFullUpdateIntervalMinutes;
 
         // Generate private nodename, which is used to identify the instance amongst the cache servers, e.g. with
         // Sibling Commands. Doing this since this Cache API does not expose the nodename, only whether it is "us" or
         // not. This makes testing a tad simpler, than using the default nodename, which is 'hostname'.
-        _privateNodename = matsFactory.getFactoryConfig().getNodename() + "."
-                + Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36);
+        _privateNodename = matsFactory.getFactoryConfig().getNodename() + "-#" + _instanceCounter.getAndIncrement()
+                + "-(" + Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36) + ")";
 
         // :: Jackson JSON ObjectMapper
         ObjectMapper mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
@@ -154,6 +166,8 @@ public class MatsEagerCacheServer {
 
     // Synchronized on 'this' due to transactional needs.
     private int _updateRequest_OutstandingCount;
+    // Synchronized on 'this' due to transactional needs.
+    private String _updateRequest_HandlingNodename; // For election: The lowest nodename will handle the request.
 
     private volatile boolean _currentlyMakingSourceDataResult;
     private volatile boolean _currentlyHavingProblemsCreatingSourceDataResult;
@@ -172,11 +186,6 @@ public class MatsEagerCacheServer {
 
     private int _shortDelay = DEFAULT_SHORT_DELAY;
     private int _longDelay = DEFAULT_LONG_DELAY;
-
-    void _setDelays(int shortDelay, int longDelay) {
-        _shortDelay = shortDelay;
-        _longDelay = longDelay;
-    }
 
     /**
      * The service must provide an implementation of this interface to the cache-server, via a {@link Supplier}, so that
@@ -271,21 +280,13 @@ public class MatsEagerCacheServer {
      *            binary data is to be sent.
      */
     public void sendSiblingCommand(String command, String stringData, byte[] binaryData) {
-        if (_lifeCycle != LifeCycle.RUNNING) {
-            throw new IllegalStateException("The MatsEagerCacheServer is not RUNNING, it is [" + _lifeCycle + "].");
-        }
+        // We must be in correct state, and the broadcast terminator must be ready to receive.
+        _waitForReceiving();
 
         // Construct the broadcast DTO
-        BroadcastDto broadcast = new BroadcastDto();
-        broadcast.command = BroadcastDto.COMMAND_SIBLING_COMMAND;
+        BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_SIBLING_COMMAND, _privateNodename);
         broadcast.siblingCommand = command;
         broadcast.siblingStringData = stringData;
-        broadcast.sentTimestamp = System.currentTimeMillis();
-        broadcast.sentNanoTime = System.nanoTime();
-        broadcast.sentPrivateNodename = _privateNodename;
-
-        // Ensure that we ourselves can get the ping.
-        _broadcastTerminator.waitForReceiving(FAST_RESPONSE_LAST_RECV_THRESHOLD);
 
         // Send the broadcast
         _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
@@ -459,19 +460,31 @@ public class MatsEagerCacheServer {
         synchronized (this) {
             // ?: Are we running? Note: we accept multiple close() invocations, as the close-part is harder to lifecycle
             // manage than the start-part (It might e.g. be closed by Spring too, in addition to by the user).
-            if (_lifeCycle == LifeCycle.RUNNING) {
-                _lifeCycle = LifeCycle.STOPPING;
-                // -> Yes, we are started, so close down.
-                _broadcastTerminator.stop(30_000);
-                _requestTerminator.stop(30_000);
-                _produceAndSendExecutor.shutdown();
-                // We're now stopped.
-                _lifeCycle = LifeCycle.STOPPED;
+            if (_lifeCycle != LifeCycle.RUNNING) {
+                // -> No, we are not running, so this is no-op.
+                return;
             }
+            _lifeCycle = LifeCycle.STOPPING;
+        }
+
+        // -> Yes, we are RUNNING, so close down as asked.
+        _broadcastTerminator.stop(30_000);
+        _requestTerminator.stop(30_000);
+        _produceAndSendExecutor.shutdown();
+
+        // Set new state
+        synchronized (this) {
+            // We're now stopped.
+            _lifeCycle = LifeCycle.STOPPED;
         }
     }
 
     // ======== Implementation / Internal methods ========
+
+    void _setDelays(int shortDelay, int longDelay) {
+        _shortDelay = shortDelay;
+        _longDelay = longDelay;
+    }
 
     static String _getCacheRequestQueue(String dataName) {
         return "mats.MatsEagerCache." + dataName + ".UpdateRequest";
@@ -482,14 +495,15 @@ public class MatsEagerCacheServer {
     }
 
     private MatsEagerCacheServer _start() {
-        // ?: Have we already started?
-        if (_lifeCycle != LifeCycle.NOT_YET_STARTED) {
-            // -> Yes, we have already started - so you evidently have no control over the lifecycle of this object!
-            throw new IllegalStateException("The MatsEagerCacheServer should be NOT_YET_STARTED when starting, it is ["
-                    + _lifeCycle + "].");
+        synchronized (this) {
+            // ?: Have we already started?
+            if (_lifeCycle != LifeCycle.NOT_YET_STARTED) {
+                // -> Yes, we have already started - so you evidently have no control over the lifecycle of this object!
+                throw new IllegalStateException("The MatsEagerCacheServer should be NOT_YET_STARTED when starting,"
+                        + " it is [" + _lifeCycle + "].");
+            }
+            _lifeCycle = LifeCycle.STARTING;
         }
-
-        _lifeCycle = LifeCycle.STARTING;
 
         // Create thread that checks if we actually can request the Source Data
         Thread checkThread = new Thread(() -> {
@@ -498,25 +512,25 @@ public class MatsEagerCacheServer {
             while (_lifeCycle == LifeCycle.STARTING) {
                 // Try to get the data from the source provider.
                 try {
-                    log.info("Asserting that we can get Source Data.");
+                    log.info(LOG_PREFIX + "Asserting that we can get Source Data.");
                     SourceDataResult result = _createSourceDataResult(_fullDataCallbackSupplier);
-                    log.info("Success: We asserted that we can get Source Data! Data count:["
+                    log.info(LOG_PREFIX + "Success: We asserted that we can get Source Data! Data count:["
                             + result.dataCountFromSourceProvider + "]");
 
                     // Start the endpoints
-                    _createCacheEndpoints();
+                    _createCacheEndpointsAndStartPeriodicRefresh();
 
                     // We're now running.
                     _cacheStartedTimestamp = System.currentTimeMillis();
                     _lifeCycle = LifeCycle.RUNNING;
                     _waitForRunningLatch.countDown();
-                    _waitForRunningLatch = null;
+                    _waitForRunningLatch = null; // fast-path check, and get rid of the CountDownLatch.
                     // We're done - it is possible to get source data.
                     break;
                 }
                 catch (Throwable t) {
                     // TODO: Log exception to monitor and HealthCheck.
-                    log.error("Got exception while trying to assert that we could call the source"
+                    log.error(LOG_PREFIX + "Got exception while trying to assert that we could call the source"
                             + " provider and get data.", t);
                 }
                 // Wait a bit before trying again.
@@ -525,13 +539,12 @@ public class MatsEagerCacheServer {
                 }
                 catch (InterruptedException e) {
                     // TODO: Log exception to monitor and HealthCheck.
-                    log.error("Got interrupted while waiting for initial population to be done.", e);
+                    log.error(LOG_PREFIX + "Got interrupted while waiting for initial population to be done.", e);
                     // The _running flag will be checked in the next iteration.
                 }
                 // Increase sleep time between attempts, but cap it at 30 seconds.
                 sleepTimeBetweenAttempts = (long) Math.min(MAX_INTERVAL_BETWEEN_STARTUP_ATTEMPTS,
-                        sleepTimeBetweenAttempts
-                                * 1.5);
+                        sleepTimeBetweenAttempts * 1.5);
             }
         }, "MatsEagerCacheServer." + _dataName + "-InitialPopulationCheck");
         checkThread.setDaemon(true);
@@ -541,7 +554,7 @@ public class MatsEagerCacheServer {
         return this;
     }
 
-    private void _createCacheEndpoints() {
+    private void _createCacheEndpointsAndStartPeriodicRefresh() {
         // ::: Create the Mats endpoints
         // :: The endpoint that the clients will send requests to
         // Note: We set concurrency to 1. We have this anti-thundering-herd mechanism whereby if many clients request
@@ -566,20 +579,22 @@ public class MatsEagerCacheServer {
         // Destination namespace with one extra topic per cache.
         _broadcastTerminator = _matsFactory.subscriptionTerminator(_getBroadcastTopic(_dataName), void.class,
                 BroadcastDto.class, (ctx, state, broadcastDto) -> {
-                    log.info("Got a broadcast: " + broadcastDto.command);
+                    log.info(LOG_PREFIX + "Got a broadcast: " + broadcastDto.command
+                            + " ## " + _infoAboutBroadcast(broadcastDto));
                     // ?: Is this a sibling command?
                     if (BroadcastDto.COMMAND_SIBLING_COMMAND.equals(broadcastDto.command)) {
                         _handleSiblingCommand(ctx, broadcastDto);
                     }
                     // ?: Is this the internal "sync between siblings" about having received a request for update?
-                    else if (BroadcastDto.COMMAND_REQUEST_RECEIVED_BOOT.equals(broadcastDto.command)
-                            || BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL.equals(broadcastDto.command)
+                    else if (BroadcastDto.COMMAND_REQUEST_RECEIVED_CLIENT_BOOT.equals(broadcastDto.command)
+                            || BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL_CLIENT.equals(broadcastDto.command)
+                            || BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL_SERVER.equals(broadcastDto.command)
                             || BroadcastDto.COMMAND_REQUEST_ENSURER_FAILED.equals(broadcastDto.command)) {
-                        _msg_scheduleRequestReceived(broadcastDto);
+                        _msg_updateRequestReceived(broadcastDto);
                     }
                     // ?: Is this the internal "sync between siblings" about now sending the update?
                     else if (BroadcastDto.COMMAND_REQUEST_SENDING.equals(broadcastDto.command)) {
-                        _msg_schedule_SendNow(broadcastDto);
+                        _msg_updateRequestSendUpdateNow(broadcastDto);
                     }
                     // ?: Is this the actual update sent to the clients - which we also get?
                     else if (BroadcastDto.COMMAND_UPDATE_FULL.equals(broadcastDto.command)
@@ -594,9 +609,33 @@ public class MatsEagerCacheServer {
                         }
                     }
                     else {
-                        log.warn("Got a broadcast with unknown command: " + broadcastDto.command);
+                        log.warn(LOG_PREFIX + "Got a broadcast with unknown command: " + broadcastDto.command);
                     }
                 });
+
+        Thread periodUpdate = new Thread(() -> {
+            while (_lifeCycle == LifeCycle.RUNNING) {
+                try {
+                    _scheduleFullUpdate(null);
+                    _takeNap((long) (_forcedFullUpdateIntervalMinutes * 60_000));
+                }
+                catch (Throwable t) {
+                    // TODO: Log exception to monitor and HealthCheck.
+                    log.error(LOG_PREFIX + "Got exception while trying to schedule periodic full update.", t);
+                }
+            }
+        }, "MatsEagerCacheServer." + _dataName + "-PeriodicUpdate[" + _forcedFullUpdateIntervalMinutes + "min]");
+    }
+
+    private String _infoAboutBroadcast(BroadcastDto broadcastDto) {
+        return "us: " + _privateNodename + "command: " + broadcastDto.command
+                + ", sentNode: " + broadcastDto.sentNodename
+                + (_privateNodename.equals(broadcastDto.sentNodename) ? " (+SENT+ FROM US!)" : " (Not us!)")
+                + ", handlingNode: " + broadcastDto.handlingNodename
+                + (_privateNodename.equals(broadcastDto.handlingNodename) ? " (+HANDLED+ BY US!)" : " (Not us!)")
+                + ", currentOutstanding: " + _updateRequest_OutstandingCount
+                + ", correlationId: " + broadcastDto.correlationId + ", requestNodename: "
+                + broadcastDto.requestNodename;
     }
 
     /**
@@ -604,7 +643,11 @@ public class MatsEagerCacheServer {
      * unified understanding of the order of incoming requests, and who should handle the update.
      */
     private void _scheduleFullUpdate(CacheRequestDto incomingClientCacheRequest) {
-        log.info("\n\n======== Scheduling full update of cache [" + _dataName + "].\n\n");
+        log.info(LOG_PREFIX + "\n\n######## scheduleFullUpdate [" + _dataName + "] us: " + _privateNodename
+                + " - requesting Node: " + (incomingClientCacheRequest != null
+                        ? incomingClientCacheRequest.nodename
+                        : "{server side}")
+                + " - current Outstanding: [" + _updateRequest_OutstandingCount + "] .\n\n");
         // ?: Have we started?
         if (_lifeCycle != LifeCycle.RUNNING) {
             // -> No, we have not started - so you evidently have no control over the lifecycle of this object!
@@ -614,25 +657,24 @@ public class MatsEagerCacheServer {
         _broadcastTerminator.waitForReceiving(FAST_RESPONSE_LAST_RECV_THRESHOLD);
 
         // Send a message, that we ourselves will get.
-        BroadcastDto broadcast = new BroadcastDto();
-        broadcast.handlingNodename = _privateNodename;
-        broadcast.sentTimestamp = System.currentTimeMillis();
-        broadcast.sentNanoTime = System.nanoTime();
+
+        // Find command type
+        String updateRequestCommand = incomingClientCacheRequest != null
+                // -> This was a request from the client.
+                ? CacheRequestDto.COMMAND_REQUEST_MANUAL.equals(incomingClientCacheRequest.command)
+                        ? BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL_CLIENT
+                        : BroadcastDto.COMMAND_REQUEST_RECEIVED_CLIENT_BOOT
+                // -> This was a programmatic invocation of 'scheduleFullUpdate()' here on the server.
+                : BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL_SERVER;
+
+        BroadcastDto broadcast = new BroadcastDto(updateRequestCommand, _privateNodename);
         // ?: Was this a request sent from the client?
         if (incomingClientCacheRequest != null) {
-            // -> Yes, this was a request from the client.
-            // Manual or boot?
-            broadcast.command = CacheRequestDto.COMMAND_REQUEST_MANUAL.equals(incomingClientCacheRequest.command)
-                    ? BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL
-                    : BroadcastDto.COMMAND_REQUEST_RECEIVED_BOOT;
+            // -> Yes, so copy over the correlationId, nodename, and timestamps.
             broadcast.correlationId = incomingClientCacheRequest.correlationId;
             broadcast.requestNodename = incomingClientCacheRequest.nodename;
             broadcast.requestSentTimestamp = incomingClientCacheRequest.sentTimestamp;
             broadcast.requestSentNanoTime = incomingClientCacheRequest.sentNanoTime;
-        }
-        else {
-            // -> This was a programmatic/manual invocation of 'scheduleFullUpdate()' on the server.
-            broadcast.command = BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL;
         }
         _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
             init.traceId(TraceId.create("MatsEagerCache." + _dataName, "ScheduleFullUpdate")
@@ -643,20 +685,28 @@ public class MatsEagerCacheServer {
         });
     }
 
-    private void _msg_scheduleRequestReceived(BroadcastDto broadcastDto) {
-        log.info("\n\n======== Got a schedule request received: " + broadcastDto.command
-                + (_privateNodename.equals(broadcastDto.handlingNodename) ? " (THIS IS US!)" : "(Not us!)")
-                + "\n\n");
-        // Should we fire off the thread?
-        boolean weAreInChargeOfHandlingUpdate = false;
+    private void _msg_updateRequestReceived(BroadcastDto broadcastDto) {
+        log.info(LOG_PREFIX + "\n\n======== updateRequestReceived: " + _infoAboutBroadcast(broadcastDto) + "\n\n");
+        boolean shouldStartCoalescingThread = false;
         synchronized (this) {
             // Increase the count of outstanding requests.
             _updateRequest_OutstandingCount++;
-            // ?: If this went from 0 to 1, the process is just started.
+            // ?: Was this the initial message that pushed the count to 1?
             if (_updateRequest_OutstandingCount == 1) {
-                // -> Yes, it went from 0 to 1, so the process just got started!
-                // The one that started it is the one that will handle it. Is it us?
-                weAreInChargeOfHandlingUpdate = _privateNodename.equals(broadcastDto.handlingNodename);
+                // -> Yes, this was the first one, so we should start the coalescing thread.
+                shouldStartCoalescingThread = true;
+                // We start by proposing this first one as the handling node.
+                _updateRequest_HandlingNodename = broadcastDto.sentNodename;
+            }
+            else {
+                // -> No, this was not the first message of this round.
+                // ?: Check if the new message was initiated by a lower name than the one we have.
+                if (broadcastDto.sentNodename.compareTo(_updateRequest_HandlingNodename) < 0) {
+                    // -> Yes, this one is lower, so we'll take this one.
+                    log.info(LOG_PREFIX + "updateRequestReceived: NEW PROPOSED LEADER: "
+                            + broadcastDto.sentNodename + " < " + _updateRequest_HandlingNodename);
+                    _updateRequest_HandlingNodename = broadcastDto.sentNodename;
+                }
             }
         }
 
@@ -668,7 +718,7 @@ public class MatsEagerCacheServer {
          * will initiate a new full update to try to remedy the situation.
          */
         // ?: Is this already an "ensurer failed" situation? (If so, no use in looping this)
-        if (!BroadcastDto.COMMAND_REQUEST_ENSURER_FAILED.equals(broadcastDto.command)){
+        if (!BroadcastDto.COMMAND_REQUEST_ENSURER_FAILED.equals(broadcastDto.command)) {
             // -> No, this is not an "ensurer failed" situation, so we'll start the ensurer.
             // Adjust the time to check based on situation: if we're currently making a source data set (indicating that
             // it might take very long time (we've experienced 20 minutes in a degenerate situation!), or having
@@ -685,13 +735,12 @@ public class MatsEagerCacheServer {
                 // ?: Have we received a full update since we started this ensurer?
                 if (_lastFullUpdateReceivedTimestamp < timestampWhenEnsurerStarted) {
                     // -> No, we have not seen the full update yet, which is bad. Initiate a new full update.
-                    log.warn("Ensurer failed: We have not seen the full update yet, initiating a new full update.");
+                    log.warn(LOG_PREFIX
+                            + "Ensurer failed: We have not seen the full update yet, initiating a new full update.");
                     // Note: This is effectively a message to this same handling method.
-                    BroadcastDto broadcast = new BroadcastDto();
+                    BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_ENSURER_FAILED,
+                            _privateNodename);
                     broadcast.handlingNodename = _privateNodename;
-                    broadcast.sentTimestamp = System.currentTimeMillis();
-                    broadcast.sentNanoTime = System.nanoTime();
-                    broadcast.command = BroadcastDto.COMMAND_REQUEST_ENSURER_FAILED;
                     _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
                         init.traceId(TraceId.create("MatsEagerCache." + _dataName, "FullUpdateEnsurer"))
                                 .from("MatsEagerCache." + _dataName + ".FullUpdateEnsurer")
@@ -704,11 +753,15 @@ public class MatsEagerCacheServer {
             ensurerThread.start();
         }
 
-        // ?: Are we in charge of handling it?
-        if (weAreInChargeOfHandlingUpdate) {
-            // -> Yes, we are in charge of handling it, so fire off the delay-thread.
-            // The delay-stuff is to handle the "thundering herd" problem, where all clients request a full update at
-            // the same time - which otherwise would result in a lot of full updates being sent in parallel.
+        // ?: Should we start the election and coalescing thread?
+        if (shouldStartCoalescingThread) {
+            // -> Yes
+
+            // The delay-stuff is both to find who should do the update, and to handle the "thundering herd" problem,
+            // where all clients request a full update at the same time - which otherwise would result in a lot of full
+            // updates being sent in parallel.
+
+            log.info(LOG_PREFIX + "STARTING ELECTION AND COALESCING THREAD: We must find who should do this.");
 
             // "If it is a long time since last invocation, it will be scheduled to run soon, while if the previous time
             // was a short time ago, it will be scheduled to run a bit later (~ within 7 seconds)."
@@ -722,12 +775,13 @@ public class MatsEagerCacheServer {
                     - latestActivityTimestamp) > FAST_RESPONSE_LAST_RECV_THRESHOLD;
             // Calculate initial delay: Two tiers: If "fastResponse", decide by whether it was a manual request or not.
             int initialDelay = fastResponse
-                    ? BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL.equals(broadcastDto.command)
-                            ? 0 // Immediate for manual
-                            : _shortDelay // Short delay (i.e. longer) for boot
+                    ? BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL_CLIENT.equals(broadcastDto.command)
+                            || BroadcastDto.COMMAND_REQUEST_RECEIVED_MANUAL_SERVER.equals(broadcastDto.command)
+                                    ? 0 // Immediate for manual
+                                    : _shortDelay // Short delay (i.e. longer) for boot
                     : _longDelay;
 
-            Thread scheduledUpdateThread = new Thread(() -> {
+            Thread updateRequestsCoalescingDelayThread = new Thread(() -> {
                 // First sleep the initial delay.
                 _takeNap(initialDelay);
 
@@ -740,48 +794,66 @@ public class MatsEagerCacheServer {
                     }
                     // ?: Have there come in more than the one that started the process?
                     if (outstandingCount > 1) {
-                        // -> Yes, more requests incoming, so we'll do the long delay anyway
+                        // -> Yes, more requests have come in, so we'll do the long delay anyway, to see if we can
+                        // coalesce even more requests.
                         _takeNap(_longDelay - _shortDelay);
                     }
                 }
 
                 // ----- Okay, we've waited for more requests, now we'll initiate the update.
-                // We also do this over broadcast, so that all siblings can see that we're doing it.
 
-                BroadcastDto broadcast = new BroadcastDto();
-                broadcast.command = BroadcastDto.COMMAND_REQUEST_SENDING;
-                broadcast.handlingNodename = _privateNodename; // It is us that is handling it.
-                broadcast.sentTimestamp = System.currentTimeMillis();
-                broadcast.sentNanoTime = System.nanoTime();
-                // Transfer the correlationId and requestNodename from the incoming message (they might be null)
-                broadcast.correlationId = broadcastDto.correlationId;
-                broadcast.requestNodename = broadcastDto.requestNodename;
-                broadcast.requestSentTimestamp = broadcastDto.requestSentTimestamp;
-                broadcast.requestSentNanoTime = broadcastDto.requestSentNanoTime;
+                String updateRequest_HandlingNodename;
+                synchronized (this) {
+                    updateRequest_HandlingNodename = _updateRequest_HandlingNodename;
+                }
 
-                _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
-                    init.traceId(TraceId.create("EagerCache." + _dataName, "ScheduleRequest"))
-                            .from("EagerCache." + _dataName)
-                            .to(_getBroadcastTopic(_dataName))
-                            .publish(broadcast);
-                });
+                // ?: Are we the one that should handle the update?
+                if (_privateNodename.equals(updateRequest_HandlingNodename)) {
+                    // -> Yes, it is us that should handle the update.
+                    // We also do this over broadcast, so that all siblings can see that we're doing it.
 
-            }, "MatsEagerCacheServer." + _dataName + "-ScheduledUpdateDelayer");
-            scheduledUpdateThread.setDaemon(true);
-            scheduledUpdateThread.start();
+                    BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_SENDING, _privateNodename);
+                    broadcast.handlingNodename = _privateNodename; // It is us that is handling it.
+                    // Transfer the correlationId and requestNodename from the incoming message (they might be null)
+                    broadcast.correlationId = broadcastDto.correlationId;
+                    broadcast.requestNodename = broadcastDto.requestNodename;
+                    broadcast.requestSentTimestamp = broadcastDto.requestSentTimestamp;
+                    broadcast.requestSentNanoTime = broadcastDto.requestSentNanoTime;
+
+                    log.info(LOG_PREFIX + "COALESCED ENOUGH! SENDING UPDATE NOW: We waited for more requests, and we"
+                            + "were the elected leader. We will now broadcast that it should be done, and that"
+                            + " handling nodename is [" + _privateNodename + "]."
+                            + "  (current Outstanding: [" + _updateRequest_OutstandingCount
+                            + "]).");
+
+                    _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
+                        init.traceId(TraceId.create("MatsEagerCache." + _dataName, "UpdateRequestsCoalesced"))
+                                .from("MatsEagerCache." + _dataName + ".UpdateRequestsCoalesced")
+                                .to(_getBroadcastTopic(_dataName))
+                                .publish(broadcast);
+                    });
+                }
+                else {
+                    // -> No, it is not us that should handle the update.
+                    log.info(LOG_PREFIX + "COALESCED ENOUGH! We waited for more requests, but someone else should"
+                            + " do it: [" + _updateRequest_HandlingNodename + "].");
+                }
+            }, "MatsEagerCacheServer." + _dataName + "-UpdateRequestsCoalescingDelay");
+            updateRequestsCoalescingDelayThread.setDaemon(true);
+            updateRequestsCoalescingDelayThread.start();
         }
 
         // Record that we've received a request for update.
         _lastUpdateRequestReceivedTimestamp = System.currentTimeMillis();
     }
 
-    private void _msg_schedule_SendNow(BroadcastDto broadcastDto) {
-        log.info("\n\n======== Got a schedule sending now: " + broadcastDto.handlingNodename
-                + (broadcastDto.handlingNodename.equals(_privateNodename) ? " (THIS IS US!)" : "(Not us!)"));
+    private void _msg_updateRequestSendUpdateNow(BroadcastDto broadcastDto) {
+        log.info(LOG_PREFIX + "\n\n======== updateRequestSendUpdateNow: " + _infoAboutBroadcast(broadcastDto) + "\n\n");
 
         // Reset count, starting process over.
         synchronized (this) {
             _updateRequest_OutstandingCount = 0;
+            _updateRequest_HandlingNodename = null;
         }
         // A full-update will be sent now, make note (for initialDelay evaluation)
         _lastUpdateProductionStartedTimestamp = System.currentTimeMillis();
@@ -792,7 +864,8 @@ public class MatsEagerCacheServer {
                 && _produceAndSendExecutor.getQueue().isEmpty()) {
             // -> Yes it was us, and there are no other updates already in the queue.
             _produceAndSendExecutor.execute(() -> {
-                log.info("\n\n======== Sending full update of cache [" + _dataName + "].\n\n");
+                log.info(LOG_PREFIX + "\n\n======== SENDING FULL UPDATE! We are the elected node for sending full"
+                        + " update! " + _privateNodename + ".\n\n");
 
                 _produceAndSendUpdate(broadcastDto, _fullDataCallbackSupplier, true);
             });
@@ -800,7 +873,7 @@ public class MatsEagerCacheServer {
     }
 
     private void _produceAndSendUpdate(BroadcastDto incomingBroadcastDto,
-            Supplier<CacheSourceDataCallback<?>> dataCallbackSupplier, boolean fullUpdate) {
+            Supplier<MatsEagerCacheServer.CacheSourceDataCallback<?>> dataCallbackSupplier, boolean fullUpdate) {
         try {
             _produceAndSendUpdateLock.lock();
 
@@ -808,10 +881,8 @@ public class MatsEagerCacheServer {
             SourceDataResult result = _createSourceDataResult(dataCallbackSupplier);
 
             // Create the Broadcast message (which doesn't contain the actual data, but the metadata).
-            BroadcastDto broadcast = new BroadcastDto();
-            broadcast.command = fullUpdate ? BroadcastDto.COMMAND_UPDATE_FULL : BroadcastDto.COMMAND_UPDATE_PARTIAL;
-            broadcast.sentTimestamp = System.currentTimeMillis();
-            broadcast.sentNanoTime = System.nanoTime();
+            String updateCommand = fullUpdate ? BroadcastDto.COMMAND_UPDATE_FULL : BroadcastDto.COMMAND_UPDATE_PARTIAL;
+            BroadcastDto broadcast = new BroadcastDto(updateCommand, _privateNodename);
             broadcast.dataCount = result.dataCountFromSourceProvider;
             broadcast.compressedSize = result.compressedSize;
             broadcast.uncompressedSize = result.uncompressedSize;
@@ -852,7 +923,7 @@ public class MatsEagerCacheServer {
             Thread.sleep(millis);
         }
         catch (InterruptedException e) {
-            log.warn("Got interrupted while taking nap.", e);
+            log.warn(LOG_PREFIX + "Got interrupted while taking nap.", e);
             throw new IllegalStateException("Got interrupted while taking nap, unexpected.", e);
         }
     }
@@ -862,7 +933,7 @@ public class MatsEagerCacheServer {
         MatsEagerCacheServer.SiblingCommand siblingCommand = new MatsEagerCacheServer.SiblingCommand() {
             @Override
             public boolean commandOriginatedOnThisInstance() {
-                return broadcastDto.sentPrivateNodename.equals(_privateNodename);
+                return broadcastDto.sentNodename.equals(_privateNodename);
             }
 
             @Override
@@ -895,10 +966,33 @@ public class MatsEagerCacheServer {
                 listener.accept(siblingCommand);
             }
             catch (Throwable t) {
-                log.error("Got exception from SiblingCommandEventListener [" + listener
+                log.error(LOG_PREFIX + "Got exception from SiblingCommandEventListener [" + listener
                         + "], ignoring.", t);
             }
         }
+    }
+
+    void _waitForReceiving() {
+        if (!EnumSet.of(LifeCycle.NOT_YET_STARTED, LifeCycle.STARTING, LifeCycle.RUNNING).contains(_lifeCycle)) {
+            throw new IllegalStateException("The MatsEagerCacheServer is not NOT_YET_STARTED, STARTING or RUNNING,"
+                    + " it is [" + _lifeCycle + "].");
+        }
+        try {
+            // If the latch is there, we'll wait for it. (fast-path check for null)
+            CountDownLatch latch = _waitForRunningLatch;
+            if (latch != null) {
+                boolean started = latch.await(MAX_WAIT_FOR_RECEIVING_SECONDS, TimeUnit.SECONDS);
+                if (!started) {
+                    throw new IllegalStateException("Did not start within " + MAX_WAIT_FOR_RECEIVING_SECONDS
+                            + " seconds.");
+                }
+            }
+        }
+        catch (InterruptedException e) {
+            throw new IllegalStateException("Got interrupted while waiting for the system to start.", e);
+        }
+        _broadcastTerminator.waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS * 1_000);
+        _requestTerminator.waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS * 1_000);
     }
 
     private SourceDataResult _createSourceDataResult(Supplier<CacheSourceDataCallback<?>> dataCallbackSupplier) {
@@ -917,7 +1011,7 @@ public class MatsEagerCacheServer {
             SequenceWriter jacksonSeq = _sentDataTypeWriter.writeValues(out);
             Consumer<Object> consumer = o -> {
                 try {
-                    log.info("Type of object: " + o.getClass().getName());
+                    log.info(LOG_PREFIX + "Type of object: " + o.getClass().getName());
                     Object mapped = uncheckedDataTypeMapper.apply(o);
                     jacksonSeq.write(mapped);
                     // TODO: Log progress to monitor and HealthCheck.
@@ -985,28 +1079,6 @@ public class MatsEagerCacheServer {
         }
     }
 
-    void _waitForReceiving() {
-        if (!EnumSet.of(LifeCycle.NOT_YET_STARTED, LifeCycle.STARTING, LifeCycle.RUNNING).contains(_lifeCycle)) {
-            throw new IllegalStateException("The MatsEagerCacheServer is not NOT_YET_STARTED, STARTING or RUNNING,"
-                    + " it is [" + _lifeCycle + "].");
-        }
-        try {
-            // If the latch is there, we'll wait for it. (fast-path check for null)
-            CountDownLatch latch = _waitForRunningLatch;
-            if (latch != null) {
-                boolean started = latch.await(1, TimeUnit.MINUTES);
-                if (!started) {
-                    throw new IllegalStateException("Did not start within 1 minute.");
-                }
-            }
-        }
-        catch (InterruptedException e) {
-            throw new IllegalStateException("Got interrupted while waiting for the system to start.", e);
-        }
-        _broadcastTerminator.waitForReceiving(FAST_RESPONSE_LAST_RECV_THRESHOLD);
-        _requestTerminator.waitForReceiving(FAST_RESPONSE_LAST_RECV_THRESHOLD);
-    }
-
     static final class CacheRequestDto {
         static final String COMMAND_REQUEST_BOOT = "BOOT";
         static final String COMMAND_REQUEST_MANUAL = "MANUAL";
@@ -1020,23 +1092,37 @@ public class MatsEagerCacheServer {
     }
 
     static final class BroadcastDto {
-        static final String COMMAND_REQUEST_RECEIVED_BOOT = "REQ_RECV_BOOT";
-        static final String COMMAND_REQUEST_RECEIVED_MANUAL = "REQ_RECV_MANUAL";
+        static final String COMMAND_REQUEST_RECEIVED_CLIENT_BOOT = "REQ_RECV_CLIENT_BOOT";
+        static final String COMMAND_REQUEST_RECEIVED_MANUAL_CLIENT = "REQ_RECV_MANUAL_CLIENT";
+        static final String COMMAND_REQUEST_RECEIVED_MANUAL_SERVER = "REQ_RECV_MANUAL_SERVER";
         static final String COMMAND_REQUEST_ENSURER_FAILED = "REQ_ENSURER_FAILED";
         static final String COMMAND_REQUEST_SENDING = "REQ_SEND";
         static final String COMMAND_UPDATE_FULL = "UPDATE_FULL";
         static final String COMMAND_UPDATE_PARTIAL = "UPDATE_PARTIAL";
         static final String COMMAND_SIBLING_COMMAND = "SIBLING_COMMAND";
 
-        String command;
-        String correlationId;
+        // No-args constructor for Jackson
+        public BroadcastDto() {
+        }
 
+        public BroadcastDto(String command, String sendingNodename) {
+            this.command = command;
+            this.sentNodename = sendingNodename;
+            this.sentTimestamp = System.currentTimeMillis();
+            this.sentNanoTime = System.nanoTime();
+        }
+
+        // ===== For all commands
+        String command;
+        String sentNodename;
+        long sentTimestamp;
+        long sentNanoTime;
+
+        // ===== For cache requests
+        String correlationId;
         String requestNodename;
         long requestSentTimestamp;
         long requestSentNanoTime;
-
-        long sentTimestamp;
-        long sentNanoTime;
 
         // ===== For the actual updates to clients.
         int dataCount;
@@ -1052,7 +1138,6 @@ public class MatsEagerCacheServer {
         String siblingCommand;
         String siblingStringData;
         // Note: Bytes are sideloaded
-        String sentPrivateNodename;
 
         // ===== Mechanism to synchronize the updates
         String handlingNodename;
