@@ -29,7 +29,21 @@ public class Test_EagerCache_RequestFullUpdate {
     private final ObjectWriter _replyWriter = _objectMapper.writerFor(CustomerData.class);
 
     @Test
-    public void run() throws InterruptedException, JsonProcessingException {
+    public void onlyClientSide() throws InterruptedException, JsonProcessingException {
+        run(0, 3);
+    }
+
+    @Test
+    public void onlyServerSide() throws InterruptedException, JsonProcessingException {
+        run(3, 0);
+    }
+
+    @Test
+    public void fromBothServerAndClient() throws InterruptedException, JsonProcessingException {
+        run(3, 3);
+    }
+
+    private void run(int serverSideCount, int clientSideCount) throws InterruptedException, JsonProcessingException {
         // ## ARRANGE:
 
         // Create the source data.
@@ -47,12 +61,12 @@ public class Test_EagerCache_RequestFullUpdate {
 
         // :: Create the CacheServers:
         MatsEagerCacheServer cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
-                "Customers", CustomerTransmitDTO.class, 1,
+                "Customers", CustomerTransmitDTO.class,
                 () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),
                 CustomerTransmitDTO::fromCustomerDTO);
 
         MatsEagerCacheServer cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
-                "Customers", CustomerTransmitDTO.class, 1,
+                "Customers", CustomerTransmitDTO.class,
                 () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),
                 CustomerTransmitDTO::fromCustomerDTO);
 
@@ -138,14 +152,14 @@ public class Test_EagerCache_RequestFullUpdate {
 
         // From both the client and server, request a full update - do it multiple times, from all of them.
         // (This should still just result in one full update sent in total)
-        cacheClient1.requestFullUpdate();
-        cacheServer1.scheduleFullUpdate();
-        cacheClient2.requestFullUpdate();
-        cacheServer2.scheduleFullUpdate();
-        cacheClient1.requestFullUpdate();
-        cacheServer1.scheduleFullUpdate();
-        cacheClient2.requestFullUpdate();
-        cacheServer2.scheduleFullUpdate();
+        for (int i = 0; i < serverSideCount; i++) {
+            cacheServer1.scheduleFullUpdate();
+            cacheServer2.scheduleFullUpdate();
+        }
+        for (int i = 0; i < clientSideCount; i++) {
+            cacheClient1.requestFullUpdate();
+            cacheClient2.requestFullUpdate();
+        }
 
         cache1_latch[0].await(30, TimeUnit.SECONDS);
         cache2_latch[0].await(30, TimeUnit.SECONDS);
@@ -185,5 +199,16 @@ public class Test_EagerCache_RequestFullUpdate {
         // Assert that we've only gotten one extra update total for each cache (initial + requested full update)
         Assert.assertEquals(2, cache1_updateCount.get());
         Assert.assertEquals(2, cache2_updateCount.get());
+
+        // Shutdown
+        cacheClient1.close();
+        cacheClient2.close();
+        cacheServer1.close();
+        cacheServer2.close();
+        serverMatsFactory1.close();
+        serverMatsFactory2.close();
+        clientMatsFactory1.close();
+        clientMatsFactory2.close();
+        matsTestBroker.close();
     }
 }

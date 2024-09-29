@@ -48,7 +48,7 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
 
         // :: Create the CacheServer.
         MatsEagerCacheServer cacheServer = new MatsEagerCacheServer(serverMatsFactory,
-                "Customers", CustomerTransmitDTO.class, 1,
+                "Customers", CustomerTransmitDTO.class,
                 () -> new CustomerDTOCacheSourceDataCallback(sourceData),
                 CustomerTransmitDTO::fromCustomerDTO);
 
@@ -72,7 +72,7 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
 
         log.info("\n\n######### Starting the CacheServer and CacheClient.\n\n");
 
-        cacheServer.start();
+        cacheServer.startAndWaitForReceiving();
         cacheClient.start();
 
         log.info("\n\n######### Waiting for initial population to be done.\n\n");
@@ -94,6 +94,8 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
                 + " and from cache.", serializedSourceData, serializedCacheData);
 
         // Shutdown
+        cacheServer.close();
+        cacheClient.close();
         serverMatsFactory.close();
         clientMatsFactory.close();
         matsTestBroker.close();

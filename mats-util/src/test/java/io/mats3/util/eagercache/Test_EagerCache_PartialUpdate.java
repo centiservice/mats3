@@ -68,12 +68,12 @@ public class Test_EagerCache_PartialUpdate {
 
         // :: Create the CacheServers:
         MatsEagerCacheServer cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
-                "Customers", CustomerTransmitDTO.class, 1,
+                "Customers", CustomerTransmitDTO.class,
                 () -> (consumeTo) -> sourceData1.customers.forEach(consumeTo),
                 CustomerTransmitDTO::fromCustomerDTO);
 
         MatsEagerCacheServer cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
-                "Customers", CustomerTransmitDTO.class, 1,
+                "Customers", CustomerTransmitDTO.class,
                 () -> (consumeTo) -> sourceData2.customers.forEach(consumeTo),
                 CustomerTransmitDTO::fromCustomerDTO);
 
@@ -97,13 +97,13 @@ public class Test_EagerCache_PartialUpdate {
 
         // .. recording the updates - and then latching, so that the test can go to next phase.
         cacheClient1.addCacheUpdatedListener((cacheUpdated) -> {
-            log.info("Cache 1 updated! "+ (cacheUpdated.isFullUpdate() ? "Full" : "PARTIAL") +" " + cacheUpdated);
+            log.info("Cache 1 updated! " + (cacheUpdated.isFullUpdate() ? "Full" : "PARTIAL") + " " + cacheUpdated);
             cacheClient1_updateCount.incrementAndGet();
             cacheClient1_updated[0] = cacheUpdated;
             cacheClient1_latch[0].countDown();
         });
         cacheClient2.addCacheUpdatedListener((cacheUpdated) -> {
-            log.info("Cache 2 updated! "+ (cacheUpdated.isFullUpdate() ? "Full" : "PARTIAL") +" " + cacheUpdated);
+            log.info("Cache 2 updated! " + (cacheUpdated.isFullUpdate() ? "Full" : "PARTIAL") + " " + cacheUpdated);
             cacheClient2_updateCount.incrementAndGet();
             cacheClient2_updated[0] = cacheUpdated;
             cacheClient2_latch[0].countDown();
@@ -289,16 +289,16 @@ public class Test_EagerCache_PartialUpdate {
                 _customerDataWriter.writeValueAsString(sourceData1), _customerDataWriter.writeValueAsString(
                         cacheData1));
 
-
+        // Shutdown
         cacheServer1.close();
         cacheServer2.close();
         cacheClient1.close();
         cacheClient2.close();
-
         serverMatsFactory1.close();
         serverMatsFactory2.close();
         clientMatsFactory1.close();
         clientMatsFactory2.close();
+        matsTestBroker.close();
     }
 
     static class SiblingUpdateCommand implements Consumer<SiblingCommand> {

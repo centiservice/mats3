@@ -37,12 +37,12 @@ public class Test_EagerCache_SiblingCommand {
 
         // :: Create the CacheServers:
         MatsEagerCacheServer cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
-                "Customers", CustomerTransmitDTO.class, 1,
+                "Customers", CustomerTransmitDTO.class,
                 () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),
                 CustomerTransmitDTO::fromCustomerDTO);
 
         MatsEagerCacheServer cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
-                "Customers", CustomerTransmitDTO.class, 1,
+                "Customers", CustomerTransmitDTO.class,
                 () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),
                 CustomerTransmitDTO::fromCustomerDTO);
 
