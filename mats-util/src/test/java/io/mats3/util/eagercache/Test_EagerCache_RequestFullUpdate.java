@@ -91,8 +91,8 @@ public class Test_EagerCache_RequestFullUpdate {
         });
 
         // Changing delays (towards shorter), as we're testing. But also handle CI, which can be dog slow.
-        int shortDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 3; // On CI: 3 sec
-        int longDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 4; // On CI: 4 sec
+        int shortDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE; // On CI: 1 sec
+        int longDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 2; // On CI: 2 sec
         cacheServer1._setDelays(shortDelay, longDelay);
         cacheServer2._setDelays(shortDelay, longDelay);
 
@@ -101,8 +101,8 @@ public class Test_EagerCache_RequestFullUpdate {
         cache1_latch[0] = new CountDownLatch(1);
         cache2_latch[0] = new CountDownLatch(1);
 
-        cacheServer1.start();
-        cacheServer2.start();
+        cacheServer1.startAndWaitForReceiving();
+        cacheServer2.startAndWaitForReceiving();
         cacheClient1.start();
         cacheClient2.start();
 

@@ -120,10 +120,8 @@ public class Test_EagerCache_PartialUpdate {
         cacheClient1_latch[0] = new CountDownLatch(1);
         cacheClient2_latch[0] = new CountDownLatch(1);
 
-        cacheServer1.start();
-        cacheServer2.start();
-        cacheServer1._waitForReceiving();
-        cacheServer2._waitForReceiving();
+        cacheServer1.startAndWaitForReceiving();
+        cacheServer2.startAndWaitForReceiving();
         cacheClient1.start();
         cacheClient2.start();
 

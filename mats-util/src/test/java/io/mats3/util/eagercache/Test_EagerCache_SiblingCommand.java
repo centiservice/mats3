@@ -72,10 +72,8 @@ public class Test_EagerCache_SiblingCommand {
 
         log.info("\n\n######### Starting the CacheServers, waiting for receive loops.\n\n");
 
-        cacheServer1.start();
-        cacheServer2.start();
-        cacheServer1._waitForReceiving();
-        cacheServer2._waitForReceiving();
+        cacheServer1.startAndWaitForReceiving();
+        cacheServer2.startAndWaitForReceiving();
 
         log.info("\n\n######### Sending SiblingCommand from CacheServer 1.\n\n");
 

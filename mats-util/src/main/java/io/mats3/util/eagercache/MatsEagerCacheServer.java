@@ -96,11 +96,11 @@ public class MatsEagerCacheServer {
     public static final int DEFAULT_LONG_DELAY = 7000;
 
     /**
-     * Some commands, e.g. {@link #sendSiblingCommand(String, String, byte[]) sendSiblingCommand(..)} (and the test
-     * method {@link #_waitForReceiving()}) needs to wait for the broadcast terminator to be ready to receive. This is
-     * the maximum time to wait for this to happen. (60 seconds)
+     * Some commands, e.g. {@link #sendSiblingCommand(String, String, byte[]) sendSiblingCommand(..)} (and the
+     * alternative start method {@link #startAndWaitForReceiving()}) needs to wait for the broadcast terminator to be
+     * ready to receive. This is the maximum time to wait for this to happen. (4 minutes)
      */
-    public static final int MAX_WAIT_FOR_RECEIVING_SECONDS = 60;
+    public static final int MAX_WAIT_FOR_RECEIVING_SECONDS = 240;
 
     /**
      * During startup, we need to first ensure that we can make a source data set before firing up the endpoints. If it
@@ -251,9 +251,11 @@ public class MatsEagerCacheServer {
      *
      * @param siblingCommandEventListener
      *            the listener to add.
+     * @return this instance, for chaining.
      */
-    public void addSiblingCommandListener(Consumer<SiblingCommand> siblingCommandEventListener) {
+    public MatsEagerCacheServer addSiblingCommandListener(Consumer<SiblingCommand> siblingCommandEventListener) {
         _siblingCommandEventListeners.add(siblingCommandEventListener);
+        return this;
     }
 
     private static final String SIDELOAD_KEY_SIBLING_COMMAND_BYTES = "scb";
@@ -445,11 +447,24 @@ public class MatsEagerCacheServer {
      * we don't want to continue any rolling update of the service instances: The other instances might still have the
      * data loaded and can thus still serve the data to cache clients, so better to hold back / break the deploy and
      * "call in the humans".
-     * 
-     * @return this instance, for chaining.
      */
-    public MatsEagerCacheServer start() {
-        return _start();
+    public void start() {
+        _start();
+    }
+
+    /**
+     * Probably most useful for tests - or being run in an async thread! Starts the cache server, and waits for it to be
+     * fully running. It first invokes {@link #start()} (which will assert that it can get source data), and then waits
+     * for the endpoints entering their receive-loops using {@link MatsEndpoint#waitForReceiving(int)}. This method will
+     * thus block until the cache server is fully running, and the cache server is able to serve cache clients.
+     * <p>
+     * Note that if there are problems with the source data, the server will not enter state 'running', and the
+     * endpoints won't start - and this method will throw out with {@link IllegalStateException} after approximately 1
+     * minute.
+     */
+    public void startAndWaitForReceiving() {
+        _start();
+        _waitForReceiving();
     }
 
     /**
@@ -494,7 +509,7 @@ public class MatsEagerCacheServer {
         return "mats.MatsEagerCache." + dataName + ".Broadcast";
     }
 
-    private MatsEagerCacheServer _start() {
+    private void _start() {
         synchronized (this) {
             // ?: Have we already started?
             if (_lifeCycle != LifeCycle.NOT_YET_STARTED) {
@@ -549,9 +564,6 @@ public class MatsEagerCacheServer {
         }, "MatsEagerCacheServer." + _dataName + "-InitialPopulationCheck");
         checkThread.setDaemon(true);
         checkThread.start();
-
-        // For chaining
-        return this;
     }
 
     private void _createCacheEndpointsAndStartPeriodicRefresh() {
@@ -696,16 +708,23 @@ public class MatsEagerCacheServer {
                 // -> Yes, this was the first one, so we should start the coalescing thread.
                 shouldStartCoalescingThread = true;
                 // We start by proposing this first one as the handling node.
+                log.info(LOG_PREFIX + "updateRequestReceived: INITIAL PROPOSED LEADER: " + broadcastDto.sentNodename);
                 _updateRequest_HandlingNodename = broadcastDto.sentNodename;
             }
             else {
                 // -> No, this was not the first message of this round.
-                // ?: Check if the new message was initiated by a lower name than the one we have.
+                // ?: Check if the new message was initiated by a lower nodename than the one we have.
                 if (broadcastDto.sentNodename.compareTo(_updateRequest_HandlingNodename) < 0) {
                     // -> Yes, this one is lower, so we'll take this one.
-                    log.info(LOG_PREFIX + "updateRequestReceived: NEW PROPOSED LEADER: "
-                            + broadcastDto.sentNodename + " < " + _updateRequest_HandlingNodename);
+                    log.info(LOG_PREFIX + "updateRequestReceived: NEW PROPOSED LEADER with lower nodename. New: ["
+                            + broadcastDto.sentNodename + "] (..is lower than '" + _updateRequest_HandlingNodename
+                            + "')");
                     _updateRequest_HandlingNodename = broadcastDto.sentNodename;
+                }
+                else {
+                    log.info(LOG_PREFIX + "updateRequestReceived: KEEP EXISTING PROPOSED LEADER, since new suggestion"
+                            + " isn't lower. Keeping: [" + _updateRequest_HandlingNodename + "] (..is lower than '"
+                            + broadcastDto.sentNodename + "'");
                 }
             }
         }
@@ -761,7 +780,9 @@ public class MatsEagerCacheServer {
             // where all clients request a full update at the same time - which otherwise would result in a lot of full
             // updates being sent in parallel.
 
-            log.info(LOG_PREFIX + "STARTING ELECTION AND COALESCING THREAD: We must find who should do this.");
+            log.info(LOG_PREFIX + "STARTING ELECTION AND COALESCING THREAD: We must find who should do this."
+                    + " We are node: " + _privateNodename + ", current proposed leader: "
+                    + _updateRequest_HandlingNodename);
 
             // "If it is a long time since last invocation, it will be scheduled to run soon, while if the previous time
             // was a short time ago, it will be scheduled to run a bit later (~ within 7 seconds)."
@@ -820,11 +841,9 @@ public class MatsEagerCacheServer {
                     broadcast.requestSentTimestamp = broadcastDto.requestSentTimestamp;
                     broadcast.requestSentNanoTime = broadcastDto.requestSentNanoTime;
 
-                    log.info(LOG_PREFIX + "COALESCED ENOUGH! SENDING UPDATE NOW: We waited for more requests, and we"
-                            + "were the elected leader. We will now broadcast that it should be done, and that"
-                            + " handling nodename is [" + _privateNodename + "]."
-                            + "  (current Outstanding: [" + _updateRequest_OutstandingCount
-                            + "]).");
+                    log.info(LOG_PREFIX + "COALESCED ENOUGH! WE'RE ELECTED! We waited for a while, and we"
+                            + " became the elected leader. We will now broadcast that handling nodename is us ["
+                            + _privateNodename + "]. (currentOutstanding: [" + _updateRequest_OutstandingCount + "]).");
 
                     _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
                         init.traceId(TraceId.create("MatsEagerCache." + _dataName, "UpdateRequestsCoalesced"))
@@ -835,8 +854,9 @@ public class MatsEagerCacheServer {
                 }
                 else {
                     // -> No, it is not us that should handle the update.
-                    log.info(LOG_PREFIX + "COALESCED ENOUGH! We waited for more requests, but someone else should"
-                            + " do it: [" + _updateRequest_HandlingNodename + "].");
+                    log.info(LOG_PREFIX + "COALESCED ENOUGH! We lost - we waited for more requests, and someone else"
+                            + " were elected: [" + _updateRequest_HandlingNodename + "]. We are " + _privateNodename
+                            + " (currentOutstanding: [" + _updateRequest_OutstandingCount + "]).");
                 }
             }, "MatsEagerCacheServer." + _dataName + "-UpdateRequestsCoalescingDelay");
             updateRequestsCoalescingDelayThread.setDaemon(true);
