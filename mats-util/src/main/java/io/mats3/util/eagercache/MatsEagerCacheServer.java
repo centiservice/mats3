@@ -70,28 +70,33 @@ public class MatsEagerCacheServer {
      */
     static final String SIDELOAD_KEY_DATA_PAYLOAD = "dataPayload";
     /**
-     * Solution to handle a situation where an update were in process of being produced, but the producing node went
-     * down before it was sent. The other nodes will then wait for the update to be sent, but it will never be sent.
-     * This is the time to wait for the update to be sent, before the other nodes will take over the production of the
-     * update. (5 minutes)
+     * A solution is in place for the situation where an update were in process of being produced, but the producing
+     * node went down before it was sent, or we had (temporary) problems producing the update. All nodes will in some
+     * minutes verify that an update was actually produced and sent, and if not, request another full update. (5 minutes
+     * - but see also {@link #ENSURER_WAIT_TIME_LONG}).
      */
     public static final int ENSURER_WAIT_TIME_SHORT = 5 * 60 * 1000;
     /**
      * See {@link #ENSURER_WAIT_TIME_SHORT} - but if we're currently already creating a source data set, or if we
-     * currently have problems making source data sets, we'll wait longer - to not loop too fast. (15 minutes)
+     * currently have problems making source data sets, or if the request for full update was itself triggered by an
+     * ensurer, we'll wait longer - to not risk continuously (attempting to) producing updates. (15 minutes)
      */
     public static final int ENSURER_WAIT_TIME_LONG = 15 * 60 * 1000;
     /**
-     * If the interval since last update higher than this, the next update will be scheduled to run immediately or soon.
-     * (30 seconds).
+     * If the time since last update is higher than this, the next update will be scheduled to run immediately (for
+     * manual requests) or soon (for client boot requests). (30 seconds).
+     *
+     * @see #scheduleFullUpdate()
+     * @see #DEFAULT_SHORT_DELAY
+     * @see #DEFAULT_LONG_DELAY
      */
     public static final int FAST_RESPONSE_LAST_RECV_THRESHOLD = 30_000;
     /**
-     * Read {@link #scheduleFullUpdate()} for the rationale behind these delays.
+     * Read {@link #scheduleFullUpdate()} for the rationale behind these delays. (2.5 seconds)
      */
     public static final int DEFAULT_SHORT_DELAY = 2500;
     /**
-     * Read {@link #scheduleFullUpdate()} for the rationale behind these delays.
+     * Read {@link #scheduleFullUpdate()} for the rationale behind these delays. (7 seconds)
      */
     public static final int DEFAULT_LONG_DELAY = 7000;
 
@@ -365,16 +370,15 @@ public class MatsEagerCacheServer {
      * source data.
      * <p>
      * It is scheduled to run after a little while, the delay being a function of how soon since the last time a full
-     * update was run. If it is a long time since last update was run, it will effectively be run immediately, while if
-     * the previous time was a short time ago, it will be scheduled to run a bit later (~ within 7 seconds). The reason
-     * for this logic is to try to mitigate "thundering herd" problems, where many update request at the same time -
-     * either by this server-side method, or the client's similar method, or more importantly, by multiple booting
-     * clients - would result in a lot of full updates being produced, sent, and processed in parallel. Such a situation
-     * occurs if many clients boot at the same time, e.g. with a "cold boot" of the entire system. The system attempts
-     * to handle multiple servers by synchronizing who sends an update using a small broadcast protocol between them.
-     * <p>
-     * Note: When clients boot, they ask for a full update with reason "boot". This adjusts the "immediately" timing
-     * mentioned above to 2.5 seconds, in a hope of capturing more of the clients that boot at the same time.
+     * update was run. If it is a long time ({@link #FAST_RESPONSE_LAST_RECV_THRESHOLD}) since last update was run, it
+     * will either be run immediately (if manual invocation as by this method, or the corresponding on client) or
+     * {@link #DEFAULT_SHORT_DELAY soon} (if the request is due to a client boot), while if the previous time was a
+     * short time ago, it will be scheduled to run {@link #DEFAULT_LONG_DELAY a bit later}. The reason for this logic is
+     * to try to mitigate "thundering herd" problems, where many update request at the same time - either by this
+     * server-side method, or the client's similar method, or more importantly, by multiple booting clients - would
+     * result in a lot of full updates being produced, sent, and processed in parallel. Such a situation occurs if many
+     * clients boot at the same time, e.g. with a "cold boot" of the entire system. The system attempts to handle
+     * multiple servers by synchronizing who sends an update using a small broadcast protocol between them.
      * <p>
      * The data to send is retrieved by the cache server using the {@link CacheSourceDataCallback} supplier provided
      * when constructing the cache server.
@@ -628,7 +632,7 @@ public class MatsEagerCacheServer {
                             || BroadcastDto.COMMAND_REQUEST_RECEIVED_CLIENT_MANUAL.equals(broadcastDto.command)
                             || BroadcastDto.COMMAND_REQUEST_RECEIVED_SERVER_MANUAL.equals(broadcastDto.command)
                             || BroadcastDto.COMMAND_REQUEST_RECEIVED_SERVER_PERIODIC.equals(broadcastDto.command)
-                            || BroadcastDto.COMMAND_REQUEST_ENSURER_FAILED.equals(broadcastDto.command)) {
+                            || BroadcastDto.COMMAND_REQUEST_ENSURER_TRIGGERED.equals(broadcastDto.command)) {
                         _msg_fullUpdateRequestReceived(broadcastDto);
                     }
                     // ?: Is this the internal "sync between siblings" about now sending the update?
@@ -684,21 +688,26 @@ public class MatsEagerCacheServer {
                          * same time, which would result unnecessary load on every component, and if the source data is
                          * retrieved from a database, the DB will be loaded at the same time from all servers.
                          *
-                         * The idea is to have a check interval, which is a fraction of the interval between the
-                         * periodic updates. If we haven't received a full update within the interval, we should do a
-                         * full update. Since there is some randomness in the check interval, we hopefully avoid that
-                         * all servers check at the same time. So the one that is first, realizing that it is time for a
-                         * full update, will send a broadcast message to the siblings to get the process going, which
-                         * eventually will lead to a new full update being produced and broadcast. The other siblings
-                         * will wake up and see that a full update has arrived, and thus not produce a new one.
+                         * The idea is to have a check interval, which is a fraction plus a bit of randomness of the
+                         * interval between the periodic updates. We repeatedly sleep the check interval, and then check
+                         * whether the last full update is longer ago than the periodic update interval. If we haven't
+                         * received a full update within the period update interval, we should do a full update. Since
+                         * there is some randomness in the check interval, we hopefully avoid that all servers check at
+                         * the same time. The one that is first to see that it is time for a full update, will send a
+                         * broadcast message to the siblings to get the process going, which will lead to a new full
+                         * update being produced and broadcast. When the other siblings wake up from their check
+                         * interval sleep, and see that a full update has arrived, they'll just continue their check
+                         * loop.
                          *
-                         * The "thundering herd avoidance" solution we have should mitigate the problem if they
-                         * come very close to each other. However, if they come a bit more spaced out, AND it takes
-                         * a long time to produce the update, we might not catch it in this solution. Thus, we also
-                         * check whether the last full update production started within the interval, and if so,
-                         * we wait one more interval before checking again - hopefully the update will have come in.
+                         * The "thundering herd avoidance" solution we have should mitigate the problem if they come
+                         * very close to each other. However, if they come a bit more spaced out, AND it takes a long
+                         * time to produce the update, we might not catch it with this solution. This since the max
+                         * "coalescing and election" sleep is just a few seconds, which if the update takes e.g. tens of
+                         * seconds to produce and send will lead the second guy to wake up also wanting to do a full
+                         * update. Thus, we also check whether the last full update *production* started within the
+                         * periodic update interval (as this is recorded close to immediately), and if so, we wait one
+                         * more interval before checking again - hopefully the update will have come in.
                          */
-
                         _takeNap(checkIntervalMillis);
                         // ?: Have we received a full update within the interval?
                         if (_lastFullUpdateReceivedTimestamp < System.currentTimeMillis() + intervalMillis) {
@@ -810,6 +819,10 @@ public class MatsEagerCacheServer {
 
     private void _msg_fullUpdateRequestReceived(BroadcastDto broadcastDto) {
         log.info(LOG_PREFIX + "\n\n======== fullUpdateRequestReceived: " + _infoAboutBroadcast(broadcastDto) + "\n\n");
+
+        // Record that we've received a request for update.
+        _lastFullUpdateRequestReceivedTimestamp = System.currentTimeMillis();
+
         boolean shouldStartCoalescingThread = false;
         synchronized (this) {
             // Increase the count of outstanding requests.
@@ -843,44 +856,47 @@ public class MatsEagerCacheServer {
         /*
          * Brute-force solution at ensuring that if the responsible node doesn't manage to send the update (e.g.
          * crashes, boots, redeploys), someone else will: Make a thread on ALL nodes that in some minutes will check if
-         * and when we last received a full update (the one meant for the clients, but which the servers also get), and
-         * if it is not higher than when this thread started (which it should be if anyone performed any update), it
-         * will initiate a new full update to try to remedy the situation.
+         * we've received a full update after this point in time, and if not, it will initiate a new full update to try
+         * to remedy the situation.
          */
-        // ?: Is this already an "ensurer failed" situation? (If so, no use in looping this)
-        if (!BroadcastDto.COMMAND_REQUEST_ENSURER_FAILED.equals(broadcastDto.command)) {
-            // -> No, this is not an "ensurer failed" situation, so we'll start the ensurer.
-            // Adjust the time to check based on situation: if we're currently making a source data set (indicating that
-            // it might take very long time (we've experienced 20 minutes in a degenerate situation!), or having
-            // problems creating source data, we'll wait longer.
-            int waitTime = _currentlyHavingProblemsCreatingSourceDataResult || _currentlyMakingSourceDataResult
-                    ? ENSURER_WAIT_TIME_LONG
-                    : ENSURER_WAIT_TIME_SHORT;
-            // Create the thread. There might be a few of these hanging around, but they are "no-ops" if the update is
-            // performed. We could have a more sophisticated solution where we cancel any such ensurer thread if we
-            // receive an update, but this will work just fine.
-            Thread ensurerThread = new Thread(() -> {
-                long timestampWhenEnsurerStarted = System.currentTimeMillis();
-                _takeNap(waitTime);
-                // ?: Have we received a full update since we started this ensurer?
-                if (_lastFullUpdateReceivedTimestamp < timestampWhenEnsurerStarted) {
-                    // -> No, we have not seen the full update yet, which is bad. Initiate a new full update.
-                    log.warn(LOG_PREFIX + "Ensurer failed: We have not seen the full update yet, initiating a new"
-                            + " full update.");
-                    // Note: This is effectively a message to this same handling method.
-                    BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_ENSURER_FAILED,
-                            _privateNodename);
-                    _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
-                        init.traceId(TraceId.create("MatsEagerCache." + _dataName, "FullUpdateEnsurer"))
-                                .from("MatsEagerCache." + _dataName + ".FullUpdateEnsurer")
-                                .to(_getBroadcastTopic(_dataName))
-                                .publish(broadcast);
-                    });
-                }
-            }, "MatsEagerCacheServer." + _dataName + "-EnsureDataIsSentEventually[" + waitTime + "ms]");
-            ensurerThread.setDaemon(true);
-            ensurerThread.start();
-        }
+
+        // Adjust the time to check based on situation: If we're currently making a source data set (indicating that
+        // we're effectively always producing updates), or having problems creating source data, or if this request
+        // for full update was triggered by a triggered ensurer, we'll wait longer.
+        int waitTime = _currentlyMakingSourceDataResult || _currentlyHavingProblemsCreatingSourceDataResult
+                || BroadcastDto.COMMAND_REQUEST_ENSURER_TRIGGERED.equals(broadcastDto.command)
+                        ? ENSURER_WAIT_TIME_LONG
+                        : ENSURER_WAIT_TIME_SHORT;
+        // Record the time when this ensurer started.
+        long timestampWhenEnsurerStarted = _lastFullUpdateRequestReceivedTimestamp;
+        // Create the thread. There might be a few of these hanging around, but they are "no-ops" if the update is
+        // performed. We could have a more sophisticated solution where we cancel any such ensurer thread if we
+        // receive an update, but this will work just fine.
+        Thread ensurerThread = new Thread(() -> {
+            // Do the sleep
+            _takeNap(waitTime);
+            // ?: Have we received a full update since we started this ensurer?
+            if (_lastFullUpdateReceivedTimestamp < timestampWhenEnsurerStarted) {
+                // -> No, we have not seen the full update yet, which is bad. Initiate a new full update.
+                log.warn(LOG_PREFIX + "Ensurer triggered: We have not seen the full update yet, initiating a new"
+                        + " full update.");
+                // Note: This is effectively a message to this same handling method.
+                BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_ENSURER_TRIGGERED,
+                        _privateNodename);
+                _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
+                    init.traceId(TraceId.create("MatsEagerCache." + _dataName, "FullUpdateEnsurer"))
+                            .from("MatsEagerCache." + _dataName + ".FullUpdateEnsurer")
+                            .to(_getBroadcastTopic(_dataName))
+                            .publish(broadcast);
+                });
+            }
+            else {
+                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Ensurer OK: There have been a full update since"
+                        + " we started this ensurer, thus we're happy: No need to initiate a new full update.");
+            }
+        }, "MatsEagerCacheServer." + _dataName + "-EnsureDataIsSentEventually[" + waitTime + "ms]");
+        ensurerThread.setDaemon(true);
+        ensurerThread.start();
 
         // ?: Should we start the election and coalescing thread?
         if (shouldStartCoalescingThread) {
@@ -973,25 +989,23 @@ public class MatsEagerCacheServer {
             updateRequestsCoalescingDelayThread.setDaemon(true);
             updateRequestsCoalescingDelayThread.start();
         }
-
-        // Record that we've received a request for update.
-        _lastFullUpdateRequestReceivedTimestamp = System.currentTimeMillis();
     }
 
     private void _msg_fullUpdateRequestSendUpdateNow(BroadcastDto broadcastDto) {
         log.info(LOG_PREFIX + "\n\n======== fullUpdateRequestSendUpdateNow: " + _infoAboutBroadcast(broadcastDto)
                 + "\n\n");
 
-        // Reset count, starting process over.
+        // A full-update will be sent now, make note (for fastResponse evaluation, and )
+        _lastFullUpdateProductionStartedTimestamp = System.currentTimeMillis();
+
+        // Reset count - after which a new request for update will start the election and coalescing process anew.
         synchronized (this) {
             _updateRequest_OutstandingCount = 0;
             _updateRequest_HandlingNodename = null;
         }
-        // A full-update will be sent now, make note (for fastResponse evaluation, and )
-        _lastFullUpdateProductionStartedTimestamp = System.currentTimeMillis();
 
-        // ?: So, is it us that should handle the actual broadcast of update
-        // AND is there no other update in the queue? (If there are, that task will already send most recent data)
+        // ?: Is it us that should handle the actual broadcast of update?
+        // .. AND is there no other update in the queue? (If there are, that task will already send most recent data)
         if (_privateNodename.equals(broadcastDto.handlingNodename)
                 && _produceAndSendExecutor.getQueue().isEmpty()) {
             // -> Yes it was us, and there are no other updates already in the queue.
@@ -1138,7 +1152,8 @@ public class MatsEagerCacheServer {
         _requestTerminator.waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS * 1_000);
     }
 
-    private SourceDataResult _createSourceDataResult(Supplier<CacheSourceDataCallback<?>> dataCallbackSupplier) {
+    private SourceDataResult _createSourceDataResult(
+            Supplier<MatsEagerCacheServer.CacheSourceDataCallback<?>> dataCallbackSupplier) {
         _currentlyMakingSourceDataResult = true;
         CacheSourceDataCallback<?> dataCallback = dataCallbackSupplier.get();
         // We checked these at construction time. We'll just have to live with the uncheckedness.
@@ -1239,7 +1254,7 @@ public class MatsEagerCacheServer {
         static final String COMMAND_REQUEST_RECEIVED_CLIENT_MANUAL = "REQ_RECV_CLIENT_MANUAL";
         static final String COMMAND_REQUEST_RECEIVED_SERVER_MANUAL = "REQ_RECV_SERVER_MANUAL";
         static final String COMMAND_REQUEST_RECEIVED_SERVER_PERIODIC = "REQ_RECV_SERVER_PERIODIC";
-        static final String COMMAND_REQUEST_ENSURER_FAILED = "REQ_ENSURER_FAILED";
+        static final String COMMAND_REQUEST_ENSURER_TRIGGERED = "REQ_ENSURER_TRIGGERED";
         static final String COMMAND_REQUEST_SENDING = "REQ_SEND";
         static final String COMMAND_UPDATE_FULL = "UPDATE_FULL";
         static final String COMMAND_UPDATE_PARTIAL = "UPDATE_PARTIAL";
