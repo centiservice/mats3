@@ -188,10 +188,10 @@ public class MatsEagerCacheServer {
     private volatile boolean _currentlyHavingProblemsCreatingSourceDataResult;
 
     private volatile long _cacheStartedTimestamp;
-    private volatile long _lastUpdateRequestReceivedTimestamp;
-    private volatile long _lastUpdateProductionStartedTimestamp;
-    private volatile long _lastUpdateReceivedTimestamp;
+    private volatile long _lastFullUpdateRequestReceivedTimestamp;
+    private volatile long _lastFullUpdateProductionStartedTimestamp;
     private volatile long _lastFullUpdateReceivedTimestamp;
+    private volatile long _lastAnyUpdateReceivedTimestamp; // Both full and partial.
 
     // Use a lock to make sure that only one thread is producing and sending an update at a time, and make it fair
     // so that entry into the method is sequenced in the order of the requests.
@@ -629,22 +629,22 @@ public class MatsEagerCacheServer {
                             || BroadcastDto.COMMAND_REQUEST_RECEIVED_SERVER_MANUAL.equals(broadcastDto.command)
                             || BroadcastDto.COMMAND_REQUEST_RECEIVED_SERVER_PERIODIC.equals(broadcastDto.command)
                             || BroadcastDto.COMMAND_REQUEST_ENSURER_FAILED.equals(broadcastDto.command)) {
-                        _msg_updateRequestReceived(broadcastDto);
+                        _msg_fullUpdateRequestReceived(broadcastDto);
                     }
                     // ?: Is this the internal "sync between siblings" about now sending the update?
                     else if (BroadcastDto.COMMAND_REQUEST_SENDING.equals(broadcastDto.command)) {
-                        _msg_updateRequestSendUpdateNow(broadcastDto);
+                        _msg_fullUpdateRequestSendUpdateNow(broadcastDto);
                     }
                     // ?: Is this the actual update sent to the clients - which we also get?
                     else if (BroadcastDto.COMMAND_UPDATE_FULL.equals(broadcastDto.command)
                             || BroadcastDto.COMMAND_UPDATE_PARTIAL.equals(broadcastDto.command)) {
                         // -> Jot down that the clients were sent an update, used when calculating the delays, and in
                         // the health check.
-                        _lastUpdateReceivedTimestamp = System.currentTimeMillis();
+                        _lastAnyUpdateReceivedTimestamp = System.currentTimeMillis();
                         // ?: Is this a full update?
                         if (broadcastDto.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)) {
                             // -> Yes, this was a full update, so record the timestamp.
-                            _lastFullUpdateReceivedTimestamp = _lastUpdateReceivedTimestamp;
+                            _lastFullUpdateReceivedTimestamp = _lastAnyUpdateReceivedTimestamp;
                         }
                     }
                     else {
@@ -658,19 +658,74 @@ public class MatsEagerCacheServer {
     private class PeriodicUpdate {
         private volatile boolean _running = true;
 
-        private Thread _thread;
+        private final Thread _thread;
 
         private PeriodicUpdate() {
             long intervalMillis = (long) (_periodicFullUpdateIntervalMinutes * 60_000);
+            // The check interval is 10% of the interval, but at most 7 minutes.
+            long checkIntervalCalcMillis = Math.min(intervalMillis / 10, 7 * 60_000);
+            // Add a random part to the check interval, to avoid all servers checking at the same time.
+            long checkIntervalMillis = checkIntervalCalcMillis
+                    + ThreadLocalRandom.current().nextLong(checkIntervalCalcMillis / 4);
+
+            log.info(LOG_PREFIX + "Periodic update interval: [" + _periodicFullUpdateIntervalMinutes + " min],"
+                    + " => [" + intervalMillis + " ms],"
+                    + " check interval: [" + checkIntervalMillis + " ms].");
 
             _thread = new Thread(() -> {
+                // Ensure that we're fully operational before starting the periodic update.
+                _broadcastTerminator.waitForReceiving(FAST_RESPONSE_LAST_RECV_THRESHOLD);
+                // Going into the run loop
                 while (_running) {
                     try {
-                        _takeNap(intervalMillis);
+
+                        /*
+                         * The main goal here is to avoid the situation where all servers start producing updates at the
+                         * same time, which would result unnecessary load on every component, and if the source data is
+                         * retrieved from a database, the DB will be loaded at the same time from all servers.
+                         *
+                         * The idea is to have a check interval, which is a fraction of the interval between the
+                         * periodic updates. If we haven't received a full update within the interval, we should do a
+                         * full update. Since there is some randomness in the check interval, we hopefully avoid that
+                         * all servers check at the same time. So the one that is first, realizing that it is time for a
+                         * full update, will send a broadcast message to the siblings to get the process going, which
+                         * eventually will lead to a new full update being produced and broadcast. The other siblings
+                         * will wake up and see that a full update has arrived, and thus not produce a new one.
+                         *
+                         * The "thundering herd avoidance" solution we have should mitigate the problem if they
+                         * come very close to each other. However, if they come a bit more spaced out, AND it takes
+                         * a long time to produce the update, we might not catch it in this solution. Thus, we also
+                         * check whether the last full update production started within the interval, and if so,
+                         * we wait one more interval before checking again - hopefully the update will have come in.
+                         */
+
+                        _takeNap(checkIntervalMillis);
+                        // ?: Have we received a full update within the interval?
+                        if (_lastFullUpdateReceivedTimestamp < System.currentTimeMillis() + intervalMillis) {
+                            // -> We've received a full update within the interval, so we don't need to do anything.
+                            continue;
+                        }
+                        // E-> We haven't received a full update within the interval, so we should do a full update.
+
+                        // :: However, if we're currently in the process of producing an update, we can chill a bit
+                        // more, as this hopefully means that we'll soon get the update.
+                        if (_lastFullUpdateProductionStartedTimestamp < System.currentTimeMillis() + intervalMillis) {
+                            // -> We're currently producing an update, so we'll wait one more interval.
+                            _takeNap(checkIntervalMillis);
+                            // ?: Have we received a full update within the interval now?
+                            if (_lastFullUpdateReceivedTimestamp < System.currentTimeMillis() + intervalMillis) {
+                                // -> We've received a full update within the interval, so we don't need to do anything.
+                                continue;
+                            }
+                        }
+                        // E-> So, we should request a full update. If this now comes in at the same time as another
+                        // server, the "thundering herd avoidance" solution should mitigate double production.
+
                         log.info(LOG_PREFIX + "Periodic update: [" + _dataName + "] us: " + _privateNodename);
-                        _scheduleFullUpdateFromServer();
+                        _scheduleFullUpdateFromPeriodic();
                     }
                     catch (Throwable t) {
+                        // TODO: Log exception to monitor and HealthCheck.
                         log.error(LOG_PREFIX + "Got exception while trying to schedule periodic update.", t);
                     }
                 }
@@ -685,26 +740,22 @@ public class MatsEagerCacheServer {
         }
     }
 
-    private String _infoAboutBroadcast(BroadcastDto broadcastDto) {
-        return "us: " + _privateNodename + "command: " + broadcastDto.command
-                + ", sentNode: " + broadcastDto.sentNodename
-                + (_privateNodename.equals(broadcastDto.sentNodename) ? " (+SENT+ FROM US!)" : " (Not us!)")
-                + ", handlingNode: " + broadcastDto.handlingNodename
-                + (_privateNodename.equals(broadcastDto.handlingNodename) ? " (+HANDLED+ BY US!)" : " (Not us!)")
-                + ", currentOutstanding: " + _updateRequest_OutstandingCount
-                + ", correlationId: " + broadcastDto.correlationId + ", requestNodename: "
-                + broadcastDto.requestNodename;
+    private void _scheduleFullUpdateFromPeriodic() {
+        BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_RECEIVED_SERVER_PERIODIC,
+                _privateNodename);
+        _matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.traceId(TraceId.create("MatsEagerCache."
+                + _dataName, "ScheduleFullUpdate")
+                .add("from", "Server")
+                .add("node", _matsFactory.getFactoryConfig().getNodename()))
+                .from("MatsEagerCache." + _dataName + ".ScheduleFullUpdateFromServer")
+                .to(_getBroadcastTopic(_dataName))
+                .publish(broadcast));
     }
 
     private void _scheduleFullUpdateFromServer() {
-        // ?: Have we started?
-        if (_lifeCycle != LifeCycle.RUNNING) {
-            // -> No, we have not started - so you evidently have no control over the lifecycle of this object!
-            throw new IllegalStateException("The MatsEagerCacheServer should be RUNNING, it is [" + _lifeCycle + "].");
-        }
-        // Ensure that we ourselves can get the ping.
-        _broadcastTerminator.waitForReceiving(FAST_RESPONSE_LAST_RECV_THRESHOLD);
-
+        // Ensure that we are running
+        _waitForReceiving();
+        // :: Create and send the broadcast message
         BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_RECEIVED_SERVER_MANUAL,
                 _privateNodename);
         _matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.traceId(TraceId.create("MatsEagerCache."
@@ -717,8 +768,8 @@ public class MatsEagerCacheServer {
     }
 
     /**
-     * We use the broadcast channel to sequence the incoming requests for updates. This should ensure that we get a
-     * unified understanding of the order of incoming requests, and who should handle the update.
+     * We use the broadcast channel to sequence the incoming requests for updates, and to perform a leader election of
+     * who shall do the update.
      */
     private void _scheduleFullUpdateFromClient(CacheRequestDto incomingClientCacheRequest) {
         log.info(LOG_PREFIX + "\n\n######## scheduleFullUpdateFromClient [" + _dataName + "] us: " + _privateNodename
@@ -757,8 +808,8 @@ public class MatsEagerCacheServer {
                 .publish(broadcast));
     }
 
-    private void _msg_updateRequestReceived(BroadcastDto broadcastDto) {
-        log.info(LOG_PREFIX + "\n\n======== updateRequestReceived: " + _infoAboutBroadcast(broadcastDto) + "\n\n");
+    private void _msg_fullUpdateRequestReceived(BroadcastDto broadcastDto) {
+        log.info(LOG_PREFIX + "\n\n======== fullUpdateRequestReceived: " + _infoAboutBroadcast(broadcastDto) + "\n\n");
         boolean shouldStartCoalescingThread = false;
         synchronized (this) {
             // Increase the count of outstanding requests.
@@ -833,14 +884,14 @@ public class MatsEagerCacheServer {
 
         // ?: Should we start the election and coalescing thread?
         if (shouldStartCoalescingThread) {
-            // -> Yes
+            // -> Yes, this was the first message of this round, so we should start the coalescing thread.
 
-            // The delay-stuff is both to find who should do the update, and to handle the "thundering herd" problem,
-            // where all clients request a full update at the same time - which otherwise would result in a lot of full
-            // updates being sent in parallel.
+            // The delay-stuff is both to find who should do the update (leader election), and to handle the "thundering
+            // herd" problem, where all clients request a full update at the same time - which otherwise would result in
+            // a lot of full updates being created and sent in parallel.
 
             log.info(LOG_PREFIX + "STARTING ELECTION AND COALESCING THREAD: We must find who should lead this, and also"
-                    + " coalesce any more incoming requests. We will wait for a while, and then see if we should do it."
+                    + " coalesce any more incoming requests. We will wait for a while, and then see if we've won."
                     + " We are node: " + _privateNodename + ", current proposed leader: "
                     + _updateRequest_HandlingNodename);
 
@@ -849,8 +900,8 @@ public class MatsEagerCacheServer {
 
             // First find the latest time anything wrt. an update happened.
             long latestActivityTimestamp = Collections.max(Arrays.asList(_cacheStartedTimestamp,
-                    _lastUpdateRequestReceivedTimestamp, _lastUpdateProductionStartedTimestamp,
-                    _lastUpdateReceivedTimestamp));
+                    _lastFullUpdateRequestReceivedTimestamp, _lastFullUpdateProductionStartedTimestamp,
+                    _lastAnyUpdateReceivedTimestamp));
             // NOTE: If it is a *long* time since last activity, we'll do a fast response.
             boolean fastResponse = (System.currentTimeMillis()
                     - latestActivityTimestamp) > FAST_RESPONSE_LAST_RECV_THRESHOLD;
@@ -924,19 +975,20 @@ public class MatsEagerCacheServer {
         }
 
         // Record that we've received a request for update.
-        _lastUpdateRequestReceivedTimestamp = System.currentTimeMillis();
+        _lastFullUpdateRequestReceivedTimestamp = System.currentTimeMillis();
     }
 
-    private void _msg_updateRequestSendUpdateNow(BroadcastDto broadcastDto) {
-        log.info(LOG_PREFIX + "\n\n======== updateRequestSendUpdateNow: " + _infoAboutBroadcast(broadcastDto) + "\n\n");
+    private void _msg_fullUpdateRequestSendUpdateNow(BroadcastDto broadcastDto) {
+        log.info(LOG_PREFIX + "\n\n======== fullUpdateRequestSendUpdateNow: " + _infoAboutBroadcast(broadcastDto)
+                + "\n\n");
 
         // Reset count, starting process over.
         synchronized (this) {
             _updateRequest_OutstandingCount = 0;
             _updateRequest_HandlingNodename = null;
         }
-        // A full-update will be sent now, make note (for initialDelay evaluation)
-        _lastUpdateProductionStartedTimestamp = System.currentTimeMillis();
+        // A full-update will be sent now, make note (for fastResponse evaluation, and )
+        _lastFullUpdateProductionStartedTimestamp = System.currentTimeMillis();
 
         // ?: So, is it us that should handle the actual broadcast of update
         // AND is there no other update in the queue? (If there are, that task will already send most recent data)
@@ -996,6 +1048,17 @@ public class MatsEagerCacheServer {
         finally {
             _produceAndSendUpdateLock.unlock();
         }
+    }
+
+    private String _infoAboutBroadcast(BroadcastDto broadcastDto) {
+        return "us: " + _privateNodename + "command: " + broadcastDto.command
+                + ", sentNode: " + broadcastDto.sentNodename
+                + (_privateNodename.equals(broadcastDto.sentNodename) ? " (+SENT+ FROM US!)" : " (Not us!)")
+                + ", handlingNode: " + broadcastDto.handlingNodename
+                + (_privateNodename.equals(broadcastDto.handlingNodename) ? " (+HANDLED+ BY US!)" : " (Not us!)")
+                + ", currentOutstanding: " + _updateRequest_OutstandingCount
+                + ", correlationId: " + broadcastDto.correlationId + ", requestNodename: "
+                + broadcastDto.requestNodename;
     }
 
     private static void _takeNap(long millis) {
