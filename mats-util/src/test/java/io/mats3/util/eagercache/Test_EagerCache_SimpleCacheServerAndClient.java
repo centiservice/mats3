@@ -17,10 +17,9 @@ import io.mats3.MatsFactory;
 import io.mats3.test.MatsTestFactory;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.DummyFinancialService;
-import io.mats3.util.DummyFinancialService.CustomerDTO;
 import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.FieldBasedJacksonMapper;
-import io.mats3.util.eagercache.MatsEagerCacheServer.CacheSourceDataCallback;
+import io.mats3.util.eagercache.MatsEagerCacheServer.CacheDataCallback;
 
 /**
  * Simple/basic test of the {@link MatsEagerCacheServer} and {@link MatsEagerCacheClient}: A single server and a single
@@ -48,16 +47,16 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
 
         // :: Create the CacheServer.
         MatsEagerCacheServer cacheServer = new MatsEagerCacheServer(serverMatsFactory,
-                "Customers", CustomerTransmitDTO.class,
-                () -> new CustomerDTOCacheSourceDataCallback(sourceData),
-                CustomerTransmitDTO::fromCustomerDTO);
+                "Customers", CustomerTransferDTO.class,
+                () -> new CustomerDTOCacheDataCallback(sourceData)
+        );
 
         // Adjust the timings for fast test.
         cacheServer._setDelays(250, 500);
 
         // :: Create the CacheClient.
         MatsEagerCacheClient<DataCarrier> cacheClient = new MatsEagerCacheClient<>(clientMatsFactory,
-                "Customers", CustomerTransmitDTO.class,
+                "Customers", CustomerTransferDTO.class,
                 DataCarrier::new);
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -101,10 +100,10 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         matsTestBroker.close();
     }
 
-    private static class CustomerDTOCacheSourceDataCallback implements CacheSourceDataCallback<CustomerDTO> {
+    private static class CustomerDTOCacheDataCallback implements CacheDataCallback<CustomerTransferDTO> {
         private final CustomerData _sourceData;
 
-        public CustomerDTOCacheSourceDataCallback(CustomerData sourceData) {
+        public CustomerDTOCacheDataCallback(CustomerData sourceData) {
             _sourceData = sourceData;
         }
 
@@ -119,8 +118,8 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         }
 
         @Override
-        public void provideSourceData(Consumer<CustomerDTO> consumer) {
-            _sourceData.customers.forEach(consumer);
+        public void provideSourceData(Consumer<CustomerTransferDTO> consumer) {
+            _sourceData.customers.stream().map(CustomerTransferDTO::fromCustomerDTO).forEach(consumer);
         }
     }
 }

@@ -37,14 +37,16 @@ public class Test_EagerCache_SiblingCommand {
 
         // :: Create the CacheServers:
         MatsEagerCacheServer cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
-                "Customers", CustomerTransmitDTO.class,
-                () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),
-                CustomerTransmitDTO::fromCustomerDTO);
+                "Customers", CustomerTransferDTO.class,
+                () -> (consumeTo) -> sourceData.customers.stream()
+                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo)
+        );
 
         MatsEagerCacheServer cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
-                "Customers", CustomerTransmitDTO.class,
-                () -> (consumeTo) -> sourceData.customers.forEach(consumeTo),
-                CustomerTransmitDTO::fromCustomerDTO);
+                "Customers", CustomerTransferDTO.class,
+                () -> (consumeTo) -> sourceData.customers.stream()
+                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo)
+        );
 
         CountDownLatch[] latch = new CountDownLatch[1];
 
@@ -92,11 +94,11 @@ public class Test_EagerCache_SiblingCommand {
 
         // Assert that the "sent from this host" works.
         Assert.assertTrue("SiblingCommand[0] should be sent from this host", siblingCommand[0]
-                .commandOriginatedOnThisInstance());
+                .originatedOnThisInstance());
         Assert.assertTrue("SiblingCommand[0] should be sent from this host", siblingCommand[1]
-                .commandOriginatedOnThisInstance());
+                .originatedOnThisInstance());
         Assert.assertFalse("SiblingCommand[2] should NOT be sent from this host", siblingCommand[2]
-                .commandOriginatedOnThisInstance());
+                .originatedOnThisInstance());
 
 
         commandName = "Hello, CacheServers siblings! Here's are som nulls!";
@@ -106,11 +108,11 @@ public class Test_EagerCache_SiblingCommand {
 
         // Assert that the "sent from this host" works.
         Assert.assertFalse("SiblingCommand[0] should NOT be sent from this host", siblingCommand[0]
-                .commandOriginatedOnThisInstance());
+                .originatedOnThisInstance());
         Assert.assertFalse("SiblingCommand[0] should NOT be sent from this host", siblingCommand[1]
-                .commandOriginatedOnThisInstance());
+                .originatedOnThisInstance());
         Assert.assertTrue("SiblingCommand[2] should be sent from this host", siblingCommand[2]
-                .commandOriginatedOnThisInstance());
+                .originatedOnThisInstance());
 
         // Shutdown
         serverMatsFactory1.close();

@@ -39,18 +39,18 @@ public class Test_EagerCache_PartialUpdate {
         // ## ARRANGE EVEN MORE!
 
         // :: Make a partial update mapper for the CacheClients
-        Function<CacheReceivedPartialData<CustomerTransmitDTO, DataCarrier>, DataCarrier> partialUpdateMapper = (
+        Function<CacheReceivedPartialData<CustomerTransferDTO, DataCarrier>, DataCarrier> partialUpdateMapper = (
                 partialUpdate) -> {
             // Pick out AND COPY the existing data structures from the DATA element from the cache client
             DataCarrier previousDataCarrier = partialUpdate.getPreviousData();
             ArrayList<CustomerDTO> ret = new ArrayList<>(previousDataCarrier.customers);
             // Go through the received data, and update the existing data with the new data - or add new data.
-            partialUpdate.getReceivedDataStream().forEach((newCustomer) -> {
+            partialUpdate.getReceivedDataStream().forEach((newTransmitCustomer) -> {
                 // Find the existing customer in the cache, and replace it with the new one.
                 boolean found = false;
                 for (int i = 0; i < ret.size(); i++) {
-                    if (ret.get(i).customerId.equals(newCustomer.customerId)) {
-                        ret.set(i, newCustomer.toCustomerDTO());
+                    if (ret.get(i).customerId.equals(newTransmitCustomer.customerId)) {
+                        ret.set(i, newTransmitCustomer.toCustomerDTO());
                         found = true;
                         break;
                     }
@@ -58,7 +58,7 @@ public class Test_EagerCache_PartialUpdate {
                 // ?: Did we find the customer in the cache?
                 if (!found) {
                     // -> No, we did not find it, so it is a new customer, and we add it.
-                    ret.add(newCustomer.toCustomerDTO());
+                    ret.add(newTransmitCustomer.toCustomerDTO());
                 }
             });
             return new DataCarrier(ret);
@@ -202,7 +202,7 @@ public class Test_EagerCache_PartialUpdate {
                 // inside)
 
                 // ?: If we are the originator of the command, we should send a partial update to all
-                if (siblingCommand.commandOriginatedOnThisInstance()) {
+                if (siblingCommand.originatedOnThisInstance()) {
                     _cacheServer.sendPartialUpdate(consumer -> {
                         // Only here we synchronize on the source data, as we're reading it.
                         synchronized (_sourceData) {
@@ -211,7 +211,7 @@ public class Test_EagerCache_PartialUpdate {
                             // above, and going into the synch here, we'll still send the newest data.
                             for (CustomerDTO customer : _sourceData.customers) {
                                 if (customerIdsUpdated.contains(customer.customerId)) {
-                                    consumer.accept(customer);
+                                    consumer.accept(CustomerTransferDTO.fromCustomerDTO(customer));
                                 }
                             }
                         }

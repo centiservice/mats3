@@ -71,22 +71,24 @@ public class CommonSetup_TwoServers_TwoClients {
 
         // :: Create the CacheServers:
         cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
-                "Customers", CustomerTransmitDTO.class,
-                () -> (consumeTo) -> sourceData1.customers.forEach(consumeTo),
-                CustomerTransmitDTO::fromCustomerDTO);
+                "Customers", CustomerTransferDTO.class,
+                () -> (consumeTo) -> sourceData1.customers.stream()
+                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo)
+        );
 
         cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
-                "Customers", CustomerTransmitDTO.class,
-                () -> (consumeTo) -> sourceData2.customers.forEach(consumeTo),
-                CustomerTransmitDTO::fromCustomerDTO);
+                "Customers", CustomerTransferDTO.class,
+                () -> (consumeTo) -> sourceData2.customers.stream()
+                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo)
+        );
 
         // :: Create the CacheClients:
         cacheClient1 = new MatsEagerCacheClient<>(clientMatsFactory1,
-                "Customers", CustomerTransmitDTO.class,
+                "Customers", CustomerTransferDTO.class,
                 DataCarrier::new);
 
         cacheClient2 = new MatsEagerCacheClient<>(clientMatsFactory2,
-                "Customers", CustomerTransmitDTO.class,
+                "Customers", CustomerTransferDTO.class,
                 DataCarrier::new);
 
         cacheClient1_latch = new CountDownLatch[1];

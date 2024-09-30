@@ -18,10 +18,10 @@ public class DataCarrier {
         this.customers = customers;
     }
 
-    DataCarrier(CacheReceivedData<CustomerTransmitDTO> receivedData) {
+    DataCarrier(CacheReceivedData<CustomerTransferDTO> receivedData) {
         log.info("Creating DataCarrier from " + receivedData);
         customers = receivedData.getReceivedDataStream()
-                .map(CustomerTransmitDTO::toCustomerDTO)
+                .map(CustomerTransferDTO::toCustomerDTO)
                 .collect(Collectors.toList());
     }
 }
