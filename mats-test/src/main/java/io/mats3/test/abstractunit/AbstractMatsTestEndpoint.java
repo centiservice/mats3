@@ -25,6 +25,10 @@ import io.mats3.MatsFactory;
  * @param <I>
  *            The incoming message class for this endpoint. (Request Class)
  * @author Kevin Mc Tiernan, 2020-10-22, kmctiernan@gmail.com
+ * @author Geir Gullestad Pettersen, 2017 - geirgp@gmail.com
+ * @author Johan Herman Hausberg, 2017.04 - jhausber@gmail.com
+ * @author Asbjørn Aarrestad, 2017 - asbjorn@aarrestad.com
+ * @author Endre Stølsvik, 2017 - http://stolsvik.com/, endre@stolsvik.com
  */
 public abstract class AbstractMatsTestEndpoint<R, I> {
 

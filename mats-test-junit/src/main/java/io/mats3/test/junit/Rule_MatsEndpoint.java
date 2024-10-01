@@ -52,6 +52,10 @@ import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
  * @param <I>
  *            The incoming message class for this endpoint. (Request Class)
  * @author Kevin Mc Tiernan, 2020-10-22, kmctiernan@gmail.com
+ * @author Geir Gullestad Pettersen, 2017 - geirgp@gmail.com
+ * @author Johan Herman Hausberg, 2017.04 - jhausber@gmail.com
+ * @author Asbjørn Aarrestad, 2017 - asbjorn@aarrestad.com
+ * @author Endre Stølsvik, 2017 - http://stolsvik.com/, endre@stolsvik.com
  */
 public class Rule_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I> implements TestRule {
     private static final Logger log = LoggerFactory.getLogger(Rule_MatsEndpoint.class);
