@@ -3,6 +3,7 @@ package io.mats3.util.eagercache;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.junit.Assert;
 import org.slf4j.Logger;
@@ -52,6 +53,13 @@ public class CommonSetup_TwoServers_TwoClients {
     public final AtomicInteger cacheClient2_updateCount;
 
     public CommonSetup_TwoServers_TwoClients(int originalCount) throws JsonProcessingException, InterruptedException {
+        this(originalCount, (server) -> {
+            // No adjustments
+        });
+    }
+
+    public CommonSetup_TwoServers_TwoClients(int originalCount, Consumer<MatsEagerCacheServer> serversAdjust)
+            throws JsonProcessingException, InterruptedException {
         // Create source data, one set for each server.
         sourceData1 = DummyFinancialService.createRandomReplyDTO(1234L, originalCount);
         sourceData2 = DummyFinancialService.createRandomReplyDTO(1234L, originalCount);
@@ -73,14 +81,14 @@ public class CommonSetup_TwoServers_TwoClients {
         cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
                 "Customers", CustomerTransferDTO.class,
                 () -> (consumeTo) -> sourceData1.customers.stream()
-                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo)
-        );
+                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo));
+        serversAdjust.accept(cacheServer1);
 
         cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
                 "Customers", CustomerTransferDTO.class,
                 () -> (consumeTo) -> sourceData2.customers.stream()
-                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo)
-        );
+                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo));
+        serversAdjust.accept(cacheServer2);
 
         // :: Create the CacheClients:
         cacheClient1 = new MatsEagerCacheClient<>(clientMatsFactory1,

@@ -1,5 +1,8 @@
 package io.mats3.util.eagercache;
 
+import static io.mats3.util.eagercache.MatsEagerCacheServer._formatBytes;
+import static io.mats3.util.eagercache.MatsEagerCacheServer._formatMillis;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -692,60 +695,9 @@ public class MatsEagerCacheClient<DATA> {
         @Override
         public String toString() {
             return "CacheReceivedData[" + (_fullUpdate ? "FULL" : "PARTIAL") + ",count=" + _dataCount
-                    + ",meta=" + _metadata + ",uncompr=" + formatBytes(_receivedUncompressedSize)
-                    + ",compr=" + formatBytes(_receivedCompressedSize) + "]";
+                    + ",meta=" + _metadata + ",uncompr=" + _formatBytes(_receivedUncompressedSize)
+                    + ",compr=" + _formatBytes(_receivedCompressedSize) + "]";
         }
-    }
-
-    /**
-     * Static method to format a long representing bytes into a human-readable string. Using the IEC standard, which
-     * uses B, KiB, MiB, GiB, TiB. E.g. 1024 bytes is 1 KiB, 1024 KiB is 1 MiB, etc. It formats with 2 decimals.
-     */
-    public static String formatBytes(long bytes) {
-        if (bytes < 1024) {
-            return bytes + " B";
-        }
-        double kb = bytes / 1024d;
-        if (kb < 1024) {
-            return String.format("%.2f KiB", kb);
-        }
-        double mb = kb / 1024d;
-        if (mb < 1024) {
-            return String.format("%.2f MiB", mb);
-        }
-        double gb = mb / 1024d;
-        if (gb < 1024) {
-            return String.format("%.2f GiB", gb);
-        }
-        double tb = gb / 1024d;
-        return String.format("%.2f TiB", tb);
-    }
-
-    public static String formatNanos(long nanos) {
-        return formatMillis(nanos / 1_000_000d);
-    }
-
-    /**
-     * Static method formatting a double representing duration in milliseconds into a human-readable string. It will
-     * format into hours, minutes, seconds and milliseconds, with the highest unit that is non-zero, and with 3 decimals
-     * if milliseconds only, and 2 decimals if seconds, and no decimals if minutes or hours.
-     * <p>
-     * Examples: "950.123 ms", "23.45s", "12m 34s", "1h 23m".
-     */
-    public static String formatMillis(double millis) {
-        if (millis < 1000) {
-            return String.format("%.3f ms", millis);
-        }
-        double seconds = millis / 1000d;
-        if (seconds < 60) {
-            return String.format("%.2f s", seconds);
-        }
-        double minutes = seconds / 60d;
-        if (minutes < 60) {
-            return String.format("%.0f m %.0f s", minutes, seconds % 60);
-        }
-        double hours = minutes / 60d;
-        return String.format("%.0f h %.0f m", hours, minutes % 60);
     }
 
     private static class CacheUpdatedImpl extends CacheReceivedDataImpl<Void> implements CacheUpdated {
@@ -768,8 +720,8 @@ public class MatsEagerCacheClient<DATA> {
         @Override
         public String toString() {
             return "CacheUpdatedData[" + (_fullUpdate ? "FULL" : "PARTIAL") + ",count=" + _dataCount
-                    + ",meta=" + _metadata + ",uncompr=" + formatBytes(_receivedUncompressedSize)
-                    + ",compr=" + formatBytes(_receivedCompressedSize) + ", update:" + formatMillis(
+                    + ",meta=" + _metadata + ",uncompr=" + _formatBytes(_receivedUncompressedSize)
+                    + ",compr=" + _formatBytes(_receivedCompressedSize) + ", update:" + _formatMillis(
                             _updateDurationMillis) + "]";
         }
     }
@@ -796,8 +748,8 @@ public class MatsEagerCacheClient<DATA> {
         @Override
         public String toString() {
             return "CacheReceivedPartialData[" + (_fullUpdate ? "FULL" : "PARTIAL") + ",count=" + _dataCount
-                    + ",meta=" + _metadata + ",uncompr=" + formatBytes(_receivedUncompressedSize)
-                    + ",compr=" + formatBytes(_receivedCompressedSize) + ", prevData=" + _data + "]";
+                    + ",meta=" + _metadata + ",uncompr=" + _formatBytes(_receivedUncompressedSize)
+                    + ",compr=" + _formatBytes(_receivedCompressedSize) + ", prevData=" + _data + "]";
         }
     }
 }

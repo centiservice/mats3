@@ -117,13 +117,18 @@ public class MatsEagerCacheServer {
      */
     public static final int MAX_INTERVAL_BETWEEN_STARTUP_ATTEMPTS = 30_000;
 
+    /**
+     * Default interval between periodic full updates. (111 minutes)
+     */
+    public static final double DEFAULT_PERIODIC_FULL_UPDATE_INTERVAL_MINUTES = 111d;
+
     private static final AtomicInteger _instanceCounter = new AtomicInteger();
 
     private final MatsFactory _matsFactory;
     private final String _dataName;
     private final Supplier<CacheDataCallback<?>> _fullDataCallbackSupplier;
 
-    private volatile double _periodicFullUpdateIntervalMinutes = 110d;
+    private volatile double _periodicFullUpdateIntervalMinutes = DEFAULT_PERIODIC_FULL_UPDATE_INTERVAL_MINUTES;
 
     private final String _privateNodename;
     private final ObjectWriter _sentDataTypeWriter;
@@ -197,6 +202,7 @@ public class MatsEagerCacheServer {
     private volatile long _lastFullUpdateRequestReceivedTimestamp;
     private volatile long _lastFullUpdateProductionStartedTimestamp;
     private volatile long _lastFullUpdateReceivedTimestamp;
+    private volatile long _lastPartialUpdateReceivedTimestamp;
     private volatile long _lastAnyUpdateReceivedTimestamp; // Both full and partial.
 
     // Use a lock to make sure that only one thread is producing and sending an update at a time, and make it fair
@@ -666,6 +672,10 @@ public class MatsEagerCacheServer {
                             // -> Yes, this was a full update, so record the timestamp.
                             _lastFullUpdateReceivedTimestamp = _lastAnyUpdateReceivedTimestamp;
                         }
+                        else {
+                            // -> No, this was a partial update, so record the timestamp.
+                            _lastPartialUpdateReceivedTimestamp = _lastAnyUpdateReceivedTimestamp;
+                        }
                     }
                     else {
                         log.warn(LOG_PREFIX + "Got a broadcast with unknown command: " + broadcastDto.command);
@@ -682,27 +692,31 @@ public class MatsEagerCacheServer {
 
         private PeriodicUpdate() {
             long intervalMillis = (long) (_periodicFullUpdateIntervalMinutes * 60_000);
-            // The check interval is 10% of the interval, but at most 7 minutes.
-            long checkIntervalCalcMillis = Math.min(intervalMillis / 10, 7 * 60_000);
+            // The check interval is 10% of the interval, but at most 5 minutes.
+            long checkIntervalCalcMillis = Math.min(intervalMillis / 10, 5 * 60_000);
             // Add a random part to the check interval, to avoid all servers checking at the same time.
             long checkIntervalMillis = checkIntervalCalcMillis
                     + ThreadLocalRandom.current().nextLong(checkIntervalCalcMillis / 4);
 
-            log.info(LOG_PREFIX + "Periodic update interval: [" + _periodicFullUpdateIntervalMinutes + " min],"
-                    + " => [" + intervalMillis + " ms],"
-                    + " check interval: [" + checkIntervalMillis + " ms].");
-
             _thread = new Thread(() -> {
+                log.info(LOG_PREFIX + "Periodic update: Thread started."
+                        + " interval: [" + _periodicFullUpdateIntervalMinutes + " min] => ["
+                        + String.format("%,d", intervalMillis) + " ms], check interval: ["
+                        + String.format("%,d", checkIntervalMillis) + " ms, "
+                        + _formatMillis(checkIntervalMillis) + "].");
                 // Ensure that we're fully operational before starting the periodic update.
                 _broadcastTerminator.waitForReceiving(FAST_RESPONSE_LAST_RECV_THRESHOLD);
                 // Going into the run loop
                 while (_running) {
                     try {
-
                         /*
-                         * The main goal here is to avoid the situation where all servers start producing updates at the
-                         * same time, which would result unnecessary load on every component, and if the source data is
-                         * retrieved from a database, the DB will be loaded at the same time from all servers.
+                         * The main goal here is to avoid the situation where all servers start producing periodic
+                         * updates at the same time, or near the same time, which would result unnecessary load on every
+                         * component, and if the source data is retrieved from a database, the DB will be loaded at the
+                         * same time from all servers.
+                         * 
+                         * We ideally want *one* update per periodic interval, even though we have multiple instances of
+                         * the service running (aka. "siblings").
                          *
                          * The idea is to have a check interval, which is a fraction plus a bit of randomness of the
                          * interval between the periodic updates. We repeatedly sleep the check interval, and then check
@@ -711,22 +725,30 @@ public class MatsEagerCacheServer {
                          * there is some randomness in the check interval, we hopefully avoid that all servers check at
                          * the same time. The one that is first to see that it is time for a full update, will send a
                          * broadcast message to the siblings to get the process going, which will lead to a new full
-                         * update being produced and broadcast. When the other siblings wake up from their check
-                         * interval sleep, and see that a full update has arrived, they'll just continue their check
-                         * loop.
+                         * update being produced and broadcast - which the siblings also receive, and record the
+                         * timestamp of. When the other siblings wake up from their check interval sleep, and see that a
+                         * full update has arrived, they'll see that there's nothing to, and they'll just continue their
+                         * check loop.
                          *
                          * The "thundering herd avoidance" solution we have should mitigate the problem if they come
                          * very close to each other. However, if they come a bit more spaced out, AND it takes a long
                          * time to produce the update, we might not catch it with this solution. This since the max
                          * "coalescing and election" sleep is just a few seconds, which if the update takes e.g. tens of
                          * seconds to produce and send will lead the second guy to wake up also wanting to do a full
-                         * update. Thus, we also check whether the last full update *production* started within the
-                         * periodic update interval (as this is recorded close to immediately), and if so, we wait one
-                         * more interval before checking again - hopefully the update will have come in.
+                         * update. Thus, if we see that we haven't gotten a update in the interval, we additionally also
+                         * check whether a full update request have come in within the periodic update interval (as this
+                         * is recorded close to immediately) - assuming then that it was started by another of the
+                         * siblings, and if so, we wait one more interval before checking again - hopefully the update
+                         * will have come in.
+                         * 
+                         * Finally: It doesn't matter all that much if this doesn't always work out perfectly, and we
+                         * expend a bit more resources than necessary. It is better with an update too many than an
+                         * update too few.
                          */
-                        _takeNap(checkIntervalMillis);
+                        Thread.sleep(checkIntervalMillis);
                         // ?: Have we received a full update within the interval?
-                        if (_lastFullUpdateReceivedTimestamp < System.currentTimeMillis() + intervalMillis) {
+                        if (Math.max(_lastFullUpdateReceivedTimestamp, _cacheStartedTimestamp) > System
+                                .currentTimeMillis() - intervalMillis) {
                             // -> We've received a full update within the interval, so we don't need to do anything.
                             continue;
                         }
@@ -734,24 +756,38 @@ public class MatsEagerCacheServer {
 
                         // :: However, if we're currently in the process of producing an update, we can chill a bit
                         // more, as this hopefully means that we'll soon get the update.
-                        if (_lastFullUpdateProductionStartedTimestamp < System.currentTimeMillis() + intervalMillis) {
+                        if (Math.max(_lastFullUpdateRequestReceivedTimestamp, _cacheStartedTimestamp) > System
+                                .currentTimeMillis() - intervalMillis) {
                             // -> We're currently producing an update, so we'll wait one more interval.
-                            _takeNap(checkIntervalMillis);
+                            log.info(LOG_PREFIX + "Periodic update: We're currently handling a request, so we'll"
+                                    + " wait one more interval. We are: [" + _dataName + "] " + _privateNodename);
+                            // Sleep one more interval - but in testing, the interval can be very short, so we'll
+                            // minimum sleep the coalescing "long delay" to not fire twice.
+                            Thread.sleep(Math.max(checkIntervalMillis, _longDelay + 500));
                             // ?: Have we received a full update within the interval now?
-                            if (_lastFullUpdateReceivedTimestamp < System.currentTimeMillis() + intervalMillis) {
+                            if (Math.max(_lastFullUpdateReceivedTimestamp, _cacheStartedTimestamp) > System
+                                    .currentTimeMillis() - intervalMillis) {
                                 // -> We've received a full update within the interval, so we don't need to do anything.
+                                log.info(LOG_PREFIX + "Periodic update: After having checked again, we find that it is"
+                                        + " not needed. We are: [" + _dataName + "] " + _privateNodename);
                                 continue;
                             }
                         }
                         // E-> So, we should request a full update. If this now comes in at the same time as another
                         // server, the "thundering herd avoidance" solution should mitigate double production.
-
-                        log.info(LOG_PREFIX + "Periodic update: [" + _dataName + "] us: " + _privateNodename);
+                        log.info(LOG_PREFIX + "Periodic update: Needed, issuing request for update."
+                                + " We are: [" + _dataName + "] " + _privateNodename);
                         _scheduleFullUpdateFromPeriodic();
+                    }
+                    catch (InterruptedException e) {
+                        // We're probably shutting down.
+                        log.info(LOG_PREFIX + "Periodic update: Thread interrupted, probably shutting down."
+                                + " We are: [" + _dataName + "] " + _privateNodename);
                     }
                     catch (Throwable t) {
                         // TODO: Log exception to monitor and HealthCheck.
-                        log.error(LOG_PREFIX + "Got exception while trying to schedule periodic update.", t);
+                        log.error(LOG_PREFIX + "Periodic update: Got exception while trying to schedule periodic"
+                                + " update. Ignoring. We are: [" + _dataName + "] " + _privateNodename, t);
                     }
                 }
             }, "MatsEagerCacheServer." + _dataName + ".PeriodicUpdate[" + _periodicFullUpdateIntervalMinutes + "min]");
@@ -1168,6 +1204,59 @@ public class MatsEagerCacheServer {
         _requestTerminator.waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS * 1_000);
     }
 
+    /**
+     * Static method to format a long representing bytes into a human-readable string. Using the IEC standard, which
+     * uses B, KiB, MiB, GiB, TiB. E.g. 1024 bytes is 1 KiB, 1024 KiB is 1 MiB, etc. It formats with 2 decimals.
+     */
+    static String _formatBytes(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        }
+        double kb = bytes / 1024d;
+        if (kb < 1024) {
+            return String.format("%.2f KiB", kb);
+        }
+        double mb = kb / 1024d;
+        if (mb < 1024) {
+            return String.format("%.2f MiB", mb);
+        }
+        double gb = mb / 1024d;
+        if (gb < 1024) {
+            return String.format("%.2f GiB", gb);
+        }
+        double tb = gb / 1024d;
+        return String.format("%.2f TiB", tb);
+    }
+
+    /**
+     * Static method formatting a double representing duration in milliseconds into a human-readable string. It will
+     * format into hours, minutes, seconds and milliseconds, with the highest unit that is non-zero, and with 3 decimals
+     * if milliseconds only, and 2 decimals if seconds, and no decimals if minutes or hours.
+     * <p>
+     * Examples: "950.123 ms", "23.45s", "12m 34s", "1h 23m".
+     */
+    public static String _formatMillis(double millis) {
+        if (millis < 10) {
+            return String.format("%.3f ms", millis);
+        }
+        if (millis < 100) {
+            return String.format("%.2f ms", millis);
+        }
+        if (millis < 1000) {
+            return String.format("%.1f ms", millis);
+        }
+        double seconds = millis / 1000d;
+        if (seconds < 60) {
+            return String.format("%.2f s", seconds);
+        }
+        double minutes = seconds / 60d;
+        if (minutes < 60) {
+            return String.format("%.0fm %.0fs", minutes, seconds % 60);
+        }
+        double hours = minutes / 60d;
+        return String.format("%.0fh %.0fm", hours, minutes % 60);
+    }
+
     private DataResult _createDataResult(
             Supplier<CacheDataCallback<?>> dataCallbackSupplier) {
         _currentlyMakingSourceDataResult = true;
@@ -1289,7 +1378,7 @@ public class MatsEagerCacheServer {
         long sentTimestamp;
         long sentNanoTime;
 
-        // ===== For cache requests
+        // ===== For cache request replies
         String correlationId;
         String requestNodename;
         long requestSentTimestamp;
