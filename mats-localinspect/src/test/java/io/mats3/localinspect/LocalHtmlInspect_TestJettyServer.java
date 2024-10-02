@@ -6,7 +6,6 @@ import java.net.URL;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -23,8 +22,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
-import org.eclipse.jetty.util.component.LifeCycle;
-import org.eclipse.jetty.util.component.LifeCycle.Listener;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jetty.webapp.Configuration;
 import org.eclipse.jetty.webapp.WebAppContext;
@@ -374,20 +371,6 @@ public class LocalHtmlInspect_TestJettyServer {
         }
     }
 
-    /**
-     * Servlet to shut down this JVM (<code>System.exit(0)</code>).
-     */
-    @WebServlet("/shutdown")
-    public static class ShutdownServlet extends HttpServlet {
-        @Override
-        protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-            resp.getWriter().println("Shutting down");
-
-            // Shut down the process
-            ForkJoinPool.commonPool().submit(() -> System.exit(0));
-        }
-    }
-
     public static Server createServer(ConnectionFactory jmsConnectionFactory, int port) {
         WebAppContext webAppContext = new WebAppContext();
         webAppContext.setContextPath("/");
@@ -425,19 +408,6 @@ public class LocalHtmlInspect_TestJettyServer {
         StatisticsHandler stats = new StatisticsHandler();
         stats.setHandler(webAppContext);
         server.setHandler(stats);
-
-        // Add a Jetty Lifecycle Listener to cleanly shut down stuff
-        server.addLifeCycleListener(new Listener() {
-            @Override
-            public void lifeCycleStarted(LifeCycle event) {
-                log.info("######### Started server on port " + port);
-            }
-
-            @Override
-            public void lifeCycleStopping(LifeCycle event) {
-                log.info("===== STOP! ===========================================");
-            }
-        });
 
         // :: Graceful shutdown
         server.setStopTimeout(1000);

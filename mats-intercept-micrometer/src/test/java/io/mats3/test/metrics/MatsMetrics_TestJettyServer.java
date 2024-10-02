@@ -5,7 +5,6 @@ import java.io.PrintWriter;
 import java.net.URL;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.concurrent.ForkJoinPool;
 
 import javax.jms.ConnectionFactory;
 import javax.servlet.ServletContext;
@@ -20,8 +19,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
-import org.eclipse.jetty.util.component.LifeCycle;
-import org.eclipse.jetty.util.component.LifeCycle.Listener;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jetty.webapp.Configuration;
 import org.eclipse.jetty.webapp.WebAppContext;
@@ -31,7 +28,6 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.qos.logback.core.CoreConstants;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.KeepTrace;
 import io.mats3.impl.jms.JmsMatsFactory;
@@ -48,15 +44,14 @@ import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.prometheus.client.Collector.MetricFamilySamples;
 
+import ch.qos.logback.core.CoreConstants;
+
 /**
  * @author Endre Stølsvik 2021-02-17 12:57 - http://stolsvik.com/, endre@stolsvik.com
  */
 public class MatsMetrics_TestJettyServer {
 
     private static final String CONTEXT_ATTRIBUTE_PORTNUMBER = "ServerPortNumber";
-    private static final String CONTEXT_ATTRIBUTE_JAVASCRIPT_PATH = "Path to JavaScript files";
-
-    private static final String WEBSOCKET_PATH = "/matssocket";
 
     private static final Logger log = LoggerFactory.getLogger(MatsMetrics_TestJettyServer.class);
 
@@ -197,20 +192,6 @@ public class MatsMetrics_TestJettyServer {
         }
     }
 
-    /**
-     * Servlet to shut down this JVM (<code>System.exit(0)</code>).
-     */
-    @WebServlet("/shutdown")
-    public static class ShutdownServlet extends HttpServlet {
-        @Override
-        protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
-            res.getWriter().println("Shutting down");
-
-            // Shut down the process
-            ForkJoinPool.commonPool().submit(() -> System.exit(0));
-        }
-    }
-
     public static Server createServer(ConnectionFactory jmsConnectionFactory, int port) {
         WebAppContext webAppContext = new WebAppContext();
         webAppContext.setContextPath("/");
@@ -240,15 +221,6 @@ public class MatsMetrics_TestJettyServer {
         webAppContext.getMetaData().setWebInfClassesDirs(Collections.singletonList(Resource.newResource(
                 classesLocation)));
 
-        // :: Find the path to the JavaScript files (JS tests and MatsSocket.js), to provide them via Servlet.
-        String pathToClasses = classesLocation.getPath();
-        // .. strip down to the 'mats-websockets' path (i.e. this subproject).
-        int pos = pathToClasses.indexOf("mats-websockets");
-        String pathToJavaScripts = pos == -1
-                ? null
-                : pathToClasses.substring(0, pos) + "mats-websockets/client/javascript";
-        webAppContext.getServletContext().setAttribute(CONTEXT_ATTRIBUTE_JAVASCRIPT_PATH, pathToJavaScripts);
-
         // Create the actual Jetty Server
         Server server = new Server(port);
 
@@ -256,14 +228,6 @@ public class MatsMetrics_TestJettyServer {
         StatisticsHandler stats = new StatisticsHandler();
         stats.setHandler(webAppContext);
         server.setHandler(stats);
-
-        // Add a Jetty Lifecycle Listener to cleanly shut down the MatsSocketServer.
-        server.addLifeCycleListener(new Listener() {
-            @Override
-            public void lifeCycleStopping(LifeCycle event) {
-                log.info("===== STOP! ===========================================");
-            }
-        });
 
         // :: Graceful shutdown
         server.setStopTimeout(1000);
