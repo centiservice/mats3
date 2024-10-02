@@ -12,10 +12,15 @@ dependencies {
     compileOnly "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
     compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
     compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${jacksonVersion}"
+    // Storebrand HealthCheck API, for the MatsEagerCacheStorebrandHealthCheck. (HealthCheck system from Storebrand, optional)
+    compileOnly "com.storebrand.healthcheck:healthcheck-api:$stbHealthCheckVersion"
 
     // :: TEST
 
     testImplementation "com.h2database:h2:$h2Version"
+
+    // The Mats JMS Impl - for the EagerCache_TestJettyServer
+    testImplementation project(':mats-impl-jms')
 
     // The JUnit library
     testImplementation "junit:junit:$junitVersion"
@@ -23,20 +28,37 @@ dependencies {
     testImplementation project(":mats-serial-json")
     // MatsTestBroker
     testImplementation project(":mats-test-broker")
+    // .. and pull in ActiveMQ Broker (since 'mats-test-activemq' does not transitively expose it, because _prod_).
+    testImplementation "org.apache.activemq:activemq-broker:$activeMqVersion"
     // Mats-specific JUnit test classes
     testImplementation project(":mats-test-junit")
     // We want the standard logging, which will be auto-installed by being on the classpath.
     testImplementation project(':mats-intercept-logging')
+
     // Logging
     testCompileOnly "org.slf4j:slf4j-api:$slf4jVersion"
     testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
-    testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
+    testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
     // Jackson for the tests, ref compileOnly above.
     testImplementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
     testImplementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
     testImplementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${jacksonVersion}"
     // Including the Blackbird module for Jackson, which is dynamically loaded by the FieldBasedJacksonMapper.
     testImplementation "com.fasterxml.jackson.module:jackson-module-blackbird:${jacksonVersion}"
+
+    // Storebrand HealthCheck implementation
+    testImplementation "com.storebrand.healthcheck:healthcheck-impl:$stbHealthCheckVersion"
+    testImplementation "com.storebrand.healthcheck:healthcheck-output:$stbHealthCheckVersion"
+
+    // Base Jetty Server
+    testImplementation "org.eclipse.jetty:jetty-server:$jettyVersion"
+    // .. Jetty Servlets
+    testImplementation "org.eclipse.jetty:jetty-webapp:$jettyVersion"
+    // .. Jetty: To get the @WebListener etc. annotation scanning.
+    testImplementation "org.eclipse.jetty:jetty-annotations:$jettyVersion"
+
+    // LocalInspect
+    testImplementation project(':mats-localinspect')
 }
 
 publishing {

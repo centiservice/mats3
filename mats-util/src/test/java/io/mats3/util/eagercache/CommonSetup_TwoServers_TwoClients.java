@@ -73,31 +73,33 @@ public class CommonSetup_TwoServers_TwoClients {
         // two different instances of the client-side service.
         matsTestBroker = MatsTestBroker.create();
         serverMatsFactory1 = MatsTestFactory.createWithBroker(matsTestBroker);
+        serverMatsFactory1.getFactoryConfig().setNodename(serverMatsFactory1.getFactoryConfig().getNodename() + "-1s");
         serverMatsFactory2 = MatsTestFactory.createWithBroker(matsTestBroker);
+        serverMatsFactory2.getFactoryConfig().setNodename(serverMatsFactory2.getFactoryConfig().getNodename() + "-2s");
         clientMatsFactory1 = MatsTestFactory.createWithBroker(matsTestBroker);
+        clientMatsFactory1.getFactoryConfig().setNodename(clientMatsFactory1.getFactoryConfig().getNodename() + "-1c");
         clientMatsFactory2 = MatsTestFactory.createWithBroker(matsTestBroker);
+        clientMatsFactory2.getFactoryConfig().setNodename(clientMatsFactory2.getFactoryConfig().getNodename() + "-2c");
 
         // :: Create the CacheServers:
-        cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
+        cacheServer1 = MatsEagerCacheServer.create(serverMatsFactory1,
                 "Customers", CustomerTransferDTO.class,
                 () -> (consumeTo) -> sourceData1.customers.stream()
                         .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo));
         serversAdjust.accept(cacheServer1);
 
-        cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
+        cacheServer2 = MatsEagerCacheServer.create(serverMatsFactory2,
                 "Customers", CustomerTransferDTO.class,
                 () -> (consumeTo) -> sourceData2.customers.stream()
                         .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo));
         serversAdjust.accept(cacheServer2);
 
         // :: Create the CacheClients:
-        cacheClient1 = new MatsEagerCacheClient<>(clientMatsFactory1,
-                "Customers", CustomerTransferDTO.class,
-                DataCarrier::new);
+        cacheClient1 = MatsEagerCacheClient.create(clientMatsFactory1, "Customers",
+                CustomerTransferDTO.class, DataCarrier::new);
 
-        cacheClient2 = new MatsEagerCacheClient<>(clientMatsFactory2,
-                "Customers", CustomerTransferDTO.class,
-                DataCarrier::new);
+        cacheClient2 = MatsEagerCacheClient.create(clientMatsFactory2, "Customers",
+                CustomerTransferDTO.class, DataCarrier::new);
 
         cacheClient1_latch = new CountDownLatch[1];
         cacheClient2_latch = new CountDownLatch[1];
@@ -138,40 +140,11 @@ public class CommonSetup_TwoServers_TwoClients {
         cacheClient1.start();
         cacheClient2.start();
 
-        // .. initial population is automatically done, so we must get past this.
+        // .. initial population is automatically done, so we'll wait for that to happen.
+        waitForClientsUpdate();
 
-        cacheClient1_latch[0].await(30, TimeUnit.SECONDS);
-        cacheClient2_latch[0].await(30, TimeUnit.SECONDS);
-
-        // Serialize the source data, to compare with the CacheClient's data.
-        String serializedSourceData = customerDataWriter.writeValueAsString(sourceData1);
-
-        DataCarrier dataCarrier1 = cacheClient1.get();
-        Assert.assertNotNull(dataCarrier1);
-        Assert.assertNotNull(cacheClient1_updated[0]);
-        Assert.assertTrue(cacheClient1_updated[0].isFullUpdate());
-        Assert.assertEquals(sourceData1.customers.size(), cacheClient1_updated[0].getDataCount());
-        // Assert serialized data
-        CustomerData cacheData = new CustomerData();
-        cacheData.customers = dataCarrier1.customers;
-        String serializedCacheData = customerDataWriter.writeValueAsString(cacheData);
-        Assert.assertEquals("The serialized data should be the same from source, via server-to-client,"
-                + " and from cache.", serializedSourceData, serializedCacheData);
-
-        // ------
-
-        DataCarrier dataCarrier2 = cacheClient1.get();
-        Assert.assertNotNull(dataCarrier2);
-        Assert.assertNotNull(cacheClient2_updated[0]);
-        Assert.assertTrue(cacheClient2_updated[0].isFullUpdate());
-        Assert.assertEquals(sourceData2.customers.size(), cacheClient2_updated[0].getDataCount());
-
-        // Assert serialized data
-        cacheData = new CustomerData();
-        cacheData.customers = dataCarrier2.customers;
-        serializedCacheData = customerDataWriter.writeValueAsString(cacheData);
-        Assert.assertEquals("The serialized data should be the same from source, via server-to-client,"
-                + " and from cache.", serializedSourceData, serializedCacheData);
+        // :: Assert that the CacheClients were updated, and that they now have the initial data.
+        assertUpdateAndConsistency(true, originalCount);
 
         // Assert that we've only gotten one update for each cache (even though both of them requested full update)
         Assert.assertEquals(1, cacheClient1_updateCount.get());
@@ -199,6 +172,8 @@ public class CommonSetup_TwoServers_TwoClients {
                 customerDataWriter.writeValueAsString(sourceData2));
 
         // :: Assert updated
+        Assert.assertNotNull(cacheClient1_updated[0]);
+        Assert.assertNotNull(cacheClient2_updated[0]);
 
         Assert.assertNotNull("CacheClient should have gotten CacheUpdated callback.", cacheClient1_updated[0]);
         Assert.assertEquals("DataCount in CacheUpdated should match server's source.", expectedDataCount,
@@ -220,6 +195,7 @@ public class CommonSetup_TwoServers_TwoClients {
         // :: Assert same data all over
 
         DataCarrier dataCarrier1 = cacheClient1.get();
+        Assert.assertNotNull(dataCarrier1);
         CustomerData cacheData1 = new CustomerData(dataCarrier1.customers);
 
         Assert.assertEquals("The serialized data should be the same from ClientServer source,"
@@ -228,7 +204,8 @@ public class CommonSetup_TwoServers_TwoClients {
                 customerDataWriter.writeValueAsString(cacheData1));
 
         // Create cache2-side data from the source data, and serialize it.
-        DataCarrier dataCarrier2 = cacheClient1.get();
+        DataCarrier dataCarrier2 = cacheClient2.get();
+        Assert.assertNotNull(dataCarrier2);
         CustomerData cacheData2 = new CustomerData(dataCarrier2.customers);
 
         Assert.assertEquals("The serialized data should be the same from ClientServer source,"

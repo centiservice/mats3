@@ -32,7 +32,7 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
     private final ObjectWriter _replyWriter = _objectMapper.writerFor(CustomerData.class);
 
     @Test
-    public void run() throws InterruptedException, JsonProcessingException {
+    public void simpleServerAndClient() throws InterruptedException, JsonProcessingException {
         // ## ARRANGE:
 
         // Create the source data.
@@ -46,18 +46,16 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         MatsFactory clientMatsFactory = MatsTestFactory.createWithBroker(matsTestBroker);
 
         // :: Create the CacheServer.
-        MatsEagerCacheServer cacheServer = new MatsEagerCacheServer(serverMatsFactory,
+        MatsEagerCacheServer cacheServer = MatsEagerCacheServer.create(serverMatsFactory,
                 "Customers", CustomerTransferDTO.class,
-                () -> new CustomerDTOCacheDataCallback(sourceData)
-        );
+                () -> new CustomerDTOCacheDataCallback(sourceData));
 
         // Adjust the timings for fast test.
         cacheServer._setDelays(250, 500);
 
         // :: Create the CacheClient.
-        MatsEagerCacheClient<DataCarrier> cacheClient = new MatsEagerCacheClient<>(clientMatsFactory,
-                "Customers", CustomerTransferDTO.class,
-                DataCarrier::new);
+        MatsEagerCacheClient<DataCarrier> cacheClient = MatsEagerCacheClient.create(clientMatsFactory,
+                "Customers", CustomerTransferDTO.class, DataCarrier::new);
 
         CountDownLatch latch = new CountDownLatch(1);
 

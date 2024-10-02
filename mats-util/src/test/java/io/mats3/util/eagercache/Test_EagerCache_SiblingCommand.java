@@ -36,13 +36,13 @@ public class Test_EagerCache_SiblingCommand {
         MatsFactory serverMatsFactory2 = MatsTestFactory.createWithBroker(matsTestBroker);
 
         // :: Create the CacheServers:
-        MatsEagerCacheServer cacheServer1 = new MatsEagerCacheServer(serverMatsFactory1,
+        MatsEagerCacheServer cacheServer1 = MatsEagerCacheServer.create(serverMatsFactory1,
                 "Customers", CustomerTransferDTO.class,
                 () -> (consumeTo) -> sourceData.customers.stream()
                         .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo)
         );
 
-        MatsEagerCacheServer cacheServer2 = new MatsEagerCacheServer(serverMatsFactory2,
+        MatsEagerCacheServer cacheServer2 = MatsEagerCacheServer.create(serverMatsFactory2,
                 "Customers", CustomerTransferDTO.class,
                 () -> (consumeTo) -> sourceData.customers.stream()
                         .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo)
@@ -87,7 +87,7 @@ public class Test_EagerCache_SiblingCommand {
         // Random String
         String randomString = "Random String: " + Math.random();
 
-        String commandName = "Hello, CacheServers siblings! Here's some values!";
+        String commandName = "Hello, CacheServers siblings! I'm CacheServer 1! Here are some values!";
         latch[0] = new CountDownLatch(3);
         cacheServer1.sendSiblingCommand(commandName, randomString, randomBytes);
         latchWaitAndAssert(latch, siblingCommand, commandName, randomString, randomBytes);
@@ -100,8 +100,9 @@ public class Test_EagerCache_SiblingCommand {
         Assert.assertFalse("SiblingCommand[2] should NOT be sent from this host", siblingCommand[2]
                 .originatedOnThisInstance());
 
+        log.info("\n\n######### Sending SiblingCommand from CacheServer 2.\n\n");
 
-        commandName = "Hello, CacheServers siblings! Here's are som nulls!";
+        commandName = "Hello, CacheServers siblings! I'm CacheServer 2. Here are som nulls!";
         latch[0] = new CountDownLatch(3);
         cacheServer2.sendSiblingCommand(commandName, null, null);
         latchWaitAndAssert(latch, siblingCommand, commandName, null, null);
@@ -120,7 +121,7 @@ public class Test_EagerCache_SiblingCommand {
         matsTestBroker.close();
     }
 
-    private static void latchWaitAndAssert(CountDownLatch[] latch, SiblingCommand[] siblingCommand, String commandName, String randomString, byte[] randomBytes) throws InterruptedException {
+    private static void latchWaitAndAssert(CountDownLatch[] latch, SiblingCommand[] siblingCommand, String commandName, String string, byte[] binary) throws InterruptedException {
         log.info("\n\n######### Waiting for sibling command to be received.\n\n");
         latch[0].await(30, TimeUnit.SECONDS);
 
@@ -133,8 +134,8 @@ public class Test_EagerCache_SiblingCommand {
             log.info("SiblingCommand[" + i + "]: " + siblingCommand[i]);
             // Compare the elements
             Assert.assertEquals("SiblingCommand[" + i + "]: commandName", commandName, siblingCommand[i].getCommand());
-            Assert.assertEquals("SiblingCommand[" + i + "]: string", randomString, siblingCommand[i].getStringData());
-            Assert.assertArrayEquals("SiblingCommand[" + i + "]: bytes", randomBytes, siblingCommand[i]
+            Assert.assertEquals("SiblingCommand[" + i + "]: string", string, siblingCommand[i].getStringData());
+            Assert.assertArrayEquals("SiblingCommand[" + i + "]: bytes", binary, siblingCommand[i]
                     .getBinaryData());
         }
     }

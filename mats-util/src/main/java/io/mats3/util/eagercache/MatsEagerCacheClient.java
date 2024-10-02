@@ -14,6 +14,7 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -79,8 +80,13 @@ public class MatsEagerCacheClient<DATA> {
      *            return null from this function, and if the update throws an exception, the cache will be left in a
      *            nulled state.
      */
+    public static <RECV, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
+            Class<RECV> receivedDataType, Function<CacheReceivedData<RECV>, DATA> fullUpdateMapper) {
+        return new MatsEagerCacheClient<>(matsFactory, dataName, receivedDataType, fullUpdateMapper);
+    }
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public <RECV> MatsEagerCacheClient(MatsFactory matsFactory, String dataName, Class<RECV> receivedDataType,
+    private <RECV> MatsEagerCacheClient(MatsFactory matsFactory, String dataName, Class<RECV> receivedDataType,
             Function<CacheReceivedData<RECV>, DATA> fullUpdateMapper) {
         _matsFactory = matsFactory;
         _dataName = dataName;
@@ -125,7 +131,15 @@ public class MatsEagerCacheClient<DATA> {
     // Listeners for cache updates
     private final CopyOnWriteArrayList<Consumer<CacheUpdated>> _cacheUpdatedListeners = new CopyOnWriteArrayList<>();
 
-    private final AtomicInteger _updateRequestCounter = new AtomicInteger();
+    private volatile long _cacheStartedTimestamp;
+    private volatile long _initialPopulationRequestSentTimestamp;
+    private volatile long _initialPopulationTimestamp;
+    private volatile long _lastUpdateTimestamp;
+    private volatile double _lastUpdateDurationMillis;
+    private final AtomicInteger _numberOfFullUpdatesReceived = new AtomicInteger();
+    private final AtomicInteger _numberOfPartialUpdatesReceived = new AtomicInteger();
+
+    private final AtomicLong _accessCounter = new AtomicLong();
 
     private DATA _data;
 
@@ -292,6 +306,7 @@ public class MatsEagerCacheClient<DATA> {
                 throw new IllegalStateException("The data is null, which the cache API contract explicitly forbids."
                         + " Fix your cache update code!");
             }
+            _accessCounter.incrementAndGet();
             return _data;
         }
         finally {
@@ -344,10 +359,107 @@ public class MatsEagerCacheClient<DATA> {
         }
     }
 
+    public interface CacheClientInformation {
+        String getDataName();
+
+        String getNodename();
+
+        boolean isRunning();
+
+        boolean isInitialPopulationDone();
+
+        long getCacheStartedTimestamp();
+
+        long getInitialPopulationRequestSentTimestamp();
+
+        long getInitialPopulationTimestamp();
+
+        long getLastUpdateTimestamp();
+
+        double getLastUpdateDurationMillis();
+
+        int getNumberOfFullUpdatesReceived();
+
+        int getNumberOfPartialUpdatesReceived();
+
+        long getNumberOfAccesses();
+    }
+
+    /**
+     * Returns a "live view" of the cache client information, that is, you only need to invoke this method once to get
+     * an instance that will always reflect the current state of the cache client.
+     *
+     * @return a "live view" of the cache client information.
+     */
+    public CacheClientInformation getCacheClientInformation() {
+        return new CacheClientInformation() {
+            @Override
+            public String getDataName() {
+                return _dataName;
+            }
+
+            @Override
+            public String getNodename() {
+                return _matsFactory.getFactoryConfig().getNodename();
+            }
+
+            @Override
+            public boolean isRunning() {
+                return _running;
+            }
+
+            @Override
+            public boolean isInitialPopulationDone() {
+                return _initialPopulationLatch == null;
+            }
+
+            @Override
+            public long getCacheStartedTimestamp() {
+                return _cacheStartedTimestamp;
+            }
+
+            @Override
+            public long getInitialPopulationRequestSentTimestamp() {
+                return _initialPopulationRequestSentTimestamp;
+            }
+
+            @Override
+            public long getInitialPopulationTimestamp() {
+                return _initialPopulationTimestamp;
+            }
+
+            @Override
+            public long getLastUpdateTimestamp() {
+                return _lastUpdateTimestamp;
+            }
+
+            @Override
+            public double getLastUpdateDurationMillis() {
+                return _lastUpdateDurationMillis;
+            }
+
+            @Override
+            public int getNumberOfFullUpdatesReceived() {
+                return _numberOfFullUpdatesReceived.get();
+            }
+
+            @Override
+            public int getNumberOfPartialUpdatesReceived() {
+                return _numberOfPartialUpdatesReceived.get();
+            }
+
+            @Override
+            public long getNumberOfAccesses() {
+                return _accessCounter.get();
+            }
+        };
+    }
+
     // ======== Implementation / Internal methods ========
 
     private MatsEagerCacheClient<DATA> _start() {
         // :: Listener to the update topic.
+        _cacheStartedTimestamp = System.currentTimeMillis();
         _broadcastTerminator = _matsFactory.subscriptionTerminator(MatsEagerCacheServer._getBroadcastTopic(_dataName),
                 void.class, BroadcastDto.class, (ctx, state, msg) -> {
                     if (!(msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)
@@ -385,7 +497,7 @@ public class MatsEagerCacheClient<DATA> {
                 // TODO: Log exception to monitor and HealthCheck.
                 throw new IllegalStateException(msg);
             }
-
+            _initialPopulationRequestSentTimestamp = System.currentTimeMillis();
             _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_BOOT);
         });
         thread.setName("MatsEagerCacheClient-" + _dataName + "-initialCacheUpdateRequest");
@@ -462,10 +574,17 @@ public class MatsEagerCacheClient<DATA> {
     }
 
     private void _handleUpdateInExecutorThread(BroadcastDto msg, byte[] payload) {
+        String threadTackOn;
+        if (msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)) {
+            int num = _numberOfFullUpdatesReceived.incrementAndGet();
+            threadTackOn = "Full #" + num;
+        }
+        else {
+            int num = _numberOfPartialUpdatesReceived.incrementAndGet();
+            threadTackOn = "Partial #" + num;
+        }
         String originalThreadName = Thread.currentThread().getName();
-        Thread.currentThread().setName("MatsEagerCacheClient-" + _dataName + "-handle"
-                + (msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL) ? "Full" : "Partial")
-                + "UpdateInThread-#" + _updateRequestCounter.getAndIncrement());
+        Thread.currentThread().setName("MatsEagerCacheClient-" + _dataName + "-handleUpdateInThread-" + threadTackOn);
 
         // Write lock
         _cacheContentWriteLock.lock();
@@ -551,8 +670,7 @@ public class MatsEagerCacheClient<DATA> {
                     // Invoke the partial update mapper to get the new data.
                     // (Note: we hold onto as little as possible while invoking the mapper, to let the GC do its job.)
                     _data = _partialUpdateMapper.apply(new CacheReceivedPartialDataImpl<>(false, _data,
-                            dataSize, metadata,
-                            _getReceiveStreamFromPayload(payload),
+                            dataSize, metadata, _getReceiveStreamFromPayload(payload),
                             msg.uncompressedSize, msg.compressedSize));
                 }
                 catch (Throwable e) {
@@ -563,13 +681,16 @@ public class MatsEagerCacheClient<DATA> {
         finally {
             _cacheContentWriteLock.unlock();
         }
-        double millisTaken_update = (System.nanoTime() - nanosAsStart_update) / 1_000_000d;
+        // Update the timestamp of the last update
+        _lastUpdateTimestamp = System.currentTimeMillis();
+        // .. and timing (don't bother with skewed update here (i.e. missing sync), this is only for introspection)
+        _lastUpdateDurationMillis = (System.nanoTime() - nanosAsStart_update) / 1_000_000d;
 
         // FIRST: Notify CacheUpdatedListeners
 
         // :: Notify listeners
         CacheUpdated cacheUpdated = new CacheUpdatedImpl(msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL),
-                msg.dataCount, msg.metadata, msg.uncompressedSize, msg.compressedSize, millisTaken_update);
+                msg.dataCount, msg.metadata, msg.uncompressedSize, msg.compressedSize, _lastUpdateDurationMillis);
         for (Consumer<CacheUpdated> listener : _cacheUpdatedListeners) {
             try {
                 listener.accept(cacheUpdated);
@@ -595,6 +716,9 @@ public class MatsEagerCacheClient<DATA> {
             // Null out the reference to the latch (volatile field), since we use it for fast-path
             // evaluation in get().
             _initialPopulationLatch = null;
+
+            // Record the initial population timestamp
+            _initialPopulationTimestamp = System.currentTimeMillis();
 
             // THIRD, and final: Run all the initial population runnables that have been added.
 

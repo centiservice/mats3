@@ -1,6 +1,9 @@
 package io.mats3.util.eagercache;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -134,8 +137,30 @@ public class MatsEagerCacheServer {
     private final ObjectWriter _sentDataTypeWriter;
     private final ThreadPoolExecutor _produceAndSendExecutor;
 
+    /**
+     * Create a Mats Eager Cache Server.
+     *
+     * @param matsFactory
+     *            The MatsFactory to use.
+     * @param dataName
+     *            The name of the data, which will be used in the Mats endpoints. It must be unique within the full
+     *            system, i.e. the "Mats Fabric".
+     * @param transferDataType
+     *            The data type to transmit to the cache clients. It should be tailored to what the cache clients need,
+     *            and should be serializable by Jackson.
+     * @param fullDataCallbackSupplier
+     *            The supplier of the {@link CacheDataCallback} that provides the source data.
+     * @return the created Mats Eager Cache Server.
+     * @param <TRANSFER>
+     *            The data type to transmit to the cache clients.
+     */
+    public static <TRANSFER> MatsEagerCacheServer create(MatsFactory matsFactory, String dataName,
+            Class<TRANSFER> transferDataType, Supplier<CacheDataCallback<TRANSFER>> fullDataCallbackSupplier) {
+        return new MatsEagerCacheServer(matsFactory, dataName, transferDataType, fullDataCallbackSupplier);
+    }
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public <TRANSFER> MatsEagerCacheServer(MatsFactory matsFactory, String dataName, Class<TRANSFER> transferDataType,
+    private <TRANSFER> MatsEagerCacheServer(MatsFactory matsFactory, String dataName, Class<TRANSFER> transferDataType,
             Supplier<CacheDataCallback<TRANSFER>> fullDataCallbackSupplier) {
 
         _matsFactory = matsFactory;
@@ -181,11 +206,11 @@ public class MatsEagerCacheServer {
         return this;
     }
 
-    private enum LifeCycle {
+    public enum CacheServerLifeCycle {
         NOT_YET_STARTED, STARTING, RUNNING, STOPPING, STOPPED;
     }
 
-    private volatile LifeCycle _lifeCycle = LifeCycle.NOT_YET_STARTED;
+    private volatile CacheServerLifeCycle _cacheServerLifeCycle = CacheServerLifeCycle.NOT_YET_STARTED;
     private volatile CountDownLatch _waitForRunningLatch = new CountDownLatch(1);
     private volatile MatsEndpoint<Void, Void> _broadcastTerminator;
     private volatile MatsEndpoint<Void, Void> _requestTerminator;
@@ -204,6 +229,8 @@ public class MatsEagerCacheServer {
     private volatile long _lastFullUpdateReceivedTimestamp;
     private volatile long _lastPartialUpdateReceivedTimestamp;
     private volatile long _lastAnyUpdateReceivedTimestamp; // Both full and partial.
+    private AtomicInteger _numberOfFullUpdatesSent = new AtomicInteger();
+    private AtomicInteger _numberOfPartialUpdatesSent = new AtomicInteger();
 
     // Use a lock to make sure that only one thread is producing and sending an update at a time, and make it fair
     // so that entry into the method is sequenced in the order of the requests.
@@ -520,11 +547,11 @@ public class MatsEagerCacheServer {
         synchronized (this) {
             // ?: Are we running? Note: we accept multiple close() invocations, as the close-part is harder to lifecycle
             // manage than the start-part (It might e.g. be closed by Spring too, in addition to by the user).
-            if (_lifeCycle != LifeCycle.RUNNING) {
+            if (_cacheServerLifeCycle != CacheServerLifeCycle.RUNNING) {
                 // -> No, we are not running, so this is no-op.
                 return;
             }
-            _lifeCycle = LifeCycle.STOPPING;
+            _cacheServerLifeCycle = CacheServerLifeCycle.STOPPING;
         }
 
         // -> Yes, we are RUNNING, so close down as asked.
@@ -543,9 +570,119 @@ public class MatsEagerCacheServer {
             // Set new state
             synchronized (this) {
                 // We're now stopped.
-                _lifeCycle = LifeCycle.STOPPED;
+                _cacheServerLifeCycle = CacheServerLifeCycle.STOPPED;
             }
         }
+    }
+
+    public interface CacheServerInformation {
+        String getDataName();
+
+        String getNodename();
+
+        String getCacheRequestQueue();
+
+        String getBroadcastTopic();
+
+        CacheServerLifeCycle getCacheServerLifeCycle();
+
+        long getCacheStartedTimestamp();
+
+        long getLastFullUpdateRequestReceivedTimestamp();
+
+        long getLastFullUpdateProductionStartedTimestamp();
+
+        long getLastFullUpdateReceivedTimestamp();
+
+        long getLastPartialUpdateReceivedTimestamp();
+
+        long getLastAnyUpdateReceivedTimestamp();
+
+        double getPeriodicFullUpdateIntervalMinutes();
+
+        int getNumberOfFullUpdatesSent();
+
+        int getNumberOfPartialUpdatesSent();
+    }
+
+    /**
+     * Returns a "live view" of the cache server information, that is, you only need to invoke this method once to get
+     * an instance that will always reflect the current state of the cache server.
+     *
+     * @return a "live view" of the cache server information.
+     */
+    public CacheServerInformation getCacheServerInformation() {
+        return new CacheServerInformation() {
+            @Override
+            public String getDataName() {
+                return _dataName;
+            }
+
+            @Override
+            public String getNodename() {
+                return _privateNodename;
+            }
+
+            @Override
+            public String getCacheRequestQueue() {
+                return _getCacheRequestQueue(_dataName);
+            }
+
+            @Override
+            public String getBroadcastTopic() {
+                return _getBroadcastTopic(_dataName);
+            }
+
+            @Override
+            public CacheServerLifeCycle getCacheServerLifeCycle() {
+                return _cacheServerLifeCycle;
+            }
+
+            @Override
+            public long getCacheStartedTimestamp() {
+                return _cacheStartedTimestamp;
+            }
+
+            @Override
+            public long getLastFullUpdateRequestReceivedTimestamp() {
+                return _lastFullUpdateRequestReceivedTimestamp;
+            }
+
+            @Override
+            public long getLastFullUpdateProductionStartedTimestamp() {
+                return _lastFullUpdateProductionStartedTimestamp;
+            }
+
+            @Override
+            public long getLastFullUpdateReceivedTimestamp() {
+                return _lastFullUpdateReceivedTimestamp;
+            }
+
+            @Override
+            public long getLastPartialUpdateReceivedTimestamp() {
+                return _lastPartialUpdateReceivedTimestamp;
+            }
+
+            @Override
+            public long getLastAnyUpdateReceivedTimestamp() {
+                return _lastAnyUpdateReceivedTimestamp;
+            }
+
+            @Override
+            public double getPeriodicFullUpdateIntervalMinutes() {
+                return _periodicFullUpdateIntervalMinutes;
+            }
+
+            @Override
+            public int getNumberOfFullUpdatesSent() {
+                return _numberOfFullUpdatesSent.get();
+            }
+
+            @Override
+            public int getNumberOfPartialUpdatesSent() {
+                return _numberOfPartialUpdatesSent.get();
+            }
+        };
     }
 
     // ======== Implementation / Internal methods ========
@@ -566,19 +703,19 @@ public class MatsEagerCacheServer {
     private void _start() {
         synchronized (this) {
             // ?: Have we already started?
-            if (_lifeCycle != LifeCycle.NOT_YET_STARTED) {
+            if (_cacheServerLifeCycle != CacheServerLifeCycle.NOT_YET_STARTED) {
                 // -> Yes, we have already started - so you evidently have no control over the lifecycle of this object!
                 throw new IllegalStateException("The MatsEagerCacheServer should be NOT_YET_STARTED when starting,"
-                        + " it is [" + _lifeCycle + "].");
+                        + " it is [" + _cacheServerLifeCycle + "].");
             }
-            _lifeCycle = LifeCycle.STARTING;
+            _cacheServerLifeCycle = CacheServerLifeCycle.STARTING;
         }
 
         // Create thread that checks if we actually can request the Source Data
         Thread checkThread = new Thread(() -> {
             // We'll keep trying until we succeed.
             long sleepTimeBetweenAttempts = 2000;
-            while (_lifeCycle == LifeCycle.STARTING) {
+            while (_cacheServerLifeCycle == CacheServerLifeCycle.STARTING) {
                 // Try to get the data from the source provider.
                 try {
                     log.info(LOG_PREFIX + "Asserting that we can get Source Data.");
@@ -591,7 +728,7 @@ public class MatsEagerCacheServer {
 
                     // We're now running.
                     _cacheStartedTimestamp = System.currentTimeMillis();
-                    _lifeCycle = LifeCycle.RUNNING;
+                    _cacheServerLifeCycle = CacheServerLifeCycle.RUNNING;
                     _waitForRunningLatch.countDown();
                     _waitForRunningLatch = null; // fast-path check, and get rid of the CountDownLatch.
                     // We're done - it is possible to get source data.
@@ -1097,6 +1234,13 @@ public class MatsEagerCacheServer {
 
             String type = fullUpdate ? "Full" : "Partial";
 
+            if (fullUpdate) {
+                _numberOfFullUpdatesSent.incrementAndGet();
+            }
+            else {
+                _numberOfPartialUpdatesSent.incrementAndGet();
+            }
+
             _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
                 TraceId traceId = TraceId.create("MatsEagerCache." + _dataName, "Update")
                         .add("type", type)
@@ -1182,9 +1326,10 @@ public class MatsEagerCacheServer {
     }
 
     void _waitForReceiving() {
-        if (!EnumSet.of(LifeCycle.NOT_YET_STARTED, LifeCycle.STARTING, LifeCycle.RUNNING).contains(_lifeCycle)) {
+        if (!EnumSet.of(CacheServerLifeCycle.NOT_YET_STARTED, CacheServerLifeCycle.STARTING,
+                CacheServerLifeCycle.RUNNING).contains(_cacheServerLifeCycle)) {
             throw new IllegalStateException("The MatsEagerCacheServer is not NOT_YET_STARTED, STARTING or RUNNING,"
-                    + " it is [" + _lifeCycle + "].");
+                    + " it is [" + _cacheServerLifeCycle + "].");
         }
         try {
             // If the latch is there, we'll wait for it. (fast-path check for null)
@@ -1235,7 +1380,7 @@ public class MatsEagerCacheServer {
      * <p>
      * Examples: "950.123 ms", "23.45s", "12m 34s", "1h 23m".
      */
-    public static String _formatMillis(double millis) {
+    static String _formatMillis(double millis) {
         if (millis < 10) {
             return String.format("%.3f ms", millis);
         }
@@ -1255,6 +1400,18 @@ public class MatsEagerCacheServer {
         }
         double hours = minutes / 60d;
         return String.format("%.0fh %.0fm", hours, minutes % 60);
+    }
+
+    private static final DateTimeFormatter ISO8601_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+
+    /**
+     * Static method that formats a millis-since-epoch timestamp into a human-readable string, with the format
+     * "yyyy-MM-dd HH:mm:ss.SSS".
+     */
+    static String _formatTimestamp(long millis) {
+        return Instant.ofEpochMilli(millis)
+                .atZone(ZoneId.systemDefault())
+                .format(ISO8601_FORMATTER);
     }
 
     private DataResult _createDataResult(
