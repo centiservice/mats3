@@ -114,13 +114,13 @@ public class EagerCache_TestJettyServer {
             healthCheckRegistry.startHealthChecks();
 
             // :: Create the MatsEagerCacheGui instances
-            MatsEagerCacheGui clientCacheGui1 = MatsEagerCacheGui.create(
+            MatsEagerCacheHtmlGui clientCacheGui1 = MatsEagerCacheHtmlGui.create(
                     _serversClients.cacheClient1.getCacheClientInformation());
-            MatsEagerCacheGui clientCacheGui2 = MatsEagerCacheGui.create(
+            MatsEagerCacheHtmlGui clientCacheGui2 = MatsEagerCacheHtmlGui.create(
                     _serversClients.cacheClient2.getCacheClientInformation());
-            MatsEagerCacheGui serverCacheGui1 = MatsEagerCacheGui.create(
+            MatsEagerCacheHtmlGui serverCacheGui1 = MatsEagerCacheHtmlGui.create(
                     _serversClients.cacheServer1.getCacheServerInformation());
-            MatsEagerCacheGui serverCacheGui2 = MatsEagerCacheGui.create(
+            MatsEagerCacheHtmlGui serverCacheGui2 = MatsEagerCacheHtmlGui.create(
                     _serversClients.cacheServer2.getCacheServerInformation());
 
             // Put into ServletContext
@@ -171,7 +171,7 @@ public class EagerCache_TestJettyServer {
             // TODO: Do routing to correct interface!
 
             // Pick out MatsEagerCacheGui from ServletContext
-            MatsEagerCacheGui clientCacheGui1 = (MatsEagerCacheGui) req.getServletContext().getAttribute(
+            MatsEagerCacheHtmlGui clientCacheGui1 = (MatsEagerCacheHtmlGui) req.getServletContext().getAttribute(
                     "clientCacheGui1");
 
             clientCacheGui1.json(out, req.getParameterMap(), body);
@@ -191,13 +191,13 @@ public class EagerCache_TestJettyServer {
                     .getAttribute("serverLocal2");
 
             // Pick out all the MatsEagerCacheGui instances from ServletContext
-            MatsEagerCacheGui clientCacheGui1 = (MatsEagerCacheGui) req.getServletContext()
+            MatsEagerCacheHtmlGui clientCacheGui1 = (MatsEagerCacheHtmlGui) req.getServletContext()
                     .getAttribute("clientCacheGui1");
-            MatsEagerCacheGui clientCacheGui2 = (MatsEagerCacheGui) req.getServletContext()
+            MatsEagerCacheHtmlGui clientCacheGui2 = (MatsEagerCacheHtmlGui) req.getServletContext()
                     .getAttribute("clientCacheGui2");
-            MatsEagerCacheGui serverCacheGui1 = (MatsEagerCacheGui) req.getServletContext()
+            MatsEagerCacheHtmlGui serverCacheGui1 = (MatsEagerCacheHtmlGui) req.getServletContext()
                     .getAttribute("serverCacheGui1");
-            MatsEagerCacheGui serverCacheGui2 = (MatsEagerCacheGui) req.getServletContext()
+            MatsEagerCacheHtmlGui serverCacheGui2 = (MatsEagerCacheHtmlGui) req.getServletContext()
                     .getAttribute("serverCacheGui2");
 
             PrintWriter out = resp.getWriter();

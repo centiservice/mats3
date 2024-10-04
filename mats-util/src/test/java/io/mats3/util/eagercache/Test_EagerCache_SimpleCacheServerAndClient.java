@@ -32,7 +32,16 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
     private final ObjectWriter _replyWriter = _objectMapper.writerFor(CustomerData.class);
 
     @Test
-    public void simpleServerAndClient() throws InterruptedException, JsonProcessingException {
+    public void simpleServerAndClient_Small() throws InterruptedException, JsonProcessingException {
+        simpleServerAndClient(0);
+    }
+
+    @Test
+    public void simpleServerAndClient_Large() throws InterruptedException, JsonProcessingException {
+        simpleServerAndClient(Integer.MAX_VALUE);
+    }
+
+    public void simpleServerAndClient(int sizeCutover) throws InterruptedException, JsonProcessingException {
         // ## ARRANGE:
 
         // Create the source data.
@@ -56,6 +65,7 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         // :: Create the CacheClient.
         MatsEagerCacheClient<DataCarrier> cacheClient = MatsEagerCacheClient.create(clientMatsFactory,
                 "Customers", CustomerTransferDTO.class, DataCarrier::new);
+        cacheClient.setSizeCutover(sizeCutover);
 
         CountDownLatch latch = new CountDownLatch(1);
 

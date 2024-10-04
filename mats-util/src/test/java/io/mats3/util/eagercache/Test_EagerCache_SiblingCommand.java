@@ -33,7 +33,9 @@ public class Test_EagerCache_SiblingCommand {
         // :: Create the two MatsFactories, representing two different instances of the server-side service:
         MatsTestBroker matsTestBroker = MatsTestBroker.create();
         MatsFactory serverMatsFactory1 = MatsTestFactory.createWithBroker(matsTestBroker);
+        serverMatsFactory1.getFactoryConfig().setNodename("Server1");
         MatsFactory serverMatsFactory2 = MatsTestFactory.createWithBroker(matsTestBroker);
+        serverMatsFactory2.getFactoryConfig().setNodename("Server2");
 
         // :: Create the CacheServers:
         MatsEagerCacheServer cacheServer1 = MatsEagerCacheServer.create(serverMatsFactory1,

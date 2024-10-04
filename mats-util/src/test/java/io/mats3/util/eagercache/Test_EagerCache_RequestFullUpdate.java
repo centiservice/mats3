@@ -20,25 +20,43 @@ public class Test_EagerCache_RequestFullUpdate {
     private final ObjectWriter _replyWriter = _objectMapper.writerFor(CustomerData.class);
 
     @Test
-    public void onlyClientSide() throws InterruptedException, JsonProcessingException {
-        run(0, 3);
+    public void onlyClientSide_small() throws InterruptedException, JsonProcessingException {
+        run(0, 3, 0);
     }
 
     @Test
-    public void onlyServerSide() throws InterruptedException, JsonProcessingException {
-        run(3, 0);
+    public void onlyServerSide_small() throws InterruptedException, JsonProcessingException {
+        run(3, 0, 0);
     }
 
     @Test
-    public void fromBothServerAndClient() throws InterruptedException, JsonProcessingException {
-        run(3, 3);
+    public void fromBothServerAndClient_small() throws InterruptedException, JsonProcessingException {
+        run(3, 3, 0);
     }
 
-    private void run(int serverSideCount, int clientSideCount) throws InterruptedException, JsonProcessingException {
+    @Test
+    public void onlyClientSide_large() throws InterruptedException, JsonProcessingException {
+        run(0, 3, Integer.MAX_VALUE);
+    }
+
+    @Test
+    public void onlyServerSide_large() throws InterruptedException, JsonProcessingException {
+        run(3, 0, Integer.MAX_VALUE);
+    }
+
+    @Test
+    public void fromBothServerAndClient_large() throws InterruptedException, JsonProcessingException {
+        run(3, 3, Integer.MAX_VALUE);
+    }
+
+    private void run(int serverSideCount, int clientSideCount, int sizeCutover) throws InterruptedException,
+            JsonProcessingException {
         // ## ARRANGE:
 
         int customerCount = 10;
-        CommonSetup_TwoServers_TwoClients serversClients = new CommonSetup_TwoServers_TwoClients(customerCount);
+        CommonSetup_TwoServers_TwoClients serversClients = new CommonSetup_TwoServers_TwoClients(customerCount,
+                (server) -> {
+                }, (client) -> client.setSizeCutover(sizeCutover));
 
         // ## ACT:
 

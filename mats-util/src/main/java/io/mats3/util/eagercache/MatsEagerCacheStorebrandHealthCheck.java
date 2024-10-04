@@ -13,6 +13,7 @@ import com.storebrand.healthcheck.HealthCheckRegistry.RegisteredHealthCheck;
 import com.storebrand.healthcheck.Responsible;
 
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientInformation;
+import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientLifecycle;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerInformation;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerLifeCycle;
 
@@ -66,7 +67,7 @@ public class MatsEagerCacheStorebrandHealthCheck {
                             return checkContext.ok("Server is running");
                         }
                         else {
-                            return checkContext.fault("Server is NOT running - it is in state '"
+                            return checkContext.fault("Server is NOT running - it is '"
                                     + info.getCacheServerLifeCycle() + "'");
                         }
                     });
@@ -111,11 +112,12 @@ public class MatsEagerCacheStorebrandHealthCheck {
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY),
                     checkContext -> {
-                        if (info.isRunning()) {
+                        if (info.getCacheClientLifeCycle() == CacheClientLifecycle.RUNNING) {
                             return checkContext.ok("Client is running");
                         }
                         else {
-                            return checkContext.fault("Client is NOT running");
+                            return checkContext.fault("Client is NOT running - it is '"
+                                    + info.getCacheClientLifeCycle() + "'");
                         }
                     });
             checkSpec.check(responsibleF,

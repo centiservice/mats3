@@ -1,5 +1,7 @@
 package io.mats3.util.eagercache;
 
+import static io.mats3.test.MatsTestHelp.takeNap;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -60,6 +62,14 @@ public class CommonSetup_TwoServers_TwoClients {
 
     public CommonSetup_TwoServers_TwoClients(int originalCount, Consumer<MatsEagerCacheServer> serversAdjust)
             throws JsonProcessingException, InterruptedException {
+        this(originalCount, serversAdjust, (client) -> {
+            // No adjustments
+        });
+    }
+
+    public CommonSetup_TwoServers_TwoClients(int originalCount,
+            Consumer<MatsEagerCacheServer> serversAdjust, Consumer<MatsEagerCacheClient<?>> clientsAdjust)
+            throws JsonProcessingException, InterruptedException {
         // Create source data, one set for each server.
         sourceData1 = DummyFinancialService.createRandomReplyDTO(1234L, originalCount);
         sourceData2 = DummyFinancialService.createRandomReplyDTO(1234L, originalCount);
@@ -85,21 +95,29 @@ public class CommonSetup_TwoServers_TwoClients {
         cacheServer1 = MatsEagerCacheServer.create(serverMatsFactory1,
                 "Customers", CustomerTransferDTO.class,
                 () -> (consumeTo) -> sourceData1.customers.stream()
-                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo));
+                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(o -> {
+                            takeNap(1);
+                            consumeTo.accept(o);
+                        }));
         serversAdjust.accept(cacheServer1);
 
         cacheServer2 = MatsEagerCacheServer.create(serverMatsFactory2,
                 "Customers", CustomerTransferDTO.class,
                 () -> (consumeTo) -> sourceData2.customers.stream()
-                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo));
+                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(o -> {
+                            takeNap(3);
+                            consumeTo.accept(o);
+                        }));
         serversAdjust.accept(cacheServer2);
 
         // :: Create the CacheClients:
         cacheClient1 = MatsEagerCacheClient.create(clientMatsFactory1, "Customers",
                 CustomerTransferDTO.class, DataCarrier::new);
+        clientsAdjust.accept(cacheClient1);
 
         cacheClient2 = MatsEagerCacheClient.create(clientMatsFactory2, "Customers",
                 CustomerTransferDTO.class, DataCarrier::new);
+        clientsAdjust.accept(cacheClient2);
 
         cacheClient1_latch = new CountDownLatch[1];
         cacheClient2_latch = new CountDownLatch[1];
