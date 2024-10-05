@@ -45,11 +45,15 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.CacheRequestDto;
  * from it. The client will block {@link #get()}-invocations until the initial full population is done, and during
  * subsequent repopulations.
  * <p>
+ * <b>Most of the MatsEagerCache system is documented in the {@link MatsEagerCacheServer} class, which is the server
+ * part of the system.</b> Only the client-specific parts are documented here.
+ * <p>
  * Thread-safety: This class is thread-safe after construction and {@link #start()} has been invoked, specifically
  * {@link #get()} is meant to be invoked from multiple threads.
  * 
  * @param <DATA>
- *            the type of the data structures object that shall be returned.
+ *            the type of the data structures object that shall be returned to the "end user" - this is opposed to the
+ *            additional {@literal <TRANSFER>} type in the constructor, which is the type that the server sends.
  * 
  * @author Endre Stølsvik 2024-09-03 19:30 - http://stolsvik.com/, endre@stolsvik.com
  */
@@ -83,9 +87,13 @@ public class MatsEagerCacheClient<DATA> {
      *            the function that will be invoked when a full update is received from the server. It is illegal to
      *            return <code>null</code> or throw from this function, which will result in the client throwing an
      *            exception on {@link #get()}.
+     * @param <TRANSFER>
+     *            the type of the received data - which obviously must correspond to the type of the data that the
+     *            server sends, but importantly, the Jackson serializer is configured very leniently, so it will accept
+     *            any kind of JSON structure, and will not fail on missing fields or extra fields.
      */
-    public static <RECV, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
-            Class<RECV> receivedDataType, Function<CacheReceivedData<RECV>, DATA> fullUpdateMapper) {
+    public static <TRANSFER, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
+            Class<TRANSFER> receivedDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper) {
         return new MatsEagerCacheClient<>(matsFactory, dataName, receivedDataType, fullUpdateMapper);
     }
 
@@ -116,9 +124,9 @@ public class MatsEagerCacheClient<DATA> {
      * @see CacheReceivedPartialData
      * @see MatsEagerCacheServer#sendPartialUpdate(CacheDataCallback)
      */
-    public static <RECV, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
-            Class<RECV> receivedDataType, Function<CacheReceivedData<RECV>, DATA> fullUpdateMapper,
-            Function<CacheReceivedPartialData<RECV, DATA>, DATA> partialUpdateMapper) {
+    public static <TRANSFER, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
+            Class<TRANSFER> receivedDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper,
+            Function<CacheReceivedPartialData<TRANSFER, DATA>, DATA> partialUpdateMapper) {
         MatsEagerCacheClient<DATA> client = new MatsEagerCacheClient<>(matsFactory, dataName, receivedDataType,
                 fullUpdateMapper);
         client.setPartialUpdateMapper(partialUpdateMapper);
@@ -126,8 +134,8 @@ public class MatsEagerCacheClient<DATA> {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private <RECV> MatsEagerCacheClient(MatsFactory matsFactory, String dataName, Class<RECV> receivedDataType,
-            Function<CacheReceivedData<RECV>, DATA> fullUpdateMapper) {
+    private <TRANSFER> MatsEagerCacheClient(MatsFactory matsFactory, String dataName, Class<TRANSFER> receivedDataType,
+            Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper) {
         _matsFactory = matsFactory;
         _dataName = dataName;
         _fullUpdateMapper = (Function<CacheReceivedData<?>, DATA>) (Function) fullUpdateMapper;
@@ -146,8 +154,8 @@ public class MatsEagerCacheClient<DATA> {
     private volatile Function<CacheReceivedPartialData<?, DATA>, DATA> _partialUpdateMapper;
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    <RECV> MatsEagerCacheClient<DATA> setPartialUpdateMapper(
-            Function<CacheReceivedPartialData<RECV, DATA>, DATA> partialUpdateMapper) {
+    <TRANSFER> MatsEagerCacheClient<DATA> setPartialUpdateMapper(
+            Function<CacheReceivedPartialData<TRANSFER, DATA>, DATA> partialUpdateMapper) {
         _partialUpdateMapper = (Function<CacheReceivedPartialData<?, DATA>, DATA>) (Function) partialUpdateMapper;
         return this;
     }
@@ -399,14 +407,14 @@ public class MatsEagerCacheClient<DATA> {
      * {@link MatsEagerCacheClient}. This object contains the data that was received from the server, and the metadata
      * that was sent along with the data.
      *
-     * @param <RECV>
+     * @param <TRANSFER>
      *            the type of the received data.
      */
-    public interface CacheReceivedData<RECV> extends CacheReceived {
+    public interface CacheReceivedData<TRANSFER> extends CacheReceived {
         /**
          * @return the received data as a Stream.
          */
-        Stream<RECV> getReceivedDataStream();
+        Stream<TRANSFER> getReceivedDataStream();
     }
 
     /**
@@ -421,14 +429,14 @@ public class MatsEagerCacheClient<DATA> {
      * (e.g. Lists or Maps of entities) are cloned or copied, and then the new data is overwritten or appended to in
      * this copy.</b>
      * 
-     * @param <RECV>
+     * @param <TRANSFER>
      *            the type of the received data.
      * @param <DATA>
      *            the type of the data structures object that shall be returned.
      *
      * @see MatsEagerCacheServer#sendPartialUpdate(CacheDataCallback)
      */
-    public interface CacheReceivedPartialData<RECV, DATA> extends CacheReceivedData<RECV> {
+    public interface CacheReceivedPartialData<TRANSFER, DATA> extends CacheReceivedData<TRANSFER> {
         /**
          * Returns the previous data, whose structures (e.g. Lists, Sets or Maps of entities) should be read out and
          * cloned/copied, and the copies updated or appended with the new data before returning the newly created data
@@ -1012,17 +1020,17 @@ public class MatsEagerCacheClient<DATA> {
                 UnaryOperator.identity()).map(MappingIterator::next);
     }
 
-    private static class CacheReceivedDataImpl<RECV> implements CacheReceivedData<RECV> {
+    private static class CacheReceivedDataImpl<TRANSFER> implements CacheReceivedData<TRANSFER> {
         protected final boolean _fullUpdate;
         protected final int _dataCount;
         protected final String _metadata;
         protected final long _receivedUncompressedSize;
         protected final long _receivedCompressedSize;
 
-        private final Stream<RECV> _rStream;
+        private final Stream<TRANSFER> _rStream;
 
         public CacheReceivedDataImpl(boolean fullUpdate, int dataCount, String metadata, long receivedUncompressedSize,
-                long receivedCompressedSize, Stream<RECV> recvStream) {
+                long receivedCompressedSize, Stream<TRANSFER> recvStream) {
             _fullUpdate = fullUpdate;
             _dataCount = dataCount;
             _metadata = metadata;
@@ -1058,7 +1066,7 @@ public class MatsEagerCacheClient<DATA> {
         }
 
         @Override
-        public Stream<RECV> getReceivedDataStream() {
+        public Stream<TRANSFER> getReceivedDataStream() {
             return _rStream;
         }
 
@@ -1099,12 +1107,12 @@ public class MatsEagerCacheClient<DATA> {
         }
     }
 
-    private static class CacheReceivedPartialDataImpl<RECV, DATA> extends CacheReceivedDataImpl<RECV>
-            implements CacheReceivedPartialData<RECV, DATA> {
+    private static class CacheReceivedPartialDataImpl<TRANSFER, DATA> extends CacheReceivedDataImpl<TRANSFER>
+            implements CacheReceivedPartialData<TRANSFER, DATA> {
         private final DATA _data;
 
         public CacheReceivedPartialDataImpl(boolean fullUpdate, DATA data, int dataSize, String metadata,
-                Stream<RECV> rStream,
+                Stream<TRANSFER> rStream,
                 long receivedUncompressedSize, long receivedCompressedSize) {
             super(fullUpdate, dataSize, metadata, receivedUncompressedSize, receivedCompressedSize, rStream);
             _data = data;

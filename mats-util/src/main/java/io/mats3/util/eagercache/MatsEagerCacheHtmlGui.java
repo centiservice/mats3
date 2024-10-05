@@ -5,9 +5,12 @@ import static io.mats3.util.eagercache.MatsEagerCacheServer._formatHtmlTimestamp
 import static io.mats3.util.eagercache.MatsEagerCacheServer._formatMillis;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientInformation;
+import io.mats3.util.eagercache.MatsEagerCacheServer.CacheMonitor.ExceptionEntry;
+import io.mats3.util.eagercache.MatsEagerCacheServer.CacheMonitor.LogEntry;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerInformation;
 
 /**
@@ -237,6 +240,27 @@ public interface MatsEagerCacheHtmlGui {
             out.append("PartialUpdates: <b>").append(Integer.toString(_info.getNumberOfPartialUpdatesSent()));
             out.append("</b> sent, out of <b>").append(Integer.toString(_info.getNumberOfPartialUpdatesReceived()))
                     .append("</b> received.<br>\n");
+
+            // :: Print out exception entries, or "No exceptions" if none.
+            out.append("<br>\n");
+            List<ExceptionEntry> exceptionEntries = _info.getExceptionEntries();
+            if (exceptionEntries.isEmpty()) {
+                out.append("<h3>Exception entries</h3>\n");
+                out.append("<b><i>No exceptions!</i></b><br>\n");
+            }
+            else {
+                out.append("<h3>Exception entries</h3>\n");
+                for (ExceptionEntry entry : exceptionEntries) {
+                    out.append(entry.toHtmlString()).append("<br>\n");
+                }
+            }
+
+            // :: Print out log entries
+            out.append("<br>\n");
+            out.append("<h3>Log entries</h3>\n");
+            for (LogEntry entry : _info.getLogEntries()) {
+                out.append(entry.toHtmlString()).append("<br>\n");
+            }
         }
 
         @Override
