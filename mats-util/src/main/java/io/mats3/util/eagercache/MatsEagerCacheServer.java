@@ -45,7 +45,6 @@ import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.TraceId;
 import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
-import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientLifecycle;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
 
 /**
@@ -620,7 +619,7 @@ public interface MatsEagerCacheServer {
     }
 
     enum MonitorCategory {
-        INITIAL_POPULATION, PERIODIC_UPDATE, RECEIVED_BROADCAST, CACHE_SERVER, REQUEST_UPDATE_FROM_CLIENT, REQUEST_UPDATE_PERIODIC, REQUEST_UPDATE_SEND_NOW, SIBLING_COMMAND, REQUEST_UPDATE_COALESCE, REQUEST_UPDATE_FROM_SERVER, ENSURE_UPDATE, PRODUCE_DATA, OTHER
+        INITIAL_POPULATION, PERIODIC_UPDATE, RECEIVED_BROADCAST, CACHE_SERVER, CACHE_CLIENT, REQUEST_UPDATE_FROM_CLIENT, REQUEST_UPDATE_PERIODIC, REQUEST_UPDATE_SEND_NOW, REQUEST_UPDATE_COALESCE, REQUEST_UPDATE_FROM_SERVER, ENSURE_UPDATE, SIBLING_COMMAND, PRODUCE_DATA, GET, RECEIVED_UPDATE, SEND_UPDATE, OTHER
     }
 
     interface LogEntry {
@@ -947,6 +946,7 @@ public interface MatsEagerCacheServer {
 
         @Override
         public <TRANSFER> void sendPartialUpdate(CacheDataCallback<TRANSFER> partialDataCallback) {
+            _cacheMonitor.log(INFO, MonitorCategory.SEND_UPDATE, "Partial update invoked!");
             _produceAndSendUpdate(null, () -> partialDataCallback, false);
         }
 
@@ -1172,10 +1172,6 @@ public interface MatsEagerCacheServer {
                         + client.getCacheClientInformation().getNodename()
                         + "], while this MatsEagerCacheServer is for nodename [" + _nodename + "]!");
             }
-            if (!client.getCacheClientInformation().getCacheClientLifeCycle().equals(
-                    CacheClientLifecycle.NOT_YET_STARTED)) {
-                throw new IllegalStateException("The MatsEagerCacheClient is NOT in state NOT_YET_STARTED!");
-            }
             synchronized (this) {
                 if (_cacheClients == null) {
                     _cacheClients = new CopyOnWriteArrayList<>(); // COWAL since we do not sync on reading.
@@ -1297,9 +1293,8 @@ public interface MatsEagerCacheServer {
                         }
                         catch (Throwable t) {
                             _cacheMonitor.exception(MonitorCategory.PERIODIC_UPDATE,
-                                    "Periodic update: Got exception while"
-                                            + " trying to schedule periodic update. Ignoring. We are: [" + _dataName
-                                            + "] "
+                                    "Periodic update: Got exception while trying to schedule periodic update."
+                                            + " Ignoring. We are: [" + _dataName + "] "
                                             + _nodename, t);
                         }
                     }
@@ -1431,7 +1426,7 @@ public interface MatsEagerCacheServer {
                                 "Keep existing proposed leader,"
                                         + " since new suggestion isn't lower. Keeping: ["
                                         + _updateRequest_HandlingNodename
-                                        + "] (..is lower than '" + broadcastDto.sentNodename + "'");
+                                        + "] (..is lower than '" + broadcastDto.sentNodename + "')");
                     }
                 }
             }
@@ -1604,8 +1599,8 @@ public interface MatsEagerCacheServer {
                     && _produceAndSendExecutor.getQueue().isEmpty()) {
                 // -> Yes it was us, and there are no other updates already in the queue.
                 _produceAndSendExecutor.execute(() -> {
-                    _cacheMonitor.log(INFO, MonitorCategory.REQUEST_UPDATE_SEND_NOW, "We are the elected node, and it"
-                            + " becomes us to produce and send full update! Commencing! [" + _nodename
+                    _cacheMonitor.log(INFO, MonitorCategory.SEND_UPDATE, "We are the elected node, and thus"
+                            + " we now produce and send full update! [" + _nodename
                             + "] (currentOutstanding: [" + _updateRequest_OutstandingCount + "])");
 
                     try {
@@ -1622,7 +1617,7 @@ public interface MatsEagerCacheServer {
         }
 
         private void _produceAndSendUpdate(BroadcastDto incomingBroadcastDto,
-                Supplier<MatsEagerCacheServer.CacheDataCallback<?>> dataCallbackSupplier, boolean fullUpdate) {
+                Supplier<CacheDataCallback<?>> dataCallbackSupplier, boolean fullUpdate) {
             try {
                 _produceAndSendUpdateLock.lock();
 
@@ -1882,6 +1877,11 @@ public interface MatsEagerCacheServer {
             ((DecimalFormat) NUMBER_FORMAT).setDecimalFormatSymbols(symbols);
         }
 
+        static String _formatNiceBytes(long bytes) {
+            // Format with thousand-separator bytes, then format as human-readable, same idea as _formatHtmlTimestamp
+            return NUMBER_FORMAT.format(bytes) + " B (" + _formatBytes(bytes) + ")";
+        }
+
         static String _formatHtmlBytes(long bytes) {
             // Format with thousand-separator bytes, then format as human-readable, same idea as _formatHtmlTimestamp
             return "<b>" + NUMBER_FORMAT.format(bytes) + " B</b> <i>(" + _formatBytes(bytes) + ")</i>";
@@ -1933,9 +1933,9 @@ public interface MatsEagerCacheServer {
                 }
                 catch (Throwable t) {
                     _currentlyHavingProblemsCreatingSourceDataResult = true;
-                    _cacheMonitor.exception(MonitorCategory.PRODUCE_DATA, "Got exception while trying to produce data.",
-                            t);
-                    throw new RuntimeException("Got exception while trying to produce data.", t);
+                    var msg = "Got exception while trying to produce data.";
+                    _cacheMonitor.exception(MonitorCategory.PRODUCE_DATA, msg, t);
+                    throw new RuntimeException(msg, t);
                 }
                 // Close and finish the Jackson SequenceWriter
                 try {

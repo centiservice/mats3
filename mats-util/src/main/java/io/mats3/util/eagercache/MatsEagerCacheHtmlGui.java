@@ -106,7 +106,7 @@ public interface MatsEagerCacheHtmlGui {
                     .append("</b><br>\n");
             out.append("<br>\n");
 
-            out.append("LastAnypdateReceivedTimestamp: ")
+            out.append("LastAnyUpdateReceivedTimestamp: ")
                     .append(_formatHtmlTimestamp(_info.getAnyUpdateReceivedTimestamp())).append("<br>\n");
             out.append("LastFullUpdateReceivedTimestamp: ")
                     .append(_formatHtmlTimestamp(_info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
@@ -126,8 +126,8 @@ public interface MatsEagerCacheHtmlGui {
                         .append("<br>\n");
                 out.append("LastUpdateCompressedSize: ")
                         .append(_formatHtmlBytes(_info.getLastUpdateCompressedSize())).append("<br>\n");
-                out.append("LastUpdateUncompressedSize: ")
-                        .append(_formatHtmlBytes(_info.getLastUpdateUncompressedSize())).append("<br>\n");
+                out.append("LastUpdateDecompressedSize: ")
+                        .append(_formatHtmlBytes(_info.getLastUpdateDecompressedSize())).append("<br>\n");
                 out.append("LastUpdateDataCount: ").append("<b>")
                         .append(Integer.toString(_info.getLastUpdateDataCount())).append("</b><br>\n");
                 out.append("<br>\n");
@@ -143,6 +143,31 @@ public interface MatsEagerCacheHtmlGui {
             out.append("NumberOfAccesses: ").append("<b>")
                     .append(Long.toString(_info.getNumberOfAccesses())).append("</b><br>\n");
 
+            logsAndExceptions(out, _info.getExceptionEntries(), _info.getLogEntries());
+        }
+
+        static void logsAndExceptions(Appendable out, List<ExceptionEntry> exceptionEntries, List<LogEntry> logEntries)
+                throws IOException {
+            out.append("<br>\n");
+
+            // :: Print out exception entries, or "No exceptions" if none.
+            if (exceptionEntries.isEmpty()) {
+                out.append("<h3>Exception entries</h3>\n");
+                out.append("<b><i>No exceptions!</i></b><br>\n");
+            }
+            else {
+                out.append("<h3>Exception entries</h3>\n");
+                for (ExceptionEntry entry : exceptionEntries) {
+                    out.append(entry.toHtmlString()).append("<br>\n");
+                }
+            }
+
+            // :: Print out log entries
+            out.append("<br>\n");
+            out.append("<h3>Log entries</h3>\n");
+            for (LogEntry entry : logEntries) {
+                out.append(entry.toHtmlString()).append("<br>\n");
+            }
         }
 
         @Override
@@ -241,26 +266,7 @@ public interface MatsEagerCacheHtmlGui {
             out.append("</b> sent, out of <b>").append(Integer.toString(_info.getNumberOfPartialUpdatesReceived()))
                     .append("</b> received.<br>\n");
 
-            // :: Print out exception entries, or "No exceptions" if none.
-            out.append("<br>\n");
-            List<ExceptionEntry> exceptionEntries = _info.getExceptionEntries();
-            if (exceptionEntries.isEmpty()) {
-                out.append("<h3>Exception entries</h3>\n");
-                out.append("<b><i>No exceptions!</i></b><br>\n");
-            }
-            else {
-                out.append("<h3>Exception entries</h3>\n");
-                for (ExceptionEntry entry : exceptionEntries) {
-                    out.append(entry.toHtmlString()).append("<br>\n");
-                }
-            }
-
-            // :: Print out log entries
-            out.append("<br>\n");
-            out.append("<h3>Log entries</h3>\n");
-            for (LogEntry entry : _info.getLogEntries()) {
-                out.append(entry.toHtmlString()).append("<br>\n");
-            }
+            MatsEagerCacheClientHtmlGui.logsAndExceptions(out, _info.getExceptionEntries(), _info.getLogEntries());
         }
 
         @Override

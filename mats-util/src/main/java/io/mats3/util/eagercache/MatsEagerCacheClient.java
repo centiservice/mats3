@@ -1,7 +1,10 @@
 package io.mats3.util.eagercache;
 
+import static io.mats3.util.eagercache.MatsEagerCacheServer.LogLevel.INFO;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.LogLevel.WARN;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatBytes;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatMillis;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatNiceBytes;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,9 +43,13 @@ import io.mats3.util.TraceId;
 import io.mats3.util.compression.InflaterInputStreamWithStats;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl.CacheUpdatedImpl;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheDataCallback;
+import io.mats3.util.eagercache.MatsEagerCacheServer.ExceptionEntry;
+import io.mats3.util.eagercache.MatsEagerCacheServer.LogEntry;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.BroadcastDto;
+import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.CacheMonitor;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.CacheRequestDto;
+import io.mats3.util.eagercache.MatsEagerCacheServer.MonitorCategory;
 
 /**
  * The client for the Mats Eager Cache system. This client will connect to a Mats Eager Cache server, and receive data
@@ -53,9 +60,9 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.Ca
  * part of the system.</b> Only the client-specific parts are documented here.
  * <p>
  * <b>Note wrt. developing a Client along with the corresponding Server:</b> You'll face a problem where both the server
- * and the client wants to listen to the same topic, which MatsFactory forbids. The solution is to use the "forwarding
- * server" functionality, where the server forwards the cache updates to the client. This is done by invoking
- * {@link #startWithServer(MatsEagerCacheServer)} instead of {@link #start()}.
+ * and the client wants to listen to the same topic, which MatsFactory forbids. The solution is to use the "linked
+ * forwarding server" functionality, where the linked server forwards the cache updates to the client. This is done by
+ * invoking {@link #linkToServer(MatsEagerCacheServer)} before calling {@link #start()}.
  * <p>
  * Thread-safety: This class is thread-safe after construction and {@link #start()} has been invoked, specifically
  * {@link #get()} is meant to be invoked from multiple threads.
@@ -362,7 +369,7 @@ public interface MatsEagerCacheClient<DATA> {
 
         long getLastUpdateCompressedSize();
 
-        long getLastUpdateUncompressedSize();
+        long getLastUpdateDecompressedSize();
 
         int getLastUpdateDataCount();
 
@@ -377,6 +384,10 @@ public interface MatsEagerCacheClient<DATA> {
         int getNumberOfPartialUpdatesReceived();
 
         long getNumberOfAccesses();
+
+        List<LogEntry> getLogEntries();
+
+        List<ExceptionEntry> getExceptionEntries();
     }
 
     /**
@@ -464,7 +475,7 @@ public interface MatsEagerCacheClient<DATA> {
     // ======== The 'MatsEagerCacheClient' implementation class
 
     class MatsEagerCacheClientImpl<DATA> implements MatsEagerCacheClient<DATA> {
-        private static final Logger log = LoggerFactory.getLogger(MatsEagerCacheClient.class);
+        private static final Logger log2 = LoggerFactory.getLogger(MatsEagerCacheClient.class);
 
         private final MatsFactory _matsFactory;
         private final String _dataName;
@@ -519,7 +530,7 @@ public interface MatsEagerCacheClient<DATA> {
         // Tasks to run after initial population.
         // Note: Also used as a fast-path indicator for addOnInitialPopulationTask(), by being nulled.
         // Synchronized on this, but also volatile since we use it as fast-path indicator.
-        private volatile List<Runnable> _onInitialPopulationTasks = new ArrayList<>();
+        private volatile List<Runnable> _afterInitialPopulationTasks = new ArrayList<>();
 
         // Listeners for cache updates
         private final CopyOnWriteArrayList<Consumer<CacheUpdated>> _cacheUpdatedListeners = new CopyOnWriteArrayList<>();
@@ -535,7 +546,7 @@ public interface MatsEagerCacheClient<DATA> {
         private volatile double _lastUpdateDurationMillis;
 
         private volatile int _lastUpdateCompressedSize;
-        private volatile long _lastUpdateUncompressedSize;
+        private volatile long _lastUpdateDecompressedSize;
         private volatile int _lastUpdateDataCount;
         private volatile String _lastUpdateMetadata;
         private volatile boolean _lastUpdateWasFull;
@@ -553,6 +564,8 @@ public interface MatsEagerCacheClient<DATA> {
         private volatile MatsEndpoint<?, ?> _broadcastTerminator;
 
         private volatile MatsEagerCacheServer _forwardingLinkedServer_ForDevelopment;
+
+        private final CacheMonitor _cacheMonitor = new CacheMonitor(log2);
 
         private class CacheClientInformationImpl implements CacheClientInformation {
             @Override
@@ -621,8 +634,8 @@ public interface MatsEagerCacheClient<DATA> {
             }
 
             @Override
-            public long getLastUpdateUncompressedSize() {
-                return _lastUpdateUncompressedSize;
+            public long getLastUpdateDecompressedSize() {
+                return _lastUpdateDecompressedSize;
             }
 
             @Override
@@ -659,6 +672,16 @@ public interface MatsEagerCacheClient<DATA> {
             public long getNumberOfAccesses() {
                 return _accessCounter.get();
             }
+
+            @Override
+            public List<LogEntry> getLogEntries() {
+                return _cacheMonitor.getLogEntries();
+            }
+
+            @Override
+            public List<ExceptionEntry> getExceptionEntries() {
+                return _cacheMonitor.getExceptionEntries();
+            }
         }
 
         /**
@@ -667,20 +690,20 @@ public interface MatsEagerCacheClient<DATA> {
          * guaranteed.
          *
          * @param runnable
-         *            the runnable to invoke after the initial population is done.
+         *            the runnable to invoke after the initial population is done (or immediately if already done).
          * @return this instance, for chaining.
          */
         @Override
         public MatsEagerCacheClient<DATA> addAfterInitialPopulationTask(Runnable runnable) {
             boolean runNow = true;
             // ?: Is the initial population list still present, that is, are we still in the initial population phase?
-            if (_onInitialPopulationTasks != null) {
+            if (_afterInitialPopulationTasks != null) {
                 // -> Yes, still present, so we're still in the initial population phase.
                 synchronized (this) {
                     // ?: Is the list still present?
-                    if (_onInitialPopulationTasks != null) {
+                    if (_afterInitialPopulationTasks != null) {
                         // -> Yes, still present, so add the runnable to the list.
-                        _onInitialPopulationTasks.add(runnable);
+                        _afterInitialPopulationTasks.add(runnable);
                         // We don't run it now, as we're still in the initial population phase.
                         runNow = false;
                     }
@@ -756,9 +779,9 @@ public interface MatsEagerCacheClient<DATA> {
                         localLatch.await();
                     }
                     catch (InterruptedException e) {
-                        // TODO: Log exception to monitor and HealthCheck.
-                        throw new RuntimeException("Got interrupted while waiting for initial population to be done.",
-                                e);
+                        var msg = "Got interrupted while waiting for initial population to be done.";
+                        _cacheMonitor.exception(MonitorCategory.GET, msg, e);
+                        throw new RuntimeException(msg, e);
                     }
                 }
             }
@@ -766,9 +789,11 @@ public interface MatsEagerCacheClient<DATA> {
             _cacheContentReadLock.lock();
             try {
                 if (_data == null) {
-                    // TODO: Log exception to monitor and HealthCheck - OR, rather, on the setter side.
-                    throw new IllegalStateException("The data is null, which the cache API contract explicitly forbids."
-                            + " Fix your cache update code!");
+                    var msg = "The data is null, which the cache API contract explicitly forbids!"
+                            + " Fix your cache update code!";
+                    var up = new IllegalStateException(msg);
+                    _cacheMonitor.exception(MonitorCategory.GET, msg, up);
+                    throw up;
                 }
                 _accessCounter.incrementAndGet();
                 return _data;
@@ -797,6 +822,9 @@ public interface MatsEagerCacheClient<DATA> {
             }
             _cacheStartedTimestamp = System.currentTimeMillis();
 
+            // Set lifecycle to "starting", so that we can handle the initial population.
+            _cacheClientLifecycle = CacheClientLifecycle.STARTING_AWAITING_INITIAL;
+
             // ?: Are we in development mode, where we're linking to a server in the same codebase?
             if (_forwardingLinkedServer_ForDevelopment != null) {
                 // -> Yes, so we start with the server.
@@ -805,13 +833,13 @@ public interface MatsEagerCacheClient<DATA> {
             }
             // E-> No, so we start with the SubscriptionTerminator.
 
+            _cacheMonitor.log(INFO, MonitorCategory.CACHE_CLIENT, "Starting the MatsEagerCacheClient"
+                    + " for data [" + _dataName + "].");
+
             // :: Listener to the update topic.
             _broadcastTerminator = _matsFactory.subscriptionTerminator(
                     MatsEagerCacheServerImpl._getBroadcastTopic(_dataName),
                     void.class, BroadcastDto.class, this::processLambdaForSubscriptionTerminator);
-
-            // Set lifecycle to "starting", so that we can handle the initial population.
-            _cacheClientLifecycle = CacheClientLifecycle.STARTING_AWAITING_INITIAL;
 
             // :: Perform the initial cache update request in a separate thread, so that we can wait for the endpoint to
             // be ready, and then send the request. We return immediately.
@@ -823,10 +851,10 @@ public interface MatsEagerCacheClient<DATA> {
                 // ?: Did it start?
                 if (!started) {
                     // -> No, so that's bad.
-                    String msg = "The Update handler SubscriptionTerminator Endpoint would not start within 10 minutes.";
-                    log.error(LOG_PREFIX + msg);
-                    // TODO: Log exception to monitor and HealthCheck.
-                    throw new IllegalStateException(msg);
+                    var msg = "The Update handling SubscriptionTerminator Endpoint would not start within 10 minutes.";
+                    var up = new IllegalStateException(msg);
+                    _cacheMonitor.exception(MonitorCategory.INITIAL_POPULATION, msg, up);
+                    throw up;
                 }
                 _initialPopulationRequestSentTimestamp = System.currentTimeMillis();
                 _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_BOOT);
@@ -847,28 +875,31 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         public MatsEagerCacheClient<DATA> _startWithServer(MatsEagerCacheServer forwardingServer) {
-            // !! We do NOT start the SubscriptionTerminator, but rely on the server to forward the cache updates to us.
-            // Link to server
-            ((MatsEagerCacheServerImpl) forwardingServer)._registerForwardToClient(this);
+            _cacheMonitor.log(INFO, MonitorCategory.CACHE_CLIENT, "Starting the Linked-to-Server"
+                    + " MatsEagerCacheClient for data [" + _dataName + "].");
 
-            // Set lifecycle to "starting", so that we can handle the initial population.
-            _cacheClientLifecycle = CacheClientLifecycle.STARTING_AWAITING_INITIAL;
+            // !! We do NOT start the SubscriptionTerminator, but rely on the server to forward the cache updates to us.
+            // Link to server - this is immediate, not waiting for anything.
+            ((MatsEagerCacheServerImpl) forwardingServer)._registerForwardToClient(this);
 
             // :: Perform the initial cache update request in a separate thread, so that we can wait for the endpoint to
             // be ready, and then send the request. We return immediately.
             Thread thread = new Thread(() -> {
                 // :: Wait for the server to be ready.
                 try {
-                    ((MatsEagerCacheServerImpl) forwardingServer)._waitForReceiving(10 * 60);
+                    ((MatsEagerCacheServerImpl) forwardingServer)._waitForReceiving(2 * 60);
                 }
                 catch (Throwable t) {
-                    // TODO: Log exception to monitor and HealthCheck.
+                    var msg = "The linked server would not start within 2 minutes.";
+                    var up = new IllegalStateException(msg);
+                    _cacheMonitor.exception(MonitorCategory.INITIAL_POPULATION, msg, up);
+                    throw up;
                 }
 
                 _initialPopulationRequestSentTimestamp = System.currentTimeMillis();
                 _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_BOOT);
             });
-            thread.setName("MatsEagerCacheClient-" + _dataName + "-initialCacheUpdateRequest");
+            thread.setName("MatsEagerCacheClient-" + _dataName + "-initialCacheUpdateRequest-Linked-to-Server");
             // If the JVM is shut down due to bad boot, this thread should not prevent it from exiting.
             thread.setDaemon(true);
             // Start it.
@@ -883,8 +914,14 @@ public interface MatsEagerCacheClient<DATA> {
                 // None of my concern
                 return;
             }
-            // ?: Check if we're running (or awaiting), so we don't accidentally process updates after
-            // close.
+
+            _cacheMonitor.log(INFO, MonitorCategory.RECEIVED_UPDATE, "Received cache update for data [" + _dataName
+                    + "], command [" + msg.command + "]: meta: [" + msg.metadata
+                    + "], compressed: [" + _formatNiceBytes(msg.compressedSize)
+                    + "], decompressed: [" + _formatNiceBytes(msg.uncompressedSize)
+                    + "], dataCount: [" + msg.dataCount + "].");
+
+            // ?: Check if we're running (or awaiting), so we don't accidentally process updates after close.
             if ((_cacheClientLifecycle != CacheClientLifecycle.RUNNING)
                     && (_cacheClientLifecycle != CacheClientLifecycle.STARTING_AWAITING_INITIAL)) {
                 // -> We're not running or waiting for initial population, so we don't process the update.
@@ -929,7 +966,8 @@ public interface MatsEagerCacheClient<DATA> {
          */
         @Override
         public void close() {
-            log.info(LOG_PREFIX + "Closing down the MatsEagerCacheClient for data [" + _dataName + "].");
+            _cacheMonitor.log(INFO, MonitorCategory.CACHE_CLIENT, "Closing down the MatsEagerCacheClient"
+                    + " for data [" + _dataName + "].");
             // Stop the executor anyway.
             _receiveSingleBlockingThreadExecutorService.shutdown();
             synchronized (this) {
@@ -1005,23 +1043,30 @@ public interface MatsEagerCacheClient<DATA> {
             req.sentNanoTime = System.nanoTime();
             req.command = command;
 
+            String reason = command.equals(CacheRequestDto.COMMAND_REQUEST_BOOT)
+                    ? "InitialCacheUpdateRequest"
+                    : "ManualCacheUpdateRequest";
+
+            MonitorCategory category = command.equals(CacheRequestDto.COMMAND_REQUEST_BOOT)
+                    ? MonitorCategory.INITIAL_POPULATION
+                    : MonitorCategory.REQUEST_UPDATE_FROM_CLIENT;
+
+            _cacheMonitor.log(INFO, category, "Sending " + reason + " [" + command + "] to server on queue '"
+                    + MatsEagerCacheServerImpl._getCacheRequestQueue(_dataName) + "'.");
+
             // :: Send it off
             try {
-                String reason = command.equals(CacheRequestDto.COMMAND_REQUEST_BOOT)
-                        ? "initialCacheUpdateRequest"
-                        : "manualCacheUpdateRequest";
                 _matsFactory.getDefaultInitiator().initiate(init -> init.traceId(
                         TraceId.create(_matsFactory.getFactoryConfig().getAppName(),
                                 "MatsEagerCacheClient-" + _dataName, reason))
-                        .from("MatsEagerCacheClient." + _dataName + "." + reason)
+                        .from("MatsEagerCacheClient." + _dataName + ".UpdateRequest")
                         .to(MatsEagerCacheServerImpl._getCacheRequestQueue(_dataName))
                         .send(req));
             }
-            catch (Exception e) {
-                // TODO: Log exception to monitor and HealthCheck.
-                String msg = "Got exception when initiating the initial cache update request.";
-                log.error(LOG_PREFIX + msg, e);
-                throw new IllegalStateException(msg, e);
+            catch (Throwable t) {
+                var msg = "Got exception when initiating " + reason + ".";
+                _cacheMonitor.exception(MonitorCategory.INITIAL_POPULATION, msg, t);
+                throw new IllegalStateException(msg, t);
             }
         }
 
@@ -1081,10 +1126,8 @@ public interface MatsEagerCacheClient<DATA> {
                             Thread.sleep(100);
                         }
                         catch (InterruptedException e) {
-                            // TODO: Log exception to monitor and HealthCheck.
-                            log.info(LOG_PREFIX
-                                    + "Was interrupted while sleeping before acting on full update. Assuming"
-                                    + " shutdown, thus returning immediately.");
+                            _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got interrupted while sleeping before"
+                                    + " acting on full update. Assuming shutdown, thus returning immediately.", e);
                             return;
                         }
                     }
@@ -1099,9 +1142,10 @@ public interface MatsEagerCacheClient<DATA> {
                                 msg.uncompressedSize, msg.compressedSize, _getReceiveStreamFromPayload(payload)));
                     }
                     catch (Throwable e) {
-                        log.error(LOG_PREFIX + "Got exception when invoking the full update mapper - this is VERY BAD!",
-                                e);
-                        // TODO: Log exception to monitor and HealthCheck.
+                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got exception when invoking the full update"
+                                + " mapper - this is VERY BAD!", e);
+                        // Nothing to do. Everything is bad.
+                        return;
                     }
                     // ?: Was this NOT a large update?
                     if (!largeUpdate) {
@@ -1119,17 +1163,18 @@ public interface MatsEagerCacheClient<DATA> {
                     // -> :: PARTIAL UPDATE, so then we update the data "in place".
 
                     if (_data == null) {
-                        // TODO: Log exception to monitor and HealthCheck?
-                        log.warn(LOG_PREFIX + "We got a partial update without having any data. This is probably due"
-                                + " to the initial population not being done yet, or the data being nulled out"
-                                + " due to some error. Ignoring the partial update.");
+                        _cacheMonitor.log(WARN, MonitorCategory.RECEIVED_UPDATE, "We got a partial update without having any"
+                                + " data. This is probably due to the initial population not being done yet, or the"
+                                + " data being nulled out due to some error. Ignoring the partial update.");
                         return;
                     }
 
                     if (_partialUpdateMapper == null) {
-                        // TODO: Log exception to monitor and HealthCheck.
-                        log.error(LOG_PREFIX + "We got a partial update, but we don't have a partial update mapper."
-                                + " Ignoring the partial update.");
+                        // This is a severe error, as the user has not provided a partial update mapper, and we got a
+                        // partial update.
+                        var logMsg = "We got a partial update, but we don't have a partial update mapper. Ignoring the"
+                                + " partial update.";
+                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, logMsg, new IllegalStateException(logMsg));
                         return;
                     }
 
@@ -1140,20 +1185,16 @@ public interface MatsEagerCacheClient<DATA> {
                     if (largeUpdate) {
                         // -> Yes, large update
                         // Sleep for a pretty small while, to let the Mats thread finish up and release the JMS Message,
-                        // so
-                        // that it can be GCed. Note: We won't get the benefit of the GC on the data structures, as
-                        // we'll
-                        // need to provide the "current view" to the partial update mapper. (This is the reason why one
-                        // shouldn't do partial updates if the part is a significant part of the data, but rather do
-                        // full)
+                        // so that it can be GCed. Note: We won't get the benefit of the GC on the data structures, as
+                        // we'll need to provide the "current view" to the partial update mapper. (This is the reason
+                        // why one shouldn't do partial updates if the part is a significant part of the data, but
+                        // rather do full)
                         try {
                             Thread.sleep(25);
                         }
                         catch (InterruptedException e) {
-                            // TODO: Log exception to monitor and HealthCheck.
-                            log.info(LOG_PREFIX
-                                    + "Was interrupted while sleeping before acting on partial update. Assuming"
-                                    + " shutdown, thus returning immediately.");
+                            _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got interrupted while sleeping before"
+                                    + " acting on partial update. Assuming shutdown, thus returning immediately.", e);
                             return;
                         }
                     }
@@ -1169,10 +1210,10 @@ public interface MatsEagerCacheClient<DATA> {
                                 msg.uncompressedSize, msg.compressedSize));
                     }
                     catch (Throwable e) {
-                        // TODO: Log exception to monitor and HealthCheck.
-                        log.error(LOG_PREFIX
-                                + "Got exception when invoking the partial update mapper - this is VERY BAD!",
-                                e);
+                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got exception when invoking the partial update"
+                                + " mapper - this is VERY BAD!", e);
+                        // Nothing to do. Everything is bad.
+                        return;
                     }
                     // ?: Was this NOT a large update?
                     if (!largeUpdate) {
@@ -1208,7 +1249,7 @@ public interface MatsEagerCacheClient<DATA> {
             _lastUpdateDurationMillis = (System.nanoTime() - nanosAsStart_update) / 1_000_000d;
             // .. and the sizes
             _lastUpdateCompressedSize = msg.compressedSize;
-            _lastUpdateUncompressedSize = msg.uncompressedSize;
+            _lastUpdateDecompressedSize = msg.uncompressedSize;
             // .. and the count
             _lastUpdateDataCount = msg.dataCount;
             // .. and the metadata
@@ -1249,25 +1290,24 @@ public interface MatsEagerCacheClient<DATA> {
                  */
 
                 // NOTE: It is nulled by us only, which hasn't happened yet, so it will be non-null now.
-                List<Runnable> localOnInitialPopulationTasks;
+                List<Runnable> localAfterInitialPopulationTasks;
                 synchronized (this) {
                     // Copy the field to local variable, which we'll run through outside the synchronized block.
-                    localOnInitialPopulationTasks = _onInitialPopulationTasks;
+                    localAfterInitialPopulationTasks = _afterInitialPopulationTasks;
                     // Null out the reference to the list (volatile field), since we in the .get() use it as
                     // evaluation of whether we're still in the initial population phase, or have passed it.
                     // NOTE: This is the only place the field is nulled, and it is nulled within synch on this.
-                    _onInitialPopulationTasks = null;
+                    _afterInitialPopulationTasks = null;
                 }
                 // Run all the runnables that have been added.
-                for (Runnable onInitialPopulationTask : localOnInitialPopulationTasks) {
+                for (Runnable afterInitialPopulationTask : localAfterInitialPopulationTasks) {
                     try {
-                        onInitialPopulationTask.run();
+                        afterInitialPopulationTask.run();
                     }
-                    catch (Exception e) {
-                        // TODO: Handle exception.
-                        log.error(LOG_PREFIX + "Got exception when running onInitialPopulationTask ["
-                                + onInitialPopulationTask
-                                + "], ignoring but this is probably pretty bad.", e);
+                    catch (Throwable t) {
+                        _cacheMonitor.exception(MonitorCategory.INITIAL_POPULATION, "Got exception when running"
+                                + " afterInitialPopulationTask [" + afterInitialPopulationTask
+                                + "], ignoring but this is probably pretty bad.", t);
                     }
                 }
             }
@@ -1281,10 +1321,9 @@ public interface MatsEagerCacheClient<DATA> {
                 try {
                     listener.accept(cacheUpdated);
                 }
-                catch (Exception e) {
-                    // TODO: Handle exception.
-                    log.error(LOG_PREFIX + "Got exception when notifying cacheUpdatedListener [" + listener
-                            + "], ignoring but this is probably pretty bad.", e);
+                catch (Throwable t) {
+                    _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got exception when notifying cacheUpdatedListener"
+                            + " [" + listener + "], ignoring but this is probably pretty bad.", t);
                 }
             }
 
@@ -1684,7 +1723,7 @@ public interface MatsEagerCacheClient<DATA> {
                 }
 
                 @Override
-                public long getLastUpdateUncompressedSize() {
+                public long getLastUpdateDecompressedSize() {
                     return _createMockCacheUpdated().getUncompressedSize();
                 }
 
@@ -1721,6 +1760,16 @@ public interface MatsEagerCacheClient<DATA> {
                 @Override
                 public long getNumberOfAccesses() {
                     return _accessCounter.get();
+                }
+
+                @Override
+                public List<LogEntry> getLogEntries() {
+                    return List.of();
+                }
+
+                @Override
+                public List<ExceptionEntry> getExceptionEntries() {
+                    return List.of();
                 }
             };
         }
