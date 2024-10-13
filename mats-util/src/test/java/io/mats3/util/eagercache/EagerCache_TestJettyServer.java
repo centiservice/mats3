@@ -7,7 +7,6 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.stream.Collectors;
 
-import javax.jms.ConnectionFactory;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
@@ -70,14 +69,11 @@ public class EagerCache_TestJettyServer {
                 throw new RuntimeException(e);
             }
 
-            // Get JMS ConnectionFactory from ServletContext
-            ConnectionFactory connFactory = (ConnectionFactory) sc.getAttribute(ConnectionFactory.class.getName());
-
-            // Put it in ServletContext, for servlet to get
-            sce.getServletContext().setAttribute("clientMatsFactory1", _serversClients.clientMatsFactory1);
-            sce.getServletContext().setAttribute("clientMatsFactory2", _serversClients.clientMatsFactory2);
-            sce.getServletContext().setAttribute("serverMatsFactory1", _serversClients.serverMatsFactory1);
-            sce.getServletContext().setAttribute("serverMatsFactory2", _serversClients.serverMatsFactory2);
+            // Put the Cache Servers and Clients in ServletContext, for servlet to get
+            sc.setAttribute("clientMatsFactory1", _serversClients.clientMatsFactory1);
+            sc.setAttribute("clientMatsFactory2", _serversClients.clientMatsFactory2);
+            sc.setAttribute("serverMatsFactory1", _serversClients.serverMatsFactory1);
+            sc.setAttribute("serverMatsFactory2", _serversClients.serverMatsFactory2);
 
             // Install the stats keeper interceptor
             LocalStatsMatsInterceptor.install(_serversClients.clientMatsFactory1);
@@ -96,7 +92,7 @@ public class EagerCache_TestJettyServer {
             LocalHtmlInspectForMatsFactory serverLocal2 = LocalHtmlInspectForMatsFactory.create(
                     _serversClients.serverMatsFactory2);
 
-            // Put into ServletContext
+            // Put the LocalInspect HTML GUIs into ServletContext
             sc.setAttribute("clientLocal1", clientLocal1);
             sc.setAttribute("clientLocal2", clientLocal2);
             sc.setAttribute("serverLocal1", serverLocal1);
@@ -106,35 +102,27 @@ public class EagerCache_TestJettyServer {
             HealthCheckLogger healthCheckLogger = dto -> log.info("HealthCheck: " + dto);
             HealthCheckRegistryImpl healthCheckRegistry = new HealthCheckRegistryImpl(Clock.systemDefaultZone(),
                     healthCheckLogger, new ServiceInfo("MatsEagerCache", "#testing#"));
-            MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry,
-                    _serversClients.cacheClient1.getCacheClientInformation());
-            MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry,
-                    _serversClients.cacheClient2.getCacheClientInformation());
-            MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry,
-                    _serversClients.cacheServer1.getCacheServerInformation());
-            MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry,
-                    _serversClients.cacheServer2.getCacheServerInformation());
+            MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry, _serversClients.cacheClient1);
+            MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry, _serversClients.cacheClient2);
+            MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry, _serversClients.cacheServer1);
+            MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry, _serversClients.cacheServer2);
             // Start the HealthCheck subsystem
             healthCheckRegistry.startHealthChecks();
 
-            // :: Create the MatsEagerCacheGui instances
-            MatsEagerCacheHtmlGui clientCacheGui1 = MatsEagerCacheHtmlGui.create(
-                    _serversClients.cacheClient1.getCacheClientInformation());
-            MatsEagerCacheHtmlGui clientCacheGui2 = MatsEagerCacheHtmlGui.create(
-                    _serversClients.cacheClient2.getCacheClientInformation());
-            MatsEagerCacheHtmlGui serverCacheGui1 = MatsEagerCacheHtmlGui.create(
-                    _serversClients.cacheServer1.getCacheServerInformation());
-            MatsEagerCacheHtmlGui serverCacheGui2 = MatsEagerCacheHtmlGui.create(
-                    _serversClients.cacheServer2.getCacheServerInformation());
+            // .. put the HealtCheckRegistry in the ServletContext, for the HealthCheckServlet to get.
+            sc.setAttribute(HealthCheckRegistry.class.getName(), healthCheckRegistry);
 
-            // Put into ServletContext
+            // :: Create the MatsEagerCacheHtmlGui instances for Cache Clients and Servers
+            MatsEagerCacheHtmlGui clientCacheGui1 = MatsEagerCacheHtmlGui.create(_serversClients.cacheClient1);
+            MatsEagerCacheHtmlGui clientCacheGui2 = MatsEagerCacheHtmlGui.create(_serversClients.cacheClient2);
+            MatsEagerCacheHtmlGui serverCacheGui1 = MatsEagerCacheHtmlGui.create(_serversClients.cacheServer1);
+            MatsEagerCacheHtmlGui serverCacheGui2 = MatsEagerCacheHtmlGui.create(_serversClients.cacheServer2);
+
+            // Put the Cache Clients and Servers HTML GUIs into ServletContext
             sc.setAttribute("clientCacheGui1", clientCacheGui1);
             sc.setAttribute("clientCacheGui2", clientCacheGui2);
             sc.setAttribute("serverCacheGui1", serverCacheGui1);
             sc.setAttribute("serverCacheGui2", serverCacheGui2);
-
-            // .. put the HealtCheckRegistry in the ServletContext, for the HealthCheckServlet to get.
-            sc.setAttribute(HealthCheckRegistry.class.getName(), healthCheckRegistry);
         }
 
         @Override

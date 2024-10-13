@@ -1,7 +1,7 @@
 package io.mats3.util.eagercache;
 
-import static io.mats3.util.eagercache.MatsEagerCacheServer._formatBytes;
-import static io.mats3.util.eagercache.MatsEagerCacheServer._formatMillis;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatBytes;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatMillis;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,9 +38,10 @@ import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.TraceId;
 import io.mats3.util.compression.InflaterInputStreamWithStats;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl.CacheUpdatedImpl;
-import io.mats3.util.eagercache.MatsEagerCacheServer.BroadcastDto;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheDataCallback;
-import io.mats3.util.eagercache.MatsEagerCacheServer.CacheRequestDto;
+import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl;
+import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.BroadcastDto;
+import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.CacheRequestDto;
 
 /**
  * The client for the Mats Eager Cache system. This client will connect to a Mats Eager Cache server, and receive data
@@ -537,7 +538,7 @@ public interface MatsEagerCacheClient<DATA> {
 
             @Override
             public String getBroadcastTopic() {
-                return MatsEagerCacheServer._getBroadcastTopic(_dataName);
+                return MatsEagerCacheServerImpl._getBroadcastTopic(_dataName);
             }
 
             @Override
@@ -814,8 +815,8 @@ public interface MatsEagerCacheClient<DATA> {
             }
             // :: Listener to the update topic.
             _cacheStartedTimestamp = System.currentTimeMillis();
-            _broadcastTerminator = _matsFactory.subscriptionTerminator(MatsEagerCacheServer._getBroadcastTopic(
-                    _dataName),
+            _broadcastTerminator = _matsFactory.subscriptionTerminator(
+                    MatsEagerCacheServerImpl._getBroadcastTopic(_dataName),
                     void.class, BroadcastDto.class, (ctx, state, msg) -> {
                         if (!(msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)
                                 || msg.command.equals(BroadcastDto.COMMAND_UPDATE_PARTIAL))) {
@@ -926,7 +927,7 @@ public interface MatsEagerCacheClient<DATA> {
                         TraceId.create(_matsFactory.getFactoryConfig().getAppName(),
                                 "MatsEagerCacheClient-" + _dataName, reason))
                         .from("MatsEagerCacheClient." + _dataName + "." + reason)
-                        .to(MatsEagerCacheServer._getCacheRequestQueue(_dataName))
+                        .to(MatsEagerCacheServerImpl._getCacheRequestQueue(_dataName))
                         .send(req));
             }
             catch (Exception e) {
@@ -1547,7 +1548,7 @@ public interface MatsEagerCacheClient<DATA> {
 
                 @Override
                 public String getBroadcastTopic() {
-                    return MatsEagerCacheServer._getBroadcastTopic(_dataName);
+                    return MatsEagerCacheServerImpl._getBroadcastTopic(_dataName);
                 }
 
                 @Override

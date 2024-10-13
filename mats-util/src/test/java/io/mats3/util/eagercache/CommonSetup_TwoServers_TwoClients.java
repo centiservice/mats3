@@ -26,6 +26,7 @@ import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheReceivedPartialData;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheUpdated;
+import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl;
 
 /**
  * Factored out setup for tests that involve two servers and two clients.
@@ -181,11 +182,9 @@ public class CommonSetup_TwoServers_TwoClients {
             cacheClient2_latch[0].countDown();
         });
 
-        // Changing delays (towards shorter), as we're testing. But also handle CI, which can be dog slow.
-        int shortDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE; // On CI: 1 sec
-        int longDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 2; // On CI: 2 sec
-        cacheServer1._setDelays(shortDelay, longDelay);
-        cacheServer2._setDelays(shortDelay, longDelay);
+        // Adjust delays for testing
+        adjustDelaysForTest(cacheServer1);
+        adjustDelaysForTest(cacheServer2);
 
         log.info("\n\n######### Starting the CacheServers and CacheClient, waiting for CacheServers receiving.\n\n");
 
@@ -206,6 +205,13 @@ public class CommonSetup_TwoServers_TwoClients {
         // Assert that we've only gotten one update for each cache (even though both of them requested full update)
         Assert.assertEquals(1, cacheClient1_updateCount.get());
         Assert.assertEquals(1, cacheClient2_updateCount.get());
+    }
+
+    static void adjustDelaysForTest(MatsEagerCacheServer cacheServer) {
+        // Changing delays (towards shorter), as we're testing. But also handle CI, which can be very slow.
+        int shortDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE; // Local: 250ms, On CI: 1 sec
+        int longDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 2; // Local: 500ms, On CI: 2 sec
+        ((MatsEagerCacheServerImpl) cacheServer)._setDelays(shortDelay, longDelay);
     }
 
     public void waitForClientsUpdate() throws InterruptedException {

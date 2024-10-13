@@ -1,29 +1,29 @@
 package io.mats3.util.eagercache;
 
-import static io.mats3.util.eagercache.MatsEagerCacheServer._formatHtmlBytes;
-import static io.mats3.util.eagercache.MatsEagerCacheServer._formatHtmlTimestamp;
-import static io.mats3.util.eagercache.MatsEagerCacheServer._formatMillis;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatHtmlBytes;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatHtmlTimestamp;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatMillis;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientInformation;
-import io.mats3.util.eagercache.MatsEagerCacheServer.CacheMonitor.ExceptionEntry;
-import io.mats3.util.eagercache.MatsEagerCacheServer.CacheMonitor.LogEntry;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerInformation;
+import io.mats3.util.eagercache.MatsEagerCacheServer.ExceptionEntry;
+import io.mats3.util.eagercache.MatsEagerCacheServer.LogEntry;
 
 /**
  * Embeddable HTML GUI for the {@link MatsEagerCacheClient} and {@link MatsEagerCacheServer}.
  */
 public interface MatsEagerCacheHtmlGui {
 
-    static MatsEagerCacheHtmlGui create(CacheClientInformation info) {
-        return new MatsEagerCacheClientHtmlGui(info);
+    static MatsEagerCacheHtmlGui create(MatsEagerCacheServer client) {
+        return new MatsEagerCacheServerHtmlGui(client);
     }
 
-    static MatsEagerCacheHtmlGui create(CacheServerInformation info) {
-        return new MatsEagerCacheServerHtmlGui(info);
+    static MatsEagerCacheHtmlGui create(MatsEagerCacheClient<?> server) {
+        return new MatsEagerCacheClientHtmlGui(server);
     }
 
     /**
@@ -64,13 +64,13 @@ public interface MatsEagerCacheHtmlGui {
 
     /**
      * Implementation of {@link MatsEagerCacheHtmlGui} for {@link MatsEagerCacheClient} - use the
-     * {@link MatsEagerCacheHtmlGui#create(CacheClientInformation)} factory method to get an instance.
+     * {@link MatsEagerCacheHtmlGui#create(MatsEagerCacheClient)} factory method to get an instance.
      */
     class MatsEagerCacheClientHtmlGui implements MatsEagerCacheHtmlGui {
         private final CacheClientInformation _info;
 
-        private MatsEagerCacheClientHtmlGui(CacheClientInformation info) {
-            _info = info;
+        private MatsEagerCacheClientHtmlGui(MatsEagerCacheClient<?> client) {
+            _info = client.getCacheClientInformation();
         }
 
         @Override
@@ -154,13 +154,13 @@ public interface MatsEagerCacheHtmlGui {
 
     /**
      * Implementation of {@link MatsEagerCacheHtmlGui} for {@link MatsEagerCacheServer} - use the
-     * {@link MatsEagerCacheHtmlGui#create(CacheServerInformation)} factory method to get an instance.
+     * {@link MatsEagerCacheHtmlGui#create(MatsEagerCacheServer)} factory method to get an instance.
      */
     class MatsEagerCacheServerHtmlGui implements MatsEagerCacheHtmlGui {
         private final CacheServerInformation _info;
 
-        private MatsEagerCacheServerHtmlGui(CacheServerInformation info) {
-            _info = info;
+        private MatsEagerCacheServerHtmlGui(MatsEagerCacheServer server) {
+            _info = server.getCacheServerInformation();
         }
 
         @Override

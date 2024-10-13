@@ -31,13 +31,14 @@ public class MatsEagerCacheStorebrandHealthCheck {
      *
      * @param healthCheckRegistry
      *            The HealthCheckRegistry to register the health check with.
-     * @param info
-     *            A CacheServerInformation to use for the health check.
+     * @param server
+     *            The MatsEagerCacheServer to make a health check for.
      * @param responsible
      *            Responsible parties for the health check, if not provided, defaults to {@link Responsible#DEVELOPERS}.
      */
     public static void registerHealthCheck(HealthCheckRegistry healthCheckRegistry,
-                                           CacheServerInformation info, CharSequence... responsible) {
+                                           MatsEagerCacheServer server, CharSequence... responsible) {
+        CacheServerInformation info = server.getCacheServerInformation();
         String id = "'" + info.getDataName() + "' @ '" + info.getNodename() + "'";
         String name = "MatsEagerCacheServer " + id;
         List<RegisteredHealthCheck> registeredHealthChecks = healthCheckRegistry.getRegisteredHealthChecks();
@@ -80,13 +81,14 @@ public class MatsEagerCacheStorebrandHealthCheck {
      *
      * @param healthCheckRegistry
      *            The HealthCheckRegistry to register the health check with.
-     * @param info
-     *            A CacheClientInformation to use for the health check.
+     * @param client
+     *            The MatsEagerCacheClient to make a health check for.
      * @param responsible
      *            Responsible parties for the health check, if not provided, defaults to {@link Responsible#DEVELOPERS}.
      */
     public static void registerHealthCheck(HealthCheckRegistry healthCheckRegistry,
-            CacheClientInformation info, CharSequence... responsible) {
+            MatsEagerCacheClient<?> client, CharSequence... responsible) {
+        CacheClientInformation info = client.getCacheClientInformation();
         String id = "'" + info.getDataName() + "' @ '" + info.getNodename() + "'";
         String name = "MatsEagerCacheClient " + id;
         List<RegisteredHealthCheck> registeredHealthChecks = healthCheckRegistry.getRegisteredHealthChecks();
