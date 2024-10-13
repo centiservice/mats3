@@ -144,6 +144,8 @@ public interface MatsEagerCacheClient<DATA> {
         return new MatsEagerCacheClientMockImpl<>(dataName);
     }
 
+    // ----- Interface: Configuration methods
+
     /**
      * Add a runnable that will be invoked after the initial population is done. If the initial population is already
      * done, it will be invoked immediately by current thread. Note: Run ordering wrt. add ordering is not guaranteed.
@@ -173,20 +175,7 @@ public interface MatsEagerCacheClient<DATA> {
      */
     void setSizeCutover(int size);
 
-    /**
-     * Returns the data - will block until the initial full population is done, and during subsequent repopulations.
-     * <b>It is imperative that neither the data object itself, or any of its contained larger data or structures (e.g.
-     * any Lists or Maps) aren't read out and stored in any object, or held onto by any threads for any timespan above
-     * some few milliseconds, but rather queried anew from the cache for every needed access.</b> This both to ensure
-     * timely update when new data arrives, but more importantly to avoid that memory isn't held up by the old data
-     * structures being kept alive (this is particularly important for large caches).
-     * <p>
-     * It is legal for a thread to call this method before {@link #start()} is invoked, but then some other (startup)
-     * thread must eventually invoke {@link #start()}, otherwise you'll have a deadlock.
-     *
-     * @return the cached data
-     */
-    DATA get();
+    // ----- Interface: Lifecycle methods
 
     /**
      * Starts the cache client - startup is performed in a separate thread, so this method immediately returns - to wait
@@ -202,6 +191,32 @@ public interface MatsEagerCacheClient<DATA> {
     MatsEagerCacheClient<DATA> start();
 
     /**
+     * Close down the cache client. This will stop and remove the SubscriptionTerminator for receiving cache updates,
+     * and shut down the ExecutorService for handling the received data. Closing is idempotent; Multiple invocations
+     * will not have any effect. It is not possible to restart the cache client after it has been closed.
+     */
+    void close();
+
+    // ----- Interface: Client data access
+
+    /**
+     * Returns the data - will block until the initial full population is done, and during subsequent repopulations.
+     * <b>It is imperative that neither the data object itself, or any of its contained larger data or structures (e.g.
+     * any Lists or Maps) aren't read out and stored in any object, or held onto by any threads for any timespan above
+     * some few milliseconds, but rather queried anew from the cache for every needed access.</b> This both to ensure
+     * timely update when new data arrives, but more importantly to avoid that memory isn't held up by the old data
+     * structures being kept alive (this is particularly important for large caches).
+     * <p>
+     * It is legal for a thread to call this method before {@link #start()} is invoked, but then some other (startup)
+     * thread must eventually invoke {@link #start()}, otherwise you'll have a deadlock.
+     *
+     * @return the cached data
+     */
+    DATA get();
+
+    // ----- Interface: Request update and information methods
+
+    /**
      * If a user in some management GUI wants to force a full update, this method can be invoked. This will send a
      * request to the server to perform a full update, which will be broadcast to all clients.
      * <p>
@@ -213,13 +228,6 @@ public interface MatsEagerCacheClient<DATA> {
     void requestFullUpdate();
 
     /**
-     * Close down the cache client. This will stop and remove the SubscriptionTerminator for receiving cache updates,
-     * and shut down the ExecutorService for handling the received data. Closing is idempotent; Multiple invocations
-     * will not have any effect. It is not possible to restart the cache client after it has been closed.
-     */
-    void close();
-
-    /**
      * Returns a "live view" of the cache client information, that is, you only need to invoke this method once to get
      * an instance that will always reflect the current state of the cache client.
      *
@@ -229,21 +237,23 @@ public interface MatsEagerCacheClient<DATA> {
 
     /**
      * Mock of the MatsEagerCacheClient for testing purposes. This mock is purely in-memory, and will not connect to any
-     * server, but instead will use the provided data or data supplier as the data. The goal is to simulate a real cache
-     * client as closely as possible, with some added asynchronous lags added. The mock will block on {@link #get()}
-     * until after {@link #start()} has been invoked, and will not block on {@link #get()} after that.
-     * <p>
-     * You may supply the data using one of two methods {@link #setMockData(Object)} or
+     * message broker or cache server, but instead will use the provided data, or data supplier, as the returned cached
+     * data. The goal is to simulate a real cache client as closely as possible, with some added asynchronous lags
+     * added.
+     * 
+     * <ul>
+     * <li>You may supply the data using one of two methods {@link #setMockData(Object)} or
      * {@link #setMockDataSupplier(Supplier)} - the latter might be useful if you need to know when the data is created.
      * The latest invoked of these two methods will be the one that is used.
-     * <p>
-     * Any after-initial-population tasks added with {@link #addAfterInitialPopulationTask(Runnable)} will be invoked by
-     * another thread some 5 ms after {@link #start()} has been invoked - the same thread right before releases the
-     * latch that {@link #get()} blocks on.
-     * <p>
-     * Any listeners added with {@link #addCacheUpdatedListener(Consumer)} will be invoked some 5 ms after
+     * <li>The mock will block on {@link #get()} until after {@link #start()} has been invoked, and will not block on
+     * {@link #get()} after that.
+     * <li>Any after-initial-population tasks added with {@link #addAfterInitialPopulationTask(Runnable)} will be
+     * invoked by another thread some 5 ms after {@link #start()} has been invoked - the same thread right before
+     * releases the latch that {@link #get()} blocks on.
+     * <li>Any listeners added with {@link #addCacheUpdatedListener(Consumer)} will be invoked some 5 ms after
      * {@link #start()} has been invoked, and then some 5 ms after each time {@link #requestFullUpdate()} has been
      * invoked.
+     * </ul>
      * <p>
      * The information returned from {@link #getCacheClientInformation()} is rather mocky, but the
      * {@link CacheClientInformation#getNumberOfAccesses()} will be updated each time {@link #get()} is invoked, which
@@ -390,10 +400,10 @@ public interface MatsEagerCacheClient<DATA> {
 
     /**
      * Object that is provided to the 'partialUpdateMapper' {@link Function} which was provided to the constructor of
-     * {@link MatsEagerCacheClient}. This object contains the data that was received from the server, and the metadata
-     * that was sent along with the data - as well as the previous 'D' data structures, whose structures (e.g. Lists,
-     * Sets or Maps) should be read out and cloned/copied, and the copies updated with the new data before returning the
-     * newly created 'D' data structures object.
+     * {@link MatsEagerCacheClient}. This object contains (in addition to metadata) both the data that was received from
+     * the server, and the previous 'D' data structures, whose structures (e.g. Lists, Sets or Maps) should be read out
+     * and cloned/copied, and the copies updated with the new data before returning the newly created 'D' data
+     * structures object.
      * <p>
      * <b>it is important that the existing structures (e.g. Lists or Maps of cached entities) aren't updated in-place
      * (as they can potentially simultaneously be accessed by other threads), but rather that each of the structures
@@ -418,7 +428,7 @@ public interface MatsEagerCacheClient<DATA> {
         DATA getPreviousData();
     }
 
-    // ======== The actual MatsEagerCacheClientImpl class
+    // ======== The 'MatsEagerCacheClient' implementation class
 
     class MatsEagerCacheClientImpl<DATA> implements MatsEagerCacheClient<DATA> {
         private static final Logger log = LoggerFactory.getLogger(MatsEagerCacheClient.class);
@@ -1317,7 +1327,7 @@ public interface MatsEagerCacheClient<DATA> {
         }
     }
 
-    // ======== MatsEagerCacheClientMockImpl class
+    // ======== The 'MatsEagerCacheClientMock' implementation class
 
     class MatsEagerCacheClientMockImpl<DATA> implements MatsEagerCacheClientMock<DATA> {
         private static final Logger log = LoggerFactory.getLogger(MatsEagerCacheClientMockImpl.class);
