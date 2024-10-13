@@ -84,50 +84,90 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.CacheMonitor.LogEntry;
  * or locking of the data should be employed while the cache server reads it (mainly relevant if the source data is held
  * in memory).
  * <p>
- * <h2>Design, Usage, and the <code>TRANSFER</code> Data Type</h2>
+ * <h2>Design and Usage of Caches, and the <code>TRANSFER</code> Data Type</h2>
  * <p>
  * You should never send over full domain objects to the clients, but rather a <code>TRANSFER</code> DTO that is
  * tailored to what the clients need. This both to save processing resources (read on!), and to decouple/insulate the
- * service-internal domain API from whatever contract the cache server sets up with the clients.
+ * service-internal domain API from whatever contract the cache server sets up with the clients. Also, you'll want to
+ * keep memory usage on the client for keeping the cached data as low as possible.
  * <p>
- * The Jackson serializer will serialize and deserialize all fields of the DTO, of all visibility levels. It introspects
- * the fields - not using any of the getters. On the deserializing side, <b>it depends on a present no-args constructor
- * to make the object</b>, and it does not use any argument-taking constructor to instantiate. It doesn't use any
- * setters, instead relying on Jackson's ability to set fields directly (technically, the process is different for
- * Records, but that does not make any difference in this context).
+ * <h3>Serializer configuration and consequences</h3>
  * <p>
- * Jackson is also configured very leniently, and compact: On the sending side, it does not include fields that are
- * null. On the receiving side, it does not require fields to be present, and it does not fail if there are extra fields
- * in the JSON. <b>Importantly, this means that there are clear ways of evolving the system: You can both add and remove
- * fields to the server side DTO without breaking the client side.</b> This is because the client side will simply
- * ignore fields it does not know about, and it will not fail if fields are missing. Obviously, if you remove a field
- * that one of the cache's clients are dependent on, it will now receive <code>null</code>, <code>0</code>, or
- * <code>false</code> when he tries to use it, which probably is rather bad. (A multi-repo source-viewing and -searching
- * system like <a href="https://oracle.github.io/opengrok/">OpenGrok</a> is invaluable in such contexts!) <b>This
- * flexibility also implies that you shall NEVER include fields in the Transfer DTO that no clients yet are using "just
- * in case"</b> - this is a complete waste of both CPU, memory and network bandwidth, and will just clutter up your
- * maintenance. Add the field when a client needs it. You might even want to make two caches: One for those services
- * that just need a few fields, and another for those that use many.
+ * The Jackson serializer will serialize and deserialize <b>all fields of the DTO, of all visibility levels.</b> It
+ * introspects the fields - not using any getters. On the deserializing side, <b>it depends on a present no-args
+ * constructor to make the object</b>, and it does not use any argument-taking constructor to instantiate. It doesn't
+ * use any setters, instead relying on Jackson's ability to set fields directly (technically, the process is different
+ * for Records, but that does not make any difference in this context).
  * <p>
- * <b>Testing:</b> You should probably make unit tests that serialize and deserialize the <code>TRANSFER</code> DTO with
- * relevant (deep) content, to ensure that it works as expected. Use the
+ * Jackson is also configured for compact serialization, and lenient deserialization: On the sending side, it does not
+ * include fields that are null. On the receiving side, it does not require DTO specified fields to be present in the
+ * JSON, and it does not fail if there are extra fields in the JSON compared to the DTO. <b>Importantly, this means that
+ * there are clear ways of evolving the data structures: You can both add and remove fields to the server side DTO
+ * without breaking the client side.</b> This is because the client side will simply ignore fields it does not know
+ * about, and it will not fail if fields are missing. Obviously, if you remove a field that one of the cache's clients
+ * are dependent on, it will now receive <code>null</code>, <code>0</code>, or <code>false</code> when the client code
+ * tries to use the field, which probably is rather bad. (A multi-repo source-viewing and -searching system like
+ * <a href="https://oracle.github.io/opengrok/">OpenGrok</a> is invaluable in such contexts!) <b>This flexibility also
+ * implies that you shall NEVER include fields in the Transfer DTO that no clients yet are using "just in case"</b> -
+ * this is a complete waste of both CPU, memory and network bandwidth, and will just clutter up your maintenance. Add
+ * the field when a client needs it. You might even want to make two caches: One for those services that just need a few
+ * fields, and another for those that use many.
+ * <p>
+ * <b>You are advised against using enums!</b> The problem is evolution: If you add a new enum value, and the client
+ * does not yet know about it, it will fail deserialization! Rather use Strings for the enum constants, mapping back
+ * (including a default) to enum values when constructing domain objects from the <code>TRANSFER</code> DTOs on the
+ * client side.
+ * <p>
+ * <b>You should not depend on any Jackson specific features!</b> The idea is that you make a simple
+ * <code>TRANSFER</code> DTO (it can be as deep as you need, with nested DTOs and Maps and Lists and whatever), but not
+ * using any Jackson specific annotations or features. This is to ensure that we can easily switch out Jackson for
+ * another serializer if we find a faster or more efficient one. The only contract the cache system gives is that the
+ * DTO object will "magically appear" on the client side.
+ * <p>
+ * <h3>Memory usage on client when deserializing / Sharing common instances</h3>
+ * <p>
+ * Current experience wrt. usage (financial context with multiple time series over different securities) shows that
+ * there are many instances of date representations and other common identifiers like ISIN. Java does not natively help
+ * one bit with this, so you might end up with a lot of e.g. <code>LocalDate</code> instances representing the same
+ * date. This is a waste of memory, and you will want to consider using a simple shared instance cache for these when
+ * going from the <code>TRANSFER</code> DTO to the actual domain object on the client - this can substantially reduce
+ * memory usage. A simple <code>Map&lt;String, LocalDate&gt;</code> or <code>Map&lt;String, Isin&gt;</code> can do
+ * wonders here, using the {@link Map#computeIfAbsent(Object, java.util.function.Function) computeIfAbsent(..)} method.
+ * If you're sure some particular Strings are common and will effectively live for the duration of the JVM, you should
+ * consider using <code>String.intern()</code> on them.
+ * <p>
+ * <h3>Developing the Client on the Server side</h3>
+ * <p>
+ * It makes sense to develop the client side on the server side, as you then have the full source code available for
+ * both sides, and be close to the source data, thus simplifying the development. Note: You should NOT actually run the
+ * client on the server side, except for testing purposes! Oftentimes, more than one service is interested in the cached
+ * dataset, and in such cases it makes sense to let the "ownership" of the client code be on server side, and copy over
+ * the client code to the other services - for some popular datasets, it might even make sense to have a separate client
+ * library that is shared between the services.
+ * <p>
+ * <h3>Testing</h3>
+ * <p>
+ * You should probably make unit tests that serialize and deserialize the <code>TRANSFER</code> DTO with relevant (deep)
+ * content, to ensure that it works as expected. Use the
  * {@link FieldBasedJacksonMapper#getMats3DefaultJacksonObjectMapper()} for your tests: Make a DTO setup, serialize it
  * and keep the String JSON, then deserialize it, and serialize the result again, asserting that the String JSON is
- * identical. You should probably make integration tests on the service that have the cache server side which
- * additionally creates a cache client (as the dependent services will do), and then do a full run, and then checks that
- * the client has received the DTO as expected (The unit tests in the Mats3 repo under the <code>mats-util</code>
- * module, search for "Test_EagerCache..", can be inspirational). This goes "double up" if you use the partial update
- * feature, as then also the client side becomes a bit more complex.
+ * identical. You should probably make integration tests on the server side which additionally creates the cache client,
+ * and then do a full run, and then checks that the client has received the DTO as expected (The unit tests in the Mats3
+ * repo under the <code>mats-util</code> module, search for "Test_EagerCache..", can be inspirational). This goes
+ * "double up" if you use the partial update feature, as then also the client side becomes a bit more complex.
  * <p>
  * <b>Thread-safety:</b> After the cache server is started, it is thread-safe: Calls to {@link #scheduleFullUpdate()},
- * {@link #sendPartialUpdate(CacheDataCallback)}, and {@link #sendSiblingCommand(String, String, byte[])} are
- * thread-safe, and can be called from any thread - but be sure to read the important notice wrt. deadlock at the
- * sendPartialUpdate(..) JavaDoc. The construction-supplied full-update {@link CacheDataCallback CacheDataCallback} is
- * invoked by a single-threaded executor, however, partial updates are handled by you. If the source data is held in
- * memory, the access from the service, and from the cache, to the data, should be guarded by synchronization or
- * locking. The {@link #addSiblingCommandListener(Consumer)} is thread-safe, and can technically be called both before
- * or after the cache server is started, but listeners should obviously be added before any sibling commands are sent
- * from yourself or your siblings, thus before start is what to aim for.
+ * {@link #sendPartialUpdate(CacheDataCallback) sendPartialUpdate(..)}, and
+ * {@link #sendSiblingCommand(String, String, byte[]) sendSiblingCommand(..)} are thread-safe, and can be called from
+ * any thread - but be sure to read the important notice wrt. deadlock at the
+ * {@link #sendPartialUpdate(CacheDataCallback) sendPartialUpdate(..)} JavaDoc! The construction-supplied full-update
+ * {@link CacheDataCallback CacheDataCallback} is invoked (at any time) by a single-threaded executor within the cache
+ * server, however, partial updates are synchronously handled by you. If the source data is held in memory, you will
+ * probably both have accesses from the service internals itself, and from the cache server. These accesses to this
+ * shared memory must be guarded by synchronization or locking. The {@link #addSiblingCommandListener(Consumer)} is
+ * thread-safe, and can technically be called both before or after the cache server is started, but listeners should
+ * obviously be added before any sibling commands are sent from yourself or your siblings, thus before start() is
+ * invoked is what to aim for.
  * 
  * @author Endre Stølsvik 2024-09-03 19:30 - http://stolsvik.com/, endre@stolsvik.com
  */

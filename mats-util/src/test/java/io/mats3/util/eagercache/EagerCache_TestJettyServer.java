@@ -39,6 +39,10 @@ import com.storebrand.healthcheck.output.HealthCheckTextOutput;
 import io.mats3.localinspect.LocalHtmlInspectForMatsFactory;
 import io.mats3.localinspect.LocalStatsMatsInterceptor;
 
+/**
+ * Test Jetty Server for the EagerCache, which "boots" 2x Cache Server and Clients, and then creates HTML GUIs and
+ * Storebrand HealthChecks for them - to see how this works out in an actual HTML context.
+ */
 public class EagerCache_TestJettyServer {
 
     private static final String CONTEXT_ATTRIBUTE_PORTNUMBER = "ServerPortNumber";
