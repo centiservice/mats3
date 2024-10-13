@@ -12,7 +12,8 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.CacheUpdated;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientMock;
 
 /**
- * Test of the {@link MatsEagerCacheClientMock} solution.
+ * Test of the {@link MatsEagerCacheClientMock} solution: The Client mock itself, setting of data "directly", setting of
+ * data via supplier, and mocking of the CacheUpdated event for cache update listeners.
  */
 public class Test_EagerCache_MockClient {
 
@@ -20,16 +21,9 @@ public class Test_EagerCache_MockClient {
 
     @Test
     public void mockClient() {
-        // :: ARRANGE
+        // :: GLOBAL ARRANGE
 
         MatsEagerCacheClientMock<DataCarrier> mockClient = MatsEagerCacheClient.mock("Customers");
-
-        // Set mock data, using direct method:
-        CustomerData mockSource = DummyFinancialService.createRandomReplyDTO(1234L, 10);
-        DataCarrier mockData = new DataCarrier(mockSource.customers);
-        mockClient.setMockData(mockData);
-
-        // :: ARRANGE MORE - add listeners and barriers for asserting
 
         // Initial population listener/task
         MatsTestBarrier initialPopulationBarrier = new MatsTestBarrier();
@@ -45,14 +39,23 @@ public class Test_EagerCache_MockClient {
             cacheUpdatedBarrier.resolve(update);
         });
 
-        // :: ACT
+        // ===============================================
+
+        // :: ARRANGE #1 - using direct data.
+
+        // Set mock data, using direct method:
+        CustomerData mockSource = DummyFinancialService.createRandomReplyDTO(1234L, 10);
+        DataCarrier mockData = new DataCarrier(mockSource.customers);
+        mockClient.setMockData(mockData);
+
+        // :: ACT #1
 
         mockClient.start();
 
         DataCarrier dataCarrier = mockClient.get();
         log.info("######### Got the data 1! Size:[" + dataCarrier.customers.size() + "]");
 
-        // :: ASSERT
+        // :: ASSERT #1
 
         // Assert data is the same
         Assert.assertSame(mockData, dataCarrier);
@@ -72,7 +75,7 @@ public class Test_EagerCache_MockClient {
 
         // ===============================================
 
-        // :: ARRANGE 2, for the next test using supplier
+        // :: ARRANGE #2 - using data supplier
 
         // Now use the supplier method to set the data
         mockSource = DummyFinancialService.createRandomReplyDTO(21L, 10);
@@ -84,11 +87,11 @@ public class Test_EagerCache_MockClient {
             return mockData2;
         });
 
-        // Reset the other latches
+        // Reset the other barriers.
         initialPopulationBarrier.reset();
         cacheUpdatedBarrier.reset();
 
-        // :: ACT 2
+        // :: ACT #2
 
         // "Request full update" to trigger update listeners
         mockClient.requestFullUpdate();
@@ -97,7 +100,7 @@ public class Test_EagerCache_MockClient {
         dataCarrier = mockClient.get();
         log.info("######### Got the data 2! Size:[" + dataCarrier.customers.size() + "]");
 
-        // :: ASSERT 2
+        // :: ASSERT #2
 
         // Assert that the data callback was invoked
         dataBarrier.await();
@@ -120,10 +123,10 @@ public class Test_EagerCache_MockClient {
 
         // ===============================================
 
-        // :: ARRANGE 3, to check the CacheUpdate mocking
+        // :: ARRANGE #3 - check the CacheUpdate mocking
 
         // Set the CacheUpdate mock
-        MatsTestBarrier cacheUpdateBarrier = new MatsTestBarrier();
+        MatsTestBarrier cacheUpdatedMockedBarrier = new MatsTestBarrier();
         mockClient.setMockCacheUpdatedSupplier(() -> {
             var ret = new CacheUpdated() {
                 @Override
@@ -133,31 +136,31 @@ public class Test_EagerCache_MockClient {
 
                 @Override
                 public int getDataCount() {
-                    return 0;
+                    return -10;
                 }
 
                 @Override
                 public long getCompressedSize() {
-                    return 0;
+                    return -20;
                 }
 
                 @Override
                 public long getUncompressedSize() {
-                    return 0;
+                    return -30;
                 }
 
                 @Override
                 public String getMetadata() {
-                    return "";
+                    return "MetaMock";
                 }
 
                 @Override
                 public double getUpdateDurationMillis() {
-                    return 0;
+                    return Math.PI;
                 }
             };
 
-            cacheUpdateBarrier.resolve(ret);
+            cacheUpdatedMockedBarrier.resolve(ret);
             return ret;
         });
 
@@ -166,32 +169,39 @@ public class Test_EagerCache_MockClient {
         cacheUpdatedBarrier.reset();
         dataBarrier.reset();
 
-        // :: ACT 3
+        // :: ACT #3
 
         // "Request full update" to trigger update listeners
         mockClient.requestFullUpdate();
 
-        // Get the data again, triggering the supplier
+        // Get the data again, triggering the data supplier from ARRANGE 2
         dataCarrier = mockClient.get();
         log.info("######### Got the data 3! Size:[" + dataCarrier.customers.size() + "]");
 
-        // :: ASSERT 3
+        // :: ASSERT #3
 
-        // Assert that the CacheUpdate mock was invoked
-        CacheUpdated cacheUpdatedMocked = cacheUpdateBarrier.await();
+        // Assert that the CacheUpdate supplier mock was invoked
+        CacheUpdated cacheUpdatedMocked = cacheUpdatedMockedBarrier.await();
+
+        // Assert that the CacheUpdated listener was called (the listener invoked, which should get the above mocked)
+        cacheUpdated = cacheUpdatedBarrier.await();
+
+        // Assert that the CacheUpdated the listener got is the same as the one we supplied
+        Assert.assertSame(cacheUpdatedMocked, cacheUpdated);
+
+        // Assert that the CacheUpdated was as designed, pretty much just to show how this works
+        Assert.assertFalse(cacheUpdated.isFullUpdate());
+        Assert.assertEquals(-10, cacheUpdated.getDataCount());
+        Assert.assertEquals(-20, cacheUpdated.getCompressedSize());
+        Assert.assertEquals(-30, cacheUpdated.getUncompressedSize());
+        Assert.assertEquals("MetaMock", cacheUpdated.getMetadata());
+        Assert.assertEquals(Math.PI, cacheUpdated.getUpdateDurationMillis(), 0.0001);
 
         // Assert that the data callback was invoked
         dataBarrier.await();
 
         // Assert data is the same
         Assert.assertSame(mockData2, dataCarrier);
-
-        // Assert that the CacheUpdated listener was called
-        cacheUpdated = cacheUpdatedBarrier.await();
-
-        // Assert that the CacheUpdated was as expected
-        Assert.assertSame(cacheUpdatedMocked, cacheUpdated);
-        Assert.assertFalse(cacheUpdated.isFullUpdate());
 
         // Assert that we've queried the data thrice now
         Assert.assertEquals(3, mockClient.getCacheClientInformation().getNumberOfAccesses());
