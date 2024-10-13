@@ -58,7 +58,7 @@ public class EagerCache_TestJettyServer {
 
             // Create the MatsFactories
             try {
-                _serversClients = new CommonSetup_TwoServers_TwoClients(10, (server) -> {
+                _serversClients = CommonSetup_TwoServers_TwoClients.createWithServerAdjust(10, (server) -> {
                     server.setPeriodicFullUpdateIntervalMinutes(0.2d); // 12 seconds. (Should be *hours* in production!)
                 });
             }

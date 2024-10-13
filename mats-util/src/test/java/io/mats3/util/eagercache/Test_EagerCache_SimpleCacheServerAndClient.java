@@ -67,12 +67,12 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
                 "Customers", CustomerTransferDTO.class, DataCarrier::new);
         cacheClient.setSizeCutover(sizeCutover);
 
-        CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch initialPopulationLatch = new CountDownLatch(1);
 
         // .. testing that the initial population is done.
         cacheClient.addAfterInitialPopulationTask(() -> {
             log.info("Initial population done!");
-            latch.countDown();
+            initialPopulationLatch.countDown();
         });
 
         // ## ACT:
@@ -83,7 +83,7 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         cacheClient.start();
 
         log.info("\n\n######### Waiting for initial population to be done.\n\n");
-        latch.await(30, TimeUnit.SECONDS);
+        initialPopulationLatch.await(30, TimeUnit.SECONDS);
 
         log.info("\n\n######### Latched!\n\n");
 

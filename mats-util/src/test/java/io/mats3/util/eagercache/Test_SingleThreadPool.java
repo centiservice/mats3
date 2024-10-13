@@ -7,6 +7,8 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
+
 /**
  * This is just a "visual inspection of log lines" test to see that the single-threaded ExecutorService works as
  * expected. You will notice that task 0 is submitted, and then the submitting of task 1 is blocked until task 0 is
@@ -17,7 +19,7 @@ public class Test_SingleThreadPool {
 
     @Test
     public void run() throws InterruptedException {
-        ExecutorService threadPoolExecutor = MatsEagerCacheClient._createSingleThreadedExecutorService(
+        ExecutorService threadPoolExecutor = MatsEagerCacheClientImpl._createSingleThreadedExecutorService(
                 "EndreXY:test-thread-name");
 
         for (int i = 0; i < 3; i++) {

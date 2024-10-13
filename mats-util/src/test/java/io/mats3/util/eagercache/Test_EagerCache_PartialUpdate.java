@@ -34,7 +34,6 @@ public class Test_EagerCache_PartialUpdate {
         // ## ARRANGE:
 
         int originalCount = 10;
-        CommonSetup_TwoServers_TwoClients serversClients = new CommonSetup_TwoServers_TwoClients(originalCount);
 
         // ## ARRANGE EVEN MORE!
 
@@ -64,9 +63,10 @@ public class Test_EagerCache_PartialUpdate {
             return new DataCarrier(ret);
         };
 
-        // Use this mapper for both Cache Clients (it is stateless, so we can use the same for both).
-        serversClients.cacheClient1.setPartialUpdateMapper(partialUpdateMapper);
-        serversClients.cacheClient2.setPartialUpdateMapper(partialUpdateMapper);
+        // Create the CommonSetup with two servers and two clients - and partial update mapper for clients.
+        CommonSetup_TwoServers_TwoClients serversClients = CommonSetup_TwoServers_TwoClients.createWithPartialUpdateMapper(
+                originalCount, partialUpdateMapper);
+
 
         // :: Add a SiblingCommand consumer to the CacheServers, which will apply the partial update to CacheServer's
         // source data, and then propagate the partial update to the CacheClients.

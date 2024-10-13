@@ -21,10 +21,10 @@ public class Test_EagerCache_PeriodicUpdate {
         // ## ARRANGE:
 
         int originalCount = 10;
-        CommonSetup_TwoServers_TwoClients serversClients = new CommonSetup_TwoServers_TwoClients(originalCount, (
-                server) -> {
-            server.setPeriodicFullUpdateIntervalMinutes(0.05d); // 3 seconds. (Should be *hours* in production!)
-        });
+        CommonSetup_TwoServers_TwoClients serversClients = CommonSetup_TwoServers_TwoClients.createWithServerAdjust(
+                originalCount, (server) -> {
+                    server.setPeriodicFullUpdateIntervalMinutes(0.05d); // 3 seconds. (Should be *hours* in production!)
+                });
 
         serversClients.reset();
 

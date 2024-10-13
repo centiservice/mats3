@@ -54,9 +54,8 @@ public class Test_EagerCache_RequestFullUpdate {
         // ## ARRANGE:
 
         int customerCount = 10;
-        CommonSetup_TwoServers_TwoClients serversClients = new CommonSetup_TwoServers_TwoClients(customerCount,
-                (server) -> {
-                }, (client) -> client.setSizeCutover(sizeCutover));
+        CommonSetup_TwoServers_TwoClients serversClients = CommonSetup_TwoServers_TwoClients.createWithClientAdjust(
+                customerCount, (client) -> client.setSizeCutover(sizeCutover));
 
         // ## ACT:
 

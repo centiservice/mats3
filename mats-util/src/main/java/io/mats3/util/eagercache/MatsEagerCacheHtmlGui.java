@@ -128,8 +128,8 @@ public interface MatsEagerCacheHtmlGui {
                         .append(_formatHtmlBytes(_info.getLastUpdateCompressedSize())).append("<br>\n");
                 out.append("LastUpdateUncompressedSize: ")
                         .append(_formatHtmlBytes(_info.getLastUpdateUncompressedSize())).append("<br>\n");
-                out.append("LastUpdateCount: ").append("<b>")
-                        .append(Integer.toString(_info.getLastUpdateCount())).append("</b><br>\n");
+                out.append("LastUpdateDataCount: ").append("<b>")
+                        .append(Integer.toString(_info.getLastUpdateDataCount())).append("</b><br>\n");
                 out.append("<br>\n");
             }
             else {

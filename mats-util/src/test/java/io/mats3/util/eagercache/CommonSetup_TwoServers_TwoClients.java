@@ -6,6 +6,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.junit.Assert;
 import org.slf4j.Logger;
@@ -23,6 +24,7 @@ import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.FieldBasedJacksonMapper;
+import io.mats3.util.eagercache.MatsEagerCacheClient.CacheReceivedPartialData;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheUpdated;
 
 /**
@@ -54,21 +56,47 @@ public class CommonSetup_TwoServers_TwoClients {
     public final AtomicInteger cacheClient1_updateCount;
     public final AtomicInteger cacheClient2_updateCount;
 
-    public CommonSetup_TwoServers_TwoClients(int originalCount) throws JsonProcessingException, InterruptedException {
-        this(originalCount, (server) -> {
-            // No adjustments
-        });
+    public static CommonSetup_TwoServers_TwoClients create(int originalCount) throws JsonProcessingException,
+            InterruptedException {
+        return new CommonSetup_TwoServers_TwoClients(originalCount, null /* partialUpdateMapper */,
+                (server) -> {
+                    // No server adjustments
+                }, (client) -> {
+                    // No client adjustments
+                });
     }
 
-    public CommonSetup_TwoServers_TwoClients(int originalCount, Consumer<MatsEagerCacheServer> serversAdjust)
+    public static CommonSetup_TwoServers_TwoClients createWithServerAdjust(int originalCount,
+            Consumer<MatsEagerCacheServer> serversAdjust) throws JsonProcessingException, InterruptedException {
+        return new CommonSetup_TwoServers_TwoClients(originalCount, null /* partialUpdateMapper */, serversAdjust,
+                (client) -> {
+                    // No client adjustments
+                });
+    }
+
+    public static CommonSetup_TwoServers_TwoClients createWithClientAdjust(int originalCount,
+            Consumer<MatsEagerCacheClient<?>> clientsAdjust) throws JsonProcessingException, InterruptedException {
+        return new CommonSetup_TwoServers_TwoClients(originalCount, null /* partialUpdateMapper */,
+                (server) -> {
+                    // No server adjustments
+                }, clientsAdjust);
+    }
+
+    public static CommonSetup_TwoServers_TwoClients createWithPartialUpdateMapper(int originalCount,
+            Function<CacheReceivedPartialData<CustomerTransferDTO, DataCarrier>, DataCarrier> partialUpdateMapper)
             throws JsonProcessingException, InterruptedException {
-        this(originalCount, serversAdjust, (client) -> {
-            // No adjustments
-        });
+        return new CommonSetup_TwoServers_TwoClients(originalCount, partialUpdateMapper,
+                (server) -> {
+                    // No server adjustments
+                }, (client) -> {
+                    // No client adjustments
+                });
     }
 
-    public CommonSetup_TwoServers_TwoClients(int originalCount,
-            Consumer<MatsEagerCacheServer> serversAdjust, Consumer<MatsEagerCacheClient<?>> clientsAdjust)
+    private CommonSetup_TwoServers_TwoClients(int originalCount,
+            Function<CacheReceivedPartialData<CustomerTransferDTO, DataCarrier>, DataCarrier> partialUpdateMapper,
+            Consumer<MatsEagerCacheServer> serversAdjust,
+            Consumer<MatsEagerCacheClient<?>> clientsAdjust)
             throws JsonProcessingException, InterruptedException {
         // Create source data, one set for each server.
         sourceData1 = DummyFinancialService.createRandomReplyDTO(1234L, originalCount);
@@ -111,13 +139,24 @@ public class CommonSetup_TwoServers_TwoClients {
         serversAdjust.accept(cacheServer2);
 
         // :: Create the CacheClients:
-        cacheClient1 = MatsEagerCacheClient.create(clientMatsFactory1, "Customers",
-                CustomerTransferDTO.class, DataCarrier::new);
-        clientsAdjust.accept(cacheClient1);
+        if (partialUpdateMapper == null) {
+            cacheClient1 = MatsEagerCacheClient.create(clientMatsFactory1, "Customers",
+                    CustomerTransferDTO.class, DataCarrier::new);
+            clientsAdjust.accept(cacheClient1);
 
-        cacheClient2 = MatsEagerCacheClient.create(clientMatsFactory2, "Customers",
-                CustomerTransferDTO.class, DataCarrier::new);
-        clientsAdjust.accept(cacheClient2);
+            cacheClient2 = MatsEagerCacheClient.create(clientMatsFactory2, "Customers",
+                    CustomerTransferDTO.class, DataCarrier::new);
+            clientsAdjust.accept(cacheClient2);
+        }
+        else {
+            cacheClient1 = MatsEagerCacheClient.create(clientMatsFactory1, "Customers",
+                    CustomerTransferDTO.class, DataCarrier::new, partialUpdateMapper);
+            clientsAdjust.accept(cacheClient1);
+
+            cacheClient2 = MatsEagerCacheClient.create(clientMatsFactory2, "Customers",
+                    CustomerTransferDTO.class, DataCarrier::new, partialUpdateMapper);
+            clientsAdjust.accept(cacheClient2);
+        }
 
         cacheClient1_latch = new CountDownLatch[1];
         cacheClient2_latch = new CountDownLatch[1];
