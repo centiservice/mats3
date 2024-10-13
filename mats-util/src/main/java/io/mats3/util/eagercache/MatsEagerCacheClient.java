@@ -89,20 +89,22 @@ public interface MatsEagerCacheClient<DATA> {
      *            the MatsFactory to use for the Mats Eager Cache client.
      * @param dataName
      *            the name of the data that the client will receive.
-     * @param receivedDataType
-     *            the type of the received data.
+     * @param transferDataType
+     *            the type of the received/transfer data (the type that the server sends).
      * @param fullUpdateMapper
      *            the function that will be invoked when a full update is received from the server. It is illegal to
      *            return <code>null</code> or throw from this function, which will result in the client throwing an
      *            exception on {@link #get()}.
      * @param <TRANSFER>
-     *            the type of the received data - which obviously must correspond to the type of the data that the
+     *            the type of the transferDataType - which obviously must correspond to the type of the data that the
      *            server sends, but importantly, the Jackson serializer is configured very leniently, so it will accept
      *            any kind of JSON structure, and will not fail on missing fields or extra fields.
+     * @param <DATA>
+     *            the type of the data structures object that shall be returned by {@link #get()}.
      */
     static <TRANSFER, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
-            Class<TRANSFER> receivedDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper) {
-        return new MatsEagerCacheClientImpl<>(matsFactory, dataName, receivedDataType, fullUpdateMapper);
+            Class<TRANSFER> transferDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper) {
+        return new MatsEagerCacheClientImpl<>(matsFactory, dataName, transferDataType, fullUpdateMapper);
     }
 
     /**
@@ -118,8 +120,8 @@ public interface MatsEagerCacheClient<DATA> {
      *            the MatsFactory to use for the Mats Eager Cache client.
      * @param dataName
      *            the name of the data that the client will receive.
-     * @param receivedDataType
-     *            the type of the received data.
+     * @param transferDataType
+     *            the type of the received/transfer data (the type that the server sends).
      * @param fullUpdateMapper
      *            the function that will be invoked when a full update is received from the server. It is illegal to
      *            return null or throw from this function, which will result in the client throwing an exception on
@@ -128,14 +130,20 @@ public interface MatsEagerCacheClient<DATA> {
      *            the function that will be invoked when a partial update is received from the server. It is illegal to
      *            return <code>null</code> or throw from this function, which will result in the client throwing an
      *            exception on {@link #get()}.
+     * @param <TRANSFER>
+     *            the type of the transferDataType - which obviously must correspond to the type of the data that the
+     *            server sends, but importantly, the Jackson serializer is configured very leniently, so it will accept
+     *            any kind of JSON structure, and will not fail on missing fields or extra fields.
+     * @param <DATA>
+     *            the type of the data structures object that shall be returned by {@link #get()}.
      *
      * @see CacheReceivedPartialData
      * @see MatsEagerCacheServer#sendPartialUpdate(CacheDataCallback)
      */
     static <TRANSFER, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
-            Class<TRANSFER> receivedDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper,
+            Class<TRANSFER> transferDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper,
             Function<CacheReceivedPartialData<TRANSFER, DATA>, DATA> partialUpdateMapper) {
-        MatsEagerCacheClientImpl<DATA> client = new MatsEagerCacheClientImpl<>(matsFactory, dataName, receivedDataType,
+        MatsEagerCacheClientImpl<DATA> client = new MatsEagerCacheClientImpl<>(matsFactory, dataName, transferDataType,
                 fullUpdateMapper);
         client.setPartialUpdateMapper(partialUpdateMapper);
         return client;
@@ -481,13 +489,13 @@ public interface MatsEagerCacheClient<DATA> {
         private final String _dataName;
         private final Function<CacheReceivedData<?>, DATA> _fullUpdateMapper;
 
-        private final ObjectReader _receivedDataTypeReader;
+        private final ObjectReader _transferDataTypeReader;
 
         private final ThreadPoolExecutor _receiveSingleBlockingThreadExecutorService;
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
         private <TRANSFER> MatsEagerCacheClientImpl(MatsFactory matsFactory, String dataName,
-                Class<TRANSFER> receivedDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper) {
+                Class<TRANSFER> transferDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper) {
             _matsFactory = matsFactory;
             _dataName = dataName;
             _fullUpdateMapper = (Function<CacheReceivedData<?>, DATA>) (Function) fullUpdateMapper;
@@ -496,7 +504,17 @@ public interface MatsEagerCacheClient<DATA> {
             ObjectMapper mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
 
             // Make specific Writer for the "receivedDataType" - this is what we will need to deserialize from server.
-            _receivedDataTypeReader = mapper.readerFor(receivedDataType);
+            _transferDataTypeReader = mapper.readerFor(transferDataType);
+
+            // Bare-bones assertion that we can deserialize the receivedDataType
+            try {
+                _transferDataTypeReader.readValue("{}");
+            }
+            catch (Throwable e) {
+                throw new IllegalArgumentException("Could not deserialize a simple JSON '{}' to the receivedDataType ["
+                        + transferDataType + "], which is the type that the server sends. This is a critical error,"
+                        + " and the client cannot be created.", e);
+            }
 
             // :: ExecutorService for handling the received data.
             _receiveSingleBlockingThreadExecutorService = _createSingleThreadedExecutorService("MatsEagerCacheClient-"
@@ -1126,8 +1144,10 @@ public interface MatsEagerCacheClient<DATA> {
                             Thread.sleep(100);
                         }
                         catch (InterruptedException e) {
-                            _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got interrupted while sleeping before"
-                                    + " acting on full update. Assuming shutdown, thus returning immediately.", e);
+                            _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
+                                    "Got interrupted while sleeping before"
+                                            + " acting on full update. Assuming shutdown, thus returning immediately.",
+                                    e);
                             return;
                         }
                     }
@@ -1142,8 +1162,8 @@ public interface MatsEagerCacheClient<DATA> {
                                 msg.uncompressedSize, msg.compressedSize, _getReceiveStreamFromPayload(payload)));
                     }
                     catch (Throwable e) {
-                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got exception when invoking the full update"
-                                + " mapper - this is VERY BAD!", e);
+                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
+                                "Got exception when invoking the full update mapper - this is VERY BAD!", e);
                         // Nothing to do. Everything is bad.
                         return;
                     }
@@ -1163,9 +1183,10 @@ public interface MatsEagerCacheClient<DATA> {
                     // -> :: PARTIAL UPDATE, so then we update the data "in place".
 
                     if (_data == null) {
-                        _cacheMonitor.log(WARN, MonitorCategory.RECEIVED_UPDATE, "We got a partial update without having any"
-                                + " data. This is probably due to the initial population not being done yet, or the"
-                                + " data being nulled out due to some error. Ignoring the partial update.");
+                        _cacheMonitor.log(WARN, MonitorCategory.RECEIVED_UPDATE,
+                                "We got a partial update without having any"
+                                        + " data. This is probably due to the initial population not being done yet, or the"
+                                        + " data being nulled out due to some error. Ignoring the partial update.");
                         return;
                     }
 
@@ -1174,7 +1195,8 @@ public interface MatsEagerCacheClient<DATA> {
                         // partial update.
                         var logMsg = "We got a partial update, but we don't have a partial update mapper. Ignoring the"
                                 + " partial update.";
-                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, logMsg, new IllegalStateException(logMsg));
+                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, logMsg, new IllegalStateException(
+                                logMsg));
                         return;
                     }
 
@@ -1193,8 +1215,10 @@ public interface MatsEagerCacheClient<DATA> {
                             Thread.sleep(25);
                         }
                         catch (InterruptedException e) {
-                            _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got interrupted while sleeping before"
-                                    + " acting on partial update. Assuming shutdown, thus returning immediately.", e);
+                            _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
+                                    "Got interrupted while sleeping before"
+                                            + " acting on partial update. Assuming shutdown, thus returning immediately.",
+                                    e);
                             return;
                         }
                     }
@@ -1210,8 +1234,9 @@ public interface MatsEagerCacheClient<DATA> {
                                 msg.uncompressedSize, msg.compressedSize));
                     }
                     catch (Throwable e) {
-                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got exception when invoking the partial update"
-                                + " mapper - this is VERY BAD!", e);
+                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
+                                "Got exception when invoking the partial update"
+                                        + " mapper - this is VERY BAD!", e);
                         // Nothing to do. Everything is bad.
                         return;
                     }
@@ -1322,8 +1347,9 @@ public interface MatsEagerCacheClient<DATA> {
                     listener.accept(cacheUpdated);
                 }
                 catch (Throwable t) {
-                    _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got exception when notifying cacheUpdatedListener"
-                            + " [" + listener + "], ignoring but this is probably pretty bad.", t);
+                    _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
+                            "Got exception when notifying cacheUpdatedListener"
+                                    + " [" + listener + "], ignoring but this is probably pretty bad.", t);
                 }
             }
 
@@ -1332,7 +1358,7 @@ public interface MatsEagerCacheClient<DATA> {
 
         private Stream<?> _getReceiveStreamFromPayload(byte[] payload) throws IOException {
             InflaterInputStreamWithStats iis = new InflaterInputStreamWithStats(payload);
-            MappingIterator<?> mappingIterator = _receivedDataTypeReader.readValues(iis);
+            MappingIterator<?> mappingIterator = _transferDataTypeReader.readValues(iis);
             // Convert iterator to stream
             return Stream.iterate(mappingIterator, MappingIterator::hasNext,
                     UnaryOperator.identity()).map(MappingIterator::next);

@@ -681,6 +681,26 @@ public interface MatsEagerCacheServer {
             // Configure as NDJSON (Newline Delimited JSON), which is a good format for streaming.
             _sentDataTypeWriter = mapper.writerFor(transferDataType).withRootValueSeparator("\n");
 
+            // Bare-bones assertion that we can serialize an empty instance of the transferDataType.
+            try {
+                _sentDataTypeWriter.writeValueAsString(transferDataType.getDeclaredConstructor().newInstance());
+            }
+            catch (Throwable e) {
+                throw new IllegalArgumentException("Could not serialize a newly constructed instance of the"
+                        + " transferDataType [" + transferDataType + "], which doesn't bode well at all!"
+                        + " This is a critical error, and we won't create the server.", e);
+            }
+
+            // Bare-bones assertion that we can deserialize the transferDataType (for the client)
+            try {
+                mapper.readerFor(transferDataType).readValue("{}");
+            }
+            catch (Throwable e) {
+                throw new IllegalArgumentException("Could not deserialize the transferDataType [" + transferDataType
+                        + "], which will be a problem for the clients. This is a critical error, and we won't create"
+                        + " the server.", e);
+            }
+
             // Create the single-threaded executor for producing and sending updates.
             _produceAndSendExecutor = new ThreadPoolExecutor(1, 1, 1L, TimeUnit.MINUTES,
                     new LinkedBlockingQueue<>(),
