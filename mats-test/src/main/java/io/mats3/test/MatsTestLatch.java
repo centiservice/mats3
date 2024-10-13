@@ -6,6 +6,7 @@ import io.mats3.MatsEndpoint.DetachedProcessContext;
  * Test-utility: Gives a latch-functionality facilitating communication back from typically a Mats Terminator to the
  * main-thread that sent a message to some processor, and is now waiting for the Terminator to get the result.
  *
+ * @see MatsTestBarrier
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
 public class MatsTestLatch {
