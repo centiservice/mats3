@@ -45,6 +45,8 @@ import io.mats3.MatsInitiator.MatsInitiate;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.TraceId;
 import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
+import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientLifecycle;
+import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
 
 /**
  * The server side of the Mats Eager Cache system - sitting on the "data owner" side. This server will listen for
@@ -648,7 +650,7 @@ public interface MatsEagerCacheServer {
     // ======== The 'MatsEagerCacheServer' implementation class
 
     class MatsEagerCacheServerImpl implements MatsEagerCacheServer {
-        private static final Logger log2 = LoggerFactory.getLogger(MatsEagerCacheServer.class);
+        private static final Logger log = LoggerFactory.getLogger(MatsEagerCacheServer.class);
 
         private final MatsFactory _matsFactory;
         private final String _dataName;
@@ -749,12 +751,14 @@ public interface MatsEagerCacheServer {
 
         private final CopyOnWriteArrayList<Consumer<SiblingCommand>> _siblingCommandEventListeners = new CopyOnWriteArrayList<>();
 
+        private volatile List<MatsEagerCacheClientImpl<?>> _cacheClients;
+
         private int _shortDelay = DEFAULT_SHORT_DELAY_MILLIS;
         private int _longDelay = DEFAULT_LONG_DELAY_MILLIS;
 
         private volatile PeriodicUpdate _periodicUpdate;
 
-        private final CacheMonitor _cacheMonitor = new CacheMonitor(log2);
+        private final CacheMonitor _cacheMonitor = new CacheMonitor(log);
 
         private class CacheServerInformationImpl implements CacheServerInformation {
             @Override
@@ -919,7 +923,7 @@ public interface MatsEagerCacheServer {
         @Override
         public void sendSiblingCommand(String command, String stringData, byte[] binaryData) {
             // We must be in correct state, and the broadcast terminator must be ready to receive.
-            _waitForReceiving();
+            _waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS);
 
             // Construct the broadcast DTO
             BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_SIBLING_COMMAND, _nodename);
@@ -1017,7 +1021,7 @@ public interface MatsEagerCacheServer {
         @Override
         public void startAndWaitForReceiving() {
             start();
-            _waitForReceiving();
+            _waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS);
         }
 
         @Override
@@ -1124,9 +1128,9 @@ public interface MatsEagerCacheServer {
                         // ?: Is this the actual update sent to the clients - which we also get?
                         else if (BroadcastDto.COMMAND_UPDATE_FULL.equals(broadcastDto.command)
                                 || BroadcastDto.COMMAND_UPDATE_PARTIAL.equals(broadcastDto.command)) {
-                            // -> Jot down that the clients were sent an update, used when calculating the delays, and
-                            // in
-                            // the health check.
+                            // -> This is a broadcast of a cache update (primarly meant for the clients).
+                            // :: Jot down that the clients were sent an update, used when calculating the delays, and
+                            // in the health check.
                             _lastAnyUpdateReceivedTimestamp = System.currentTimeMillis();
                             // ?: Is this a full update?
                             if (broadcastDto.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)) {
@@ -1139,6 +1143,11 @@ public interface MatsEagerCacheServer {
                                 _lastPartialUpdateReceivedTimestamp = _lastAnyUpdateReceivedTimestamp;
                                 _numberOfPartialUpdatesReceived.incrementAndGet();
                             }
+                            // :: If we have any linked clients, we should send the update to them.
+                            if (_cacheClients != null) {
+                                _cacheClients.forEach(client -> client.processLambdaForSubscriptionTerminator(ctx,
+                                        state, broadcastDto));
+                            }
                         }
                         else {
                             _cacheMonitor.exception(MonitorCategory.OTHER,
@@ -1149,6 +1158,30 @@ public interface MatsEagerCacheServer {
                     });
 
             _periodicUpdate = new PeriodicUpdate();
+        }
+
+        void _registerForwardToClient(MatsEagerCacheClientImpl<?> client) {
+            // :: Do some assertions wrt. linking the server and client
+            if (!client.getCacheClientInformation().getDataName().equals(_dataName)) {
+                throw new IllegalStateException("The MatsEagerCacheClient is for data ["
+                        + client.getCacheClientInformation().getDataName()
+                        + "], while this MatsEagerCacheServer is for data [" + _dataName + "]!");
+            }
+            if (!client.getCacheClientInformation().getNodename().equals(_nodename)) {
+                throw new IllegalStateException("The MatsEagerCacheClient is for nodename ["
+                        + client.getCacheClientInformation().getNodename()
+                        + "], while this MatsEagerCacheServer is for nodename [" + _nodename + "]!");
+            }
+            if (!client.getCacheClientInformation().getCacheClientLifeCycle().equals(
+                    CacheClientLifecycle.NOT_YET_STARTED)) {
+                throw new IllegalStateException("The MatsEagerCacheClient is NOT in state NOT_YET_STARTED!");
+            }
+            synchronized (this) {
+                if (_cacheClients == null) {
+                    _cacheClients = new CopyOnWriteArrayList<>(); // COWAL since we do not sync on reading.
+                }
+                _cacheClients.add(client);
+            }
         }
 
         private class PeriodicUpdate {
@@ -1303,7 +1336,7 @@ public interface MatsEagerCacheServer {
             _cacheMonitor.log(INFO, MonitorCategory.REQUEST_UPDATE_FROM_SERVER, "Phase 0: Request for full update"
                     + " on server (on this node!) [" + _nodename + "], broadcasting to Phase 1.");
             // Ensure that we are running
-            _waitForReceiving();
+            _waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS);
             // :: Create and send the broadcast message
             BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_SERVER_MANUAL,
                     _nodename);
@@ -1677,7 +1710,7 @@ public interface MatsEagerCacheServer {
                 Thread.sleep(millis);
             }
             catch (InterruptedException e) {
-                log2.warn(LOG_PREFIX + "Got interrupted while taking nap.", e);
+                log.warn(LOG_PREFIX + "Got interrupted while taking nap.", e);
                 throw new IllegalStateException("Got interrupted while taking nap, unexpected.", e);
             }
         }
@@ -1727,29 +1760,38 @@ public interface MatsEagerCacheServer {
             }
         }
 
-        private void _waitForReceiving() {
+        void _waitForReceiving(int maxWaitSeconds) {
             if (!EnumSet.of(CacheServerLifeCycle.NOT_YET_STARTED,
                     CacheServerLifeCycle.STARTING_ASSERTING_DATA_AVAILABILITY,
+                    CacheServerLifeCycle.STARTING_PROBLEMS_WITH_DATA,
                     CacheServerLifeCycle.RUNNING).contains(_cacheServerLifeCycle)) {
-                throw new IllegalStateException("The MatsEagerCacheServer is not NOT_YET_STARTED, STARTING or RUNNING,"
-                        + " it is [" + _cacheServerLifeCycle + "].");
+                throw new IllegalStateException("The MatsEagerCacheServer is not NOT_YET_STARTED, STARTING_*"
+                        + " or RUNNING, it is [" + _cacheServerLifeCycle + "].");
             }
             try {
                 // If the latch is there, we'll wait for it. (fast-path check for null)
                 CountDownLatch latch = _waitForRunningLatch;
                 if (latch != null) {
-                    boolean started = latch.await(MAX_WAIT_FOR_RECEIVING_SECONDS, TimeUnit.SECONDS);
+                    boolean started = latch.await(maxWaitSeconds, TimeUnit.SECONDS);
                     if (!started) {
-                        throw new IllegalStateException("Did not start within " + MAX_WAIT_FOR_RECEIVING_SECONDS
-                                + " seconds.");
+                        throw new IllegalStateException("Did not start within " + maxWaitSeconds + " seconds.");
                     }
                 }
             }
             catch (InterruptedException e) {
-                throw new IllegalStateException("Got interrupted while waiting for the system to start.", e);
+                throw new IllegalStateException("Got interrupted while waiting for the cache server to start.", e);
             }
-            _broadcastTerminator.waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS * 1_000);
-            _requestTerminator.waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS * 1_000);
+            // :: Wait for the Broadcast SubscriptionTerminator and Request Terminator to start.
+            boolean broadcastStarted = _broadcastTerminator.waitForReceiving(maxWaitSeconds * 1_000);
+            if (!broadcastStarted) {
+                throw new IllegalStateException("Broadcast SubscriptionTerminator did not start within "
+                        + maxWaitSeconds + " seconds.");
+            }
+            boolean requestStarted = _requestTerminator.waitForReceiving(maxWaitSeconds * 1_000);
+            if (!requestStarted) {
+                throw new IllegalStateException("Request Terminator did not start within "
+                        + maxWaitSeconds + " seconds.");
+            }
         }
 
         /**

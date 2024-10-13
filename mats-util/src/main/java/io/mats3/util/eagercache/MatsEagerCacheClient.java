@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 
 import io.mats3.MatsEndpoint;
+import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsFactory;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.TraceId;
@@ -50,6 +51,11 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.Ca
  * <p>
  * <b>Most of the MatsEagerCache system is documented in the {@link MatsEagerCacheServer} class, which is the server
  * part of the system.</b> Only the client-specific parts are documented here.
+ * <p>
+ * <b>Note wrt. developing a Client along with the corresponding Server:</b> You'll face a problem where both the server
+ * and the client wants to listen to the same topic, which MatsFactory forbids. The solution is to use the "forwarding
+ * server" functionality, where the server forwards the cache updates to the client. This is done by invoking
+ * {@link #startWithServer(MatsEagerCacheServer)} instead of {@link #start()}.
  * <p>
  * Thread-safety: This class is thread-safe after construction and {@link #start()} has been invoked, specifically
  * {@link #get()} is meant to be invoked from multiple threads.
@@ -192,6 +198,20 @@ public interface MatsEagerCacheClient<DATA> {
     MatsEagerCacheClient<DATA> start();
 
     /**
+     * Links a client to a server for development and testing of a cache solution with both the server and the client in
+     * the same codebase, to circumvent the problem where both the server and the client needs to listen to the same
+     * topic, which MatsFactory forbids. By invoking this method before the {@link #start()} call, this client will NOT
+     * fire up its SubscriptionTerminator, but will rely on the server to forward the cache updates to the client -
+     * otherwise, the client is started as normal. This method is intended for development and testing only, and should
+     * not be used in production.
+     *
+     * @param forwardingServer
+     *            the server that will forward the cache updates to this client.
+     * @return this instance, for chaining.
+     */
+    MatsEagerCacheClient<DATA> linkToServer(MatsEagerCacheServer forwardingServer);
+
+    /**
      * Close down the cache client. This will stop and remove the SubscriptionTerminator for receiving cache updates,
      * and shut down the ExecutorService for handling the received data. Closing is idempotent; Multiple invocations
      * will not have any effect. It is not possible to restart the cache client after it has been closed.
@@ -238,10 +258,8 @@ public interface MatsEagerCacheClient<DATA> {
 
     /**
      * Mock of the MatsEagerCacheClient for testing purposes. This mock is purely in-memory, and will not connect to any
-     * message broker or cache server, but instead will use the provided data, or data supplier, as the returned cached
-     * data. The goal is to simulate a real cache client as closely as possible, with some added asynchronous lags
-     * added.
-     * 
+     * message broker or cache server, but will instead use the provided data, or data supplier, as the returned cached
+     * data. The goal is to simulate a real cache client as closely as possible, with some "asynchronous lags" added.
      * <ul>
      * <li>You may supply the data using one of two methods {@link #setMockData(Object)} or
      * {@link #setMockDataSupplier(Supplier)} - the latter might be useful if you need to know when the data is created.
@@ -297,6 +315,20 @@ public interface MatsEagerCacheClient<DATA> {
          * @return this instance, for chaining.
          */
         MatsEagerCacheClientMock<DATA> setMockCacheUpdatedSupplier(Supplier<CacheUpdated> cacheUpdatedSupplier);
+
+        /**
+         * This method is overridden to throw an {@link IllegalStateException}, as it makes no sense to start a mock
+         * cache client linked to a server.
+         *
+         * @param forwardingServer
+         *            not used.
+         * @return nothing, as the method throws.
+         */
+        @Override
+        default MatsEagerCacheClientMock<DATA> linkToServer(MatsEagerCacheServer forwardingServer) {
+            throw new IllegalStateException("It makes absolutely no sense to start a mock cache client linked to a"
+                    + " server, thus this method throws.");
+        }
     }
 
     enum CacheClientLifecycle {
@@ -463,7 +495,7 @@ public interface MatsEagerCacheClient<DATA> {
         private volatile Function<CacheReceivedPartialData<?, DATA>, DATA> _partialUpdateMapper;
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        public <TRANSFER> MatsEagerCacheClient<DATA> setPartialUpdateMapper(
+        <TRANSFER> MatsEagerCacheClient<DATA> setPartialUpdateMapper(
                 Function<CacheReceivedPartialData<TRANSFER, DATA>, DATA> partialUpdateMapper) {
             _partialUpdateMapper = (Function<CacheReceivedPartialData<?, DATA>, DATA>) (Function) partialUpdateMapper;
             return this;
@@ -519,6 +551,8 @@ public interface MatsEagerCacheClient<DATA> {
 
         private volatile CacheClientLifecycle _cacheClientLifecycle = CacheClientLifecycle.NOT_YET_STARTED;
         private volatile MatsEndpoint<?, ?> _broadcastTerminator;
+
+        private volatile MatsEagerCacheServer _forwardingLinkedServer_ForDevelopment;
 
         private class CacheClientInformationImpl implements CacheClientInformation {
             @Override
@@ -636,6 +670,7 @@ public interface MatsEagerCacheClient<DATA> {
          *            the runnable to invoke after the initial population is done.
          * @return this instance, for chaining.
          */
+        @Override
         public MatsEagerCacheClient<DATA> addAfterInitialPopulationTask(Runnable runnable) {
             boolean runNow = true;
             // ?: Is the initial population list still present, that is, are we still in the initial population phase?
@@ -670,6 +705,7 @@ public interface MatsEagerCacheClient<DATA> {
          *            the listener to add.
          * @return this instance, for chaining.
          */
+        @Override
         public MatsEagerCacheClient<DATA> addCacheUpdatedListener(Consumer<CacheUpdated> listener) {
             _cacheUpdatedListeners.add(listener);
             return this;
@@ -683,6 +719,7 @@ public interface MatsEagerCacheClient<DATA> {
          * @param size
          *            the size hint.
          */
+        @Override
         public void setSizeCutover(int size) {
             _sizeCutover = size;
         }
@@ -700,6 +737,7 @@ public interface MatsEagerCacheClient<DATA> {
          *
          * @return the cached data
          */
+        @Override
         public DATA get() {
             // :: Handle initial population
             // ?: Do we need to wait for the initial population to be done (fast-path null check)? Read directly from
@@ -751,101 +789,26 @@ public interface MatsEagerCacheClient<DATA> {
          *
          * @return this instance, for chaining.
          */
+        @Override
         public MatsEagerCacheClient<DATA> start() {
-            return _start();
-        }
-
-        /**
-         * If a user in some management GUI wants to force a full update, this method can be invoked. This will send a
-         * request to the server to perform a full update, which will be broadcast to all clients.
-         * <p>
-         * <b>This must NOT be used to "poll" the server for updates on a schedule or similar</b>, as that is utterly
-         * against the design of the Mats Eager Cache system. The Mats Eager Cache system is designed to be a "push"
-         * system, where the server pushes updates to the clients when it has new data - or, as a backup, on a schedule.
-         * But this <i>shall</i> be server handled, not client handled.
-         */
-        public void requestFullUpdate() {
-            _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_MANUAL);
-        }
-
-        /**
-         * Close down the cache client. This will stop and remove the SubscriptionTerminator for receiving cache
-         * updates, and shut down the ExecutorService for handling the received data. Closing is idempotent; Multiple
-         * invocations will not have any effect. It is not possible to restart the cache client after it has been
-         * closed.
-         */
-        public void close() {
-            log.info(LOG_PREFIX + "Closing down the MatsEagerCacheClient for data [" + _dataName + "].");
-            // Stop the executor anyway.
-            _receiveSingleBlockingThreadExecutorService.shutdown();
-            synchronized (this) {
-                // ?: Are we running? Note: we accept multiple close() invocations, as the close-part is harder to
-                // lifecycle
-                // manage than the start-part (It might e.g. be closed by Spring too, in addition to by the user).
-                if (!EnumSet.of(CacheClientLifecycle.RUNNING, CacheClientLifecycle.STARTING_AWAITING_INITIAL)
-                        .contains(_cacheClientLifecycle)) {
-                    // -> No, we're not running, so we don't do anything.
-                    return;
-                }
-                _cacheClientLifecycle = CacheClientLifecycle.STOPPING;
-            }
-            // -> Yes, we're started, so close down.
-            _broadcastTerminator.remove(30_000);
-            synchronized (this) {
-                _cacheClientLifecycle = CacheClientLifecycle.STOPPED;
-            }
-        }
-
-        /**
-         * Returns a "live view" of the cache client information, that is, you only need to invoke this method once to
-         * get an instance that will always reflect the current state of the cache client.
-         *
-         * @return a "live view" of the cache client information.
-         */
-        public CacheClientInformation getCacheClientInformation() {
-            return _cacheClientInformation;
-        }
-
-        // ======== Implementation / Internal methods ========
-
-        private MatsEagerCacheClient<DATA> _start() {
             if (_cacheClientLifecycle != CacheClientLifecycle.NOT_YET_STARTED) {
                 throw new IllegalStateException("The MatsEagerCacheClient for data [" + _dataName
                         + "] has already been started.");
             }
-            // :: Listener to the update topic.
             _cacheStartedTimestamp = System.currentTimeMillis();
+
+            // ?: Are we in development mode, where we're linking to a server in the same codebase?
+            if (_forwardingLinkedServer_ForDevelopment != null) {
+                // -> Yes, so we start with the server.
+                _startWithServer(_forwardingLinkedServer_ForDevelopment);
+                return this;
+            }
+            // E-> No, so we start with the SubscriptionTerminator.
+
+            // :: Listener to the update topic.
             _broadcastTerminator = _matsFactory.subscriptionTerminator(
                     MatsEagerCacheServerImpl._getBroadcastTopic(_dataName),
-                    void.class, BroadcastDto.class, (ctx, state, msg) -> {
-                        if (!(msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)
-                                || msg.command.equals(BroadcastDto.COMMAND_UPDATE_PARTIAL))) {
-                            // None of my concern
-                            return;
-                        }
-                        // ?: Check if we're running (or awaiting), so we don't accidentally process updates after
-                        // close.
-                        if ((_cacheClientLifecycle != CacheClientLifecycle.RUNNING)
-                                && (_cacheClientLifecycle != CacheClientLifecycle.STARTING_AWAITING_INITIAL)) {
-                            // -> We're not running or waiting for initial population, so we don't process the update.
-                            return;
-                        }
-
-                        final byte[] payload = ctx.getBytes(MatsEagerCacheServer.SIDELOAD_KEY_DATA_PAYLOAD);
-
-                        // :: Now perform hack to relieve the Mats thread, and do the actual work in a separate thread.
-                        // The rationale is to let the data structures underlying in the Mats system (e.g. the
-                        // representation of the incoming JMS Message) be GCable. The thread pool is special in that
-                        // it only accepts a single task, and if it is busy, it will block the submitting thread.
-                        // NOTE: We do NOT capture the context (which holds the MatsTrace and byte arrays) in the
-                        // Runnable,
-                        // as that would prevent the JMS Message from being GC'ed. We only capture the message DTO and
-                        // the
-                        // payload.
-                        _receiveSingleBlockingThreadExecutorService.submit(() -> {
-                            _handleUpdateInExecutorThread(msg, payload);
-                        });
-                    });
+                    void.class, BroadcastDto.class, this::processLambdaForSubscriptionTerminator);
 
             // Set lifecycle to "starting", so that we can handle the initial population.
             _cacheClientLifecycle = CacheClientLifecycle.STARTING_AWAITING_INITIAL;
@@ -876,6 +839,130 @@ public interface MatsEagerCacheClient<DATA> {
 
             return this;
         }
+
+        @Override
+        public MatsEagerCacheClient<DATA> linkToServer(MatsEagerCacheServer forwardingLinkedServer) {
+            _forwardingLinkedServer_ForDevelopment = forwardingLinkedServer;
+            return this;
+        }
+
+        public MatsEagerCacheClient<DATA> _startWithServer(MatsEagerCacheServer forwardingServer) {
+            // !! We do NOT start the SubscriptionTerminator, but rely on the server to forward the cache updates to us.
+            // Link to server
+            ((MatsEagerCacheServerImpl) forwardingServer)._registerForwardToClient(this);
+
+            // Set lifecycle to "starting", so that we can handle the initial population.
+            _cacheClientLifecycle = CacheClientLifecycle.STARTING_AWAITING_INITIAL;
+
+            // :: Perform the initial cache update request in a separate thread, so that we can wait for the endpoint to
+            // be ready, and then send the request. We return immediately.
+            Thread thread = new Thread(() -> {
+                // :: Wait for the server to be ready.
+                try {
+                    ((MatsEagerCacheServerImpl) forwardingServer)._waitForReceiving(10 * 60);
+                }
+                catch (Throwable t) {
+                    // TODO: Log exception to monitor and HealthCheck.
+                }
+
+                _initialPopulationRequestSentTimestamp = System.currentTimeMillis();
+                _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_BOOT);
+            });
+            thread.setName("MatsEagerCacheClient-" + _dataName + "-initialCacheUpdateRequest");
+            // If the JVM is shut down due to bad boot, this thread should not prevent it from exiting.
+            thread.setDaemon(true);
+            // Start it.
+            thread.start();
+
+            return this;
+        }
+
+        void processLambdaForSubscriptionTerminator(ProcessContext<?> ctx, Void state, BroadcastDto msg) {
+            if (!(msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)
+                    || msg.command.equals(BroadcastDto.COMMAND_UPDATE_PARTIAL))) {
+                // None of my concern
+                return;
+            }
+            // ?: Check if we're running (or awaiting), so we don't accidentally process updates after
+            // close.
+            if ((_cacheClientLifecycle != CacheClientLifecycle.RUNNING)
+                    && (_cacheClientLifecycle != CacheClientLifecycle.STARTING_AWAITING_INITIAL)) {
+                // -> We're not running or waiting for initial population, so we don't process the update.
+                return;
+            }
+
+            final byte[] payload = ctx.getBytes(MatsEagerCacheServer.SIDELOAD_KEY_DATA_PAYLOAD);
+
+            // :: Now perform hack to relieve the Mats thread, and do the actual work in a separate thread.
+            // The rationale is to let the data structures underlying in the Mats system (e.g. the
+            // representation of the incoming JMS Message) be GCable. The thread pool is special in that
+            // it only accepts a single task, and if it is busy, it will block the submitting thread.
+            // NOTE: We do NOT capture the context (which holds the MatsTrace and byte arrays) in the
+            // Runnable,
+            // as that would prevent the JMS Message from being GC'ed. We only capture the message DTO and
+            // the
+            // payload.
+            _receiveSingleBlockingThreadExecutorService.submit(() -> {
+                _handleUpdateInExecutorThread(msg, payload);
+            });
+        }
+
+        /**
+         * If a user in some management GUI wants to force a full update, this method can be invoked. This will send a
+         * request to the server to perform a full update, which will be broadcast to all clients.
+         * <p>
+         * <b>This must NOT be used to "poll" the server for updates on a schedule or similar</b>, as that is utterly
+         * against the design of the Mats Eager Cache system. The Mats Eager Cache system is designed to be a "push"
+         * system, where the server pushes updates to the clients when it has new data - or, as a backup, on a schedule.
+         * But this <i>shall</i> be server handled, not client handled.
+         */
+        @Override
+        public void requestFullUpdate() {
+            _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_MANUAL);
+        }
+
+        /**
+         * Close down the cache client. This will stop and remove the SubscriptionTerminator for receiving cache
+         * updates, and shut down the ExecutorService for handling the received data. Closing is idempotent; Multiple
+         * invocations will not have any effect. It is not possible to restart the cache client after it has been
+         * closed.
+         */
+        @Override
+        public void close() {
+            log.info(LOG_PREFIX + "Closing down the MatsEagerCacheClient for data [" + _dataName + "].");
+            // Stop the executor anyway.
+            _receiveSingleBlockingThreadExecutorService.shutdown();
+            synchronized (this) {
+                // ?: Are we running? Note: we accept multiple close() invocations, as the close-part is harder to
+                // lifecycle
+                // manage than the start-part (It might e.g. be closed by Spring too, in addition to by the user).
+                if (!EnumSet.of(CacheClientLifecycle.RUNNING, CacheClientLifecycle.STARTING_AWAITING_INITIAL)
+                        .contains(_cacheClientLifecycle)) {
+                    // -> No, we're not running, so we don't do anything.
+                    return;
+                }
+                _cacheClientLifecycle = CacheClientLifecycle.STOPPING;
+            }
+            // -> Yes, we're started, so close down.
+            if (_broadcastTerminator != null) {
+                _broadcastTerminator.remove(30_000);
+            }
+            synchronized (this) {
+                _cacheClientLifecycle = CacheClientLifecycle.STOPPED;
+            }
+        }
+
+        /**
+         * Returns a "live view" of the cache client information, that is, you only need to invoke this method once to
+         * get an instance that will always reflect the current state of the cache client.
+         *
+         * @return a "live view" of the cache client information.
+         */
+        public CacheClientInformation getCacheClientInformation() {
+            return _cacheClientInformation;
+        }
+
+        // ======== Implementation / Internal methods ========
 
         /**
          * Single threaded, blocking {@link ExecutorService}. This is used to "distance" ourselves from Mats, so that
@@ -911,14 +998,14 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         private void _sendUpdateRequest(String command) {
-            // Construct the message
+            // :: Construct the request message
             CacheRequestDto req = new CacheRequestDto();
             req.nodename = _matsFactory.getFactoryConfig().getNodename();
             req.sentTimestamp = System.currentTimeMillis();
             req.sentNanoTime = System.nanoTime();
             req.command = command;
 
-            // Send it off
+            // :: Send it off
             try {
                 String reason = command.equals(CacheRequestDto.COMMAND_REQUEST_BOOT)
                         ? "initialCacheUpdateRequest"
@@ -1383,7 +1470,7 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         @Override
-        public MatsEagerCacheClient<DATA> addAfterInitialPopulationTask(Runnable runnable) {
+        public MatsEagerCacheClientMock<DATA> addAfterInitialPopulationTask(Runnable runnable) {
             boolean runNow = false;
             synchronized (this) {
                 if (_onInitialPopulationTasks == null) {
@@ -1402,7 +1489,7 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         @Override
-        public MatsEagerCacheClient<DATA> addCacheUpdatedListener(Consumer<CacheUpdated> listener) {
+        public MatsEagerCacheClientMock<DATA> addCacheUpdatedListener(Consumer<CacheUpdated> listener) {
             _cacheUpdatedListeners.add(listener);
             return this;
         }
@@ -1435,7 +1522,7 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         @Override
-        public MatsEagerCacheClient<DATA> start() {
+        public MatsEagerCacheClientMock<DATA> start() {
             if (_cacheClientLifecycle != CacheClientLifecycle.NOT_YET_STARTED) {
                 throw new IllegalStateException("The MatsEagerCacheClient MOCK for data [" + _dataName
                         + "] has already been started.");

@@ -1,7 +1,5 @@
 package io.mats3.util.eagercache;
 
-import java.util.function.Consumer;
-
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -14,18 +12,24 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import io.mats3.MatsFactory;
 import io.mats3.test.MatsTestBarrier;
 import io.mats3.test.MatsTestFactory;
-import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.FieldBasedJacksonMapper;
-import io.mats3.util.eagercache.MatsEagerCacheServer.CacheDataCallback;
+import io.mats3.util.eagercache.Test_EagerCache_SimpleCacheServerAndClient.CustomerDTOCacheDataCallback;
 
 /**
- * Simple/basic test of the {@link MatsEagerCacheServer} and {@link MatsEagerCacheClient}: A single server and a single
- * client, where the server has data, and the client is then expected to get the same data.
+ * Variant of {@link Test_EagerCache_SimpleCacheServerAndClient} that uses the concept of linked client to server,
+ * thereby alleviating the need to create two separate MatsFactories for the server and client (The reason for this is
+ * that the MatsFactory does not allow two MatsEndpoints with the same endpointId, which would be the case if you had
+ * both a server and a client using the same MatsFactory, since they both need to listen to the broadcast topic).
+ * <p>
+ * <b>This is only relevant for cache server and client development and testing!</b> In production, you would have the
+ * cache server and client in separate services, and thus they would have separate MatsFactories.
+ *
+ * @author Endre Stølsvik 2024-10-13 20:39 - http://stolsvik.com/, endre@stolsvik.com
  */
-public class Test_EagerCache_SimpleCacheServerAndClient {
-    private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_SimpleCacheServerAndClient.class);
+public class Test_EagerCache_SimpleCacheServerAndClient_Linked {
+    private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_SimpleCacheServerAndClient_Linked.class);
 
     private final ObjectMapper _objectMapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
     private final ObjectWriter _replyWriter = _objectMapper.writerFor(CustomerData.class);
@@ -48,13 +52,11 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         // For comparison on the client side: Serialize the source data.
         String serializedSourceData = _replyWriter.writeValueAsString(sourceData);
 
-        // :: Create the two MatsFactories, representing two different services:
-        MatsTestBroker matsTestBroker = MatsTestBroker.create();
-        MatsFactory serverMatsFactory = MatsTestFactory.createWithBroker(matsTestBroker);
-        MatsFactory clientMatsFactory = MatsTestFactory.createWithBroker(matsTestBroker);
+        // :: Create a single MatsFactory - the client will be linked to the server.
+        MatsFactory matsFactory = MatsTestFactory.create();
 
         // :: Create the CacheServer.
-        MatsEagerCacheServer cacheServer = MatsEagerCacheServer.create(serverMatsFactory,
+        MatsEagerCacheServer cacheServer = MatsEagerCacheServer.create(matsFactory,
                 "Customers", CustomerTransferDTO.class,
                 () -> new CustomerDTOCacheDataCallback(sourceData));
 
@@ -62,7 +64,7 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         CommonSetup_TwoServers_TwoClients.adjustDelaysForTest(cacheServer);
 
         // :: Create the CacheClient.
-        MatsEagerCacheClient<DataCarrier> cacheClient = MatsEagerCacheClient.create(clientMatsFactory,
+        MatsEagerCacheClient<DataCarrier> cacheClient = MatsEagerCacheClient.create(matsFactory,
                 "Customers", CustomerTransferDTO.class, DataCarrier::new);
         cacheClient.setSizeCutover(sizeCutover);
 
@@ -75,9 +77,10 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
 
         // ## ACT:
 
-        log.info("\n\n######### Starting the CacheServer and CacheClient.\n\n");
+        log.info("\n\n######### Starting the CacheServer and CacheClient, linking the Client to the Server\n\n");
 
-        cacheServer.startAndWaitForReceiving();
+        cacheServer.start();
+        cacheClient.linkToServer(cacheServer);
         cacheClient.start();
 
         log.info("\n\n######### Waiting for initial population to be done.\n\n");
@@ -101,31 +104,6 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
         // Shutdown
         cacheServer.close();
         cacheClient.close();
-        serverMatsFactory.close();
-        clientMatsFactory.close();
-        matsTestBroker.close();
-    }
-
-    static class CustomerDTOCacheDataCallback implements CacheDataCallback<CustomerTransferDTO> {
-        private final CustomerData _sourceData;
-
-        public CustomerDTOCacheDataCallback(CustomerData sourceData) {
-            _sourceData = sourceData;
-        }
-
-        @Override
-        public int provideDataCount() {
-            return _sourceData.customers.size();
-        }
-
-        @Override
-        public String provideMetadata() {
-            return "Dummy Data!";
-        }
-
-        @Override
-        public void provideSourceData(Consumer<CustomerTransferDTO> consumer) {
-            _sourceData.customers.stream().map(CustomerTransferDTO::fromCustomerDTO).forEach(consumer);
-        }
+        matsFactory.close();
     }
 }
