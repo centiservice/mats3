@@ -71,9 +71,9 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
     }
 
     /**
-     * Creates an {@link AutoCloseable}, MS-only or JMS-plus-JDBC (if dataSource arg is non-null) MatsFactory for
-     * testing purposes, backed by the in-vm broker from a MatsTestBroker and using {@link MatsSerializerJson}. When the
-     * returned MatsFactory's close() method is invoked, the MatsTestBroker is also closed. (Note that the
+     * Creates a wrapped {@link AutoCloseable}, MS-only or JMS-plus-JDBC (if dataSource arg is non-null) MatsFactory for
+     * testing purposes, backed by the in-vm broker from a {@link MatsTestBroker} and using {@link MatsSerializerJson}.
+     * When the returned MatsFactory's close() method is invoked, the MatsTestBroker is also closed. (Note that the
      * stop(graceful) method does <b>not</b> close the MatsTestBroker.)
      *
      * @param <Z>
