@@ -594,7 +594,7 @@ public interface MatsEagerCacheServer {
 
         long getLastUpdateUncompressedSize();
 
-        int getLastUpdateCount();
+        int getLastUpdateDataCount();
 
         String getLastUpdateMetadata();
 
@@ -623,27 +623,25 @@ public interface MatsEagerCacheServer {
     }
 
     interface LogEntry {
+        long getTimestamp();
+
         MonitorCategory getCategory();
 
         LogLevel getLevel();
 
         String getMessage();
-
-        long getTimestamp();
-
-        String toHtmlString();
     }
 
     interface ExceptionEntry {
+        long getTimestamp();
+
         MonitorCategory getCategory();
 
         String getMessage();
 
         Throwable getThrowable();
 
-        long getTimestamp();
-
-        String toHtmlString();
+        String getThrowableAsString();
     }
 
     // ======== The 'MatsEagerCacheServer' implementation class
@@ -761,7 +759,7 @@ public interface MatsEagerCacheServer {
         private volatile double _lastUpdateCompressMillis;
         private volatile int _lastUpdateCompressedSize;
         private volatile long _lastUpdateUncompressedSize;
-        private volatile int _lastUpdateCount;
+        private volatile int _lastUpdateDataCount;
         private volatile String _lastUpdateMetadata;
 
         // Use a lock to make sure that only one thread is producing and sending an update at a time, and make it fair
@@ -886,8 +884,8 @@ public interface MatsEagerCacheServer {
             }
 
             @Override
-            public int getLastUpdateCount() {
-                return _lastUpdateCount;
+            public int getLastUpdateDataCount() {
+                return _lastUpdateDataCount;
             }
 
             @Override
@@ -1654,7 +1652,7 @@ public interface MatsEagerCacheServer {
 
                 _lastUpdateCompressedSize = result.compressedSize;
                 _lastUpdateUncompressedSize = result.uncompressedSize;
-                _lastUpdateCount = result.dataCountFromSourceProvider;
+                _lastUpdateDataCount = result.dataCountFromSourceProvider;
                 _lastUpdateMetadata = result.metadata;
                 _lastUpdateCompressMillis = result.millisCompress;
 
@@ -2092,7 +2090,7 @@ public interface MatsEagerCacheServer {
          * A cache monitor, which can be used to log and monitor the cache server's activity.
          */
         static class CacheMonitor {
-            private static final int MAX_ENTRIES = 20;
+            static final int MAX_ENTRIES = 50;
             private final List<LogEntry> logEntries = new ArrayList<>();
             private final List<ExceptionEntry> exceptionEntries = new ArrayList<>();
 
@@ -2160,14 +2158,6 @@ public interface MatsEagerCacheServer {
             public long getTimestamp() {
                 return timestamp;
             }
-
-            public String toHtmlString() {
-                return "<div class='mec_logmessage'>"
-                        + "<code>" + _formatTimestamp(timestamp) + "</code> "
-                        + "<b>" + _monitorCategory + "</b> "
-                        + message
-                        + "</div>";
-            }
         }
 
         static class ExceptionEntryImpl implements ExceptionEntry {
@@ -2199,19 +2189,11 @@ public interface MatsEagerCacheServer {
                 return timestamp;
             }
 
-            public String toHtmlString() {
-                // Print Stacktrace to String
+            public String getThrowableAsString() {
                 StringWriter sw = new StringWriter();
                 PrintWriter pw = new PrintWriter(sw);
                 throwable.printStackTrace(pw);
-                String stackTrace = sw.toString();
-
-                return "<div class='mec_logmessage'><code>"
-                        + _formatTimestamp(timestamp) + "</code> "
-                        + "<b>" + _monitorCategory + "</b> "
-                        + message + "<br>"
-                        + "<pre>" + stackTrace + "</pre>"
-                        + "</div>";
+                return sw.toString();
             }
         }
     }

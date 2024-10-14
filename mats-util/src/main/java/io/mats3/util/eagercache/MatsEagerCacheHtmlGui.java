@@ -4,7 +4,11 @@ import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServer
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatHtmlTimestamp;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatMillis;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -13,6 +17,7 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientMock;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerInformation;
 import io.mats3.util.eagercache.MatsEagerCacheServer.ExceptionEntry;
 import io.mats3.util.eagercache.MatsEagerCacheServer.LogEntry;
+import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.CacheMonitor;
 
 /**
  * Embeddable HTML GUI for the {@link MatsEagerCacheClient} and {@link MatsEagerCacheServer}.
@@ -69,32 +74,57 @@ public interface MatsEagerCacheHtmlGui {
      */
     class MatsEagerCacheClientHtmlGui implements MatsEagerCacheHtmlGui {
         private final MatsEagerCacheClient<?> _client;
+        private final String _fqid;
 
         private MatsEagerCacheClientHtmlGui(MatsEagerCacheClient<?> client) {
             _client = client;
+            _fqid = (client.getCacheClientInformation().getDataName()
+                    + "-" + client.getCacheClientInformation().getNodename()).replaceAll("[^a-zA-Z0-9]", "-");
         }
 
         @Override
         public void outputStyleSheet(Appendable out) throws IOException {
-            out.append("/* No CSS for MatsEagerCacheClient */");
+            includeFile(out, "matseagercache.css");
         }
 
         @Override
         public void outputJavaScript(Appendable out) throws IOException {
-            out.append("/* No JavaScript for MatsEagerCacheClient */");
+            includeFile(out, "matseagercache.js");
+        }
+
+        private static void includeFile(Appendable out, String file) throws IOException {
+            String filename = MatsEagerCacheHtmlGui.class.getPackage().getName().replace('.', '/') + '/' + file;
+            InputStream is = MatsEagerCacheHtmlGui.class.getClassLoader().getResourceAsStream(filename);
+            if (is == null) {
+                throw new IllegalStateException("Missing '" + file + "' from ClassLoader.");
+            }
+            InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
+            BufferedReader br = new BufferedReader(isr);
+            while (true) {
+                String line = br.readLine();
+                if (line == null) {
+                    break;
+                }
+                out.append(line).append('\n');
+            }
         }
 
         @Override
         public void html(Appendable out, Map<String, String[]> requestParameters) throws IOException {
             CacheClientInformation info = _client.getCacheClientInformation();
-            out.append("<h2>MatsEagerCacheClient ")
+            out.append("<div class='matsec-container'>\n");
+            out.append("<h1>MatsEagerCacheClient ")
                     .append(_client instanceof MatsEagerCacheClientMock ? "<b>MOCK</b>" : "")
                     .append(" '").append(info.getDataName()).append("' @ '")
-                    .append(info.getNodename()).append("'</h2>\n");
+                    .append(info.getNodename()).append("'</h1>\n");
             if (_client instanceof MatsEagerCacheClientMock) {
                 out.append("<i><b>NOTICE! This is a MOCK of the MatsEagerCacheClient</b>, and some of the information"
                         + " below is mocked! (Notably all the LastUpdate* data)</i><br><br>\n");
             }
+
+            out.append("<div class='matsec-column-container'>\n");
+
+            out.append("<div class='matsec-column'>\n");
             out.append("DataName: ").append("<b>").append(info.getDataName()).append("</b><br>\n");
             out.append("Nodename: ").append("<b>").append(info.getNodename()).append("</b><br>\n");
             out.append("LifeCycle: ").append("<b>").append(info.getCacheClientLifeCycle().toString()).append(
@@ -121,8 +151,9 @@ public interface MatsEagerCacheHtmlGui {
                     .append(_formatHtmlTimestamp(info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
             out.append("LastPartialUpdateReceivedTimestamp: ")
                     .append(_formatHtmlTimestamp(info.getLastPartialUpdateReceivedTimestamp())).append("<br>\n");
-            out.append("<br>\n");
+            out.append("</div>\n");
 
+            out.append("<div class='matsec-column'>\n");
             // ?: Is the initial population done?
             if (!initialDone) {
                 // -> No, initial population not done yet.
@@ -154,8 +185,12 @@ public interface MatsEagerCacheHtmlGui {
                     .append(Integer.toString(info.getNumberOfPartialUpdatesReceived())).append("</b><br>\n");
             out.append("NumberOfAccesses: ").append("<b>")
                     .append(Long.toString(info.getNumberOfAccesses())).append("</b><br>\n");
+            out.append("</div>\n");
+            out.append("</div>\n");
 
             logsAndExceptions(out, info.getExceptionEntries(), info.getLogEntries());
+
+            out.append("</div>\n");
         }
 
         static void logsAndExceptions(Appendable out, List<ExceptionEntry> exceptionEntries, List<LogEntry> logEntries)
@@ -164,22 +199,73 @@ public interface MatsEagerCacheHtmlGui {
 
             // :: Print out exception entries, or "No exceptions" if none.
             if (exceptionEntries.isEmpty()) {
-                out.append("<h3>Exception entries</h3>\n");
+                out.append("<h2>Exception entries</h2><br>\n");
                 out.append("<b><i>No exceptions!</i></b><br>\n");
             }
             else {
-                out.append("<h3>Exception entries</h3>\n");
-                for (ExceptionEntry entry : exceptionEntries) {
-                    out.append(entry.toHtmlString()).append("<br>\n");
+
+                out.append("<div class='matsec-log-table-container'>");
+                out.append("<h2>Exception entries</h2>\n");
+                out.append(logEntries.size() > 5
+                        ? "<button class='matsec-toggle-button' onclick='matsecToggleLogs(this)'>Show All</button>\n"
+                        : "");
+                out.append(Integer.toString(logEntries.size())).append(logEntries.size() != 1 ? " entries" : " entry")
+                        .append(" out of max " + CacheMonitor.MAX_ENTRIES + ", most recent first.<br>\n");
+                out.append("<table class='matsec-log-table'><thead><tr>"
+                        + "<th>Timestamp</th>"
+                        + "<th>Category</th>"
+                        + "<th>Message</th>"
+                        + "</tr></thead>");
+                out.append("<tbody>\n");
+                int count = 0;
+                for (int i = exceptionEntries.size() - 1; i >= 0; i--) {
+                    ExceptionEntry entry = exceptionEntries.get(i);
+                    out.append("<tr class='matsec-log-row").append(count >= 5 ? " matsec-hidden'>" : "'>");
+                    out.append("  <td class='matsec-timestamp'>").append(_formatHtmlTimestamp(entry.getTimestamp()))
+                            .append("</td>");
+                    out.append("  <td class='matsec-category'>").append(entry.getCategory().toString()).append("</td>");
+                    out.append("  <td class='matsec-message'>").append(entry.getMessage()).append("</td>");
+                    out.append("</tr>\n");
+                    out.append("<tr class='matsec-log-row-throwable").append(count >= 5 ? " matsec-hidden'>" : "'>");
+                    out.append("  <td colspan='3' class='matsec-throwable'><pre>").append(entry.getThrowableAsString())
+                            .append("</pre></td>");
+                    out.append("</tr>\n");
+                    count++;
                 }
+                out.append("</tbody></table>\n");
+                out.append("</div>\n");
             }
 
             // :: Print out log entries
             out.append("<br>\n");
-            out.append("<h3>Log entries</h3>\n");
-            for (LogEntry entry : logEntries) {
-                out.append(entry.toHtmlString()).append("<br>\n");
+            out.append("<div class='matsec-log-table-container'>");
+            out.append("<h2>Log entries</h2>\n");
+            out.append(logEntries.size() > 5
+                    ? "<button class='matsec-toggle-button' onclick='matsecToggleLogs(this)'>Show All</button>\n"
+                    : "");
+            out.append(Integer.toString(logEntries.size())).append(logEntries.size() != 1 ? " entries" : " entry")
+                    .append(" out of max " + CacheMonitor.MAX_ENTRIES + ", most recent first..<br>\n");
+            out.append("<table class='matsec-log-table'><thead><tr>"
+                    + "<th>Timestamp</th>"
+                    + "<th>Level</th>"
+                    + "<th>Category</th>"
+                    + "<th>Message</th>"
+                    + "</tr></thead>");
+            out.append("<tbody>\n");
+            int count = 0;
+            for (int i = logEntries.size() - 1; i >= 0; i--) {
+                LogEntry entry = logEntries.get(i);
+                out.append("<tr class='matsec-log-row").append(count >= 5 ? " matsec-hidden'>" : "'>");
+                out.append("<td class='matsec-timestamp'>").append(_formatHtmlTimestamp(entry.getTimestamp()))
+                        .append("</td>");
+                out.append("<td class='matsec-level'>").append(entry.getLevel().toString()).append("</td>");
+                out.append("<td class='matsec-category'>").append(entry.getCategory().toString()).append("</td>");
+                out.append("<td class='matsec-message'>").append(entry.getMessage()).append("</td>");
+                out.append("</tr>\n");
+                count++;
             }
+            out.append("</tbody></table>\n");
+            out.append("</div>\n");
         }
 
         @Override
@@ -195,24 +281,32 @@ public interface MatsEagerCacheHtmlGui {
      */
     class MatsEagerCacheServerHtmlGui implements MatsEagerCacheHtmlGui {
         private final CacheServerInformation _info;
+        private final String _fqid;
 
         private MatsEagerCacheServerHtmlGui(MatsEagerCacheServer server) {
             _info = server.getCacheServerInformation();
+            _fqid = (server.getCacheServerInformation().getDataName()
+                    + "-" + server.getCacheServerInformation().getNodename()).replaceAll("[^a-zA-Z0-9]", "-");
         }
 
         @Override
         public void outputStyleSheet(Appendable out) throws IOException {
-            out.append("/* No CSS for MatsEagerCacheServer */");
+            MatsEagerCacheClientHtmlGui.includeFile(out, "matseagercache.css");
         }
 
         @Override
         public void outputJavaScript(Appendable out) throws IOException {
-            out.append("/* No JavaScript for MatsEagerCacheServer */");
+            MatsEagerCacheClientHtmlGui.includeFile(out, "matseagercache.js");
         }
 
         @Override
         public void html(Appendable out, Map<String, String[]> requestParameters) throws IOException {
-            out.append("<h2>MatsEagerCacheServer '" + _info.getDataName() + "' @ '" + _info.getNodename() + "'</h2>");
+            out.append("<div class='matsec-container'>\n");
+            out.append("<h1>MatsEagerCacheServer '" + _info.getDataName() + "' @ '" + _info.getNodename() + "'</h1>");
+
+            out.append("<div class='matsec-column-container'>\n");
+
+            out.append("<div class='matsec-column'>\n");
             out.append("DataName: ").append("<b>").append(_info.getDataName()).append("</b><br>\n");
             out.append("Nodename: ").append("<b>").append(_info.getNodename()).append("</b><br>\n");
             out.append("LifeCycle: ").append("<b>").append(_info.getCacheServerLifeCycle().toString()).append(
@@ -239,8 +333,9 @@ public interface MatsEagerCacheHtmlGui {
                     .append(_formatHtmlTimestamp(_info.getLastPartialUpdateReceivedTimestamp())).append("<br>\n");
             out.append("LastAnyUpdateReceivedTimestamp: ")
                     .append(_formatHtmlTimestamp(_info.getLastAnyUpdateReceivedTimestamp())).append("<br>\n");
-            out.append("<br>\n");
+            out.append("</div>\n");
 
+            out.append("<div class='matsec-column'>\n");
             long lastUpdateSent = _info.getLastUpdateSentTimestamp();
             if (lastUpdateSent > 0) {
                 out.append("LastUpdateSentTimestamp: ").append("<b>")
@@ -259,8 +354,8 @@ public interface MatsEagerCacheHtmlGui {
                 String meta = _info.getLastUpdateMetadata();
                 out.append("LastUpdateMetadata: ").append(meta != null ? "<b>" + meta + "</b>" : "<i>none</i>")
                         .append("<br>\n");
-                out.append("LastUpdateCount: ").append("<b>")
-                        .append(Integer.toString(_info.getLastUpdateCount())).append("</b><br>\n");
+                out.append("LastUpdateDataCount: ").append("<b>")
+                        .append(Integer.toString(_info.getLastUpdateDataCount())).append("</b><br>\n");
                 out.append("LastUpdateUncompressedSize: ")
                         .append(_formatHtmlBytes(_info.getLastUpdateUncompressedSize())).append("<br>\n");
                 out.append("LastUpdateCompressedSize: ")
@@ -277,8 +372,12 @@ public interface MatsEagerCacheHtmlGui {
             out.append("PartialUpdates: <b>").append(Integer.toString(_info.getNumberOfPartialUpdatesSent()));
             out.append("</b> sent, out of <b>").append(Integer.toString(_info.getNumberOfPartialUpdatesReceived()))
                     .append("</b> received.<br>\n");
+            out.append("</div>\n");
+            out.append("</div>\n");
 
-            MatsEagerCacheClientHtmlGui.logsAndExceptions(out, _info.getExceptionEntries(), _info.getLogEntries());
+            MatsEagerCacheClientHtmlGui.logsAndExceptions(out, _info.getExceptionEntries(), _info
+                    .getLogEntries());
+            out.append("</div>\n");
         }
 
         @Override
