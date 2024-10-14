@@ -37,7 +37,7 @@ public class MatsEagerCacheStorebrandHealthCheck {
      *            Responsible parties for the health check, if not provided, defaults to {@link Responsible#DEVELOPERS}.
      */
     public static void registerHealthCheck(HealthCheckRegistry healthCheckRegistry,
-                                           MatsEagerCacheServer server, CharSequence... responsible) {
+            MatsEagerCacheServer server, CharSequence... responsible) {
         CacheServerInformation info = server.getCacheServerInformation();
         String id = "'" + info.getDataName() + "' @ '" + info.getNodename() + "'";
         String name = "MatsEagerCacheServer " + id;
@@ -90,7 +90,9 @@ public class MatsEagerCacheStorebrandHealthCheck {
             MatsEagerCacheClient<?> client, CharSequence... responsible) {
         CacheClientInformation info = client.getCacheClientInformation();
         String id = "'" + info.getDataName() + "' @ '" + info.getNodename() + "'";
-        String name = "MatsEagerCacheClient " + id;
+        String name = client instanceof MatsEagerCacheClient.MatsEagerCacheClientMock
+                ? "MatsEagerCacheClient MOCK " + id
+                : "MatsEagerCacheClient " + id;
         List<RegisteredHealthCheck> registeredHealthChecks = healthCheckRegistry.getRegisteredHealthChecks();
         for (RegisteredHealthCheck registeredHealthCheck : registeredHealthChecks) {
             if (name.equals(registeredHealthCheck.getMetadata().name)) {

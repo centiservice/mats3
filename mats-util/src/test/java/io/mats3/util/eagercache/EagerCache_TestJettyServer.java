@@ -37,6 +37,8 @@ import com.storebrand.healthcheck.output.HealthCheckTextOutput;
 
 import io.mats3.localinspect.LocalHtmlInspectForMatsFactory;
 import io.mats3.localinspect.LocalStatsMatsInterceptor;
+import io.mats3.util.DummyFinancialService;
+import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientMock;
 
 /**
  * Test Jetty Server for the EagerCache, which "boots" 2x Cache Server and Clients, and then creates HTML GUIs and
@@ -69,6 +71,11 @@ public class EagerCache_TestJettyServer {
                 throw new RuntimeException(e);
             }
 
+            // Create a Mock MatsEagerCacheClient
+            MatsEagerCacheClientMock<DataCarrier> mockClient = MatsEagerCacheClient.mock("Customers");
+            mockClient.setMockData(new DataCarrier(DummyFinancialService.createRandomReplyDTO(1234L, 20).customers));
+            mockClient.start();
+
             // Put the Cache Servers and Clients in ServletContext, for servlet to get
             sc.setAttribute("clientMatsFactory1", _serversClients.clientMatsFactory1);
             sc.setAttribute("clientMatsFactory2", _serversClients.clientMatsFactory2);
@@ -86,7 +93,6 @@ public class EagerCache_TestJettyServer {
                     _serversClients.clientMatsFactory1);
             LocalHtmlInspectForMatsFactory clientLocal2 = LocalHtmlInspectForMatsFactory.create(
                     _serversClients.clientMatsFactory2);
-            // servers
             LocalHtmlInspectForMatsFactory serverLocal1 = LocalHtmlInspectForMatsFactory.create(
                     _serversClients.serverMatsFactory1);
             LocalHtmlInspectForMatsFactory serverLocal2 = LocalHtmlInspectForMatsFactory.create(
@@ -104,6 +110,7 @@ public class EagerCache_TestJettyServer {
                     healthCheckLogger, new ServiceInfo("MatsEagerCache", "#testing#"));
             MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry, _serversClients.cacheClient1);
             MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry, _serversClients.cacheClient2);
+            MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry, mockClient);
             MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry, _serversClients.cacheServer1);
             MatsEagerCacheStorebrandHealthCheck.registerHealthCheck(healthCheckRegistry, _serversClients.cacheServer2);
             // Start the HealthCheck subsystem
@@ -115,12 +122,14 @@ public class EagerCache_TestJettyServer {
             // :: Create the MatsEagerCacheHtmlGui instances for Cache Clients and Servers
             MatsEagerCacheHtmlGui clientCacheGui1 = MatsEagerCacheHtmlGui.create(_serversClients.cacheClient1);
             MatsEagerCacheHtmlGui clientCacheGui2 = MatsEagerCacheHtmlGui.create(_serversClients.cacheClient2);
+            MatsEagerCacheHtmlGui mockClientGui = MatsEagerCacheHtmlGui.create(mockClient);
             MatsEagerCacheHtmlGui serverCacheGui1 = MatsEagerCacheHtmlGui.create(_serversClients.cacheServer1);
             MatsEagerCacheHtmlGui serverCacheGui2 = MatsEagerCacheHtmlGui.create(_serversClients.cacheServer2);
 
             // Put the Cache Clients and Servers HTML GUIs into ServletContext
             sc.setAttribute("clientCacheGui1", clientCacheGui1);
             sc.setAttribute("clientCacheGui2", clientCacheGui2);
+            sc.setAttribute("mockClientGui", mockClientGui);
             sc.setAttribute("serverCacheGui1", serverCacheGui1);
             sc.setAttribute("serverCacheGui2", serverCacheGui2);
         }
@@ -187,6 +196,8 @@ public class EagerCache_TestJettyServer {
                     .getAttribute("clientCacheGui1");
             MatsEagerCacheHtmlGui clientCacheGui2 = (MatsEagerCacheHtmlGui) req.getServletContext()
                     .getAttribute("clientCacheGui2");
+            MatsEagerCacheHtmlGui mockClientGui = (MatsEagerCacheHtmlGui) req.getServletContext()
+                    .getAttribute("mockClientGui");
             MatsEagerCacheHtmlGui serverCacheGui1 = (MatsEagerCacheHtmlGui) req.getServletContext()
                     .getAttribute("serverCacheGui1");
             MatsEagerCacheHtmlGui serverCacheGui2 = (MatsEagerCacheHtmlGui) req.getServletContext()
@@ -219,6 +230,7 @@ public class EagerCache_TestJettyServer {
             out.println("</pre>");
 
             // Output the MatsEagerCacheGui's HTML
+            mockClientGui.html(out, req.getParameterMap());
             clientCacheGui1.html(out, req.getParameterMap());
             clientCacheGui2.html(out, req.getParameterMap());
             serverCacheGui1.html(out, req.getParameterMap());

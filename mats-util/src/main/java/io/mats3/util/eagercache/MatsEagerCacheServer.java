@@ -619,7 +619,7 @@ public interface MatsEagerCacheServer {
     }
 
     enum MonitorCategory {
-        INITIAL_POPULATION, PERIODIC_UPDATE, RECEIVED_BROADCAST, CACHE_SERVER, CACHE_CLIENT, REQUEST_UPDATE_FROM_CLIENT, REQUEST_UPDATE_PERIODIC, REQUEST_UPDATE_SEND_NOW, REQUEST_UPDATE_COALESCE, REQUEST_UPDATE_FROM_SERVER, ENSURE_UPDATE, SIBLING_COMMAND, PRODUCE_DATA, GET, RECEIVED_UPDATE, SEND_UPDATE, OTHER
+        INITIAL_POPULATION, PERIODIC_UPDATE, RECEIVED_BROADCAST, CACHE_SERVER, CACHE_CLIENT, REQUEST_UPDATE_FROM_CLIENT, REQUEST_UPDATE_PERIODIC, REQUEST_UPDATE_SEND_NOW, REQUEST_UPDATE_COALESCE, REQUEST_UPDATE_FROM_SERVER, ENSURE_UPDATE, SIBLING_COMMAND, PRODUCE_DATA, GET, RECEIVED_UPDATE, SEND_UPDATE, CACHE_CLIENT_MOCK, OTHER
     }
 
     interface LogEntry {
@@ -1165,7 +1165,7 @@ public interface MatsEagerCacheServer {
                             }
                             // :: If we have any linked clients, we should send the update to them.
                             if (_cacheClients != null) {
-                                _cacheClients.forEach(client -> client.processLambdaForSubscriptionTerminator(ctx,
+                                _cacheClients.forEach(client -> client._processLambdaForSubscriptionTerminator(ctx,
                                         state, broadcastDto));
                             }
                         }

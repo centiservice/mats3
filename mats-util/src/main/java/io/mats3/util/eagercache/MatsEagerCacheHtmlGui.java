@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientInformation;
+import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientMock;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerInformation;
 import io.mats3.util.eagercache.MatsEagerCacheServer.ExceptionEntry;
 import io.mats3.util.eagercache.MatsEagerCacheServer.LogEntry;
@@ -67,10 +68,10 @@ public interface MatsEagerCacheHtmlGui {
      * {@link MatsEagerCacheHtmlGui#create(MatsEagerCacheClient)} factory method to get an instance.
      */
     class MatsEagerCacheClientHtmlGui implements MatsEagerCacheHtmlGui {
-        private final CacheClientInformation _info;
+        private final MatsEagerCacheClient<?> _client;
 
         private MatsEagerCacheClientHtmlGui(MatsEagerCacheClient<?> client) {
-            _info = client.getCacheClientInformation();
+            _client = client;
         }
 
         @Override
@@ -85,65 +86,76 @@ public interface MatsEagerCacheHtmlGui {
 
         @Override
         public void html(Appendable out, Map<String, String[]> requestParameters) throws IOException {
-            out.append("<h2>MatsEagerCacheClient '").append(_info.getDataName()).append("' @ '")
-                    .append(_info.getNodename()).append("'</h2>\n");
-            out.append("DataName: ").append("<b>").append(_info.getDataName()).append("</b><br>\n");
-            out.append("Nodename: ").append("<b>").append(_info.getNodename()).append("</b><br>\n");
-            out.append("LifeCycle: ").append("<b>").append(_info.getCacheClientLifeCycle().toString()).append(
+            CacheClientInformation info = _client.getCacheClientInformation();
+            out.append("<h2>MatsEagerCacheClient ")
+                    .append(_client instanceof MatsEagerCacheClientMock ? "<b>MOCK</b>" : "")
+                    .append(" '").append(info.getDataName()).append("' @ '")
+                    .append(info.getNodename()).append("'</h2>\n");
+            if (_client instanceof MatsEagerCacheClientMock) {
+                out.append("<i><b>NOTICE! This is a MOCK of the MatsEagerCacheClient</b>, and some of the information"
+                        + " below is mocked! (Notably all the LastUpdate* data)</i><br><br>\n");
+            }
+            out.append("DataName: ").append("<b>").append(info.getDataName()).append("</b><br>\n");
+            out.append("Nodename: ").append("<b>").append(info.getNodename()).append("</b><br>\n");
+            out.append("LifeCycle: ").append("<b>").append(info.getCacheClientLifeCycle().toString()).append(
                     "</b><br>\n");
             out.append("CacheStartedTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getCacheStartedTimestamp())).append("<br>\n");
-            out.append("BroadcastTopic: ").append("<b>").append(_info.getBroadcastTopic()).append("</b><br>\n");
+                    .append(_formatHtmlTimestamp(info.getCacheStartedTimestamp())).append("<br>\n");
+            out.append("BroadcastTopic: ").append("<b>").append(info.getBroadcastTopic()).append("</b><br>\n");
             out.append("InitialPopulationRequestSentTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getInitialPopulationRequestSentTimestamp())).append("<br>\n");
-            boolean initial = _info.isInitialPopulationDone();
-            long millisBetween = _info.getInitialPopulationTimestamp() -
-                    _info.getInitialPopulationRequestSentTimestamp();
-            out.append("InitialPopulationDone: ").append(initial
-                    ? "<b>Done</b> @ " + _formatHtmlTimestamp(_info.getInitialPopulationTimestamp())
-                            + " - " + _formatMillis(millisBetween) + " after request"
-                    : "<i>Waiting</i>")
+                    .append(_formatHtmlTimestamp(info.getInitialPopulationRequestSentTimestamp())).append("<br>\n");
+
+            boolean initialDone = info.isInitialPopulationDone();
+            long millisBetween = info.getInitialPopulationTimestamp() - info.getInitialPopulationRequestSentTimestamp();
+            out.append("InitialPopulationDone: ")
+                    .append(initialDone
+                            ? "<b>Done</b> @ " + _formatHtmlTimestamp(info.getInitialPopulationTimestamp())
+                                    + " - " + _formatMillis(millisBetween) + " after request"
+                            : "<i>Waiting</i>")
                     .append("</b><br>\n");
             out.append("<br>\n");
 
             out.append("LastAnyUpdateReceivedTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getAnyUpdateReceivedTimestamp())).append("<br>\n");
+                    .append(_formatHtmlTimestamp(info.getAnyUpdateReceivedTimestamp())).append("<br>\n");
             out.append("LastFullUpdateReceivedTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
+                    .append(_formatHtmlTimestamp(info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
             out.append("LastPartialUpdateReceivedTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getLastPartialUpdateReceivedTimestamp())).append("<br>\n");
+                    .append(_formatHtmlTimestamp(info.getLastPartialUpdateReceivedTimestamp())).append("<br>\n");
             out.append("<br>\n");
 
-            if (initial) {
+            // ?: Is the initial population done?
+            if (!initialDone) {
+                // -> No, initial population not done yet.
+                out.append("<i>Initial population not done yet.</i><br><br>\n");
+            }
+            else {
+                // -> Yes, initial population done - show info.
                 out.append("LastUpdateType: ").append("<b>")
-                        .append(_info.isLastUpdateFull() ? "Full" : "Partial").append("</b><br>\n");
+                        .append(info.isLastUpdateFull() ? "Full" : "Partial").append("</b><br>\n");
                 out.append("LastUpdateMode: ").append("<b>")
-                        .append(_info.isLastUpdateLarge() ? "LARGE" : "Small").append("</b><br>\n");
+                        .append(info.isLastUpdateLarge() ? "LARGE" : "Small").append("</b><br>\n");
                 out.append("LastUpdateDurationMillis: <b>")
-                        .append(_formatMillis(_info.getLastUpdateDurationMillis())).append("</b><br>\n");
-                String meta = _info.getLastUpdateMetadata();
+                        .append(_formatMillis(info.getLastUpdateDurationMillis())).append("</b><br>\n");
+                String meta = info.getLastUpdateMetadata();
                 out.append("LastUpdateMetadata: ").append(meta != null ? "<b>" + meta + "</b>" : "<i>none</i>")
                         .append("<br>\n");
                 out.append("LastUpdateCompressedSize: ")
-                        .append(_formatHtmlBytes(_info.getLastUpdateCompressedSize())).append("<br>\n");
+                        .append(_formatHtmlBytes(info.getLastUpdateCompressedSize())).append("<br>\n");
                 out.append("LastUpdateDecompressedSize: ")
-                        .append(_formatHtmlBytes(_info.getLastUpdateDecompressedSize())).append("<br>\n");
+                        .append(_formatHtmlBytes(info.getLastUpdateDecompressedSize())).append("<br>\n");
                 out.append("LastUpdateDataCount: ").append("<b>")
-                        .append(Integer.toString(_info.getLastUpdateDataCount())).append("</b><br>\n");
+                        .append(Integer.toString(info.getLastUpdateDataCount())).append("</b><br>\n");
                 out.append("<br>\n");
-            }
-            else {
-                out.append("<i>Initial population not done yet.</i><br><br>\n");
             }
 
             out.append("NumberOfFullUpdatesReceived: ").append("<b>")
-                    .append(Integer.toString(_info.getNumberOfFullUpdatesReceived())).append("</b><br>\n");
+                    .append(Integer.toString(info.getNumberOfFullUpdatesReceived())).append("</b><br>\n");
             out.append("NumberOfPartialUpdatesReceived: ").append("<b>")
-                    .append(Integer.toString(_info.getNumberOfPartialUpdatesReceived())).append("</b><br>\n");
+                    .append(Integer.toString(info.getNumberOfPartialUpdatesReceived())).append("</b><br>\n");
             out.append("NumberOfAccesses: ").append("<b>")
-                    .append(Long.toString(_info.getNumberOfAccesses())).append("</b><br>\n");
+                    .append(Long.toString(info.getNumberOfAccesses())).append("</b><br>\n");
 
-            logsAndExceptions(out, _info.getExceptionEntries(), _info.getLogEntries());
+            logsAndExceptions(out, info.getExceptionEntries(), info.getLogEntries());
         }
 
         static void logsAndExceptions(Appendable out, List<ExceptionEntry> exceptionEntries, List<LogEntry> logEntries)
