@@ -1,5 +1,6 @@
 package io.mats3.util.eagercache;
 
+import static io.mats3.util.eagercache.MatsEagerCacheHtmlGui.MatsEagerCacheClientHtmlGui.includeFile;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatHtmlBytes;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatHtmlTimestamp;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatMillis;
@@ -33,40 +34,94 @@ public interface MatsEagerCacheHtmlGui {
     }
 
     /**
-     * Note: The output from this method is static, it can be written directly to the HTML page in a script-tag, or
-     * included as a separate file (with hard caching). It shall only be included once even if there are several GUIs on
-     * the same page.
+     * Note: The output from this method is static - and common between Client and Server - and it can be written
+     * directly to the HTML page in a script-tag, or included as a separate file (with hard caching). It shall only be
+     * included once even if there are several GUIs on the same page.
      */
-    void outputStyleSheet(Appendable out) throws IOException;
+    static void styleSheet(Appendable out) throws IOException {
+        includeFile(out, "matseagercache.css");
+    }
 
     /**
-     * Note: The output from this method is static, it can be written directly to the HTML page in a style-tag, or
-     * included as a separate file (with hard caching). It shall only be included once even if there are several GUIs on
-     * the same page.
+     * Note: The output from this method is static - and common between Client and Server - and it can be written
+     * directly to the HTML page in a style-tag, or included as a separate file (with hard caching). It shall only be
+     * included once even if there are several GUIs on the same page.
      */
-    void outputJavaScript(Appendable out) throws IOException;
+    static void javaScript(Appendable out) throws IOException {
+        includeFile(out, "matseagercache.js");
+    }
 
     /**
      * The embeddable HTML GUI - map this to GET, content type is <code>"text/html; charset=utf-8"</code>. This might
-     * via the browser call back to {@link #json(Appendable, Map, String)} - which you also must mount at (typically)
-     * the same URL (PUT, POST and DELETEs go there, GETs go here).
+     * via the browser call back to {@link #json(Appendable, Map, String, AccessControl)} - which you also must mount at
+     * (typically) the same URL (PUT, POST and DELETEs go there, GETs go here).
      */
-    void html(Appendable out, Map<String, String[]> requestParameters) throws IOException;
+    void html(Appendable out, Map<String, String[]> requestParameters, AccessControl ac) throws IOException;
 
     /**
      * The HTML GUI will invoke JSON-over-HTTP to the same URL it is located at - map this to PUT, POST and DELETE,
      * returned content type shall be <code>"application/json; charset=utf-8"</code>.
      * <p>
      * NOTICE: If you have several GUIs on the same path, you must route them to the correct instance. This is done by
-     * the URL parameters 'dataname' and 'nodename' which will always be supplied by the GUI when doing operations.
+     * the URL parameters 'routingId' which will always be supplied by the GUI when doing operations - compare with the
+     * {@link #getRoutingId()} of the different instances, and route to the one matching.
      * <p>
-     * NOTICE: If you need to change the JSON Path, i.e. the path which this GUI employs to do "active" operations, you
-     * can do so by setting the JS global variable "matsec_json_path" when outputting the HTML, overriding the default
-     * which is to use the current URL path (i.e. the same as the GUI is served on). They may be on the same path since
-     * the HTML is served using GET, while the JSON uses PUT, POST and DELETE with header "Content-Type:
-     * application/json".
+     * NOTICE: If you want to change the JSON Path, i.e. the path which this GUI employs to do "active" operations, you
+     * can do so by prepending a little JavaScript section which sets the global variable "matsec_json_path" to the HTML
+     * output, thus overriding the default which is to use the current URL path (i.e. the same as the GUI is served on).
+     * They may be on the same path since the HTML is served using GET, while the JSON uses PUT, POST and DELETE with
+     * header "Content-Type: application/json".
      */
-    void json(Appendable out, Map<String, String[]> requestParameters, String requestBody) throws IOException;
+    void json(Appendable out, Map<String, String[]> requestParameters, String requestBody, AccessControl ac)
+            throws IOException;
+
+    /**
+     * @return the value which shall be compared when incoming {@link #json(Appendable, Map, String, AccessControl)
+     *         JSON-over-HTTP} requests must be routed to the correct instance.
+     */
+    String getRoutingId();
+
+    /**
+     * Interface which an instance of must be supplied to the {@link #html(Appendable, Map, AccessControl)} and
+     * {@link #json(Appendable, Map, String, AccessControl)} methods, which allows the GUI log which user does some
+     * operation, and to check if the user is allowed to do the operation.
+     */
+    interface AccessControl {
+        default String username() {
+            return "{unknown}";
+        }
+
+        default boolean clearExceptions() {
+            return false;
+        }
+    }
+
+    /**
+     * Quick way to get an {@link AccessControl} instance which allow all operations.
+     *
+     * @param username
+     *            the username to use in the {@link AccessControl#username()} method.
+     * @return an {@link AccessControl} which allows all operations.
+     */
+    static AccessControl getAccessControlAllowAll(String username) {
+        return new AccessControl() {
+            @Override
+            public String username() {
+                return username;
+            }
+
+            @Override
+            public boolean clearExceptions() {
+                return true;
+            }
+        };
+    }
+
+    class AccessDeniedException extends RuntimeException {
+        public AccessDeniedException(String message) {
+            super(message);
+        }
+    }
 
     /**
      * Implementation of {@link MatsEagerCacheHtmlGui} for {@link MatsEagerCacheClient} - use the
@@ -74,25 +129,15 @@ public interface MatsEagerCacheHtmlGui {
      */
     class MatsEagerCacheClientHtmlGui implements MatsEagerCacheHtmlGui {
         private final MatsEagerCacheClient<?> _client;
-        private final String _fqid;
+        private final String _routingId;
 
         private MatsEagerCacheClientHtmlGui(MatsEagerCacheClient<?> client) {
             _client = client;
-            _fqid = (client.getCacheClientInformation().getDataName()
-                    + "-" + client.getCacheClientInformation().getNodename()).replaceAll("[^a-zA-Z0-9]", "-");
+            _routingId = "C-" + (client.getCacheClientInformation().getDataName()
+                    + "-" + client.getCacheClientInformation().getNodename()).replaceAll("[^a-zA-Z0-9_]", "-");
         }
 
-        @Override
-        public void outputStyleSheet(Appendable out) throws IOException {
-            includeFile(out, "matseagercache.css");
-        }
-
-        @Override
-        public void outputJavaScript(Appendable out) throws IOException {
-            includeFile(out, "matseagercache.js");
-        }
-
-        private static void includeFile(Appendable out, String file) throws IOException {
+        static void includeFile(Appendable out, String file) throws IOException {
             String filename = MatsEagerCacheHtmlGui.class.getPackage().getName().replace('.', '/') + '/' + file;
             InputStream is = MatsEagerCacheHtmlGui.class.getClassLoader().getResourceAsStream(filename);
             if (is == null) {
@@ -110,7 +155,7 @@ public interface MatsEagerCacheHtmlGui {
         }
 
         @Override
-        public void html(Appendable out, Map<String, String[]> requestParameters) throws IOException {
+        public void html(Appendable out, Map<String, String[]> requestParameters, AccessControl ac) throws IOException {
             CacheClientInformation info = _client.getCacheClientInformation();
             out.append("<div class='matsec-container'>\n");
             out.append("<h1>MatsEagerCacheClient ")
@@ -269,9 +314,14 @@ public interface MatsEagerCacheHtmlGui {
         }
 
         @Override
-        public void json(Appendable out, Map<String, String[]> requestParameters, String requestBody)
+        public void json(Appendable out, Map<String, String[]> requestParameters, String requestBody, AccessControl ac)
                 throws IOException {
             out.append("/* No JSON for MatsEagerCacheClient */");
+        }
+
+        @Override
+        public String getRoutingId() {
+            return _routingId;
         }
     }
 
@@ -281,26 +331,16 @@ public interface MatsEagerCacheHtmlGui {
      */
     class MatsEagerCacheServerHtmlGui implements MatsEagerCacheHtmlGui {
         private final CacheServerInformation _info;
-        private final String _fqid;
+        private final String _routingId;
 
         private MatsEagerCacheServerHtmlGui(MatsEagerCacheServer server) {
             _info = server.getCacheServerInformation();
-            _fqid = (server.getCacheServerInformation().getDataName()
-                    + "-" + server.getCacheServerInformation().getNodename()).replaceAll("[^a-zA-Z0-9]", "-");
+            _routingId = "S-" + (server.getCacheServerInformation().getDataName()
+                    + "-" + server.getCacheServerInformation().getNodename()).replaceAll("[^a-zA-Z0-9_]", "-");
         }
 
         @Override
-        public void outputStyleSheet(Appendable out) throws IOException {
-            MatsEagerCacheClientHtmlGui.includeFile(out, "matseagercache.css");
-        }
-
-        @Override
-        public void outputJavaScript(Appendable out) throws IOException {
-            MatsEagerCacheClientHtmlGui.includeFile(out, "matseagercache.js");
-        }
-
-        @Override
-        public void html(Appendable out, Map<String, String[]> requestParameters) throws IOException {
+        public void html(Appendable out, Map<String, String[]> requestParameters, AccessControl ac) throws IOException {
             out.append("<div class='matsec-container'>\n");
             out.append("<h1>MatsEagerCacheServer '" + _info.getDataName() + "' @ '" + _info.getNodename() + "'</h1>");
 
@@ -381,9 +421,14 @@ public interface MatsEagerCacheHtmlGui {
         }
 
         @Override
-        public void json(Appendable out, Map<String, String[]> requestParameters, String requestBody)
+        public void json(Appendable out, Map<String, String[]> requestParameters, String requestBody, AccessControl ac)
                 throws IOException {
             out.append("/* No JSON for MatsEagerCacheServer */");
+        }
+
+        @Override
+        public String getRoutingId() {
+            return _routingId;
         }
     }
 }

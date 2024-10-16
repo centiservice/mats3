@@ -39,6 +39,7 @@ import io.mats3.localinspect.LocalHtmlInspectForMatsFactory;
 import io.mats3.localinspect.LocalStatsMatsInterceptor;
 import io.mats3.util.DummyFinancialService;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientMock;
+import io.mats3.util.eagercache.MatsEagerCacheHtmlGui.AccessControl;
 
 /**
  * Test Jetty Server for the EagerCache, which "boots" 2x Cache Server and Clients, and then creates HTML GUIs and
@@ -169,13 +170,47 @@ public class EagerCache_TestJettyServer {
             res.setContentType("application/json; charset=utf-8");
             PrintWriter out = res.getWriter();
 
-            // TODO: Do routing to correct interface!
+            // ::: Perform routing to the correct MatsBrokerMonitorHtmlGUI instance
 
-            // Pick out MatsEagerCacheGui from ServletContext
-            MatsEagerCacheHtmlGui clientCacheGui1 = (MatsEagerCacheHtmlGui) req.getServletContext().getAttribute(
-                    "clientCacheGui1");
+            // :: Get the routingId from the request parameter
+            String routingId = req.getParameter("routingId");
+            if (routingId == null) {
+                out.println("{\"error\": \"No 'routingId' parameter provided.\"}");
+                return;
+            }
 
-            clientCacheGui1.json(out, req.getParameterMap(), body);
+            // :: Find which MatsEagerCacheGui to use, and output its JSON
+            boolean found = false;
+            MatsEagerCacheHtmlGui[] allGuis = getAllGuis(req);
+            for (MatsEagerCacheHtmlGui gui : allGuis) {
+                if (gui.getRoutingId().equals(routingId)) {
+                    // Use "standard" AccessControl - which is a Dummy, allowing all.
+                    AccessControl ac = getAccessControl();
+
+                    // Output the MatsEagerCacheGui's JSON
+                    gui.json(out, req.getParameterMap(), body, ac);
+
+                    found = true;
+                }
+            }
+            if (!found) {
+                out.println("{\"error\": \"No MatsEagerCacheGui found for routingId [" + routingId + "]\"}");
+            }
+        }
+
+        protected AccessControl getAccessControl() {
+            return MatsEagerCacheHtmlGui.getAccessControlAllowAll(System.getProperty("user.name"));
+        }
+
+        protected MatsEagerCacheHtmlGui[] getAllGuis(HttpServletRequest req) {
+            ServletContext sc = req.getServletContext();
+            MatsEagerCacheHtmlGui clientCacheGui1 = (MatsEagerCacheHtmlGui) sc.getAttribute("clientCacheGui1");
+            MatsEagerCacheHtmlGui clientCacheGui2 = (MatsEagerCacheHtmlGui) sc.getAttribute("clientCacheGui2");
+            MatsEagerCacheHtmlGui mockClientGui = (MatsEagerCacheHtmlGui) sc.getAttribute("mockClientGui");
+            MatsEagerCacheHtmlGui serverCacheGui1 = (MatsEagerCacheHtmlGui) sc.getAttribute("serverCacheGui1");
+            MatsEagerCacheHtmlGui serverCacheGui2 = (MatsEagerCacheHtmlGui) sc.getAttribute("serverCacheGui2");
+            return new MatsEagerCacheHtmlGui[] { clientCacheGui1, clientCacheGui2, mockClientGui, serverCacheGui1,
+                    serverCacheGui2 };
         }
 
         @Override
@@ -192,28 +227,23 @@ public class EagerCache_TestJettyServer {
                     .getAttribute("serverLocal2");
 
             // Pick out all the MatsEagerCacheGui instances from ServletContext
-            MatsEagerCacheHtmlGui clientCacheGui1 = (MatsEagerCacheHtmlGui) req.getServletContext()
-                    .getAttribute("clientCacheGui1");
-            MatsEagerCacheHtmlGui clientCacheGui2 = (MatsEagerCacheHtmlGui) req.getServletContext()
-                    .getAttribute("clientCacheGui2");
-            MatsEagerCacheHtmlGui mockClientGui = (MatsEagerCacheHtmlGui) req.getServletContext()
-                    .getAttribute("mockClientGui");
-            MatsEagerCacheHtmlGui serverCacheGui1 = (MatsEagerCacheHtmlGui) req.getServletContext()
-                    .getAttribute("serverCacheGui1");
-            MatsEagerCacheHtmlGui serverCacheGui2 = (MatsEagerCacheHtmlGui) req.getServletContext()
-                    .getAttribute("serverCacheGui2");
+            MatsEagerCacheHtmlGui[] allGuis = getAllGuis(req);
 
             PrintWriter out = resp.getWriter();
             out.println("<!DOCTYPE html>");
             out.println("<html>");
             out.println("  <body>");
             out.println("    <style>");
+            out.println("\n    /* Include the CSS from the LocalInspect HTML GUIs */\n\n");
             clientLocal1.getStyleSheet(out); // Include just once, use the first.
-            clientCacheGui1.outputStyleSheet(out); // Include just once, use the first.
+            out.println("\n    /* Include the CSS from the MatsEagerCache HTML GUIs */\n\n");
+            MatsEagerCacheHtmlGui.styleSheet(out);
             out.println("    </style>");
             out.println("    <script>");
+            out.println("\n    /* Include the JavaScript from the LocalInspect HTML GUIs */\n\n");
             clientLocal1.getJavaScript(out); // Include just once, use the first.
-            clientCacheGui1.outputJavaScript(out); // Include just once, use the first.
+            out.println("\n    /* Include the JavaScript from the MatsEagerCache HTML GUIs */\n\n");
+            MatsEagerCacheHtmlGui.javaScript(out);
             out.println("    </script>");
             out.println("<h1>Initiate Mats flow</h1>");
             out.println(" <a href=\"sendRequest\">Send request</a> - to initialize Initiator"
@@ -229,12 +259,13 @@ public class EagerCache_TestJettyServer {
             HealthCheckTextOutput.printHealthCheckReport(report, out);
             out.println("</pre>");
 
+            // Use "standard" AccessControl - which is a Dummy, allowing all.
+            AccessControl ac = getAccessControl();
+
             // Output the MatsEagerCacheGui's HTML
-            mockClientGui.html(out, req.getParameterMap());
-            clientCacheGui1.html(out, req.getParameterMap());
-            clientCacheGui2.html(out, req.getParameterMap());
-            serverCacheGui1.html(out, req.getParameterMap());
-            serverCacheGui2.html(out, req.getParameterMap());
+            for (MatsEagerCacheHtmlGui gui : allGuis) {
+                gui.html(out, req.getParameterMap(), ac);
+            }
 
             out.println("<h2>Summary Client MatsFactory 1</h2>");
             clientLocal1.createFactorySummary(out, true, true);
