@@ -41,12 +41,17 @@
     text-align: left;
     padding: 4px 5px;
 }
+.matsec-log-row,
+.matsec-log-row-throwable {
+    transition: background-color 0.4s ease;
+}
+
 .matsec-log-row:hover,
 .matsec-log-row:hover + .matsec-log-row-throwable,
 .matsec-log-row:has(+ .matsec-log-row-throwable:hover),
 .matsec-log-row-throwable:hover {
     background-color: #f8b864;
-    transition: background-color 0.08s ease;
+    transition: background-color 0s;
 }
 .matsec-log-table pre {
     margin: 0 0 5px 10px;
