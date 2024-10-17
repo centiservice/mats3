@@ -65,7 +65,7 @@ public class EagerCache_TestJettyServer {
             // Create the MatsFactories
             try {
                 _serversClients = CommonSetup_TwoServers_TwoClients.createWithServerAdjust(10, (server) -> {
-                    server.setPeriodicFullUpdateIntervalMinutes(0.2d); // 12 seconds. (Should be *hours* in production!)
+                   //  server.setPeriodicFullUpdateIntervalMinutes(0.2d); // 12 seconds. (Should be *hours* in production!)
                 });
             }
             catch (JsonProcessingException | InterruptedException e) {
@@ -186,15 +186,14 @@ public class EagerCache_TestJettyServer {
                 if (gui.getRoutingId().equals(routingId)) {
                     // Use "standard" AccessControl - which is a Dummy, allowing all.
                     AccessControl ac = getAccessControl();
-
                     // Output the MatsEagerCacheGui's JSON
                     gui.json(out, req.getParameterMap(), body, ac);
-
                     found = true;
                 }
             }
             if (!found) {
-                out.println("{\"error\": \"No MatsEagerCacheGui found for routingId [" + routingId + "]\"}");
+                res.sendError(HttpServletResponse.SC_NOT_FOUND, "No MatsEagerCacheGui found for supplied routingId.");
+                log.error("No MatsEagerCacheGui found for supplied routingId [" + routingId + "].");
             }
         }
 
@@ -204,12 +203,12 @@ public class EagerCache_TestJettyServer {
 
         protected MatsEagerCacheHtmlGui[] getAllGuis(HttpServletRequest req) {
             ServletContext sc = req.getServletContext();
+            MatsEagerCacheHtmlGui mockClientGui = (MatsEagerCacheHtmlGui) sc.getAttribute("mockClientGui");
             MatsEagerCacheHtmlGui clientCacheGui1 = (MatsEagerCacheHtmlGui) sc.getAttribute("clientCacheGui1");
             MatsEagerCacheHtmlGui clientCacheGui2 = (MatsEagerCacheHtmlGui) sc.getAttribute("clientCacheGui2");
-            MatsEagerCacheHtmlGui mockClientGui = (MatsEagerCacheHtmlGui) sc.getAttribute("mockClientGui");
             MatsEagerCacheHtmlGui serverCacheGui1 = (MatsEagerCacheHtmlGui) sc.getAttribute("serverCacheGui1");
             MatsEagerCacheHtmlGui serverCacheGui2 = (MatsEagerCacheHtmlGui) sc.getAttribute("serverCacheGui2");
-            return new MatsEagerCacheHtmlGui[] { clientCacheGui1, clientCacheGui2, mockClientGui, serverCacheGui1,
+            return new MatsEagerCacheHtmlGui[] { mockClientGui, clientCacheGui1, clientCacheGui2, serverCacheGui1,
                     serverCacheGui2 };
         }
 

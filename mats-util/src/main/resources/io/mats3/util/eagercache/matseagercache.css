@@ -1,5 +1,8 @@
+:root {
+    --matsec-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
 .matsec-container {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    font-family: var(--matsec-font);
     font-weight: 400;
     font-size: 85%;
     line-height: 1.35;
@@ -10,6 +13,7 @@
 }
 .matsec-container h1, .matsec-container h2, .matsec-container h3, .matsec-container h4 {
     line-height: 1.2;
+    display: inline-block;
     margin: 0.15em 0 0.3em 0;
 }
 .matsec-container h1 {
@@ -18,8 +22,11 @@
 }
 .matsec-container h2 {
     font-size: 1.5em;
-    display: inline-block;
     font-weight: 400;
+}
+
+.matsec-float-right {
+    float: right;
 }
 
 .matsec-log-table {
@@ -45,7 +52,6 @@
 .matsec-log-row-throwable {
     transition: background-color 0.4s ease;
 }
-
 .matsec-log-row:hover,
 .matsec-log-row:hover + .matsec-log-row-throwable,
 .matsec-log-row:has(+ .matsec-log-row-throwable:hover),
@@ -53,23 +59,33 @@
     background-color: #f8b864;
     transition: background-color 0s;
 }
+.matsec-row-unacknowledged {
+    background-color: #ff713f60;
+}
+.matsec-row-acknowledged {
+    background-color: #30ff4360;
+}
 .matsec-log-table pre {
     margin: 0 0 5px 10px;
     padding: 0;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
 }
-.matsec-timestamp, .matsec-category, .matsec-level {
+.matsec-hidden {
+    display: none;
+}
+/* The different columns in table */
+.matsec-timestamp, .matsec-category, .matsec-level, .matsec-acknowledged {
     vertical-align: middle;
     white-space: nowrap;
     width: 1%;
 }
 .matsec-message {
     overflow-wrap: break-word;
-}
-.matsec-hidden {
-    display: none;
+    width: 100%;
 }
 
-.matsec-toggle-button {
+.matsec-button {
     cursor: pointer;
     background-color: #007bff;
     color: white;
@@ -77,11 +93,32 @@
     padding: 5px 10px;
     text-align: center;
     font-size: 14px;
+    border-radius: 5px;
+}
+.matsec-refresh-button {
+    background-color: #00ce0f;
+    color: white;
+    margin: 0 0 0 50px;
+    vertical-align: text-bottom;
+}
+.matsec-acknowledge-button {
+}
+.matsec-toggle-button {
     margin: 0 10px 5px 20px;
     border-radius: 5px;
 }
-.matsec-toggle-button:hover {
-    background-color: #45a049;
+.matsec-button:hover {
+    filter: brightness(0.9);
+}
+.matsec-button:disabled {
+    filter: opacity(0.3);
+}
+
+.matsec-updating-message {
+    font-size: 1.2em;
+    vertical-align: super;
+    display: inline-block;
+    margin: 0 0 0 1em;
 }
 
 /* two columns for text */
@@ -95,4 +132,53 @@
 .matsec-column {
     flex: 0 1 auto;
     min-width: 300px;
+}
+
+/* Callouts */
+.matsec-success-bubble {
+    font-family: var(--matsec-font);
+    font-weight: 400;
+    font-size: 150%;
+    line-height: 1.35;
+
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #4CAF50;
+    color: white;
+    padding: 30px;
+    border-radius: 5px;
+    max-width: 500px;
+    text-align: center;
+    z-index: 1000;
+}
+
+.matsec-error-lightbox {
+    font-family: var(--matsec-font);
+    font-weight: 400;
+    font-size: 150%;
+    line-height: 1.35;
+
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    max-width: 500px;
+    text-align: center;
+}
+
+.matsec-error-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.matsec-error-lightbox h2 {
+    color: #D32F2F;
 }

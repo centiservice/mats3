@@ -1,5 +1,7 @@
 package io.mats3.util.eagercache;
 
+import java.util.OptionalDouble;
+
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -9,6 +11,7 @@ import io.mats3.test.MatsTestBarrier;
 import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheUpdated;
+import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl.CacheUpdatedImpl;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientMock;
 
 /**
@@ -94,7 +97,7 @@ public class Test_EagerCache_MockClient {
         // :: ACT #2
 
         // "Request full update" to trigger update listeners
-        mockClient.requestFullUpdate();
+        mockClient.requestFullUpdate(-1);
 
         // Get the data again, triggering the supplier
         dataCarrier = mockClient.get();
@@ -128,38 +131,7 @@ public class Test_EagerCache_MockClient {
         // Set the CacheUpdate mock
         MatsTestBarrier cacheUpdatedMockedBarrier = new MatsTestBarrier();
         mockClient.setMockCacheUpdatedSupplier(() -> {
-            var ret = new CacheUpdated() {
-                @Override
-                public boolean isFullUpdate() {
-                    return false;
-                }
-
-                @Override
-                public int getDataCount() {
-                    return -10;
-                }
-
-                @Override
-                public long getCompressedSize() {
-                    return -20;
-                }
-
-                @Override
-                public long getUncompressedSize() {
-                    return -30;
-                }
-
-                @Override
-                public String getMetadata() {
-                    return "MetaMock";
-                }
-
-                @Override
-                public double getUpdateDurationMillis() {
-                    return Math.PI;
-                }
-            };
-
+            var ret = new CacheUpdatedImpl(false, 10, 20, 30, "MetaMock", OptionalDouble.empty());
             cacheUpdatedMockedBarrier.resolve(ret);
             return ret;
         });
@@ -172,7 +144,7 @@ public class Test_EagerCache_MockClient {
         // :: ACT #3
 
         // "Request full update" to trigger update listeners
-        mockClient.requestFullUpdate();
+        mockClient.requestFullUpdate(-1);
 
         // Get the data again, triggering the data supplier from ARRANGE 2
         dataCarrier = mockClient.get();
@@ -191,11 +163,11 @@ public class Test_EagerCache_MockClient {
 
         // Assert that the CacheUpdated was as designed, pretty much just to show how this works
         Assert.assertFalse(cacheUpdated.isFullUpdate());
-        Assert.assertEquals(-10, cacheUpdated.getDataCount());
-        Assert.assertEquals(-20, cacheUpdated.getCompressedSize());
-        Assert.assertEquals(-30, cacheUpdated.getUncompressedSize());
+        Assert.assertEquals(10, cacheUpdated.getCompressedSize());
+        Assert.assertEquals(20, cacheUpdated.getDecompressedSize());
+        Assert.assertEquals(30, cacheUpdated.getDataCount());
         Assert.assertEquals("MetaMock", cacheUpdated.getMetadata());
-        Assert.assertEquals(Math.PI, cacheUpdated.getUpdateDurationMillis(), 0.0001);
+        Assert.assertFalse(cacheUpdated.getRoundTripTimeMillis().isPresent());
 
         // Assert that the data callback was invoked
         dataBarrier.await();

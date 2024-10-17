@@ -3,18 +3,20 @@ package io.mats3.util.eagercache;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.LogLevel.INFO;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.LogLevel.WARN;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatBytes;
-import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatMillis;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatNiceBytes;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -260,8 +262,13 @@ public interface MatsEagerCacheClient<DATA> {
      * against the design of the Mats Eager Cache system. The Mats Eager Cache system is designed to be a "push" system,
      * where the server pushes updates to the clients when it has new data - or, as a backup, on a schedule. But this
      * <i>shall</i> be server handled, not client handled.
+     *
+     * @param timeoutMillis
+     *            the timeout in milliseconds for the request to complete. If the request is not completed within this
+     *            time, the method will return Optional.empty. If &le;0 is provided, the method will return immediately,
+     *            and the request will be performed asynchronously, returning Optional.empty.
      */
-    void requestFullUpdate();
+    Optional<CacheUpdated> requestFullUpdate(int timeoutMillis);
 
     /**
      * Returns a "live view" of the cache client information, that is, you only need to invoke this method once to get
@@ -285,7 +292,7 @@ public interface MatsEagerCacheClient<DATA> {
      * invoked by another thread some 5 ms after {@link #start()} has been invoked - the same thread right before
      * releases the latch that {@link #get()} blocks on.
      * <li>Any listeners added with {@link #addCacheUpdatedListener(Consumer)} will be invoked some 5 ms after
-     * {@link #start()} has been invoked, and then some 5 ms after each time {@link #requestFullUpdate()} has been
+     * {@link #start()} has been invoked, and then some 5 ms after each time {@link #requestFullUpdate(int)} has been
      * invoked.
      * </ul>
      * <p>
@@ -297,7 +304,7 @@ public interface MatsEagerCacheClient<DATA> {
      */
     interface MatsEagerCacheClientMock<DATA> extends MatsEagerCacheClient<DATA> {
         /**
-         * The "simulated lags" introduced by the mock after {@link #start()} and {@link #requestFullUpdate()} are
+         * The "simulated lags" introduced by the mock after {@link #start()} and {@link #requestFullUpdate(int)} are
          * invoked. (5 milliseconds).
          */
         int MILLIS_LAG = 5;
@@ -322,7 +329,7 @@ public interface MatsEagerCacheClient<DATA> {
 
         /**
          * Set the mock cache updated supplier - used when invoking the cache updated listeners, both on
-         * {@link #start()} and on {@link #requestFullUpdate()}. If set to null, a dummy CacheUpdated object will be
+         * {@link #start()} and on {@link #requestFullUpdate(int)}. If set to null, a dummy CacheUpdated object will be
          * created.
          * 
          * @param cacheUpdatedSupplier
@@ -346,10 +353,17 @@ public interface MatsEagerCacheClient<DATA> {
         }
     }
 
+    /**
+     * The lifecycle of the cache client, returned from {@link CacheClientInformation#getCacheClientLifeCycle()}.
+     */
     enum CacheClientLifecycle {
         NOT_YET_STARTED, STARTING_AWAITING_INITIAL, RUNNING, STOPPING, STOPPED;
     }
 
+    /**
+     * Information about the cache client, returned from {@link #getCacheClientInformation()}, which is updated "live"
+     * it- it is not a snapshot, but a live view.
+     */
     interface CacheClientInformation {
         String getDataName();
 
@@ -373,7 +387,15 @@ public interface MatsEagerCacheClient<DATA> {
 
         long getLastPartialUpdateReceivedTimestamp();
 
-        double getLastUpdateDurationMillis();
+        double getLastUpdateDecompressAndConsumeTotalMillis();
+
+        double getLastUpdateDecompressMillis();
+
+        double getLastUpdateProduceAndCompressTotalMillis();
+
+        double getLastUpdateCompressMillis();
+
+        double getLastRoundTripTimeMillis();
 
         long getLastUpdateCompressedSize();
 
@@ -396,6 +418,28 @@ public interface MatsEagerCacheClient<DATA> {
         List<LogEntry> getLogEntries();
 
         List<ExceptionEntry> getExceptionEntries();
+
+        /**
+         * Active method for acknowledging exceptions. This method will acknowledge the exception with the provided id,
+         * and return whether the exception was acknowledged. If the exception is no longer in the list, or was already
+         * acknowledged, it will return false.
+         *
+         * @param id
+         *            the id of the exception to acknowledge.
+         * @param username
+         *            the username acknowledging the exception.
+         * @return whether the exception was acknowledged.
+         */
+        boolean acknowledgeException(String id, String username);
+
+        /**
+         * Active method for acknowledging all exceptions up to the provided timestamp. This method will acknowledge all
+         * exceptions up to the provided timestamp, and return the number of exceptions acknowledged.
+         *
+         * @param timestamp
+         * @param username
+         */
+        int acknowledgeExceptionsUpTo(long timestamp, String username);
     }
 
     /**
@@ -408,11 +452,6 @@ public interface MatsEagerCacheClient<DATA> {
         boolean isFullUpdate();
 
         /**
-         * @return number of data items received.
-         */
-        int getDataCount();
-
-        /**
          * @return the size of the compressed data, in bytes.
          */
         long getCompressedSize();
@@ -420,7 +459,12 @@ public interface MatsEagerCacheClient<DATA> {
         /**
          * @return the size of the uncompressed data (probably JSON), in bytes.
          */
-        long getUncompressedSize();
+        long getDecompressedSize();
+
+        /**
+         * @return number of data items received.
+         */
+        int getDataCount();
 
         /**
          * @return the metadata that was sent along with the data, if any - otherwise {@code null}.
@@ -432,7 +476,14 @@ public interface MatsEagerCacheClient<DATA> {
      * Object provided to any cache update listener, containing the metadata about the cache update.
      */
     interface CacheUpdated extends CacheReceived {
-        double getUpdateDurationMillis();
+        /**
+         * It this was an update received based on a request from this client - and it wasn't raced by concurrent other
+         * requests from other clients, nor a simultaneous periodic updates from the server - this will be set to the
+         * round trip time of the request.
+         *
+         * @return the full roundtrip time of the request from this client to cache updated.
+         */
+        OptionalDouble getRoundTripTimeMillis();
     }
 
     /**
@@ -556,16 +607,24 @@ public interface MatsEagerCacheClient<DATA> {
         private volatile int _sizeCutover = DEFAULT_SIZE_CUTOVER;
 
         private volatile long _cacheStartedTimestamp;
+
         private volatile long _initialPopulationRequestSentTimestamp;
         private volatile long _initialPopulationTimestamp;
+
         private volatile long _lastAnyUpdateReceivedTimestamp;
         private volatile long _lastFullUpdateReceivedTimestamp;
         private volatile long _lastPartialUpdateReceivedTimestamp;
-        private volatile double _lastUpdateDurationMillis;
+        private volatile double _lastUpdateDecompressAndConsumeTotalMillis;
+        private volatile double _lastUpdateDecompressMillis;
+        private volatile double _lastUpdateProduceAndCompressTotalMillis;
+        private volatile double _lastUpdateCompressMillis;
+
+        private volatile double _lastRoundTripTimeMillis;
 
         private volatile int _lastUpdateCompressedSize;
         private volatile long _lastUpdateDecompressedSize;
         private volatile int _lastUpdateDataCount;
+
         private volatile String _lastUpdateMetadata;
         private volatile boolean _lastUpdateWasFull;
         private volatile boolean _lastUpdateWasLarge;
@@ -642,8 +701,28 @@ public interface MatsEagerCacheClient<DATA> {
             }
 
             @Override
-            public double getLastUpdateDurationMillis() {
-                return _lastUpdateDurationMillis;
+            public double getLastUpdateDecompressAndConsumeTotalMillis() {
+                return _lastUpdateDecompressAndConsumeTotalMillis;
+            }
+
+            @Override
+            public double getLastUpdateDecompressMillis() {
+                return _lastUpdateDecompressMillis;
+            }
+
+            @Override
+            public double getLastUpdateProduceAndCompressTotalMillis() {
+                return _lastUpdateProduceAndCompressTotalMillis;
+            }
+
+            @Override
+            public double getLastUpdateCompressMillis() {
+                return _lastUpdateCompressMillis;
+            }
+
+            @Override
+            public double getLastRoundTripTimeMillis() {
+                return _lastRoundTripTimeMillis;
             }
 
             @Override
@@ -700,17 +779,18 @@ public interface MatsEagerCacheClient<DATA> {
             public List<ExceptionEntry> getExceptionEntries() {
                 return _cacheMonitor.getExceptionEntries();
             }
+
+            @Override
+            public boolean acknowledgeException(String id, String username) {
+                return _cacheMonitor.acknowledgeException(id, username);
+            }
+
+            @Override
+            public int acknowledgeExceptionsUpTo(long timestamp, String username) {
+                return _cacheMonitor.acknowledgeExceptionsUpTo(timestamp, username);
+            }
         }
 
-        /**
-         * Add a runnable that will be invoked after the initial population is done. If the initial population is
-         * already done, it will be invoked immediately by current thread. Note: Run ordering wrt. add ordering is not
-         * guaranteed.
-         *
-         * @param runnable
-         *            the runnable to invoke after the initial population is done (or immediately if already done).
-         * @return this instance, for chaining.
-         */
         @Override
         public MatsEagerCacheClient<DATA> addAfterInitialPopulationTask(Runnable runnable) {
             boolean runNow = true;
@@ -738,46 +818,17 @@ public interface MatsEagerCacheClient<DATA> {
             return this;
         }
 
-        /**
-         * Add a listener for cache updates. The listener will be invoked with the metadata about the cache update. The
-         * listener is invoked after the cache content has been updated, and the cache content lock has been released.
-         *
-         * @param listener
-         *            the listener to add.
-         * @return this instance, for chaining.
-         */
         @Override
         public MatsEagerCacheClient<DATA> addCacheUpdatedListener(Consumer<CacheUpdated> listener) {
             _cacheUpdatedListeners.add(listener);
             return this;
         }
 
-        /**
-         * Sets the size cutover for the cache: The size in bytes for the uncompressed JSON where the cache will
-         * consider the update to be "large", and hence use a different scheme for handling the update. The default is
-         * 15 MB.
-         *
-         * @param size
-         *            the size hint.
-         */
         @Override
         public void setSizeCutover(int size) {
             _sizeCutover = size;
         }
 
-        /**
-         * Returns the data - will block until the initial full population is done, and during subsequent repopulations.
-         * <b>It is imperative that neither the data object itself, or any of its contained larger data or structures
-         * (e.g. any Lists or Maps) aren't read out and stored in any object, or held onto by any threads for any
-         * timespan above some few milliseconds, but rather queried anew from the cache for every needed access.</b>
-         * This both to ensure timely update when new data arrives, but more importantly to avoid that memory isn't held
-         * up by the old data structures being kept alive (this is particularly important for large caches).
-         * <p>
-         * It is legal for a thread to call this method before {@link #start()} is invoked, but then some other
-         * (startup) thread must eventually invoke {@link #start()}, otherwise you'll have a deadlock.
-         *
-         * @return the cached data
-         */
         @Override
         public DATA get() {
             // :: Handle initial population
@@ -821,17 +872,6 @@ public interface MatsEagerCacheClient<DATA> {
             }
         }
 
-        /**
-         * Starts the cache client - startup is performed in a separate thread, so this method immediately returns - to
-         * wait for initial population, use the {@link #addAfterInitialPopulationTask(Runnable) dedicated
-         * functionality}. The cache client creates a SubscriptionTerminator for receiving cache updates based on the
-         * dataName. Once we're sure this endpoint {@link MatsEndpoint#waitForReceiving(int) has entered the receive
-         * loop}, a message to the server requesting update is sent. The {@link #get()} method will block until the
-         * initial full population is received and processed. When the initial population is done, any
-         * {@link #addAfterInitialPopulationTask(Runnable) onInitialPopulationTasks} will be invoked.
-         *
-         * @return this instance, for chaining.
-         */
         @Override
         public MatsEagerCacheClient<DATA> start() {
             if (_cacheClientLifecycle != CacheClientLifecycle.NOT_YET_STARTED) {
@@ -892,26 +932,48 @@ public interface MatsEagerCacheClient<DATA> {
             return this;
         }
 
-        /**
-         * If a user in some management GUI wants to force a full update, this method can be invoked. This will send a
-         * request to the server to perform a full update, which will be broadcast to all clients.
-         * <p>
-         * <b>This must NOT be used to "poll" the server for updates on a schedule or similar</b>, as that is utterly
-         * against the design of the Mats Eager Cache system. The Mats Eager Cache system is designed to be a "push"
-         * system, where the server pushes updates to the clients when it has new data - or, as a backup, on a schedule.
-         * But this <i>shall</i> be server handled, not client handled.
-         */
         @Override
-        public void requestFullUpdate() {
-            _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_MANUAL);
+        public Optional<CacheUpdated> requestFullUpdate(int timeoutMillis) {
+            CountDownLatch latch = new CountDownLatch(1);
+            CacheUpdated[] cacheUpdatedReturn = new CacheUpdated[1];
+            // Hijacking our own CacheUpdate listener to get the response.
+            Consumer<CacheUpdated> cacheUpdatedConsumer = cacheUpdated -> {
+                // ?: Is this a full update? (Otherwise it can't be the response to our request)
+                if (cacheUpdated.isFullUpdate()) {
+                    // -> Yes, fullupdate, so hope that it is the response to our request.
+                    // NOTE: We really can't be sure, with all the coalescing going on. This will work if we were alone
+                    // in making the update request, but if there were multiple clients doing it, or if the server did a
+                    // periodic update at the same time, our request can be coalesced into that. The first one wins.
+                    cacheUpdatedReturn[0] = cacheUpdated;
+                    latch.countDown();
+                }
+            };
+            _cacheUpdatedListeners.add(cacheUpdatedConsumer);
+            try {
+                _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_MANUAL);
+
+                // ?: Should we wait for the response?
+                if (timeoutMillis <= 0) {
+                    // -> No, we should not wait for the response.
+                    return Optional.empty();
+                }
+                // E-> Yes, we should wait for the response.
+                boolean awoken = latch.await(timeoutMillis, TimeUnit.MILLISECONDS);
+                return awoken ? Optional.of(cacheUpdatedReturn[0]) : Optional.empty();
+            }
+            catch (InterruptedException e) {
+                _cacheMonitor.exception(MonitorCategory.REQUEST_UPDATE_FROM_CLIENT,
+                        "Got interrupted while waiting for the full update response.", e);
+                // Resetting interrupt flag and returning empty. Up for discussion whether this is the right
+                // thing, but it should really only happen if the JVM is shutting down.
+                Thread.currentThread().interrupt();
+                return Optional.empty();
+            }
+            finally {
+                _cacheUpdatedListeners.remove(cacheUpdatedConsumer);
+            }
         }
 
-        /**
-         * Close down the cache client. This will stop and remove the SubscriptionTerminator for receiving cache
-         * updates, and shut down the ExecutorService for handling the received data. Closing is idempotent; Multiple
-         * invocations will not have any effect. It is not possible to restart the cache client after it has been
-         * closed.
-         */
         @Override
         public void close() {
             _cacheMonitor.log(INFO, MonitorCategory.CACHE_CLIENT, "Closing down the MatsEagerCacheClient"
@@ -920,8 +982,8 @@ public interface MatsEagerCacheClient<DATA> {
             _receiveSingleBlockingThreadExecutorService.shutdown();
             synchronized (this) {
                 // ?: Are we running? Note: we accept multiple close() invocations, as the close-part is harder to
-                // lifecycle
-                // manage than the start-part (It might e.g. be closed by Spring too, in addition to by the user).
+                // lifecycle manage than the start-part (It might e.g. be closed by Spring too, in addition to by the
+                // user).
                 if (!EnumSet.of(CacheClientLifecycle.RUNNING, CacheClientLifecycle.STARTING_AWAITING_INITIAL)
                         .contains(_cacheClientLifecycle)) {
                     // -> No, we're not running, so we don't do anything.
@@ -938,12 +1000,6 @@ public interface MatsEagerCacheClient<DATA> {
             }
         }
 
-        /**
-         * Returns a "live view" of the cache client information, that is, you only need to invoke this method once to
-         * get an instance that will always reflect the current state of the cache client.
-         *
-         * @return a "live view" of the cache client information.
-         */
         public CacheClientInformation getCacheClientInformation() {
             return _cacheClientInformation;
         }
@@ -957,6 +1013,11 @@ public interface MatsEagerCacheClient<DATA> {
             // !! We do NOT start the SubscriptionTerminator, but rely on the server to forward the cache updates to us.
             // Link to server - this is immediate, not waiting for anything.
             ((MatsEagerCacheServerImpl) forwardingServer)._registerForwardToClient(this);
+
+            // Since this is meant for development/testing, we'll reduce the coalescing timings hard
+            // (Otherwise, the .get() on the client, which is what a test will do, will block for the "long" delay
+            // (7 sec) right after start)
+            ((MatsEagerCacheServerImpl) forwardingServer)._setCoalescingDelays(10, 15);
 
             // :: Perform the initial cache update request in a separate thread, so that we can wait for the endpoint to
             // be ready, and then send the request. We return immediately.
@@ -1006,15 +1067,14 @@ public interface MatsEagerCacheClient<DATA> {
 
             final byte[] payload = ctx.getBytes(MatsEagerCacheServer.SIDELOAD_KEY_DATA_PAYLOAD);
 
-            // :: Now perform hack to relieve the Mats thread, and do the actual work in a separate thread.
-            // The rationale is to let the data structures underlying in the Mats system (e.g. the
-            // representation of the incoming JMS Message) be GCable. The thread pool is special in that
-            // it only accepts a single task, and if it is busy, it will block the submitting thread.
-            // NOTE: We do NOT capture the context (which holds the MatsTrace and byte arrays) in the
-            // Runnable,
-            // as that would prevent the JMS Message from being GC'ed. We only capture the message DTO and
-            // the
-            // payload.
+            /*
+             * :: Now perform hack to relieve the Mats thread, and do the actual work in a separate thread. The
+             * rationale is to let the data structures underlying in the Mats system (e.g. the representation of the
+             * incoming JMS Message) be GCable. The thread pool is special in that it only accepts a single task, and if
+             * it is busy, it will block the submitting thread. NOTE: We do NOT capture the context (which holds the
+             * MatsTrace and byte arrays) in the Runnable, as that would prevent the JMS Message from being GC'ed. We
+             * only capture the message DTO and the payload.
+             */
             _receiveSingleBlockingThreadExecutorService.submit(() -> {
                 _handleUpdateInExecutorThread(msg, payload);
             });
@@ -1053,6 +1113,8 @@ public interface MatsEagerCacheClient<DATA> {
                     });
         }
 
+        private volatile String _latestUsedCorrelationId;
+
         private void _sendUpdateRequest(String command) {
             // :: Construct the request message
             CacheRequestDto req = new CacheRequestDto();
@@ -1060,6 +1122,8 @@ public interface MatsEagerCacheClient<DATA> {
             req.sentTimestamp = System.currentTimeMillis();
             req.sentNanoTime = System.nanoTime();
             req.command = command;
+            req.correlationId = Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36);
+            _latestUsedCorrelationId = req.correlationId;
 
             String reason = command.equals(CacheRequestDto.COMMAND_REQUEST_BOOT)
                     ? "InitialCacheUpdateRequest"
@@ -1158,8 +1222,9 @@ public interface MatsEagerCacheClient<DATA> {
                         // Invoke the full update mapper
                         // (Note: we hold onto as little as possible while invoking the mapper, to let the GC do its
                         // job.)
-                        newData = _fullUpdateMapper.apply(new CacheReceivedDataImpl<>(true, dataSize, metadata,
-                                msg.uncompressedSize, msg.compressedSize, _getReceiveStreamFromPayload(payload)));
+                        newData = _fullUpdateMapper.apply(new CacheReceivedDataImpl<>(true, msg.compressedSize,
+                                msg.uncompressedSize, dataSize, metadata,
+                                _getReceiveStreamFromPayload(payload)));
                     }
                     catch (Throwable e) {
                         _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
@@ -1230,8 +1295,8 @@ public interface MatsEagerCacheClient<DATA> {
                         // (Note: we hold onto as little as possible while invoking the mapper, to let the GC do its
                         // job.)
                         newData = _partialUpdateMapper.apply(new CacheReceivedPartialDataImpl<>(false, _data,
-                                dataSize, metadata, _getReceiveStreamFromPayload(payload),
-                                msg.uncompressedSize, msg.compressedSize));
+                                msg.compressedSize, msg.uncompressedSize, dataSize, metadata,
+                                _getReceiveStreamFromPayload(payload)));
                     }
                     catch (Throwable e) {
                         _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
@@ -1270,8 +1335,6 @@ public interface MatsEagerCacheClient<DATA> {
             else {
                 _lastPartialUpdateReceivedTimestamp = _lastAnyUpdateReceivedTimestamp;
             }
-            // .. and timing
-            _lastUpdateDurationMillis = (System.nanoTime() - nanosAsStart_update) / 1_000_000d;
             // .. and the sizes
             _lastUpdateCompressedSize = msg.compressedSize;
             _lastUpdateDecompressedSize = msg.uncompressedSize;
@@ -1282,6 +1345,24 @@ public interface MatsEagerCacheClient<DATA> {
             // .. and the type of update
             _lastUpdateWasFull = fullUpdate;
             _lastUpdateWasLarge = largeUpdate;
+            // .. and the client timings
+            _lastUpdateDecompressAndConsumeTotalMillis = (System.nanoTime() - nanosAsStart_update) / 1_000_000d;
+            _lastUpdateDecompressMillis = 0; // TODO: Implement this
+            // .. and the server timings
+            _lastUpdateCompressMillis = msg.millisCompress;
+            _lastUpdateProduceAndCompressTotalMillis = msg.millisTotalProduceAndCompress;
+
+            // ?: IF this update's correlationId is the same as the latest used one, we'll log it.
+            double roundTripTimeMillis = 0;
+            if ((msg.correlationId != null) && msg.correlationId.equals(_latestUsedCorrelationId)) {
+                roundTripTimeMillis = (System.nanoTime() - msg.requestSentNanoTime) / 1_000_000d;
+                _latestUsedCorrelationId = null;
+            }
+            // NOTE: We could make an approximate guess for when others initiated the request, but this is susceptible
+            // to clock skews: 'roundTripTimeMillis = System.currentTimeMillis() - msg.requestSentTimestamp;'
+            if (roundTripTimeMillis != 0) {
+                _lastRoundTripTimeMillis = roundTripTimeMillis;
+            }
 
             // :: Handle initial population obligations
             // NOTE: There is only one thread running a SubscriptionTerminator, and it is only us that
@@ -1341,7 +1422,8 @@ public interface MatsEagerCacheClient<DATA> {
 
             // :: Notify listeners
             CacheUpdated cacheUpdated = new CacheUpdatedImpl(msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL),
-                    msg.dataCount, msg.metadata, msg.uncompressedSize, msg.compressedSize, _lastUpdateDurationMillis);
+                    msg.compressedSize, msg.uncompressedSize, msg.dataCount, msg.metadata,
+                    roundTripTimeMillis != 0 ? OptionalDouble.of(roundTripTimeMillis) : OptionalDouble.empty());
             for (Consumer<CacheUpdated> listener : _cacheUpdatedListeners) {
                 try {
                     listener.accept(cacheUpdated);
@@ -1368,19 +1450,18 @@ public interface MatsEagerCacheClient<DATA> {
             protected final boolean _fullUpdate;
             protected final int _dataCount;
             protected final String _metadata;
-            protected final long _receivedUncompressedSize;
-            protected final long _receivedCompressedSize;
+            protected final long _decompressedSize;
+            protected final long _compressedSize;
 
             private final Stream<TRANSFER> _rStream;
 
-            public CacheReceivedDataImpl(boolean fullUpdate, int dataCount, String metadata,
-                    long receivedUncompressedSize,
-                    long receivedCompressedSize, Stream<TRANSFER> recvStream) {
+            public CacheReceivedDataImpl(boolean fullUpdate, long compressedSize, long decompressedSize, int dataCount,
+                    String metadata, Stream<TRANSFER> recvStream) {
                 _fullUpdate = fullUpdate;
                 _dataCount = dataCount;
                 _metadata = metadata;
-                _receivedUncompressedSize = receivedUncompressedSize;
-                _receivedCompressedSize = receivedCompressedSize;
+                _decompressedSize = decompressedSize;
+                _compressedSize = compressedSize;
 
                 _rStream = recvStream;
             }
@@ -1391,18 +1472,18 @@ public interface MatsEagerCacheClient<DATA> {
             }
 
             @Override
+            public long getCompressedSize() {
+                return _compressedSize;
+            }
+
+            @Override
+            public long getDecompressedSize() {
+                return _decompressedSize;
+            }
+
+            @Override
             public int getDataCount() {
                 return _dataCount;
-            }
-
-            @Override
-            public long getUncompressedSize() {
-                return _receivedUncompressedSize;
-            }
-
-            @Override
-            public long getCompressedSize() {
-                return _receivedCompressedSize;
             }
 
             @Override
@@ -1421,61 +1502,63 @@ public interface MatsEagerCacheClient<DATA> {
             @Override
             public String toString() {
                 return "CacheReceivedData[" + (_fullUpdate ? "FULL" : "PARTIAL") + ",count=" + _dataCount
-                        + ",meta=" + _metadata + ",uncompr=" + _formatBytes(_receivedUncompressedSize)
-                        + ",compr=" + _formatBytes(_receivedCompressedSize) + "]";
+                        + ",meta=" + _metadata + ",uncompr=" + _formatBytes(_decompressedSize)
+                        + ",compr=" + _formatBytes(_compressedSize) + "]";
             }
         }
 
         static class CacheUpdatedImpl extends CacheReceivedDataImpl<Void> implements CacheUpdated {
-            private final double _updateDurationMillis;
+            private final OptionalDouble _roundTripTimeMillis;
 
-            public CacheUpdatedImpl(boolean fullUpdate, int dataSize, String metadata,
-                    long receivedUncompressedSize, long receivedCompressedSize, double updateDurationMillis) {
-                super(fullUpdate, dataSize, metadata, receivedUncompressedSize, receivedCompressedSize, null);
-                _updateDurationMillis = updateDurationMillis;
+            public CacheUpdatedImpl(boolean fullUpdate, long compressedSize, long decompressedSize, int dataCount,
+                    String metadata, OptionalDouble roundTripTimeMillis) {
+                super(fullUpdate, compressedSize, decompressedSize, dataCount, metadata, null);
+                _roundTripTimeMillis = roundTripTimeMillis;
             }
 
             @Override
-            public double getUpdateDurationMillis() {
-                return _updateDurationMillis;
+            public OptionalDouble getRoundTripTimeMillis() {
+                return _roundTripTimeMillis;
             }
 
             /**
-             * toString method showing all properties, except the data stream.
+             * toString method showing all properties
              */
             @Override
             public String toString() {
                 return "CacheUpdatedData[" + (_fullUpdate ? "FULL" : "PARTIAL") + ",count=" + _dataCount
-                        + ",meta=" + _metadata + ",uncompr=" + _formatBytes(_receivedUncompressedSize)
-                        + ",compr=" + _formatBytes(_receivedCompressedSize) + ", update:" + _formatMillis(
-                                _updateDurationMillis) + "]";
+                        + ",meta=" + _metadata + ",uncompr=" + _formatBytes(_decompressedSize)
+                        + ",compr=" + _formatBytes(_compressedSize) + ", RTT:" +
+                        _roundTripTimeMillis.stream()
+                                .mapToObj(MatsEagerCacheServerImpl::_formatMillis)
+                                .findFirst().orElse("N/A") + "]";
             }
         }
 
         private static class CacheReceivedPartialDataImpl<TRANSFER, DATA> extends CacheReceivedDataImpl<TRANSFER>
                 implements CacheReceivedPartialData<TRANSFER, DATA> {
-            private final DATA _data;
+            private final DATA _previousData;
 
-            public CacheReceivedPartialDataImpl(boolean fullUpdate, DATA data, int dataSize, String metadata,
-                    Stream<TRANSFER> rStream,
-                    long receivedUncompressedSize, long receivedCompressedSize) {
-                super(fullUpdate, dataSize, metadata, receivedUncompressedSize, receivedCompressedSize, rStream);
-                _data = data;
+            public CacheReceivedPartialDataImpl(boolean fullUpdate, DATA previousData,
+                    long receivedCompressedSize, long receivedUncompressedSize, int dataSize,
+                    String metadata, Stream<TRANSFER> rStream) {
+                super(fullUpdate, receivedCompressedSize, receivedUncompressedSize, dataSize, metadata, rStream);
+                _previousData = previousData;
             }
 
             @Override
             public DATA getPreviousData() {
-                return _data;
+                return _previousData;
             }
 
             /**
-             * toString method showing all properties, except the data stream.
+             * toString method showing all properties (toString's the previous data).
              */
             @Override
             public String toString() {
                 return "CacheReceivedPartialData[" + (_fullUpdate ? "FULL" : "PARTIAL") + ",count=" + _dataCount
-                        + ",meta=" + _metadata + ",uncompr=" + _formatBytes(_receivedUncompressedSize)
-                        + ",compr=" + _formatBytes(_receivedCompressedSize) + ", prevData=" + _data + "]";
+                        + ",meta=" + _metadata + ",uncompr=" + _formatBytes(_decompressedSize)
+                        + ",compr=" + _formatBytes(_compressedSize) + ", prevData=" + _previousData + "]";
             }
         }
     }
@@ -1628,7 +1711,7 @@ public interface MatsEagerCacheClient<DATA> {
                     runnable.run();
                 }
                 // :: Notify listeners, as with requestFullUpdate()
-                notifyListeners();
+                _mock_notifyListeners(_createMockCacheUpdated());
             }, "MatsEagerCacheClientMock-" + _dataName + "-initialPopulation");
             mockInitial.setDaemon(true);
             mockInitial.start();
@@ -1637,7 +1720,7 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         @Override
-        public void requestFullUpdate() {
+        public Optional<CacheUpdated> requestFullUpdate(int timeoutMillis) {
             // :: Emulate that we're requesting a full update, and then getting a reply.
 
             // ?: Assert that we have data
@@ -1645,7 +1728,10 @@ public interface MatsEagerCacheClient<DATA> {
                 throw new IllegalStateException("No mock data set - use setMockData(..) or setMockDataSupplier(..).");
             }
 
-            // :: "We've gotten data", so we'll now notify the listeners.
+            CountDownLatch latch = new CountDownLatch(1);
+            CacheUpdated[] cacheUpdatedReturn = new CacheUpdated[1];
+
+            // :: Now emulate the full update being async done by introducing a delay.
             new Thread(() -> {
                 try {
                     Thread.sleep(MILLIS_LAG);
@@ -1655,17 +1741,36 @@ public interface MatsEagerCacheClient<DATA> {
                 }
                 _numberOfFullUpdatesReceived.incrementAndGet();
                 // Do notification, as with start()
-                notifyListeners();
+                cacheUpdatedReturn[0] = _createMockCacheUpdated();
+                _mock_notifyListeners(cacheUpdatedReturn[0]);
+                latch.countDown();
             }, "MatsEagerCacheClientMock-" + _dataName + "-requestFullUpdate_notifyCacheUpdateListeners").start();
+
+            try {
+                // ?: Should we wait for the response?
+                if (timeoutMillis <= 0) {
+                    // -> No, we should not wait for the response.
+                    return Optional.empty();
+                }
+                // E-> Yes, we should wait for the response.
+                boolean awoken = latch.await(timeoutMillis, TimeUnit.MILLISECONDS);
+                return awoken ? Optional.of(cacheUpdatedReturn[0]) : Optional.empty();
+            }
+            catch (InterruptedException e) {
+                _cacheMonitor.exception(MonitorCategory.REQUEST_UPDATE_FROM_CLIENT,
+                        "MOCK: Got interrupted while mock-waiting for the full update response.", e);
+                // Resetting interrupt flag and returning empty. Up for discussion whether this is the right
+                // thing, but it should really only happen if the JVM is shutting down.
+                Thread.currentThread().interrupt();
+                return Optional.empty();
+            }
         }
 
-        private void notifyListeners() {
+        private void _mock_notifyListeners(CacheUpdated updated) {
             _fullUpdateTimestamp = System.currentTimeMillis();
-            CacheUpdated cacheUpdated;
-            cacheUpdated = _createMockCacheUpdated();
             for (Consumer<CacheUpdated> listener : _cacheUpdatedListeners) {
                 try {
-                    listener.accept(cacheUpdated);
+                    listener.accept(updated);
                 }
                 catch (Exception e) {
                     _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
@@ -1679,7 +1784,8 @@ public interface MatsEagerCacheClient<DATA> {
             CacheUpdated cacheUpdated;
             cacheUpdated = _mockCacheUpdatedSupplier != null
                     ? _mockCacheUpdatedSupplier.get()
-                    : new CacheUpdatedImpl(true, 42, null, 1337, 42, Math.PI);
+                    : new CacheUpdatedImpl(true, 42, 1337, 42, null,
+                            OptionalDouble.of(Math.E));
             return cacheUpdated;
         }
 
@@ -1729,7 +1835,7 @@ public interface MatsEagerCacheClient<DATA> {
 
                 @Override
                 public long getInitialPopulationTimestamp() {
-                    return _fullUpdateTimestamp;
+                    return _startedTimestamp + MILLIS_LAG;
                 }
 
                 @Override
@@ -1748,8 +1854,28 @@ public interface MatsEagerCacheClient<DATA> {
                 }
 
                 @Override
-                public double getLastUpdateDurationMillis() {
-                    return _createMockCacheUpdated().getUpdateDurationMillis();
+                public double getLastUpdateDecompressAndConsumeTotalMillis() {
+                    return 42.0;
+                }
+
+                @Override
+                public double getLastUpdateDecompressMillis() {
+                    return 42.0;
+                }
+
+                @Override
+                public double getLastUpdateProduceAndCompressTotalMillis() {
+                    return 42.0;
+                }
+
+                @Override
+                public double getLastUpdateCompressMillis() {
+                    return 42.0;
+                }
+
+                @Override
+                public double getLastRoundTripTimeMillis() {
+                    return 42.0;
                 }
 
                 @Override
@@ -1759,7 +1885,7 @@ public interface MatsEagerCacheClient<DATA> {
 
                 @Override
                 public long getLastUpdateDecompressedSize() {
-                    return _createMockCacheUpdated().getUncompressedSize();
+                    return _createMockCacheUpdated().getDecompressedSize();
                 }
 
                 @Override
@@ -1805,6 +1931,16 @@ public interface MatsEagerCacheClient<DATA> {
                 @Override
                 public List<ExceptionEntry> getExceptionEntries() {
                     return _cacheMonitor.getExceptionEntries();
+                }
+
+                @Override
+                public boolean acknowledgeException(String id, String username) {
+                    return _cacheMonitor.acknowledgeException(id, username);
+                }
+
+                @Override
+                public int acknowledgeExceptionsUpTo(long timestamp, String username) {
+                    return _cacheMonitor.acknowledgeExceptionsUpTo(timestamp, username);
                 }
             };
         }

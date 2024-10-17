@@ -1,11 +1,14 @@
 package io.mats3.util.eagercache;
 
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatBytes;
+
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.storebrand.healthcheck.Axis;
+import com.storebrand.healthcheck.CheckSpecification.CheckResult;
 import com.storebrand.healthcheck.HealthCheckMetadata;
 import com.storebrand.healthcheck.HealthCheckMetadata.HealthCheckMetadataBuilder;
 import com.storebrand.healthcheck.HealthCheckRegistry;
@@ -16,6 +19,7 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientInformation;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientLifecycle;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerInformation;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerLifeCycle;
+import io.mats3.util.eagercache.MatsEagerCacheServer.ExceptionEntry;
 
 /**
  * HealthCheck for {@link MatsEagerCacheServer} and {@link MatsEagerCacheClient}.
@@ -38,8 +42,8 @@ public class MatsEagerCacheStorebrandHealthCheck {
      */
     public static void registerHealthCheck(HealthCheckRegistry healthCheckRegistry,
             MatsEagerCacheServer server, CharSequence... responsible) {
-        CacheServerInformation info = server.getCacheServerInformation();
-        String id = "'" + info.getDataName() + "' @ '" + info.getNodename() + "'";
+        CacheServerInformation inf = server.getCacheServerInformation();
+        String id = "'" + inf.getDataName() + "' @ '" + inf.getNodename() + "'";
         String name = "MatsEagerCacheServer " + id;
         List<RegisteredHealthCheck> registeredHealthChecks = healthCheckRegistry.getRegisteredHealthChecks();
         for (RegisteredHealthCheck registeredHealthCheck : registeredHealthChecks) {
@@ -64,14 +68,49 @@ public class MatsEagerCacheStorebrandHealthCheck {
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY),
                     checkContext -> {
+                        CacheServerInformation info = server.getCacheServerInformation();
+                        checkContext.put("info", info);
+
+                        CheckResult ret;
                         if (info.getCacheServerLifeCycle() == CacheServerLifeCycle.RUNNING) {
-                            return checkContext.ok("Server is running");
+                            ret = checkContext.ok("Server is RUNNING");
                         }
                         else {
-                            return checkContext.fault("Server is NOT running - it is '"
+                            ret = checkContext.fault("Server is NOT running - it is '"
                                     + info.getCacheServerLifeCycle() + "'");
                         }
+                        return ret;
                     });
+
+            // :: Check that there are no unacknowledged Exceptions
+            checkSpec.check(responsibleF,
+                    Axis.of(Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
+                    checkContext -> {
+                        CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
+                        List<ExceptionEntry> exceptionEntries = info.getExceptionEntries();
+                        // Count unacknowledged exceptions
+                        long unacknowledged = exceptionEntries.stream()
+                                .filter(e -> !e.isAcknowledged())
+                                .count();
+                        CheckResult ret;
+                        if (unacknowledged == 0) {
+                            ret = checkContext.ok("No unacknowledged Exceptions present ("
+                                    + exceptionEntries.size() + " total)");
+                        }
+                        else {
+                            ret = checkContext.fault("There are unacknowledged Exceptions present: "
+                                    + unacknowledged + " of " + exceptionEntries.size());
+                            checkContext.text(" -> Go to the Cache Server's GUI page to resolve and acknowledge them!");
+                        }
+                        if (info.getCacheServerLifeCycle() == CacheServerLifeCycle.RUNNING) {
+                            checkContext.text("- Count: " + info.getLastUpdateDataCount()
+                                    + ", Uncompressed: " + _formatBytes(info.getLastUpdateUncompressedSize())
+                                    + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize()));
+                        }
+
+                        return ret;
+                    });
+
         });
     }
 
@@ -88,8 +127,8 @@ public class MatsEagerCacheStorebrandHealthCheck {
      */
     public static void registerHealthCheck(HealthCheckRegistry healthCheckRegistry,
             MatsEagerCacheClient<?> client, CharSequence... responsible) {
-        CacheClientInformation info = client.getCacheClientInformation();
-        String id = "'" + info.getDataName() + "' @ '" + info.getNodename() + "'";
+        CacheClientInformation inf = client.getCacheClientInformation();
+        String id = "'" + inf.getDataName() + "' @ '" + inf.getNodename() + "'";
         String name = client instanceof MatsEagerCacheClient.MatsEagerCacheClientMock
                 ? "MatsEagerCacheClient MOCK " + id
                 : "MatsEagerCacheClient " + id;
@@ -112,27 +151,60 @@ public class MatsEagerCacheStorebrandHealthCheck {
         meta.description("MatsEagerCacheClient: " + id);
         meta.sync(true);
         healthCheckRegistry.registerHealthCheck(meta.build(), checkSpec -> {
-            // Check whether running
+            // :: Check whether running
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY),
                     checkContext -> {
+                        CacheClientInformation info = client.getCacheClientInformation();
+                        checkContext.put("info", info);
+
                         if (info.getCacheClientLifeCycle() == CacheClientLifecycle.RUNNING) {
-                            return checkContext.ok("Client is running");
+                            return checkContext.ok("Client is RUNNING");
                         }
                         else {
                             return checkContext.fault("Client is NOT running - it is '"
                                     + info.getCacheClientLifeCycle() + "'");
                         }
                     });
+            // :: Check whether initial population is done (is really already checked with above - but just to show)
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY),
                     checkContext -> {
+                        CacheClientInformation info = checkContext.get("info", CacheClientInformation.class);
                         if (info.isInitialPopulationDone()) {
                             return checkContext.ok("Initial population is done");
                         }
                         else {
                             return checkContext.fault("Initial population is NOT yet done");
                         }
+                    });
+            // :: Check that there are no unacknowledged Exceptions
+            checkSpec.check(responsibleF,
+                    Axis.of(Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
+                    checkContext -> {
+                        CacheClientInformation info = checkContext.get("info", CacheClientInformation.class);
+                        List<ExceptionEntry> exceptionEntries = info.getExceptionEntries();
+                        // Count unacknowledged exceptions
+                        long unacknowledged = exceptionEntries.stream()
+                                .filter(e -> !e.isAcknowledged())
+                                .count();
+                        CheckResult ret;
+                        if (unacknowledged == 0) {
+                            ret = checkContext.ok("No unacknowledged Exceptions present ("
+                                    + exceptionEntries.size() + " total)");
+                        }
+                        else {
+                            ret = checkContext.fault("There are unacknowledged Exceptions present: "
+                                    + unacknowledged + " of " + exceptionEntries.size());
+                            checkContext.text(" -> Go to the Cache Client's GUI page to resolve and acknowledge them!");
+                        }
+                        if (info.isInitialPopulationDone()) {
+                            checkContext.text("- Count: " + info.getLastUpdateDataCount()
+                                    + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize())
+                                    + ", Decompressed: " + _formatBytes(info.getLastUpdateDecompressedSize()));
+                        }
+
+                        return ret;
                     });
         });
     }

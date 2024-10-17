@@ -4,6 +4,7 @@ import static io.mats3.util.eagercache.MatsEagerCacheHtmlGui.MatsEagerCacheClien
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatHtmlBytes;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatHtmlTimestamp;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatMillis;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatTimestamp;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -12,8 +13,18 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
+
+import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientInformation;
+import io.mats3.util.eagercache.MatsEagerCacheClient.CacheUpdated;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientMock;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerInformation;
 import io.mats3.util.eagercache.MatsEagerCacheServer.ExceptionEntry;
@@ -91,7 +102,11 @@ public interface MatsEagerCacheHtmlGui {
             return "{unknown}";
         }
 
-        default boolean clearExceptions() {
+        default boolean acknowledgeException() {
+            return false;
+        }
+
+        default boolean requestRefresh() {
             return false;
         }
     }
@@ -111,7 +126,12 @@ public interface MatsEagerCacheHtmlGui {
             }
 
             @Override
-            public boolean clearExceptions() {
+            public boolean acknowledgeException() {
+                return true;
+            }
+
+            @Override
+            public boolean requestRefresh() {
                 return true;
             }
         };
@@ -128,13 +148,22 @@ public interface MatsEagerCacheHtmlGui {
      * {@link MatsEagerCacheHtmlGui#create(MatsEagerCacheClient)} factory method to get an instance.
      */
     class MatsEagerCacheClientHtmlGui implements MatsEagerCacheHtmlGui {
+        private static final Logger log = LoggerFactory.getLogger(MatsEagerCacheClientHtmlGui.class);
+
+        static final int MAX_WAIT_FOR_UPDATE_SECONDS = 20;
+
         private final MatsEagerCacheClient<?> _client;
         private final String _routingId;
+        final static ObjectReader JSON_READ_REQUEST = FieldBasedJacksonMapper
+                .getMats3DefaultJacksonObjectMapper().readerFor(RequestDto.class);
+        final static ObjectWriter JSON_WRITE_REPLY = FieldBasedJacksonMapper
+                .getMats3DefaultJacksonObjectMapper().writerFor(ReplyDto.class);
 
         private MatsEagerCacheClientHtmlGui(MatsEagerCacheClient<?> client) {
             _client = client;
             _routingId = "C-" + (client.getCacheClientInformation().getDataName()
-                    + "-" + client.getCacheClientInformation().getNodename()).replaceAll("[^a-zA-Z0-9_]", "-");
+                    + "-" + client.getCacheClientInformation().getNodename())
+                    .replaceAll("[^a-zA-Z0-9_]", "-");
         }
 
         static void includeFile(Appendable out, String file) throws IOException {
@@ -161,10 +190,22 @@ public interface MatsEagerCacheHtmlGui {
             out.append("<h1>MatsEagerCacheClient ")
                     .append(_client instanceof MatsEagerCacheClientMock ? "<b>MOCK</b>" : "")
                     .append(" '").append(info.getDataName()).append("' @ '")
-                    .append(info.getNodename()).append("'</h1>\n");
+                    .append(info.getNodename()).append("'</h1>");
+
+            if (ac.requestRefresh()) {
+                out.append("<button class='matsec-button matsec-refresh-button' onclick='matsecRequestRefresh(this, \"")
+                        .append(getRoutingId()).append("\", ").append(Integer.toString(MAX_WAIT_FOR_UPDATE_SECONDS))
+                        .append(")'>Request Cache Refresh</button>\n");
+            }
+
+            out.append("<div class='matsec-updating-message'></div>\n");
+
+            out.append("<div class='matsec-float-right'><i>").append(ac.username()).append("</i></div>\n");
+
             if (_client instanceof MatsEagerCacheClientMock) {
-                out.append("<i><b>NOTICE! This is a MOCK of the MatsEagerCacheClient</b>, and some of the information"
-                        + " below is mocked! (Notably all the LastUpdate* data)</i><br><br>\n");
+                out.append(
+                        "<br><i><b>NOTICE! This is a MOCK of the MatsEagerCacheClient</b>, and some of the information"
+                                + " below is mocked! (Notably all the LastUpdate* data)</i><br><br>\n");
             }
 
             out.append("<div class='matsec-column-container'>\n");
@@ -174,10 +215,10 @@ public interface MatsEagerCacheHtmlGui {
             out.append("Nodename: ").append("<b>").append(info.getNodename()).append("</b><br>\n");
             out.append("LifeCycle: ").append("<b>").append(info.getCacheClientLifeCycle().toString()).append(
                     "</b><br>\n");
-            out.append("CacheStartedTimestamp: ")
+            out.append("CacheStarted: ")
                     .append(_formatHtmlTimestamp(info.getCacheStartedTimestamp())).append("<br>\n");
             out.append("BroadcastTopic: ").append("<b>").append(info.getBroadcastTopic()).append("</b><br>\n");
-            out.append("InitialPopulationRequestSentTimestamp: ")
+            out.append("InitialPopulationRequestSent: ")
                     .append(_formatHtmlTimestamp(info.getInitialPopulationRequestSentTimestamp())).append("<br>\n");
 
             boolean initialDone = info.isInitialPopulationDone();
@@ -190,12 +231,20 @@ public interface MatsEagerCacheHtmlGui {
                     .append("</b><br>\n");
             out.append("<br>\n");
 
-            out.append("LastAnyUpdateReceivedTimestamp: ")
-                    .append(_formatHtmlTimestamp(info.getAnyUpdateReceivedTimestamp())).append("<br>\n");
-            out.append("LastFullUpdateReceivedTimestamp: ")
+            out.append("LastFullUpdateReceived: ")
                     .append(_formatHtmlTimestamp(info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
-            out.append("LastPartialUpdateReceivedTimestamp: ")
+            out.append("LastPartialUpdateReceived: ")
                     .append(_formatHtmlTimestamp(info.getLastPartialUpdateReceivedTimestamp())).append("<br>\n");
+            out.append("<br>\n");
+
+            double lastRoundTripTimeMillis = info.getLastRoundTripTimeMillis();
+            out.append("LastRoundTripTime: ")
+                    .append(lastRoundTripTimeMillis > 0
+                            ? _formatMillis(info.getLastRoundTripTimeMillis())
+                            : "N/A <i>(Hit [Refresh]!)</i>")
+                    .append("&nbsp;&nbsp;&nbsp;<span style='font-size:80%'><i>(Must chill ")
+                    .append(Integer.toString(MatsEagerCacheServer.FAST_RESPONSE_LAST_RECV_THRESHOLD_SECONDS))
+                    .append(" seconds between [Refresh] to get precise timing)</i></span><br>\n");
             out.append("</div>\n");
 
             out.append("<div class='matsec-column'>\n");
@@ -210,8 +259,18 @@ public interface MatsEagerCacheHtmlGui {
                         .append(info.isLastUpdateFull() ? "Full" : "Partial").append("</b><br>\n");
                 out.append("LastUpdateMode: ").append("<b>")
                         .append(info.isLastUpdateLarge() ? "LARGE" : "Small").append("</b><br>\n");
-                out.append("LastUpdateDurationMillis: <b>")
-                        .append(_formatMillis(info.getLastUpdateDurationMillis())).append("</b><br>\n");
+                out.append("LastUpdateDecompressAndConsumeTotal: <b>")
+                        .append(_formatMillis(info.getLastUpdateDecompressAndConsumeTotalMillis()))
+                        .append("</b>&nbsp;&nbsp;&nbsp;<span style='font-size:80%'><i>(If LARGE update, 100 ms"
+                                + " intentional GC-lag is added)</i></span></b><br>\n");
+                // out.append("LastUpdateDecompress: <b>")
+                // .append(_formatMillis(info.getLastUpdateDecompressMillis())).append("</b><br>\n");
+                out.append("LastUpdateProduceAndCompressTotal: <b>")
+                        .append(_formatMillis(info.getLastUpdateProduceAndCompressTotalMillis()))
+                        .append("</b> <i>(server)</i><br>\n");
+                out.append("LastUpdateCompress: <b>")
+                        .append(_formatMillis(info.getLastUpdateCompressMillis()))
+                        .append("</b> <i>(server)</i><br>\n");
                 String meta = info.getLastUpdateMetadata();
                 out.append("LastUpdateMetadata: ").append(meta != null ? "<b>" + meta + "</b>" : "<i>none</i>")
                         .append("<br>\n");
@@ -233,46 +292,144 @@ public interface MatsEagerCacheHtmlGui {
             out.append("</div>\n");
             out.append("</div>\n");
 
-            logsAndExceptions(out, info.getExceptionEntries(), info.getLogEntries());
+            _logsAndExceptions(out, ac, getRoutingId(), info.getExceptionEntries(), info.getLogEntries());
 
             out.append("</div>\n");
         }
 
-        static void logsAndExceptions(Appendable out, List<ExceptionEntry> exceptionEntries, List<LogEntry> logEntries)
+        @Override
+        public void json(Appendable out, Map<String, String[]> requestParameters, String requestBody, AccessControl ac)
+                throws IOException {
+            RequestDto dto = JSON_READ_REQUEST.readValue(requestBody);
+            switch (dto.op) {
+                case "requestRefresh":
+                    // # Access Check
+                    if (!ac.requestRefresh()) {
+                        throw new AccessDeniedException("User [" + ac.username() + "] not allowed to request refresh.");
+                    }
+
+                    long nanosAsStart_request = System.nanoTime();
+                    Optional<CacheUpdated> cacheUpdated = _client.requestFullUpdate(MAX_WAIT_FOR_UPDATE_SECONDS * 1000);
+                    if (cacheUpdated.isPresent()) {
+                        double millisTaken_request = (System.nanoTime() - nanosAsStart_request) / 1_000_000d;
+                        out.append(new ReplyDto(true, "Refresh requested, got update, took "
+                                + _formatMillis(millisTaken_request) + ".").toJson());
+                    }
+                    else {
+                        out.append(new ReplyDto(false, "Refresh requested, but timed out after waiting "
+                                + MAX_WAIT_FOR_UPDATE_SECONDS + " seconds.").toJson());
+                    }
+                    break;
+                case "acknowledgeSingle":
+                    // # Access Check
+                    if (!ac.acknowledgeException()) {
+                        throw new AccessDeniedException("User [" + ac.username()
+                                + "] not allowed to acknowledge exceptions.");
+                    }
+
+                    boolean result = _client.getCacheClientInformation().acknowledgeException(dto.id, ac.username());
+                    out.append(result
+                            ? new ReplyDto(true, "Acknowledged exception with id " + dto.id).toJson()
+                            : new ReplyDto(false, "Exception with id '" + dto.id + "' not found or"
+                                    + " already acknowledged.").toJson());
+                    break;
+                case "acknowledgeUpTo":
+                    // # Access Check
+                    if (!ac.acknowledgeException()) {
+                        throw new AccessDeniedException("User [" + ac.username()
+                                + "] not allowed to acknowledge exceptions.");
+                    }
+
+                    int numAcknowledged = _client.getCacheClientInformation()
+                            .acknowledgeExceptionsUpTo(dto.timestamp, ac.username());
+                    out.append(new ReplyDto(true, "Acknowledged " + numAcknowledged + " exceptions up to"
+                            + " timestamp '" + _formatTimestamp(dto.timestamp) + "'").toJson());
+                    break;
+                default:
+                    throw new AccessDeniedException("User [" + ac.username()
+                            + "] tried to make an unknown operation [" + dto.op + "].");
+            }
+        }
+
+        @Override
+        public String getRoutingId() {
+            return _routingId;
+        }
+
+        static void _logsAndExceptions(Appendable out, AccessControl ac, String routingId,
+                List<ExceptionEntry> exceptionEntries,
+                List<LogEntry> logEntries)
                 throws IOException {
             out.append("<br>\n");
 
+            // --------------------------------------------------------------
             // :: Print out exception entries, or "No exceptions" if none.
             if (exceptionEntries.isEmpty()) {
                 out.append("<h2>Exception entries</h2><br>\n");
                 out.append("<b><i>No exceptions!</i></b><br>\n");
             }
             else {
-
                 out.append("<div class='matsec-log-table-container'>");
                 out.append("<h2>Exception entries</h2>\n");
                 out.append(logEntries.size() > 5
-                        ? "<button class='matsec-toggle-button' onclick='matsecToggleLogs(this)'>Show All</button>\n"
+                        ? "<button class='matsec-button matsec-toggle-button'"
+                                + " onclick='matsecToggleAllLess(this)'>Show All</button>\n"
                         : "");
+                // Count unacknowledged messages
+                long unacknowledged = exceptionEntries.stream()
+                        .filter(e -> !e.isAcknowledged())
+                        .count();
                 out.append(Integer.toString(logEntries.size())).append(logEntries.size() != 1 ? " entries" : " entry")
-                        .append(" out of max " + CacheMonitor.MAX_ENTRIES + ", most recent first.<br>\n");
+                        .append(" out of max " + CacheMonitor.MAX_ENTRIES + ", most recent first, ");
+                if (unacknowledged > 0) {
+                    out.append("<b>").append(Long.toString(unacknowledged)).append(" unacknowledged!</b>\n");
+                }
+                else {
+                    out.append("all acknowledged.\n");
+                }
+                if (ac.acknowledgeException()) {
+                    out.append("  <button class='matsec-button matsec-float-right'"
+                            + " onclick='matsecAcknowledgeUpTo(this, \"").append(routingId).append("\", ")
+                            .append(Long.toString(exceptionEntries.get(exceptionEntries.size() - 1).getTimestamp()))
+                            .append(")'>Acknowledge up to most recent displayed</button>\n");
+                }
                 out.append("<table class='matsec-log-table'><thead><tr>"
                         + "<th>Timestamp</th>"
                         + "<th>Category</th>"
                         + "<th>Message</th>"
+                        + "<th>Acknowledged</th>"
                         + "</tr></thead>");
                 out.append("<tbody>\n");
                 int count = 0;
                 for (int i = exceptionEntries.size() - 1; i >= 0; i--) {
                     ExceptionEntry entry = exceptionEntries.get(i);
-                    out.append("<tr class='matsec-log-row").append(count >= 5 ? " matsec-hidden'>" : "'>");
-                    out.append("  <td class='matsec-timestamp'>").append(_formatHtmlTimestamp(entry.getTimestamp()))
+                    String ack = entry.isAcknowledged()
+                            ? "matsec-row-acknowledged"
+                            : "matsec-row-unacknowledged";
+                    out.append("<tr class='matsec-log-row")
+                            .append(count >= 5 ? " matsec-hidden" : "")
+                            .append("'>");
+                    out.append("  <td class='").append(ack).append(" matsec-timestamp'>")
+                            .append(_formatHtmlTimestamp(entry.getTimestamp())).append("</td>");
+                    out.append("  <td class='").append(ack).append(" matsec-category'>")
+                            .append(entry.getCategory().toString()).append("</td>");
+                    out.append("  <td class='").append(ack).append(" matsec-message'>")
+                            .append(entry.getMessage()).append("</td>");
+                    out.append("  <td class='").append(ack).append(" matsec-acknowledged'>")
+                            .append(entry.isAcknowledged()
+                                    ? _formatHtmlTimestamp(entry.getAcknowledgedTimestamp().getAsLong())
+                                    : ac.acknowledgeException()
+                                            ? "<button class='matsec-button matsec-acknowledge-button'"
+                                                    + " onclick='matsecAcknowledgeSingle(this, \"" + routingId
+                                                    + "\", \"" + entry.getId() + "\")'>Acknowledge</button>"
+                                            : "")
+                            .append(entry.isAcknowledged()
+                                    ? " by " + entry.getAcknowledgedByUser().orElseThrow()
+                                    : "")
                             .append("</td>");
-                    out.append("  <td class='matsec-category'>").append(entry.getCategory().toString()).append("</td>");
-                    out.append("  <td class='matsec-message'>").append(entry.getMessage()).append("</td>");
                     out.append("</tr>\n");
                     out.append("<tr class='matsec-log-row-throwable").append(count >= 5 ? " matsec-hidden'>" : "'>");
-                    out.append("  <td colspan='3' class='matsec-throwable'><pre>").append(entry.getThrowableAsString())
+                    out.append("  <td colspan='4' class='matsec-throwable'><pre>").append(entry.getThrowableAsString())
                             .append("</pre></td>");
                     out.append("</tr>\n");
                     count++;
@@ -281,15 +438,17 @@ public interface MatsEagerCacheHtmlGui {
                 out.append("</div>\n");
             }
 
+            // --------------------------------------------------------------
             // :: Print out log entries
             out.append("<br>\n");
             out.append("<div class='matsec-log-table-container'>");
             out.append("<h2>Log entries</h2>\n");
             out.append(logEntries.size() > 5
-                    ? "<button class='matsec-toggle-button' onclick='matsecToggleLogs(this)'>Show All</button>\n"
+                    ? "<button class='matsec-button matsec-toggle-button'"
+                            + " onclick='matsecToggleAllLess(this)'>Show All</button>\n"
                     : "");
             out.append(Integer.toString(logEntries.size())).append(logEntries.size() != 1 ? " entries" : " entry")
-                    .append(" out of max " + CacheMonitor.MAX_ENTRIES + ", most recent first..<br>\n");
+                    .append(" out of max " + CacheMonitor.MAX_ENTRIES + ", most recent first.<br>\n");
             out.append("<table class='matsec-log-table'><thead><tr>"
                     + "<th>Timestamp</th>"
                     + "<th>Level</th>"
@@ -313,15 +472,29 @@ public interface MatsEagerCacheHtmlGui {
             out.append("</div>\n");
         }
 
-        @Override
-        public void json(Appendable out, Map<String, String[]> requestParameters, String requestBody, AccessControl ac)
-                throws IOException {
-            out.append("/* No JSON for MatsEagerCacheClient */");
+        static class RequestDto {
+            String op;
+            String id;
+            long timestamp;
         }
 
-        @Override
-        public String getRoutingId() {
-            return _routingId;
+        static class ReplyDto {
+            boolean ok;
+            String message;
+
+            public ReplyDto(boolean ok, String message) {
+                this.ok = ok;
+                this.message = message;
+            }
+
+            public String toJson() {
+                try {
+                    return MatsEagerCacheClientHtmlGui.JSON_WRITE_REPLY.writeValueAsString(this);
+                }
+                catch (JsonProcessingException e) {
+                    throw new RuntimeException("Could not serialize to JSON", e);
+                }
+            }
         }
     }
 
@@ -330,92 +503,97 @@ public interface MatsEagerCacheHtmlGui {
      * {@link MatsEagerCacheHtmlGui#create(MatsEagerCacheServer)} factory method to get an instance.
      */
     class MatsEagerCacheServerHtmlGui implements MatsEagerCacheHtmlGui {
-        private final CacheServerInformation _info;
+        private final MatsEagerCacheServer _server;
         private final String _routingId;
 
         private MatsEagerCacheServerHtmlGui(MatsEagerCacheServer server) {
-            _info = server.getCacheServerInformation();
+            _server = server;
             _routingId = "S-" + (server.getCacheServerInformation().getDataName()
-                    + "-" + server.getCacheServerInformation().getNodename()).replaceAll("[^a-zA-Z0-9_]", "-");
+                    + "-" + server.getCacheServerInformation().getNodename())
+                    .replaceAll("[^a-zA-Z0-9_]", "-");
         }
 
         @Override
         public void html(Appendable out, Map<String, String[]> requestParameters, AccessControl ac) throws IOException {
+            CacheServerInformation info = _server.getCacheServerInformation();
             out.append("<div class='matsec-container'>\n");
-            out.append("<h1>MatsEagerCacheServer '" + _info.getDataName() + "' @ '" + _info.getNodename() + "'</h1>");
+            out.append("<h1>MatsEagerCacheServer '")
+                    .append(info.getDataName()).append("' @ '").append(info.getNodename()).append("'</h1>");
 
             out.append("<div class='matsec-column-container'>\n");
 
             out.append("<div class='matsec-column'>\n");
-            out.append("DataName: ").append("<b>").append(_info.getDataName()).append("</b><br>\n");
-            out.append("Nodename: ").append("<b>").append(_info.getNodename()).append("</b><br>\n");
-            out.append("LifeCycle: ").append("<b>").append(_info.getCacheServerLifeCycle().toString()).append(
+            out.append("DataName: ").append("<b>").append(info.getDataName()).append("</b><br>\n");
+            out.append("Nodename: ").append("<b>").append(info.getNodename()).append("</b><br>\n");
+            out.append("LifeCycle: ").append("<b>").append(info.getCacheServerLifeCycle().toString()).append(
                     "</b><br>\n");
-            out.append("CacheStartedTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getCacheStartedTimestamp())).append("<br>\n");
-            out.append("CacheRequestQueue: ").append("<b>").append(_info.getCacheRequestQueue()).append("</b><br>\n");
-            out.append("BroadcastTopic: ").append("<b>").append(_info.getBroadcastTopic()).append("</b><br>\n");
+            out.append("CacheStarted: ")
+                    .append(_formatHtmlTimestamp(info.getCacheStartedTimestamp())).append("<br>\n");
+            out.append("CacheRequestQueue: ").append("<b>").append(info.getCacheRequestQueue()).append("</b><br>\n");
+            out.append("BroadcastTopic: ").append("<b>").append(info.getBroadcastTopic()).append("</b><br>\n");
             out.append("PeriodicFullUpdateIntervalMinutes: ").append("<b>")
-                    .append(Double.toString(_info.getPeriodicFullUpdateIntervalMinutes())).append("</b><br>\n");
+                    .append(Double.toString(info.getPeriodicFullUpdateIntervalMinutes())).append("</b><br>\n");
             out.append("<br>\n");
 
-            out.append("LastFullUpdateRequestReceivedTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getLastFullUpdateRequestReceivedTimestamp())).append("<br>\n");
-            out.append("LastFullUpdateProductionStartedTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getLastFullUpdateProductionStartedTimestamp()))
-                    .append(" - took <b>").append(_formatMillis(_info.getLastFullUpdateProduceTotalMillis()))
-                    .append("</b><br>\n");
-            out.append("LastFullUpdateSentTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getLastFullUpdateSentTimestamp())).append("<br>\n");
-            out.append("LastFullUpdateReceivedTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
-            out.append("LastPartialUpdateReceivedTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getLastPartialUpdateReceivedTimestamp())).append("<br>\n");
-            out.append("LastAnyUpdateReceivedTimestamp: ")
-                    .append(_formatHtmlTimestamp(_info.getLastAnyUpdateReceivedTimestamp())).append("<br>\n");
+            out.append("LastFullUpdateRequestReceived: ")
+                    .append(_formatHtmlTimestamp(info.getLastFullUpdateRequestReceivedTimestamp())).append("<br>\n");
+            out.append("LastFullUpdateProductionStarted: ")
+                    .append(_formatHtmlTimestamp(info.getLastFullUpdateProductionStartedTimestamp()));
+            if (info.getLastFullUpdateSentTimestamp() > 0) {
+                out.append(" - took <b>").append(_formatMillis(info.getLastFullUpdateProduceTotalMillis()));
+            }
+            out.append("</b><br>\n");
+            out.append("LastFullUpdateSent: ")
+                    .append(_formatHtmlTimestamp(info.getLastFullUpdateSentTimestamp())).append("<br>\n");
+            out.append("<br>\n");
+
+            out.append("LastFullUpdateReceived: ")
+                    .append(_formatHtmlTimestamp(info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
+            out.append("LastPartialUpdateReceived: ")
+                    .append(_formatHtmlTimestamp(info.getLastPartialUpdateReceivedTimestamp())).append("<br>\n");
             out.append("</div>\n");
 
             out.append("<div class='matsec-column'>\n");
-            long lastUpdateSent = _info.getLastUpdateSentTimestamp();
+            long lastUpdateSent = info.getLastUpdateSentTimestamp();
             if (lastUpdateSent > 0) {
-                out.append("LastUpdateSentTimestamp: ").append("<b>")
+                out.append("LastUpdateSent: ").append("<b>")
                         .append(_formatHtmlTimestamp(lastUpdateSent)).append("</b><br>\n");
                 out.append("LastUpdateType: ").append("<b>")
-                        .append(_info.isLastUpdateFull() ? "Full" : "Partial").append("</b><br>\n");
-                out.append("LastUpdateProductionTotalMillis: <b>")
-                        .append(_formatMillis(_info.getLastUpdateProduceTotalMillis()))
+                        .append(info.isLastUpdateFull() ? "Full" : "Partial").append("</b><br>\n");
+                out.append("LastUpdateProductionTotal: <b>")
+                        .append(_formatMillis(info.getLastUpdateProduceTotalMillis()))
                         .append("</b> - source: <b>")
-                        .append(_formatMillis(_info.getLastUpdateSourceMillis()))
+                        .append(_formatMillis(info.getLastUpdateSourceMillis()))
                         .append("</b>, serialize: <b>")
-                        .append(_formatMillis(_info.getLastUpdateSerializeMillis()))
+                        .append(_formatMillis(info.getLastUpdateSerializeMillis()))
                         .append("</b>, compress: <b>")
-                        .append(_formatMillis(_info.getLastUpdateCompressMillis()))
+                        .append(_formatMillis(info.getLastUpdateCompressMillis()))
                         .append("</b><br>\n");
-                String meta = _info.getLastUpdateMetadata();
+                String meta = info.getLastUpdateMetadata();
                 out.append("LastUpdateMetadata: ").append(meta != null ? "<b>" + meta + "</b>" : "<i>none</i>")
                         .append("<br>\n");
                 out.append("LastUpdateDataCount: ").append("<b>")
-                        .append(Integer.toString(_info.getLastUpdateDataCount())).append("</b><br>\n");
+                        .append(Integer.toString(info.getLastUpdateDataCount())).append("</b><br>\n");
                 out.append("LastUpdateUncompressedSize: ")
-                        .append(_formatHtmlBytes(_info.getLastUpdateUncompressedSize())).append("<br>\n");
+                        .append(_formatHtmlBytes(info.getLastUpdateUncompressedSize())).append("<br>\n");
                 out.append("LastUpdateCompressedSize: ")
-                        .append(_formatHtmlBytes(_info.getLastUpdateCompressedSize())).append("<br>\n");
+                        .append(_formatHtmlBytes(info.getLastUpdateCompressedSize())).append("<br>\n");
                 out.append("<br>\n");
             }
             else {
                 out.append("<i>No update sent yet.</i><br><br>\n");
             }
 
-            out.append("FullUpdates: <b>").append(Integer.toString(_info.getNumberOfFullUpdatesSent()));
-            out.append("</b> sent, out of <b>").append(Integer.toString(_info.getNumberOfFullUpdatesReceived()))
+            out.append("FullUpdates: <b>").append(Integer.toString(info.getNumberOfFullUpdatesSent()));
+            out.append("</b> sent, out of <b>").append(Integer.toString(info.getNumberOfFullUpdatesReceived()))
                     .append("</b> received.<br>\n");
-            out.append("PartialUpdates: <b>").append(Integer.toString(_info.getNumberOfPartialUpdatesSent()));
-            out.append("</b> sent, out of <b>").append(Integer.toString(_info.getNumberOfPartialUpdatesReceived()))
+            out.append("PartialUpdates: <b>").append(Integer.toString(info.getNumberOfPartialUpdatesSent()));
+            out.append("</b> sent, out of <b>").append(Integer.toString(info.getNumberOfPartialUpdatesReceived()))
                     .append("</b> received.<br>\n");
             out.append("</div>\n");
             out.append("</div>\n");
 
-            MatsEagerCacheClientHtmlGui.logsAndExceptions(out, _info.getExceptionEntries(), _info
+            MatsEagerCacheClientHtmlGui._logsAndExceptions(out, ac, getRoutingId(), info.getExceptionEntries(), info
                     .getLogEntries());
             out.append("</div>\n");
         }

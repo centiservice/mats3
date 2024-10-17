@@ -20,6 +20,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -201,7 +203,7 @@ public interface MatsEagerCacheServer {
      * @see #DEFAULT_SHORT_DELAY_MILLIS
      * @see #DEFAULT_LONG_DELAY_MILLIS
      */
-    int FAST_RESPONSE_LAST_RECV_THRESHOLD_MILLIS = 30_000;
+    int FAST_RESPONSE_LAST_RECV_THRESHOLD_SECONDS = 30;
     /**
      * Read {@link #scheduleFullUpdate()} for the rationale behind this delay. (2.5 seconds)
      */
@@ -300,7 +302,7 @@ public interface MatsEagerCacheServer {
      * source data.
      * <p>
      * It is scheduled to run after a little while, the delay being a function of how soon since the last time a full
-     * update was run. If it is a long time ({@link #FAST_RESPONSE_LAST_RECV_THRESHOLD_MILLIS}) since last update was
+     * update was run. If it is a long time ({@link #FAST_RESPONSE_LAST_RECV_THRESHOLD_SECONDS}) since last update was
      * run, it will either be run immediately (if manual invocation as by this method, or the corresponding on client)
      * or {@link #DEFAULT_SHORT_DELAY_MILLIS soon} (if the request is due to a client boot), while if the previous time
      * was a short time ago, it will be scheduled to run {@link #DEFAULT_LONG_DELAY_MILLIS a bit later}. The reason for
@@ -619,7 +621,39 @@ public interface MatsEagerCacheServer {
     }
 
     enum MonitorCategory {
-        INITIAL_POPULATION, PERIODIC_UPDATE, RECEIVED_BROADCAST, CACHE_SERVER, CACHE_CLIENT, REQUEST_UPDATE_FROM_CLIENT, REQUEST_UPDATE_PERIODIC, REQUEST_UPDATE_SEND_NOW, REQUEST_UPDATE_COALESCE, REQUEST_UPDATE_FROM_SERVER, ENSURE_UPDATE, SIBLING_COMMAND, PRODUCE_DATA, GET, RECEIVED_UPDATE, SEND_UPDATE, CACHE_CLIENT_MOCK, OTHER
+        INITIAL_POPULATION,
+
+        PERIODIC_UPDATE,
+
+        RECEIVED_BROADCAST,
+
+        CACHE_SERVER,
+
+        CACHE_CLIENT,
+
+        REQUEST_UPDATE_FROM_CLIENT,
+
+        REQUEST_UPDATE_PERIODIC,
+
+        REQUEST_UPDATE_SEND_NOW,
+
+        REQUEST_UPDATE_COALESCE,
+
+        REQUEST_UPDATE_FROM_SERVER,
+
+        ENSURE_UPDATE,
+
+        SIBLING_COMMAND,
+
+        PRODUCE_DATA,
+
+        GET,
+
+        RECEIVED_UPDATE,
+
+        SEND_UPDATE,
+
+        CACHE_CLIENT_MOCK;
     }
 
     interface LogEntry {
@@ -635,13 +669,26 @@ public interface MatsEagerCacheServer {
     interface ExceptionEntry {
         long getTimestamp();
 
+        void acknowledge(String acknowledgedByUser);
+
+        default boolean isAcknowledged() {
+            return getAcknowledgedTimestamp().isPresent();
+        }
+
+        Optional<String> getAcknowledgedByUser();
+
+        OptionalLong getAcknowledgedTimestamp();
+
         MonitorCategory getCategory();
+
+        String getId();
 
         String getMessage();
 
         Throwable getThrowable();
 
         String getThrowableAsString();
+
     }
 
     // ======== The 'MatsEagerCacheServer' implementation class
@@ -1089,7 +1136,7 @@ public interface MatsEagerCacheServer {
 
         // ======== Implementation / Internal methods ========
 
-        void _setDelays(int shortDelay, int longDelay) {
+        void _setCoalescingDelays(int shortDelay, int longDelay) {
             _shortDelay = shortDelay;
             _longDelay = longDelay;
         }
@@ -1168,7 +1215,7 @@ public interface MatsEagerCacheServer {
                             }
                         }
                         else {
-                            _cacheMonitor.exception(MonitorCategory.OTHER,
+                            _cacheMonitor.exception(MonitorCategory.RECEIVED_BROADCAST,
                                     "Got a broadcast with unknown command, ignoring: "
                                             + _infoAboutBroadcast(broadcastDto),
                                     new IllegalArgumentException("Unknown broadcast command, shouldn't happen."));
@@ -1224,7 +1271,7 @@ public interface MatsEagerCacheServer {
                             + String.format("%,d", checkIntervalMillis) + " ms, "
                             + _formatMillis(checkIntervalMillis) + "].");
                     // Ensure that we're fully operational before starting the periodic update.
-                    _broadcastTerminator.waitForReceiving(FAST_RESPONSE_LAST_RECV_THRESHOLD_MILLIS);
+                    _broadcastTerminator.waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS);
                     // Going into the run loop
                     while (_running) {
                         try {
@@ -1412,9 +1459,6 @@ public interface MatsEagerCacheServer {
                     + " Command: " + broadcastDto.command + " - from: " + broadcastDto.handlingNodename
                     + " - " + _infoAboutBroadcast(broadcastDto));
 
-            // Record that we've received a request for update.
-            _lastFullUpdateRequestReceivedTimestamp = System.currentTimeMillis();
-
             boolean shouldStartCoalescingThread = false;
             synchronized (this) {
                 // Increase the count of outstanding requests.
@@ -1519,7 +1563,7 @@ public interface MatsEagerCacheServer {
                         _lastAnyUpdateReceivedTimestamp));
                 // NOTE: If it is a *long* time since last activity, we'll do a fast response.
                 boolean fastResponse = (System.currentTimeMillis()
-                        - latestActivityTimestamp) > FAST_RESPONSE_LAST_RECV_THRESHOLD_MILLIS;
+                        - latestActivityTimestamp) > (FAST_RESPONSE_LAST_RECV_THRESHOLD_SECONDS * 1000);
                 // Calculate initial delay: Two tiers: If "fastResponse", decide by whether it was a manual request or
                 // not.
                 int initialDelay = fastResponse
@@ -1528,6 +1572,10 @@ public interface MatsEagerCacheServer {
                                         ? 0 // Immediate for manual
                                         : _shortDelay // Short delay (i.e. longer) for boot
                         : _longDelay;
+
+                _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_UPDATE_COALESCE,
+                        "Coalescing: initialDelay: ["+initialDelay+"], fastResponse:["+fastResponse
+                                +"] (currentOutstanding: [" + _updateRequest_OutstandingCount + "]).");
 
                 Thread updateRequestsCoalescingDelayThread = new Thread(() -> {
                     // First sleep the initial delay.
@@ -1594,6 +1642,10 @@ public interface MatsEagerCacheServer {
                 updateRequestsCoalescingDelayThread.setDaemon(true);
                 updateRequestsCoalescingDelayThread.start();
             }
+
+            // Record that we've received a request for update.
+            // NOTICE! MUST do this "late", as we use it earlier in the method to decide "fastResponse".
+            _lastFullUpdateRequestReceivedTimestamp = System.currentTimeMillis();
         }
 
         private void _msg_fullUpdateRequestSendUpdateNow(BroadcastDto broadcastDto) {
@@ -1601,7 +1653,7 @@ public interface MatsEagerCacheServer {
                     + " Command: " + broadcastDto.command + " - from: " + broadcastDto.handlingNodename
                     + " - " + _infoAboutBroadcast(broadcastDto));
 
-            // A full-update will be sent now, make note (for fastResponse evaluation, and )
+            // A full-update will be sent now, make note (for fastResponse evaluation, and possibly GUI)
             _lastFullUpdateProductionStartedTimestamp = System.currentTimeMillis();
 
             // Reset count - after which a new request for update will start the election and coalescing process anew.
@@ -2062,6 +2114,7 @@ public interface MatsEagerCacheServer {
             long sentNanoTime;
 
             // ===== For cache request replies
+            // NOTE: All these will for be of the first of the coalesced requests.
             String correlationId;
             String requestNodename;
             long requestSentTimestamp;
@@ -2072,7 +2125,6 @@ public interface MatsEagerCacheServer {
             String metadata;
             long uncompressedSize;
             int compressedSize;
-
             double millisTotalProduceAndCompress; // Total time to produce the Data set
             double millisCompress; // Compress (and write to byte array, but that's ~0) only
             // Note: The actual Deflated data is added as a binary sideload: 'SIDELOAD_KEY_SOURCE_DATA'
@@ -2128,33 +2180,70 @@ public interface MatsEagerCacheServer {
             public synchronized List<ExceptionEntry> getExceptionEntries() {
                 return Collections.unmodifiableList(new ArrayList<>(exceptionEntries));
             }
+
+            boolean acknowledgeException(String id, String username) {
+                synchronized (this) {
+                    for (ExceptionEntry exceptionEntry : exceptionEntries) {
+                        if (exceptionEntry.getId().equals(id)) {
+                            // ?: Already acknowledged?
+                            if (exceptionEntry.isAcknowledged()) {
+                                // -> Yes, already acknowledged, so return false.
+                                return false;
+                            }
+                            // E-> Not acknowledged, so acknowledge it, and return true.
+                            exceptionEntry.acknowledge(username);
+                            return true;
+                        }
+                    }
+                    // No such exception
+                    return false;
+                }
+            }
+
+            int acknowledgeExceptionsUpTo(long timestamp, String username) {
+                synchronized (this) {
+                    int count = 0;
+                    for (ExceptionEntry exceptionEntry : exceptionEntries) {
+                        if (exceptionEntry.getTimestamp() <= timestamp) {
+                            if (!exceptionEntry.isAcknowledged()) {
+                                exceptionEntry.acknowledge(username);
+                                count++;
+                            }
+                        }
+                    }
+                    return count;
+                }
+            }
         }
 
         static class LogEntryImpl implements LogEntry {
             private final LogLevel level;
             private final MonitorCategory _monitorCategory;
             private final String message;
-            private final long timestamp;
+            private final long timestamp = System.currentTimeMillis();
 
             LogEntryImpl(LogLevel level, MonitorCategory monitorCategory, String message) {
                 this.level = level;
                 this._monitorCategory = monitorCategory;
                 this.message = message;
-                this.timestamp = System.currentTimeMillis();
             }
 
+            @Override
             public MonitorCategory getCategory() {
                 return _monitorCategory;
             }
 
+            @Override
             public LogLevel getLevel() {
                 return level;
             }
 
+            @Override
             public String getMessage() {
                 return message;
             }
 
+            @Override
             public long getTimestamp() {
                 return timestamp;
             }
@@ -2164,36 +2253,79 @@ public interface MatsEagerCacheServer {
             private final MonitorCategory _monitorCategory;
             private final String message;
             private final Throwable throwable;
-            private final long timestamp;
+            private final long timestamp = System.currentTimeMillis();
+            private final String id = Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36);
 
             ExceptionEntryImpl(MonitorCategory monitorCategory, String message, Throwable throwable) {
                 this._monitorCategory = monitorCategory;
                 this.message = message;
                 this.throwable = throwable;
-                this.timestamp = System.currentTimeMillis();
             }
 
+            // Synchronized: this
+            private String _acknowledgedByUser;
+            // Synchronized: this
+            private long _acknowledgedTimestamp;
+
+            @Override
             public MonitorCategory getCategory() {
                 return _monitorCategory;
             }
 
-            public String getMessage() {
-                return message;
-            }
-
-            public Throwable getThrowable() {
-                return throwable;
-            }
-
+            @Override
             public long getTimestamp() {
                 return timestamp;
             }
 
+            @Override
+            public String getId() {
+                return id;
+            }
+
+            @Override
+            public String getMessage() {
+                return message;
+            }
+
+            @Override
+            public Throwable getThrowable() {
+                return throwable;
+            }
+
+            @Override
             public String getThrowableAsString() {
                 StringWriter sw = new StringWriter();
                 PrintWriter pw = new PrintWriter(sw);
                 throwable.printStackTrace(pw);
                 return sw.toString();
+            }
+
+            @Override
+            public void acknowledge(String acknowledgedByUser) {
+                synchronized (this) {
+                    if (acknowledgedByUser == null) {
+                        throw new IllegalArgumentException("acknowledgedByUser cannot be null.");
+                    }
+                    if (_acknowledgedByUser != null) {
+                        throw new IllegalStateException("ExceptionEntry has already been acknowledged.");
+                    }
+                    _acknowledgedByUser = acknowledgedByUser;
+                    _acknowledgedTimestamp = System.currentTimeMillis();
+                }
+            }
+
+            @Override
+            public Optional<String> getAcknowledgedByUser() {
+                synchronized (this) {
+                    return Optional.ofNullable(_acknowledgedByUser);
+                }
+            }
+
+            @Override
+            public OptionalLong getAcknowledgedTimestamp() {
+                synchronized (this) {
+                    return _acknowledgedTimestamp == 0 ? OptionalLong.empty() : OptionalLong.of(_acknowledgedTimestamp);
+                }
             }
         }
     }

@@ -105,8 +105,8 @@ public class CommonSetup_TwoServers_TwoClients {
 
         // Assert that they are identical
         Assert.assertEquals("The source datas should be the same",
-                customerDataWriter.writeValueAsString(sourceData1), customerDataWriter.writeValueAsString(
-                        sourceData2));
+                customerDataWriter.writeValueAsString(sourceData1),
+                customerDataWriter.writeValueAsString(sourceData2));
 
         // :: Create four MatsFactories, representing two different instances of the server-side service, and
         // two different instances of the client-side service.
@@ -211,7 +211,7 @@ public class CommonSetup_TwoServers_TwoClients {
         // Changing delays (towards shorter), as we're testing. But also handle CI, which can be very slow.
         int shortDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE; // Local: 250ms, On CI: 1 sec
         int longDelay = MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 2; // Local: 500ms, On CI: 2 sec
-        ((MatsEagerCacheServerImpl) cacheServer)._setDelays(shortDelay, longDelay);
+        ((MatsEagerCacheServerImpl) cacheServer)._setCoalescingDelays(shortDelay, longDelay);
     }
 
     public void waitForClientsUpdate() throws InterruptedException {
