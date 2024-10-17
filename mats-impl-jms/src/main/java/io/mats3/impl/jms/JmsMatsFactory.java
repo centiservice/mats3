@@ -49,7 +49,7 @@ import io.mats3.serial.MatsTrace;
 public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable, MatsFactory {
 
     private static final String MATS_IMPLEMENTATION_NAME = "JMS Mats3";
-    private static final String MATS_IMPLEMENTATION_VERSION = "RC-0.19.20-RC3-2024-10-14";
+    private static final String MATS_IMPLEMENTATION_VERSION = "RC-0.19.20-RC4-2024-10-18";
 
     public static final String INTERCEPTOR_CLASS_MATS_LOGGING = "io.mats3.intercept.logging.MatsMetricsLoggingInterceptor";
     public static final String INTERCEPTOR_CLASS_MATS_METRICS = "io.mats3.intercept.micrometer.MatsMicrometerInterceptor";

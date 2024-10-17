@@ -7,7 +7,7 @@ wrapper {
 
 allprojects {
     group = 'io.mats3'
-    version = 'RC-0.19.20-RC3-2024-10-14'
+    version = 'RC-0.19.20-RC4-2024-10-18'
 
     layout.getBuildDirectory().set(new File("build-gradle"))
 }
