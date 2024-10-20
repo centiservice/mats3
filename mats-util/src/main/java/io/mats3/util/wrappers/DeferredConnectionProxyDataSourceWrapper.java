@@ -11,9 +11,10 @@ import java.util.Map;
 
 import javax.sql.DataSource;
 
-import io.mats3.MatsFactory.MatsWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.mats3.MatsFactory.MatsWrapper;
 
 /**
  * DataSource wrapper which returns thin Connection proxies (currently employing Java's "dynamic proxy" functionality)
@@ -55,9 +56,6 @@ import org.slf4j.LoggerFactory;
  * @author Endre Stølsvik 2021-01-26 23:45 - http://stolsvik.com/, endre@stolsvik.com
  */
 public class DeferredConnectionProxyDataSourceWrapper extends DataSourceWrapper {
-
-    // TODO: Evaluate what impact dynaproxies gives on performance, and whether rather use ByteBuddy or similar.
-
     private static final Logger log = LoggerFactory.getLogger(DeferredConnectionProxyDataSourceWrapper.class);
 
     private static final String SPRING_CONNECTION_PROXY_CLASSNAME = "org.springframework.jdbc.datasource.ConnectionProxy";
