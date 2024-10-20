@@ -40,6 +40,7 @@ import io.mats3.localinspect.LocalStatsMatsInterceptor;
 import io.mats3.util.DummyFinancialService;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientMock;
 import io.mats3.util.eagercache.MatsEagerCacheHtmlGui.AccessControl;
+import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl;
 
 /**
  * Test Jetty Server for the EagerCache, which "boots" 2x Cache Server and Clients, and then creates HTML GUIs and
@@ -65,7 +66,10 @@ public class EagerCache_TestJettyServer {
             // Create the MatsFactories
             try {
                 _serversClients = CommonSetup_TwoServers_TwoClients.createWithServerAdjust(10, (server) -> {
-                   //  server.setPeriodicFullUpdateIntervalMinutes(0.2d); // 12 seconds. (Should be *hours* in production!)
+                    // 2 minutes. (Should be *hours* in production!)
+                    server.setPeriodicFullUpdateIntervalMinutes(2);
+                    // Setting a bit higher than the testing requires.
+                    ((MatsEagerCacheServerImpl) server)._setCoalescingDelays(1000, 3000);
                 });
             }
             catch (JsonProcessingException | InterruptedException e) {

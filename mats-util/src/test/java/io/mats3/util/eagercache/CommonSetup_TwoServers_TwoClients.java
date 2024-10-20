@@ -128,6 +128,9 @@ public class CommonSetup_TwoServers_TwoClients {
                             takeNap(1);
                             consumeTo.accept(o);
                         }));
+        // Adjust delays for testing
+        adjustDelaysForTest(cacheServer1);
+        // Adjust the server from caller
         serversAdjust.accept(cacheServer1);
 
         cacheServer2 = MatsEagerCacheServer.create(serverMatsFactory2,
@@ -137,6 +140,9 @@ public class CommonSetup_TwoServers_TwoClients {
                             takeNap(3);
                             consumeTo.accept(o);
                         }));
+        // Adjust delays for testing
+        adjustDelaysForTest(cacheServer2);
+        // Adjust the server from caller
         serversAdjust.accept(cacheServer2);
 
         // :: Create the CacheClients:
@@ -181,10 +187,6 @@ public class CommonSetup_TwoServers_TwoClients {
             cacheClient2_updated[0] = cacheUpdated;
             cacheClient2_latch[0].countDown();
         });
-
-        // Adjust delays for testing
-        adjustDelaysForTest(cacheServer1);
-        adjustDelaysForTest(cacheServer2);
 
         log.info("\n\n######### Starting the CacheServers and CacheClient, waiting for CacheServers receiving.\n\n");
 

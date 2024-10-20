@@ -464,7 +464,8 @@ public interface MatsEagerCacheHtmlGui {
                         .append("</td>");
                 out.append("<td class='matsec-level'>").append(entry.getLevel().toString()).append("</td>");
                 out.append("<td class='matsec-category'>").append(entry.getCategory().toString()).append("</td>");
-                out.append("<td class='matsec-message'>").append(entry.getMessage()).append("</td>");
+                out.append("<td class='matsec-message'>").append(entry.getMessage().replace(" ##", "</br>"))
+                        .append("</td>");
                 out.append("</tr>\n");
                 count++;
             }
@@ -538,15 +539,8 @@ public interface MatsEagerCacheHtmlGui {
             out.append("LastFullUpdateRequestReceived: ")
                     .append(_formatHtmlTimestamp(info.getLastFullUpdateRequestReceivedTimestamp())).append("<br>\n");
             out.append("LastFullUpdateProductionStarted: ")
-                    .append(_formatHtmlTimestamp(info.getLastFullUpdateProductionStartedTimestamp()));
-            if (info.getLastFullUpdateSentTimestamp() > 0) {
-                out.append(" - took <b>").append(_formatMillis(info.getLastFullUpdateProduceTotalMillis()));
-            }
-            out.append("</b><br>\n");
-            out.append("LastFullUpdateSent: ")
-                    .append(_formatHtmlTimestamp(info.getLastFullUpdateSentTimestamp())).append("<br>\n");
-            out.append("<br>\n");
-
+                    .append(_formatHtmlTimestamp(info.getLastFullUpdateProductionStartedTimestamp()))
+                    .append("</b><br>\n");
             out.append("LastFullUpdateReceived: ")
                     .append(_formatHtmlTimestamp(info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
             out.append("LastPartialUpdateReceived: ")
