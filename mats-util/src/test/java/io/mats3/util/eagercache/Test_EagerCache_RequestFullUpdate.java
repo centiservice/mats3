@@ -74,8 +74,8 @@ public class Test_EagerCache_RequestFullUpdate {
         // From both the client and server, request a full update - do it multiple times, from all of them.
         // (This should still just result in one full update sent in total)
         for (int i = 0; i < serverSideCount; i++) {
-            serversClients.cacheServer1.scheduleFullUpdate();
-            serversClients.cacheServer2.scheduleFullUpdate();
+            serversClients.cacheServer1.initiateFullUpdate(-1);
+            serversClients.cacheServer2.initiateFullUpdate(-1);
         }
         for (int i = 0; i < clientSideCount; i++) {
             serversClients.cacheClient1.requestFullUpdate(-1);

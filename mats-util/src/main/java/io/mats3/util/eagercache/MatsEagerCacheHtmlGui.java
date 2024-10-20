@@ -26,6 +26,8 @@ import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientInformation;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheUpdated;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientMock;
+import io.mats3.util.eagercache.MatsEagerCacheHtmlGui.MatsEagerCacheClientHtmlGui.ReplyDto;
+import io.mats3.util.eagercache.MatsEagerCacheHtmlGui.MatsEagerCacheClientHtmlGui.RequestDto;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerInformation;
 import io.mats3.util.eagercache.MatsEagerCacheServer.ExceptionEntry;
 import io.mats3.util.eagercache.MatsEagerCacheServer.LogEntry;
@@ -35,14 +37,32 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.Ca
  * Embeddable HTML GUI for the {@link MatsEagerCacheClient} and {@link MatsEagerCacheServer}.
  */
 public interface MatsEagerCacheHtmlGui {
-
-    static MatsEagerCacheHtmlGui create(MatsEagerCacheServer client) {
-        return new MatsEagerCacheServerHtmlGui(client);
+    /**
+     * Factory method for creating an instance of {@link MatsEagerCacheHtmlGui} for the {@link MatsEagerCacheServer}.
+     *
+     * @param server
+     *            the {@link MatsEagerCacheServer} instance to create the GUI for.
+     * @return the {@link MatsEagerCacheHtmlGui} instance.
+     */
+    static MatsEagerCacheHtmlGui create(MatsEagerCacheServer server) {
+        return new MatsEagerCacheServerHtmlGui(server);
     }
 
-    static MatsEagerCacheHtmlGui create(MatsEagerCacheClient<?> server) {
-        return new MatsEagerCacheClientHtmlGui(server);
+    /**
+     * Factory method for creating an instance of {@link MatsEagerCacheHtmlGui} for the {@link MatsEagerCacheClient}.
+     *
+     * @param client
+     *            the {@link MatsEagerCacheClient} instance to create the GUI for.
+     * @return the {@link MatsEagerCacheHtmlGui} instance.
+     */
+    static MatsEagerCacheHtmlGui create(MatsEagerCacheClient<?> client) {
+        return new MatsEagerCacheClientHtmlGui(client);
     }
+
+    /**
+     * The maximum number of seconds to synchronously wait for a cache update to happen when requesting a refresh.
+     */
+    int MAX_WAIT_FOR_UPDATE_SECONDS = 20;
 
     /**
      * Note: The output from this method is static - and common between Client and Server - and it can be written
@@ -149,8 +169,6 @@ public interface MatsEagerCacheHtmlGui {
      */
     class MatsEagerCacheClientHtmlGui implements MatsEagerCacheHtmlGui {
         private static final Logger log = LoggerFactory.getLogger(MatsEagerCacheClientHtmlGui.class);
-
-        static final int MAX_WAIT_FOR_UPDATE_SECONDS = 20;
 
         private final MatsEagerCacheClient<?> _client;
         private final String _routingId;
@@ -379,7 +397,8 @@ public interface MatsEagerCacheHtmlGui {
                 long unacknowledged = exceptionEntries.stream()
                         .filter(e -> !e.isAcknowledged())
                         .count();
-                out.append(Integer.toString(logEntries.size())).append(logEntries.size() != 1 ? " entries" : " entry")
+                out.append(Integer.toString(exceptionEntries.size()))
+                        .append(exceptionEntries.size() != 1 ? " entries" : " entry")
                         .append(" out of max " + CacheMonitor.MAX_ENTRIES + ", most recent first, ");
                 if (unacknowledged > 0) {
                     out.append("<b>").append(Long.toString(unacknowledged)).append(" unacknowledged!</b>\n");
@@ -521,6 +540,16 @@ public interface MatsEagerCacheHtmlGui {
             out.append("<h1>MatsEagerCacheServer '")
                     .append(info.getDataName()).append("' @ '").append(info.getNodename()).append("'</h1>");
 
+            if (ac.requestRefresh()) {
+                out.append("<button class='matsec-button matsec-refresh-button' onclick='matsecRequestRefresh(this, \"")
+                        .append(getRoutingId()).append("\", ").append(Integer.toString(MAX_WAIT_FOR_UPDATE_SECONDS))
+                        .append(")'>Initiate Cache Refresh</button>\n");
+            }
+
+            out.append("<div class='matsec-updating-message'></div>\n");
+
+            out.append("<div class='matsec-float-right'><i>").append(ac.username()).append("</i></div>\n");
+
             out.append("<div class='matsec-column-container'>\n");
 
             out.append("<div class='matsec-column'>\n");
@@ -595,7 +624,56 @@ public interface MatsEagerCacheHtmlGui {
         @Override
         public void json(Appendable out, Map<String, String[]> requestParameters, String requestBody, AccessControl ac)
                 throws IOException {
-            out.append("/* No JSON for MatsEagerCacheServer */");
+            RequestDto dto = MatsEagerCacheClientHtmlGui.JSON_READ_REQUEST.readValue(requestBody);
+            switch (dto.op) {
+                case "requestRefresh":
+                    // # Access Check
+                    if (!ac.requestRefresh()) {
+                        throw new AccessDeniedException("User [" + ac.username() + "] not allowed to request refresh.");
+                    }
+
+                    long nanosAsStart_request = System.nanoTime();
+                    boolean finished = _server.initiateFullUpdate(
+                            MAX_WAIT_FOR_UPDATE_SECONDS * 1000);
+                    if (finished) {
+                        double millisTaken_request = (System.nanoTime() - nanosAsStart_request) / 1_000_000d;
+                        out.append(new ReplyDto(true, "Refresh requested, got update, took "
+                                + _formatMillis(millisTaken_request) + ".").toJson());
+                    }
+                    else {
+                        out.append(new ReplyDto(false, "Refresh requested, but timed out after waiting "
+                                + MAX_WAIT_FOR_UPDATE_SECONDS + " seconds.").toJson());
+                    }
+                    break;
+                case "acknowledgeSingle":
+                    // # Access Check
+                    if (!ac.acknowledgeException()) {
+                        throw new AccessDeniedException("User [" + ac.username()
+                                + "] not allowed to acknowledge exceptions.");
+                    }
+
+                    boolean result = _server.getCacheServerInformation().acknowledgeException(dto.id, ac.username());
+                    out.append(result
+                            ? new ReplyDto(true, "Acknowledged exception with id " + dto.id).toJson()
+                            : new ReplyDto(false, "Exception with id '" + dto.id + "' not found or"
+                                    + " already acknowledged.").toJson());
+                    break;
+                case "acknowledgeUpTo":
+                    // # Access Check
+                    if (!ac.acknowledgeException()) {
+                        throw new AccessDeniedException("User [" + ac.username()
+                                + "] not allowed to acknowledge exceptions.");
+                    }
+
+                    int numAcknowledged = _server.getCacheServerInformation()
+                            .acknowledgeExceptionsUpTo(dto.timestamp, ac.username());
+                    out.append(new ReplyDto(true, "Acknowledged " + numAcknowledged + " exceptions up to"
+                            + " timestamp '" + _formatTimestamp(dto.timestamp) + "'").toJson());
+                    break;
+                default:
+                    throw new AccessDeniedException("User [" + ac.username()
+                            + "] tried to make an unknown operation [" + dto.op + "].");
+            }
         }
 
         @Override

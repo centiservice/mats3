@@ -52,12 +52,13 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
 /**
  * The server side of the Mats Eager Cache system - sitting on the "data owner" side. This server will listen for
  * requests for cache updates when clients boot, and send out a serialization of the source data to the clients, which
- * will deserialize it and make it available to the service. If the source data changes, an update can be pushed by the
- * service by means of {@link #scheduleFullUpdate()}. The server will also periodically send full updates. There's
- * optionally also a feature for {@link #sendPartialUpdate(CacheDataCallback) sending partial updates}, which can be
- * employed if the source data's size, or frequency of updates, makes full updates too resource intensive (this is
- * however more complex to handle on the client side, as it must merge the update with the existing data, and should
- * only be used if the source data is updated quite frequently or if the source data is large).
+ * will deserialize it and make it available to the service. If the source data changes, an update should be pushed by
+ * the service by means of {@link #initiateFullUpdate(int)}. The server will also
+ * {@link #setPeriodicFullUpdateIntervalMinutes(double) periodically} send full updates. There's optionally also a
+ * feature for {@link #sendPartialUpdate(CacheDataCallback) sending partial updates}, which can be employed if the
+ * source data's size, or frequency of updates, makes full updates too resource intensive (this is however more complex
+ * to handle on the client side, as it must merge the update with the existing data, and should only be used if the
+ * source data is updated quite frequently or if the source data is large).
  * <p>
  * It is expected that the source data is either held in memory (again typically backed by a database), or read directly
  * from a database. If held in memory, the memory view of the source data is also effectively a cache of the database,
@@ -76,7 +77,7 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * the source data</i> if kept in memory, to ensure consistency between the nodes. The method
  * {@link SiblingCommand#originatedOnThisInstance() SiblingCommand.originatedOnThisInstance()} will tell whether the
  * command originated on this instance - the single instance that originated the command (=<code>true</code>) should
- * then propagate the update to the MatsEagerCacheServer via {@link #scheduleFullUpdate()} or
+ * then propagate the update to the MatsEagerCacheServer via {@link #initiateFullUpdate(int)} or
  * {@link #sendPartialUpdate(CacheDataCallback) sendPartialUpdate(CacheDataCallback)}, which then broadcasts the update
  * to all clients.
  * <p>
@@ -119,7 +120,7 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * (including a default) to enum values when constructing domain objects from the <code>TRANSFER</code> DTOs on the
  * client side.
  * <p>
- * <b>You should not depend on any Jackson specific features!</b> The idea is that you make a simple
+ * <b>You shall not depend on any Jackson specific features!</b> The idea is that you make a simple
  * <code>TRANSFER</code> DTO (it can be as deep as you need, with nested DTOs and Maps and Lists and whatever), but not
  * using any Jackson specific annotations or features. This is to ensure that we can easily switch out Jackson for
  * another serializer if we find a faster or more efficient one. The only contract the cache system gives is that the
@@ -158,8 +159,8 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * "double up" if you use the partial update feature, as then also the client side becomes a bit more complex. You'll
  * want to read the JavaDoc on {@link MatsEagerCacheClient#linkToServer(MatsEagerCacheServer)}.
  * <p>
- * <b>Thread-safety:</b> After the cache server is started, it is thread-safe: Calls to {@link #scheduleFullUpdate()},
- * {@link #sendPartialUpdate(CacheDataCallback) sendPartialUpdate(..)}, and
+ * <b>Thread-safety:</b> After the cache server is started, it is thread-safe: Calls to
+ * {@link #initiateFullUpdate(int)}, {@link #sendPartialUpdate(CacheDataCallback) sendPartialUpdate(..)}, and
  * {@link #sendSiblingCommand(String, String, byte[]) sendSiblingCommand(..)} are thread-safe, and can be called from
  * any thread - but be sure to read the important notice wrt. deadlock at the
  * {@link #sendPartialUpdate(CacheDataCallback) sendPartialUpdate(..)} JavaDoc! The construction-supplied full-update
@@ -203,31 +204,31 @@ public interface MatsEagerCacheServer {
      * If the time since last update is higher than this, the next update will be scheduled to run immediately (for
      * manual requests) or soon (for client boot requests). (30 seconds).
      *
-     * @see #scheduleFullUpdate()
+     * @see #initiateFullUpdate(int)
      * @see #DEFAULT_SHORT_DELAY_MILLIS
      * @see #DEFAULT_LONG_DELAY_MILLIS
      */
     int FAST_RESPONSE_LAST_RECV_THRESHOLD_SECONDS = 30;
     /**
-     * Read {@link #scheduleFullUpdate()} for the rationale behind this delay. (2.5 seconds)
+     * Read {@link #initiateFullUpdate(int)} for the rationale behind this delay. (2.5 seconds)
      */
     int DEFAULT_SHORT_DELAY_MILLIS = 2500;
     /**
-     * Read {@link #scheduleFullUpdate()} for the rationale behind this delay. (7 seconds)
+     * Read {@link #initiateFullUpdate(int)} for the rationale behind this delay. (7 seconds)
      */
     int DEFAULT_LONG_DELAY_MILLIS = 7000;
     /**
      * Some commands, e.g. {@link #sendSiblingCommand(String, String, byte[]) sendSiblingCommand(..)} (and the
-     * alternative start method {@link #startAndWaitForReceiving()}) needs to wait for the broadcast terminator to be
-     * ready to receive. This is the maximum time to wait for this to happen. (4 minutes)
+     * alternative start method {@link #startAndWaitForReceiving()}) needs to wait for the Mats3 endpoints to be ready
+     * to receive. This is the maximum time to wait for this to happen. (4 minutes)
      */
     int MAX_WAIT_FOR_RECEIVING_SECONDS = 240;
     /**
-     * During startup, we need to first ensure that we can make a source data set before firing up the endpoints. If it
+     * During startup, we need to first assert that we can make a source data set before firing up the endpoints. If it
      * fails, it will try again until it manages - but sleep an amount between each attempt. Capped exponential from 2
      * seconds, this is the max sleep time between attempts. (30 seconds)
      */
-    int MAX_INTERVAL_BETWEEN_STARTUP_ATTEMPTS_MILLIS = 30_000;
+    int MAX_INTERVAL_BETWEEN_DATA_ASSERTION_ATTEMPTS_MILLIS = 30_000;
     /**
      * Default interval between periodic full updates. The default is nearly 2 hours, hoping that you'd rather aim for a
      * push-on-update approach, than rely on periodic updates. (111 minutes)
@@ -302,8 +303,9 @@ public interface MatsEagerCacheServer {
     void sendSiblingCommand(String command, String stringData, byte[] binaryData);
 
     /**
-     * Manually schedules a full update of the cache, typically used to programmatically propagate a change in the
-     * source data.
+     * Manually initiates a full update of the cache clients, typically used to programmatically propagate a change in
+     * the source data to the cache clients. This is a full update, where the entire source data is serialized and sent
+     * to the clients.
      * <p>
      * It is scheduled to run after a little while, the delay being a function of how soon since the last time a full
      * update was run. If it is a long time ({@link #FAST_RESPONSE_LAST_RECV_THRESHOLD_SECONDS}) since last update was
@@ -319,9 +321,19 @@ public interface MatsEagerCacheServer {
      * The data to send is retrieved by the cache server using the {@link CacheDataCallback} supplier provided when
      * constructing the cache server.
      * <p>
-     * The update is asynchronous - this method returns immediately.
+     * The update is asynchronous. However, this method can be invoked with a timeout, which will make the method block
+     * until the update has been produced, sent and received back - which means that the clients shall also have gotten
+     * the update). If the timeout is &le;0, the method will return immediately,
+     * 
+     * @param timeoutMillis
+     *            the timeout in milliseconds for the request to complete. If the full production, send and subsequent
+     *            receive is performed within this time, the method will return <code>true</code>, otherwise
+     *            <code>false</code>. If &le;0 is provided, the method will return <code>false</code> immediately, and
+     *            the request will be performed asynchronously.
+     * @return whether the update was successfully produced, sent and received back. If the timeout was &le;0, this will
+     *         always be <code>false</code>.
      */
-    void scheduleFullUpdate();
+    boolean initiateFullUpdate(int timeoutMillis);
 
     /**
      * (Optional functionality) Immediately sends a partial update to all cache clients. This should be invoked if the
@@ -337,9 +349,10 @@ public interface MatsEagerCacheServer {
      * <b>It is imperative that the source data is NOT locked <i>when this method is invoked</i></b> - any locking must
      * ONLY be done when the cache server invokes the supplied {@link CacheDataCallback#provideSourceData(Consumer)
      * partialDataCallback.provideSourceData(Consumer)} method to retrieve the source data. Failure to observe this will
-     * eventually result in a deadlock. The reason is that a full update may concurrently be in process, which also will
-     * lock the source data when the full update callback is invoked, and if that full update starts before this partial
-     * update which wrongly already holds the lock, we're stuck.
+     * eventually result in a deadlock. The reason is that a full update may concurrently be starting, which also will
+     * lock the source data when the full update callback is invoked. There is however also a serializing mechanism on
+     * the actual sending of updates (as mentioned above), and depending on the order of progress of the full update and
+     * the partial update, a deadlock will occur.
      * <p>
      * It is also important to let the stream of partial data returned from
      * {@link CacheDataCallback#provideSourceData(Consumer) partialDataCallback.provideSourceData(Consumer)} read
@@ -347,29 +360,29 @@ public interface MatsEagerCacheServer {
      * the partial update might send out data that is older than what is currently present and which might have already
      * been sent via a concurrent update (think about races here). Thus, always first apply the update to the source
      * data (on all the instances running the Cache Server) in some atomic fashion (read up on
-     * {@link MatsEagerCacheServerImpl.SiblingCommand}s), and then retrieve the partial update from the source data,
-     * also in an atomic fashion (e.g. use synchronization or locking).
+     * {@link MatsEagerCacheServerImpl.SiblingCommand}), and then retrieve the partial update from the source data, also
+     * in an atomic fashion (e.g. use synchronization or locking).
      * <p>
      * On a general basis, it is important to realize that you are responsible for keeping the source data in sync
      * between the different instances of the service, and that the cache server only serves the data to the clients -
-     * and such serving can happen from any one of the service instances. This is however even more important to
-     * understand wrt. partial updates: The Cache Clients will all get the partial update - but this does not hold for
-     * the instances running the Cache Server: You must first ensure that all these instances have the partial update
-     * applied, before propagating it to the Cache Clients. This is not really a problem if you serve the data from a
-     * database, as you then have an external single source of truth, but if you serve the data from memory, you must
-     * ensure that the data is kept in sync between the instances. The {@link MatsEagerCacheServerImpl.SiblingCommand}
-     * feature is meant to help with this.
+     * and such serving can happen from any one of the cache server service instances. This is however even more
+     * important to understand wrt. partial updates: The Cache Clients will all get the partial update sent from the
+     * initiating node - but this data update does not hold for the instances running the Cache Server: This is on you!
+     * You must first ensure that all these instances have the partial update applied, before propagating it to the
+     * Cache Clients. This is not really a problem if you serve the data from a database, as you then have an external
+     * single source of truth, but if you serve the data from memory, you must ensure that the data is kept in sync
+     * between the instances. The {@link MatsEagerCacheServerImpl.SiblingCommand} feature is meant to help with this.
      * <p>
      * Partial updates is an optional functionality to conserve resources for situations where somewhat frequent partial
-     * updates is performed to the source data. The caching system will work just fine with only full updates. If the
-     * feature is employed, the client side must also be coded up to handle partial updates, as otherwise the client
-     * will end up with stale data.
+     * updates is performed to the source data, e.g. new daily prices coming in on inventory. The caching system will
+     * work just fine with only full updates. If the feature is employed, the client side must also be coded up to
+     * handle partial updates, as otherwise the client will end up with stale data.
      * <p>
      * Correctly applying a partial update on the client is more complex than consuming a full update, as the client
      * must merge the partial update into the existing data structures, taking care to overwrite where appropriate, but
      * insert if the entity is new. This is why the feature is optional, and should only be used if the source data is
      * large and/or updated frequently enough to make the use of partial updates actually have a positive performance
-     * impact outweighing the increased complexity on both the server but particularly the client side.
+     * impact outweighing the increased complexity on both the server, but particularly the client side.
      * <p>
      * It is advisable to not send a lot of partial updates in a short time span, as this will result in memory churn
      * and higher memory usage on the clients due to message reception and partial update merge. Rather coalesce the
@@ -409,11 +422,10 @@ public interface MatsEagerCacheServer {
     void start();
 
     /**
-     * <i>(Probably most useful for tests - or being run in a thread.)</i> Starts the cache server, and waits for it to
-     * be fully running: It first invokes {@link #start()} (which will assert that it can get source data before
-     * starting the endpoints), and then waits for the endpoints entering their receive-loops using
-     * {@link MatsEndpoint#waitForReceiving(int)}. This method will thus block until the cache server is fully running,
-     * and able to serve cache clients.
+     * <i>(Probably most useful for tests)</i> Starts the cache server, and waits for it to be fully running: It first
+     * invokes {@link #start()} (which will assert that it can get source data before starting the endpoints), and then
+     * waits for the endpoints entering their receive-loops using {@link MatsEndpoint#waitForReceiving(int)}. This
+     * method will thus block until the cache server is fully running, and able to serve cache clients.
      * <p>
      * Note that if there are problems with the source data, the server will not enter state 'running', and the
      * endpoints won't start - and this method will throw out with {@link IllegalStateException} after
@@ -613,6 +625,31 @@ public interface MatsEagerCacheServer {
         List<LogEntry> getLogEntries();
 
         List<ExceptionEntry> getExceptionEntries();
+
+        /**
+         * Active method for acknowledging exceptions. This method will acknowledge the exception with the provided id,
+         * and return whether the exception was acknowledged. If the exception is no longer in the list, or was already
+         * acknowledged, it will return false.
+         *
+         * @param id
+         *            the id of the exception to acknowledge.
+         * @param username
+         *            the username acknowledging the exception.
+         * @return whether the exception was acknowledged.
+         */
+        boolean acknowledgeException(String id, String username);
+
+        /**
+         * Active method for acknowledging all exceptions up to the provided timestamp. This method will acknowledge all
+         * exceptions up to the provided timestamp, and return the number of exceptions acknowledged.
+         *
+         * @param timestamp
+         *            the timestamp to acknowledge exceptions up to.
+         *
+         * @param username
+         *            the username acknowledging the exceptions.
+         */
+        int acknowledgeExceptionsUpTo(long timestamp, String username);
     }
 
     enum LogLevel {
@@ -699,11 +736,11 @@ public interface MatsEagerCacheServer {
     class MatsEagerCacheServerImpl implements MatsEagerCacheServer {
         private static final Logger log = LoggerFactory.getLogger(MatsEagerCacheServer.class);
 
+        private static final String SIDELOAD_KEY_SIBLING_COMMAND_BYTES = "scb";
+
         private final MatsFactory _matsFactory;
         private final String _dataName;
         private final Supplier<CacheDataCallback<?>> _fullDataCallbackSupplier;
-
-        private volatile double _periodicFullUpdateIntervalMinutes = DEFAULT_PERIODIC_FULL_UPDATE_INTERVAL_MINUTES;
 
         private final String _nodename;
         private final ObjectWriter _sentDataTypeWriter;
@@ -758,6 +795,8 @@ public interface MatsEagerCacheServer {
                     });
         }
 
+        private volatile double _periodicFullUpdateIntervalMinutes = DEFAULT_PERIODIC_FULL_UPDATE_INTERVAL_MINUTES;
+
         @Override
         public MatsEagerCacheServer setPeriodicFullUpdateIntervalMinutes(double periodicFullUpdateIntervalMinutes) {
             if (_cacheServerLifeCycle != CacheServerLifeCycle.NOT_YET_STARTED) {
@@ -770,6 +809,9 @@ public interface MatsEagerCacheServer {
             _periodicFullUpdateIntervalMinutes = periodicFullUpdateIntervalMinutes;
             return this;
         }
+
+        private final Object _updateNotificationSync = new Object();
+        private volatile CountDownLatch _updateNotificationLatch;
 
         private final CacheServerInformation _cacheServerInformation = new CacheServerInformationImpl();
 
@@ -966,6 +1008,16 @@ public interface MatsEagerCacheServer {
             public List<ExceptionEntry> getExceptionEntries() {
                 return _cacheMonitor.getExceptionEntries();
             }
+
+            @Override
+            public boolean acknowledgeException(String id, String username) {
+                return _cacheMonitor.acknowledgeException(id, username);
+            }
+
+            @Override
+            public int acknowledgeExceptionsUpTo(long timestamp, String username) {
+                return _cacheMonitor.acknowledgeExceptionsUpTo(timestamp, username);
+            }
         }
 
         @Override
@@ -975,8 +1027,6 @@ public interface MatsEagerCacheServer {
             _siblingCommandEventListeners.add(siblingCommandEventListener);
             return this;
         }
-
-        private static final String SIDELOAD_KEY_SIBLING_COMMAND_BYTES = "scb";
 
         @Override
         public void sendSiblingCommand(String command, String stringData, byte[] binaryData) {
@@ -1001,8 +1051,42 @@ public interface MatsEagerCacheServer {
         }
 
         @Override
-        public void scheduleFullUpdate() {
+        public boolean initiateFullUpdate(int timeoutMillis) {
+            _cacheMonitor.log(INFO, MonitorCategory.REQUEST_UPDATE_SERVER_MANUAL,
+                    "cacheServer.initiateFullUpdate! [timeoutMillis:" + timeoutMillis + "]");
+            CountDownLatch updatedLatch = null;
+            if (timeoutMillis > 0) {
+                synchronized (_updateNotificationSync) {
+                    if (_updateNotificationLatch == null) {
+                        _updateNotificationLatch = new CountDownLatch(1);
+                    }
+                    updatedLatch = _updateNotificationLatch;
+                }
+            }
+            // Initiate the full update.
             _fullUpdateCoord_phase0_InitiateFromServer_Manual();
+
+            // ?: Did we set up a latch for waiting for the update to finish?
+            if (updatedLatch == null) {
+                // -> No, we're done.
+                return false;
+            }
+            // E-> Yes, we should wait.
+            try {
+                boolean finished = updatedLatch.await(timeoutMillis, TimeUnit.MILLISECONDS);
+                if (finished) {
+                    return true;
+                }
+                _cacheMonitor.log(INFO, MonitorCategory.REQUEST_UPDATE_SERVER_MANUAL,
+                        "Timed out waiting for full update to finish! [timeoutMillis:" + timeoutMillis + "]");
+                return false;
+            }
+            catch (InterruptedException e) {
+                _cacheMonitor.exception(MonitorCategory.REQUEST_UPDATE_SERVER_MANUAL,
+                        "Got interrupted while waiting for full update to finish! [timeoutMillis:"
+                                + timeoutMillis + "]", e);
+                return false;
+            }
         }
 
         @Override
@@ -1014,6 +1098,16 @@ public interface MatsEagerCacheServer {
 
         @Override
         public void start() {
+            start_internal("start");
+        }
+
+        @Override
+        public void startAndWaitForReceiving() {
+            start_internal("startAndWaitForReceiving");
+            _waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS);
+        }
+
+        private void start_internal(String whatMethod) {
             synchronized (this) {
                 // ?: Assert that we are not already started.
                 if (_cacheServerLifeCycle != CacheServerLifeCycle.NOT_YET_STARTED) {
@@ -1025,10 +1119,10 @@ public interface MatsEagerCacheServer {
                                     + " NOT_YET_STARTED when starting, it is [" + _cacheServerLifeCycle + "].", e);
                     throw e;
                 }
-                _cacheMonitor.log(INFO, MonitorCategory.CACHE_SERVER, "Starting the MatsEagerCacheServer"
-                        + " for data [" + _dataName + "].");
                 _cacheServerLifeCycle = CacheServerLifeCycle.STARTING_ASSERTING_DATA_AVAILABILITY;
             }
+            _cacheMonitor.log(INFO, MonitorCategory.CACHE_SERVER, whatMethod + "! Starting the"
+                    + " MatsEagerCacheServer for data [" + _dataName + "].");
 
             // Create thread that checks if we actually can request the Source Data
             Thread checkThread = new Thread(() -> {
@@ -1072,7 +1166,7 @@ public interface MatsEagerCacheServer {
                         // NOTE: The _running flag will be checked in the next iteration.
                     }
                     // Increase sleep time between attempts, but cap it at 30 seconds.
-                    sleepTimeBetweenAttempts = (long) Math.min(MAX_INTERVAL_BETWEEN_STARTUP_ATTEMPTS_MILLIS,
+                    sleepTimeBetweenAttempts = (long) Math.min(MAX_INTERVAL_BETWEEN_DATA_ASSERTION_ATTEMPTS_MILLIS,
                             sleepTimeBetweenAttempts * 1.5);
                 }
             }, "MatsEagerCacheServer." + _dataName + "-InitialPopulationCheck");
@@ -1081,15 +1175,8 @@ public interface MatsEagerCacheServer {
         }
 
         @Override
-        public void startAndWaitForReceiving() {
-            start();
-            _waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS);
-        }
-
-        @Override
         public void close() {
-            _cacheMonitor.log(INFO, MonitorCategory.CACHE_SERVER, "Closing down the MatsEagerCacheServer"
-                    + " for data [" + _dataName + "].");
+            _cacheMonitor.log(INFO, MonitorCategory.CACHE_SERVER, "cacheServer.close()!");
             // Stop the executor anyway.
             _produceAndSendExecutor.shutdown();
             synchronized (this) {
@@ -1207,6 +1294,14 @@ public interface MatsEagerCacheServer {
                                 // -> Yes, this was a full update, so record the timestamp, and count.
                                 _lastFullUpdateReceivedTimestamp = _lastAnyUpdateReceivedTimestamp;
                                 _numberOfFullUpdatesReceived.incrementAndGet();
+                                // ?: If we have any waiters for the update, we should release them.
+                                synchronized (_updateNotificationSync) {
+                                    if (_updateNotificationLatch != null) {
+                                        _updateNotificationLatch.countDown();
+                                        _updateNotificationLatch = null;
+                                    }
+                                }
+
                             }
                             else {
                                 // -> No, this was a partial update, so record the timestamp, and count.
@@ -1583,24 +1678,30 @@ public interface MatsEagerCacheServer {
                 // NOTE: If it is a *long* time since last activity, we'll do a fast response.
                 boolean fastResponse = (System.currentTimeMillis()
                         - latestActivityTimestamp) > (FAST_RESPONSE_LAST_RECV_THRESHOLD_SECONDS * 1000);
+                // NOTE: A *manual* request gets immediate response, *if* fast is decided.
+                boolean manual = BroadcastDto.COMMAND_REQUEST_CLIENT_MANUAL.equals(broadcastDto.command)
+                        || BroadcastDto.COMMAND_REQUEST_SERVER_MANUAL.equals(broadcastDto.command);
                 // Calculate initial delay: Two tiers: If "fastResponse", decide by whether it was a manual request or
                 // not.
                 int initialDelay = fastResponse
-                        ? BroadcastDto.COMMAND_REQUEST_CLIENT_MANUAL.equals(broadcastDto.command)
-                                || BroadcastDto.COMMAND_REQUEST_SERVER_MANUAL.equals(broadcastDto.command)
-                                        ? 0 // Immediate for manual
-                                        : _shortDelay // Short delay (i.e. longer) for boot
+                        ? manual
+                                ? 0 // Immediate for manual
+                                : _shortDelay // Short delay (longer than immediate!) for boot and periodic.
                         : _longDelay;
 
-                _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_COALESCE,
-                        "Starting election and coalescing thread. We will wait for [" + initialDelay
-                                + "ms, fastResponse:" + fastResponse + "], coalescing incoming requests and elect the"
-                                + " leader. We are node: [" + _nodename
-                                + "], current proposed leader: [" + _updateRequest_HandlingNodename
-                                + " which is " + (_nodename.equals(broadcastDto.sentNodename) ? "us!" : "NOT us!")
-                                + "], currentOutstanding: [" + _updateRequest_OutstandingCount + "].");
+                // Record that we've received a request for update (after we've used the timestamp for the above calc).
+                // NOTICE! MUST do this "late", as we use it right above to decide "fastResponse" or not.
+                _lastFullUpdateRequestReceivedTimestamp = System.currentTimeMillis();
 
                 Thread updateRequestsCoalescingDelayThread = new Thread(() -> {
+                    _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_COALESCE,
+                            "Started election and coalescing thread. We will wait for [" + initialDelay
+                                    + "ms, fastResponse:" + fastResponse + "], coalescing incoming requests and elect"
+                                    + " the leader. We are node: [" + _nodename + "], current proposed leader: ["
+                                    + _updateRequest_HandlingNodename + " which is "
+                                    + (_nodename.equals(_updateRequest_HandlingNodename) ? "us!" : "NOT us!")
+                                    + "], currentOutstanding: [" + _updateRequest_OutstandingCount + "].");
+
                     // First sleep the initial delay.
                     _takeNap(MonitorCategory.REQUEST_COALESCE, initialDelay);
 
@@ -1663,15 +1764,12 @@ public interface MatsEagerCacheServer {
                 updateRequestsCoalescingDelayThread.setDaemon(true);
                 updateRequestsCoalescingDelayThread.start();
             }
-
-            // Record that we've received a request for update.
-            // NOTICE! MUST do this "late", as we use it earlier in the method to decide "fastResponse".
-            _lastFullUpdateRequestReceivedTimestamp = System.currentTimeMillis();
         }
 
         private void _fullUpdateCoord_phase2_ElectedLeaderSendsUpdate(BroadcastDto broadcastDto) {
-            _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_SEND_NOW, "[Broadcast] Phase 2: Leader"
-                    + " sends update." + _infoAboutBroadcast(broadcastDto));
+            _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_SEND_NOW, "[Broadcast] Phase 2: Leader sends"
+                    + " update - leader is " + (_nodename.equals(broadcastDto.handlingNodename) ? "us!" : "NOT us!")
+                    + _infoAboutBroadcast(broadcastDto));
 
             // A full-update will be sent now, make note (for fastResponse evaluation, and possibly GUI)
             _lastFullUpdateProductionStartedTimestamp = System.currentTimeMillis();
@@ -1683,16 +1781,17 @@ public interface MatsEagerCacheServer {
             }
 
             // ?: Is it us that should handle the actual broadcast of update?
-            // .. AND is there no other update in the queue? (If there are, that task will already send most recent
-            // data)
+            // .. AND is there no other update in the queue? (If there is a task in queue, that task will already send
+            // most recent data, so no use in adding another that can't possibly send any more recent data AFAWK. If a
+            // new update comes in after the reset of the count above, it will start the election and coalescing anew.)
             if (_nodename.equals(broadcastDto.handlingNodename)
                     && _produceAndSendExecutor.getQueue().isEmpty()) {
                 // -> Yes it was us, and there are no other updates already in the queue.
                 _produceAndSendExecutor.execute(() -> {
+                    // TODO: Add logging with MDC values for timings and sizes!
                     _cacheMonitor.log(INFO, MonitorCategory.SEND_UPDATE, "We are the elected node, and thus"
                             + " we now produce and send full update! [" + _nodename
                             + "] (currentOutstanding: [" + _updateRequest_OutstandingCount + "])");
-
                     try {
                         _produceAndSendUpdate(broadcastDto, _fullDataCallbackSupplier, true);
                     }
