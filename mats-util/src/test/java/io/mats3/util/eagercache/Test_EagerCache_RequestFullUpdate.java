@@ -125,40 +125,52 @@ public class Test_EagerCache_RequestFullUpdate {
 
         // ## ASSERT 1:
 
+        // Assert that it is not present, since we requested a blocking update but with very short timeout.
         Assert.assertFalse(cacheUpdatedO.isPresent());
+
+        // Now wait for the update to come in.
+        serversClients.waitForClientsUpdate();
+
+        // Assert that we've only gotten one extra update total for each cache (initial + requested full update)
+        Assert.assertEquals(2, serversClients.cacheClient1_updateCount.get());
+        Assert.assertEquals(2, serversClients.cacheClient2_updateCount.get());
 
         // ---------------------------
         // ## ARRANGE 2:
 
-        // Wait for the update we know is coming.
-        serversClients.waitForClientsUpdate();
+        serversClients.reset();
 
         // ## ACT 2:
 
+        // This should return, as 30 seconds is plenty of time.
         cacheUpdatedO = serversClients.cacheClient1.requestFullUpdate(30_000);
 
         // ## ASSERT 2:
 
+        // Assert that this is present.
         Assert.assertTrue(cacheUpdatedO.isPresent());
 
-        CacheUpdated updated = cacheUpdatedO.get();
-        Assert.assertNull(updated.getMetadata());
-        Assert.assertTrue(updated.isFullUpdate());
-        Assert.assertEquals(15, updated.getDataCount());
-        Assert.assertTrue(updated.getCompressedSize() > 8_000);
-        Assert.assertTrue(updated.getDecompressedSize() > 25_000);
+        CacheUpdated cacheUpdated = cacheUpdatedO.get();
+        Assert.assertNull(cacheUpdated.getMetadata());
+        Assert.assertTrue(cacheUpdated.isFullUpdate());
+        Assert.assertEquals(15, cacheUpdated.getDataCount());
+        Assert.assertTrue(cacheUpdated.getCompressedSize() > 8_000);
+        Assert.assertTrue(cacheUpdated.getDecompressedSize() > 25_000);
 
         Assert.assertTrue("We should have Round Trip Time, as we were the initiator, with no"
-                + " other concurrent requests.", updated.getRoundTripTimeMillis().isPresent());
+                + " other concurrent requests.", cacheUpdated.getRoundTripTimeMillis().isPresent());
         Assert.assertTrue("Round Trip Time should take at least some time.",
-                updated.getRoundTripTimeMillis().getAsDouble() > 0.1);
+                cacheUpdated.getRoundTripTimeMillis().getAsDouble() > 0.1);
 
         // ## FINAL ASSERT:
+
+        // Wait for both of the clients to get the update (we just did one of them above).
+        serversClients.waitForClientsUpdate();
 
         // Assert that the CacheClients were updated, and that they now have the new data.
         serversClients.assertUpdateAndConsistency(true, customerCount + newDataCount);
 
-        // Assert that we've only gotten one extra update total for each cache (initial + requested full update)
+        // Assert that we've all together now gotten 3 updates: Initial, first request, second request.
         Assert.assertEquals(3, serversClients.cacheClient1_updateCount.get());
         Assert.assertEquals(3, serversClients.cacheClient2_updateCount.get());
 
