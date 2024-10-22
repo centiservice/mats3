@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -86,12 +87,14 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * or locking of the data should be employed while the cache server reads it (mainly relevant if the source data is held
  * in memory).
  * <p>
- * <h2>Design and Usage of Caches, and the <code>TRANSFER</code> Data Type</h2>
+ * <h2>Design and Usage of Caches, and the <code>TRANSPORT</code> Data Type</h2>
  * <p>
- * You should never send over full domain objects to the clients, but rather a <code>TRANSFER</code> DTO that is
- * tailored to what the clients need. This both to save processing resources (read on!), and to decouple/insulate the
- * service-internal domain API from whatever contract the cache server sets up with the clients. Also, you'll want to
- * keep memory usage on the client for keeping the cached data as low as possible.
+ * You should never send over full domain objects to the clients, but rather a <code>TRANSPORT</code> object that is
+ * tailored to what the clients actually need, today. These are called <i>Cache Transport Objects</i>, <code>CTO</code>.
+ * This both to save processing resources (read on!), and to decouple/insulate the service-internal domain API from
+ * whatever contract the cache server sets up with the clients. You also do not want to reuse DTOs used for e.g. Mats3
+ * or REST Endpoints - this so you can change and evolve them fully independent of all other interfaces in the service.
+ * Also, you'll want to keep memory usage on the client for keeping the cached data as low as possible (read on!).
  * <p>
  * <h3>Serializer configuration and consequences</h3>
  * <p>
@@ -103,12 +106,15 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * <p>
  * Jackson is also configured for compact serialization, and lenient deserialization: On the sending side, it does not
  * include fields that are null. On the receiving side, it does not require DTO specified fields to be present in the
- * JSON, and it does not fail if there are extra fields in the JSON compared to the DTO. <b>Importantly, this means that
- * there are clear ways of evolving the data structures: You can both add and remove fields to the server side DTO
- * without breaking the client side.</b> This is because the client side will simply ignore fields it does not know
- * about, and it will not fail if fields are missing. Obviously, if you remove a field that one of the cache's clients
- * are dependent on, it will now receive <code>null</code>, <code>0</code>, or <code>false</code> when the client code
- * tries to use the field, which probably is rather bad. (A multi-repo source-viewing and -searching system like
+ * JSON, and it does not fail if there are extra fields in the JSON compared to the DTO. If some native data fields,
+ * e.g. int, double or boolean, often are the default value, you can consider using their respective boxed variants,
+ * e.g. Integer, Double and Boolean, instead, and leave them null - they will thus not be serialized (saving space!),
+ * and end up with the default value on the receiving side. <b>Importantly, this setup means that there are clear ways
+ * of evolving the data structures: You can both add and remove fields to the server side DTO without breaking the
+ * client side.</b> This is because the client side will simply ignore fields it does not know about, and it will not
+ * fail if fields are missing. Obviously, if you remove a field that one of the cache's clients are dependent on, it
+ * will now receive default values <code>null</code>, <code>0</code>, or <code>false</code> when the client code reads
+ * the field, which probably is rather bad. (A multi-repo source-viewing and -searching system like
  * <a href="https://oracle.github.io/opengrok/">OpenGrok</a> is invaluable in such contexts!) <b>This flexibility also
  * implies that you shall NEVER include fields in the Transfer DTO that no clients yet are using "just in case"</b> -
  * this is a complete waste of both CPU, memory and network bandwidth, and will just clutter up your maintenance. Add
@@ -117,11 +123,11 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * <p>
  * <b>You are advised against using enums!</b> The problem is evolution: If you add a new enum value, and the client
  * does not yet know about it, it will fail deserialization! Rather use Strings for the enum constants, mapping back
- * (including a default) to enum values when constructing domain objects from the <code>TRANSFER</code> DTOs on the
+ * (including a default) to enum values when constructing domain objects from the <code>TRANSPORT</code> DTOs on the
  * client side.
  * <p>
  * <b>You shall not depend on any Jackson specific features!</b> The idea is that you make a simple
- * <code>TRANSFER</code> DTO (it can be as deep as you need, with nested DTOs and Maps and Lists and whatever), but not
+ * <code>TRANSPORT</code> DTO (it can be as deep as you need, with nested DTOs and Maps and Lists and whatever), but not
  * using any Jackson specific annotations or features. This is to ensure that we can easily switch out Jackson for
  * another serializer if we find a faster or more efficient one. The only contract the cache system gives is that the
  * DTO object will "magically appear" on the client side.
@@ -132,7 +138,7 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * there are many instances of date representations and other common identifiers like ISIN. Java does not natively help
  * one bit with this, so you might end up with a lot of e.g. <code>LocalDate</code> instances representing the same
  * date. This is a waste of memory, and you will want to consider using a simple shared instance cache for these when
- * going from the <code>TRANSFER</code> DTO to the actual domain object on the client - this can substantially reduce
+ * going from the <code>TRANSPORT</code> DTO to the actual domain object on the client - this can substantially reduce
  * memory usage. A simple <code>Map&lt;String, LocalDate&gt;</code> or <code>Map&lt;String, Isin&gt;</code> can do
  * wonders here, using the {@link Map#computeIfAbsent(Object, java.util.function.Function) computeIfAbsent(..)} method.
  * If you're sure some particular Strings are common and will effectively live for the duration of the JVM, you should
@@ -149,15 +155,17 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * <p>
  * <h3>Testing</h3>
  * <p>
- * You should probably make unit tests that serialize and deserialize the <code>TRANSFER</code> DTO with relevant (deep)
- * content, to ensure that it works as expected. Use the
+ * You should probably make unit tests that serialize and deserialize the <code>TRANSPORT</code> CTOs with relevant
+ * (deep) content, to ensure that it works as expected. Use the
  * {@link FieldBasedJacksonMapper#getMats3DefaultJacksonObjectMapper()} for your tests: Make a DTO setup, serialize it
  * and keep the String JSON, then deserialize it, and serialize the result again, asserting that the String JSON is
- * identical. You should probably make integration tests on the server side which additionally creates the cache client,
- * and then do a full run, and then checks that the client has received the DTO as expected (The unit tests in the Mats3
- * repo under the <code>mats-util</code> module, search for "Test_EagerCache..", can be inspirational). This goes
- * "double up" if you use the partial update feature, as then also the client side becomes a bit more complex. You'll
- * want to read the JavaDoc on {@link MatsEagerCacheClient#linkToServer(MatsEagerCacheServer)}.
+ * identical.
+ * <p>
+ * You should make integration tests on the server side which additionally creates the cache client, and then do a full
+ * run from actual source data, via the cache server and client's use of the <code>TRANSFER</code> CTOs, and then back
+ * up to the target DATA container and objects, and then checks that the client has received the full DATA as expected.
+ * This goes "double up" if you use the partial update feature, as then also the client side becomes a bit more complex.
+ * You'll want to read the JavaDoc on {@link MatsEagerCacheClient#linkToServer(MatsEagerCacheServer)}.
  * <p>
  * <b>Thread-safety:</b> After the cache server is started, it is thread-safe: Calls to
  * {@link #initiateFullUpdate(int)}, {@link #sendPartialUpdate(CacheDataCallback) sendPartialUpdate(..)}, and
@@ -243,18 +251,18 @@ public interface MatsEagerCacheServer {
      * @param dataName
      *            The name of the data, which will be used in the Mats endpoints. It must be unique within the full
      *            system, i.e. the "Mats Fabric".
-     * @param transferDataType
-     *            The data type to transmit to the cache clients. It should be tailored to what the cache clients need,
-     *            and should be serializable by Jackson.
+     * @param cacheTransportDataType
+     *            The data type ("CTO") to transport from the Cache Server to the Cache Clients. It should be tailored
+     *            to what the cache clients need, and should be serializable by Jackson, to efficient JSON.
      * @param fullDataCallbackSupplier
      *            The supplier of the {@link CacheDataCallback} that provides the source data.
      * @return the created Mats Eager Cache Server.
-     * @param <TRANSFER>
+     * @param <TRANSPORT>
      *            The data type to transmit to the cache clients.
      */
-    static <TRANSFER> MatsEagerCacheServer create(MatsFactory matsFactory, String dataName,
-            Class<TRANSFER> transferDataType, Supplier<CacheDataCallback<TRANSFER>> fullDataCallbackSupplier) {
-        return new MatsEagerCacheServerImpl(matsFactory, dataName, transferDataType, fullDataCallbackSupplier);
+    static <TRANSPORT> MatsEagerCacheServer create(MatsFactory matsFactory, String dataName,
+            Class<TRANSPORT> cacheTransportDataType, Supplier<CacheDataCallback<TRANSPORT>> fullDataCallbackSupplier) {
+        return new MatsEagerCacheServerImpl(matsFactory, dataName, cacheTransportDataType, fullDataCallbackSupplier);
     }
 
     /**
@@ -396,7 +404,7 @@ public interface MatsEagerCacheServer {
      * There is no solution for sending partial delete updates from the cache, so to remove an element from the cache, a
      * full update must be performed.
      * <p>
-     * <i>Note on typing: The <code>TRANSFER</code> datatype for partial updates shall be the same as the one used for
+     * <i>Note on typing: The <code>TRANSPORT</code> datatype for partial updates shall be the same as the one used for
      * the full update, but it was decided to not include the type as a generic on <code>MatsEagerCacheServer</code>, so
      * that users wouldn't have to always reference the cache server with the transfer type when the partial update
      * feature might not even be in use. This means that you'll manually have to ensure that the partial update data is
@@ -405,7 +413,7 @@ public interface MatsEagerCacheServer {
      * @param partialDataCallback
      *            the callback which the cache server invokes to retrieve the source data to send to the clients.
      */
-    <TRANSFER> void sendPartialUpdate(CacheDataCallback<TRANSFER> partialDataCallback);
+    <TRANSPORT> void sendPartialUpdate(CacheDataCallback<TRANSPORT> partialDataCallback);
 
     /**
      * Starts the cache server. It will first assert that it can get hold of and serialize the source data, and then
@@ -464,12 +472,12 @@ public interface MatsEagerCacheServer {
      * dataset (for partial updates), has been provided, and then close any resources (e.g. SQL Connection), and return
      * - thus marking the end of data, which will be sent to the cache clients.
      *
-     * @param <TRANSFER>
+     * @param <TRANSPORT>
      *            the data type to transmit to the cache clients. It should be tailored to what the cache clients need,
      *            and should be serializable by Jackson.
      */
     @FunctionalInterface
-    interface CacheDataCallback<TRANSFER> {
+    interface CacheDataCallback<TRANSPORT> {
         /**
          * Provide the count of the data (i.e. how many entities), if known beforehand. The default implementation
          * returns {@code -1}, which means that the count is not known. If the size is known, it may be used to optimize
@@ -508,7 +516,7 @@ public interface MatsEagerCacheServer {
          * is not modified while the stream is being read, so some kind of synchronization or locking of the source data
          * should be employed (mainly relevant if the source data is held in memory).
          */
-        void provideSourceData(Consumer<TRANSFER> consumer);
+        void provideSourceData(Consumer<TRANSPORT> consumer);
     }
 
     /**
@@ -587,6 +595,8 @@ public interface MatsEagerCacheServer {
         long getLastFullUpdateProductionStartedTimestamp();
 
         long getLastFullUpdateReceivedTimestamp();
+
+        double getLastFullUpdateRequestToUpdateMillis();
 
         long getLastPartialUpdateReceivedTimestamp();
 
@@ -747,9 +757,9 @@ public interface MatsEagerCacheServer {
         private final ThreadPoolExecutor _produceAndSendExecutor;
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        private <TRANSFER> MatsEagerCacheServerImpl(MatsFactory matsFactory, String dataName,
-                Class<TRANSFER> transferDataType,
-                Supplier<CacheDataCallback<TRANSFER>> fullDataCallbackSupplier) {
+        private <TRANSPORT> MatsEagerCacheServerImpl(MatsFactory matsFactory, String dataName,
+                Class<TRANSPORT> transferDataType,
+                Supplier<CacheDataCallback<TRANSPORT>> fullDataCallbackSupplier) {
 
             _matsFactory = matsFactory;
             _dataName = dataName;
@@ -834,6 +844,7 @@ public interface MatsEagerCacheServer {
         private volatile long _lastFullUpdateRequestReceivedTimestamp;
         private volatile long _lastFullUpdateProductionStartedTimestamp;
         private volatile long _lastFullUpdateReceivedTimestamp;
+        private volatile double _lastFullUpdateRequestToUpdateMillis;
         private volatile long _lastPartialUpdateReceivedTimestamp;
         private volatile long _lastAnyUpdateReceivedTimestamp; // Both full and partial.
         private final AtomicInteger _numberOfFullUpdatesReceived = new AtomicInteger();
@@ -852,6 +863,8 @@ public interface MatsEagerCacheServer {
         private volatile long _lastUpdateUncompressedSize;
         private volatile int _lastUpdateDataCount;
         private volatile String _lastUpdateMetadata;
+
+        private final Map<String, Long> _msg_correlationIdToNanoTime = new HashMap<>();
 
         // Use a lock to make sure that only one thread is producing and sending an update at a time, and make it fair
         // so that entry into the method is sequenced in the order of the requests.
@@ -912,6 +925,11 @@ public interface MatsEagerCacheServer {
             @Override
             public long getLastFullUpdateReceivedTimestamp() {
                 return _lastFullUpdateReceivedTimestamp;
+            }
+
+            @Override
+            public double getLastFullUpdateRequestToUpdateMillis() {
+                return _lastFullUpdateRequestToUpdateMillis;
             }
 
             @Override
@@ -1090,10 +1108,11 @@ public interface MatsEagerCacheServer {
         }
 
         @Override
-        public <TRANSFER> void sendPartialUpdate(CacheDataCallback<TRANSFER> partialDataCallback) {
+        public <TRANSPORT> void sendPartialUpdate(CacheDataCallback<TRANSPORT> partialDataCallback) {
             _cacheMonitor.log(INFO, MonitorCategory.SEND_UPDATE, "cacheServer.sendPartialUpdate! ["
                     + partialDataCallback + "]");
-            _produceAndSendUpdate(null, () -> partialDataCallback, false);
+            _produceAndSendUpdate(null, () -> partialDataCallback, false,
+                    "Server - Manual Partial");
         }
 
         @Override
@@ -1277,42 +1296,13 @@ public interface MatsEagerCacheServer {
                             _fullUpdateCoord_phase1_CoalesceAndElect(broadcastDto);
                         }
                         // ?: Is this the internal "sync between siblings" about now sending the update?
-                        else if (BroadcastDto.COMMAND_REQUEST_SENDING.equals(broadcastDto.command)) {
+                        else if (BroadcastDto.COMMAND_REQUEST_SEND.equals(broadcastDto.command)) {
                             _fullUpdateCoord_phase2_ElectedLeaderSendsUpdate(broadcastDto);
                         }
                         // ?: Is this the actual update sent to the clients - which we also get?
                         else if (BroadcastDto.COMMAND_UPDATE_FULL.equals(broadcastDto.command)
                                 || BroadcastDto.COMMAND_UPDATE_PARTIAL.equals(broadcastDto.command)) {
-                            // -> This is a broadcast of a cache update (primarly meant for the clients).
-                            _cacheMonitor.log(DEBUG, MonitorCategory.RECEIVED_UPDATE, "[Broadcast]"
-                                    + " Received Cache Update!" + _infoAboutBroadcast(broadcastDto));
-                            // :: Jot down that the clients were sent an update, used when calculating the delays, and
-                            // in the health check.
-                            _lastAnyUpdateReceivedTimestamp = System.currentTimeMillis();
-                            // ?: Is this a full update?
-                            if (broadcastDto.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)) {
-                                // -> Yes, this was a full update, so record the timestamp, and count.
-                                _lastFullUpdateReceivedTimestamp = _lastAnyUpdateReceivedTimestamp;
-                                _numberOfFullUpdatesReceived.incrementAndGet();
-                                // ?: If we have any waiters for the update, we should release them.
-                                synchronized (_updateNotificationSync) {
-                                    if (_updateNotificationLatch != null) {
-                                        _updateNotificationLatch.countDown();
-                                        _updateNotificationLatch = null;
-                                    }
-                                }
-
-                            }
-                            else {
-                                // -> No, this was a partial update, so record the timestamp, and count.
-                                _lastPartialUpdateReceivedTimestamp = _lastAnyUpdateReceivedTimestamp;
-                                _numberOfPartialUpdatesReceived.incrementAndGet();
-                            }
-                            // :: If we have any linked clients, we should send the update to them.
-                            if (_cacheClients != null) {
-                                _cacheClients.forEach(client -> client._processLambdaForSubscriptionTerminator(ctx,
-                                        state, broadcastDto));
-                            }
+                            _handleCacheUpdateLogging(ctx, state, broadcastDto);
                         }
                         else {
                             _cacheMonitor.exception(MonitorCategory.UNKNOWN_COMMAND, "Got a broadcast with"
@@ -1322,6 +1312,60 @@ public interface MatsEagerCacheServer {
                     });
 
             _periodicUpdate = new PeriodicUpdate();
+        }
+
+        /**
+         * We are only interested in the cache updates insofar as to log and time them - they are meant for the clients.
+         */
+        private void _handleCacheUpdateLogging(ProcessContext<Void> ctx, Void state, BroadcastDto broadcastDto) {
+            // :: Jot down that the clients were sent an update, used when calculating the delays, and health checks.
+            _lastAnyUpdateReceivedTimestamp = System.currentTimeMillis();
+
+            // ?: Is this a full update?
+            if (broadcastDto.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)) {
+                // -> Yes, this was a full update, so record the timestamp, and count.
+                _lastFullUpdateReceivedTimestamp = _lastAnyUpdateReceivedTimestamp;
+                _numberOfFullUpdatesReceived.incrementAndGet();
+
+                // Log Request-to-Update delay
+                double millisRequestToUpdate = -1;
+                synchronized (_msg_correlationIdToNanoTime) {
+                    Long nanoTime = _msg_correlationIdToNanoTime.remove(broadcastDto.correlationId);
+                    if (nanoTime != null) {
+                        millisRequestToUpdate = (System.nanoTime() - nanoTime) / 1_000_000.0;
+                        _lastFullUpdateRequestToUpdateMillis = millisRequestToUpdate;
+                    }
+                    // GC: Delete entries older than 2 hours
+                    _msg_correlationIdToNanoTime.entrySet()
+                            .removeIf(entry -> entry.getValue() < System.nanoTime() - 2 * 60 * 60 * 1_000 * 1_000_000L);
+                }
+
+                _cacheMonitor.log(DEBUG, MonitorCategory.RECEIVED_UPDATE, "[Broadcast]"
+                        + " Received FULL Cache Update!"
+                        + (millisRequestToUpdate >= 0
+                                ? " - Request-to-Update:" + _formatMillis(millisRequestToUpdate)
+                                : "")
+                        + _infoAboutBroadcast(broadcastDto));
+
+                // ?: If we have any waiters for the update, we should release them.
+                synchronized (_updateNotificationSync) {
+                    if (_updateNotificationLatch != null) {
+                        _updateNotificationLatch.countDown();
+                        _updateNotificationLatch = null;
+                    }
+                }
+
+            }
+            else {
+                // -> No, this was a partial update, so record the timestamp, and count.
+                _lastPartialUpdateReceivedTimestamp = _lastAnyUpdateReceivedTimestamp;
+                _numberOfPartialUpdatesReceived.incrementAndGet();
+            }
+            // :: If we have any linked clients, we should send the update to them.
+            if (_cacheClients != null) {
+                _cacheClients.forEach(client -> client._processLambdaForSubscriptionTerminator(ctx,
+                        state, broadcastDto));
+            }
         }
 
         void _registerForwardToClient(MatsEagerCacheClientImpl<?> client) {
@@ -1488,6 +1532,7 @@ public interface MatsEagerCacheServer {
                     + " from server for periodic refresh (on this node!) [" + _nodename
                     + "], broadcasting to Phase 1.");
             BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_SERVER_PERIODIC, _nodename);
+            broadcast.correlationId = Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36);
             _broadcastInitiateFullUpdate(broadcast, "Server", _nodename, "Periodic");
         }
 
@@ -1498,6 +1543,7 @@ public interface MatsEagerCacheServer {
             _waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS);
             // :: Create and send the broadcast message
             BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_SERVER_MANUAL, _nodename);
+            broadcast.correlationId = Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36);
             _broadcastInitiateFullUpdate(broadcast, "Server", _nodename, "Manual");
         }
 
@@ -1534,9 +1580,9 @@ public interface MatsEagerCacheServer {
             // Create the broadcast DTO, copy over the information from the incoming request.
             BroadcastDto broadcast = new BroadcastDto(updateRequestCommand, _nodename);
             broadcast.correlationId = incomingClientCacheRequest.correlationId;
-            broadcast.requestNodename = incomingClientCacheRequest.nodename;
-            broadcast.requestSentTimestamp = incomingClientCacheRequest.sentTimestamp;
-            broadcast.requestSentNanoTime = incomingClientCacheRequest.sentNanoTime;
+            broadcast.reqNodename = incomingClientCacheRequest.nodename;
+            broadcast.reqTimestamp = incomingClientCacheRequest.sentTimestamp;
+            broadcast.reqNanoTime = incomingClientCacheRequest.sentNanoTime;
             // Send the broadcast
             _broadcastInitiateFullUpdate(broadcast, "Client",
                     incomingClientCacheRequest.nodename,
@@ -1556,6 +1602,13 @@ public interface MatsEagerCacheServer {
         }
 
         private void _fullUpdateCoord_phase1_CoalesceAndElect(BroadcastDto broadcastDto) {
+            long timestampWhenRequestReceived = System.currentTimeMillis();
+            // "Log" the nanoTime so that we can calculate the time it took to get finished response.
+            // The reason for a Map is due to the coalescing, where there might be multiple requests in the air, but
+            // only one - typically the first - will be the one that gets a corresponding response.
+            synchronized (_msg_correlationIdToNanoTime) {
+                _msg_correlationIdToNanoTime.put(broadcastDto.correlationId, System.nanoTime());
+            }
             _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_COALESCE, "[Broadcast] Phase 1: Coalesce"
                     + " requests and elect leader." + _infoAboutBroadcast(broadcastDto));
 
@@ -1661,15 +1714,14 @@ public interface MatsEagerCacheServer {
                 // time was a short time ago, it will be scheduled to run a bit later (~ within 7 seconds)."
 
                 // Note that the following logic is NOT foolproof: There is a chance that different nodes come to
-                // different conclusions about these times, and while one e.g. thinks this is a "fast response", the
-                // other node doesn't, and thus waits longer - and then that the first node performs the update, and
+                // different conclusions about these times, and while one node thinks this is a "fast response", the
+                // other nodes doesn't, and thus waits longer - and then that the first node performs the update, and
                 // resets the coalescing on his side, while the other doesn't - and now they're out of sync for a small
                 // while. This is not a big problem: Firstly, it is an edge case, which really shouldn't happen often.
-                // Secondly, the most probable outcome is that a few more updates than strictly necessary are produced,
-                // which is not a problem. But it can conceivably also lead to a missed update (the "slow" coalescing
-                // node believes the "fast" should do it, but it has already done it). That this actually would lead to
-                // a data update not being propagated is extremely unlikely - and in any case, the above "Ensurer" will
-                // eventually catch it (albeit with a considerable higher delay than ideal).
+                // Secondly, the most probable outcome is that more updates than strictly necessary are produced,
+                // which is not a problem. I believe it is very hard to get to a place where an update is missed, but
+                // in any case, the above "Ensurer" will eventually catch it (albeit with a considerable higher delay
+                // than ideal).
 
                 // First find the latest time anything wrt. an update happened.
                 long latestActivityTimestamp = Collections.max(Arrays.asList(_cacheStartedTimestamp,
@@ -1688,10 +1740,6 @@ public interface MatsEagerCacheServer {
                                 ? 0 // Immediate for manual
                                 : _shortDelay // Short delay (longer than immediate!) for boot and periodic.
                         : _longDelay;
-
-                // Record that we've received a request for update (after we've used the timestamp for the above calc).
-                // NOTICE! MUST do this "late", as we use it right above to decide "fastResponse" or not.
-                _lastFullUpdateRequestReceivedTimestamp = System.currentTimeMillis();
 
                 Thread updateRequestsCoalescingDelayThread = new Thread(() -> {
                     _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_COALESCE,
@@ -1737,19 +1785,20 @@ public interface MatsEagerCacheServer {
                                 + " We will now broadcast to Phase 2 that handling nodename is us [" + _nodename
                                 + "]. (currentOutstanding: [" + _updateRequest_OutstandingCount + "]).");
 
-                        BroadcastDto broadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_SENDING, _nodename);
-                        broadcast.handlingNodename = _nodename; // It is us that is handling it.
+                        BroadcastDto outgoingBroadcast = new BroadcastDto(BroadcastDto.COMMAND_REQUEST_SEND, _nodename);
+                        outgoingBroadcast.originalCommand = broadcastDto.command;
+                        outgoingBroadcast.handlingNodename = _nodename; // It is us that is handling it.
                         // Transfer the correlationId and requestNodename from the incoming message (they might be null)
-                        broadcast.correlationId = broadcastDto.correlationId;
-                        broadcast.requestNodename = broadcastDto.requestNodename;
-                        broadcast.requestSentTimestamp = broadcastDto.requestSentTimestamp;
-                        broadcast.requestSentNanoTime = broadcastDto.requestSentNanoTime;
+                        outgoingBroadcast.correlationId = broadcastDto.correlationId;
+                        outgoingBroadcast.reqNodename = broadcastDto.reqNodename;
+                        outgoingBroadcast.reqTimestamp = broadcastDto.reqTimestamp;
+                        outgoingBroadcast.reqNanoTime = broadcastDto.reqNanoTime;
 
                         _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
                             init.traceId(TraceId.create("MatsEagerCache." + _dataName, "UpdateRequestsCoalesced"))
                                     .from("MatsEagerCache." + _dataName + ".UpdateRequestsCoalesced")
                                     .to(_getBroadcastTopic(_dataName))
-                                    .publish(broadcast);
+                                    .publish(outgoingBroadcast);
                         });
                     }
                     else {
@@ -1764,6 +1813,12 @@ public interface MatsEagerCacheServer {
                 updateRequestsCoalescingDelayThread.setDaemon(true);
                 updateRequestsCoalescingDelayThread.start();
             }
+
+            // Record that we've received a request for update (after we've used the timestamp for the above calc).
+            // NOTICE! MUST do this "late", as we use it right above to decide "fastResponse" or not.
+            // NOTICE! We don't want to move this into the 'shouldStartCoalescingThread' block, as we want to record
+            // this "last" timestamp for each request, not just the one that started the coalescing.
+            _lastFullUpdateRequestReceivedTimestamp = timestampWhenRequestReceived;
         }
 
         private void _fullUpdateCoord_phase2_ElectedLeaderSendsUpdate(BroadcastDto broadcastDto) {
@@ -1792,8 +1847,28 @@ public interface MatsEagerCacheServer {
                     _cacheMonitor.log(INFO, MonitorCategory.SEND_UPDATE, "We are the elected node, and thus"
                             + " we now produce and send full update! [" + _nodename
                             + "] (currentOutstanding: [" + _updateRequest_OutstandingCount + "])");
+                    String reason;
+                    switch (broadcastDto.originalCommand) {
+                        case BroadcastDto.COMMAND_REQUEST_SERVER_PERIODIC:
+                            reason = "Server - Periodic";
+                            break;
+                        case BroadcastDto.COMMAND_REQUEST_SERVER_MANUAL:
+                            reason = "Server - Manual";
+                            break;
+                        case BroadcastDto.COMMAND_REQUEST_CLIENT_BOOT:
+                            reason = "Client - Boot";
+                            break;
+                        case BroadcastDto.COMMAND_REQUEST_CLIENT_MANUAL:
+                            reason = "Client - Manual";
+                            break;
+                        case BroadcastDto.COMMAND_REQUEST_ENSURER_TRIGGERED:
+                            reason = "Server - Ensurer Triggered";
+                            break;
+                        default:
+                            reason = "Unknown";
+                    }
                     try {
-                        _produceAndSendUpdate(broadcastDto, _fullDataCallbackSupplier, true);
+                        _produceAndSendUpdate(broadcastDto, _fullDataCallbackSupplier, true, reason);
                     }
                     catch (Throwable t) {
                         // We catch all problems instead of letting it propagate, as we're in an Executor, and we don't
@@ -1806,7 +1881,7 @@ public interface MatsEagerCacheServer {
         }
 
         private void _produceAndSendUpdate(BroadcastDto incomingBroadcastDto,
-                Supplier<CacheDataCallback<?>> dataCallbackSupplier, boolean fullUpdate) {
+                Supplier<CacheDataCallback<?>> dataCallbackSupplier, boolean fullUpdate, String reason) {
             try {
                 _produceAndSendUpdateLock.lock();
 
@@ -1830,18 +1905,20 @@ public interface MatsEagerCacheServer {
                 String updateCommand = fullUpdate ? BroadcastDto.COMMAND_UPDATE_FULL
                         : BroadcastDto.COMMAND_UPDATE_PARTIAL;
                 BroadcastDto broadcast = new BroadcastDto(updateCommand, _nodename);
+                broadcast.reason = reason;
                 broadcast.dataCount = result.dataCountFromSourceProvider;
                 broadcast.compressedSize = result.compressedSize;
                 broadcast.uncompressedSize = result.uncompressedSize;
                 broadcast.metadata = result.metadata;
-                broadcast.millisTotalProduceAndCompress = result.millisTotal;
-                broadcast.millisCompress = result.millisCompress;
+                broadcast.msTotal = result.millisTotal;
+                broadcast.msCompress = result.millisCompress;
+                broadcast.msSerialize = result.millisSerialize;
                 // Transfer the correlationId and requestNodename from the incoming message, if present.
                 if (incomingBroadcastDto != null) {
                     broadcast.correlationId = incomingBroadcastDto.correlationId;
-                    broadcast.requestNodename = incomingBroadcastDto.requestNodename;
-                    broadcast.requestSentTimestamp = incomingBroadcastDto.requestSentTimestamp;
-                    broadcast.requestSentNanoTime = incomingBroadcastDto.requestSentNanoTime;
+                    broadcast.reqNodename = incomingBroadcastDto.reqNodename;
+                    broadcast.reqTimestamp = incomingBroadcastDto.reqTimestamp;
+                    broadcast.reqNanoTime = incomingBroadcastDto.reqNanoTime;
                 }
 
                 String type = fullUpdate ? "Full" : "Partial";
@@ -1882,8 +1959,8 @@ public interface MatsEagerCacheServer {
                                             ? " (#HANDLED# BY US!)"
                                             : " (Not us!)")
                             : "")
-                    + (broadcastDto.requestNodename != null
-                            ? ", requestNodename: " + broadcastDto.requestNodename
+                    + (broadcastDto.reqNodename != null
+                            ? ", requestNodename: " + broadcastDto.reqNodename
                             : "")
                     + (broadcastDto.correlationId != null
                             ? ", correlationId: " + broadcastDto.correlationId
@@ -2175,7 +2252,7 @@ public interface MatsEagerCacheServer {
             static final String COMMAND_REQUEST_SERVER_MANUAL = "REQ_SERVER_MANUAL";
             static final String COMMAND_REQUEST_SERVER_PERIODIC = "REQ_SERVER_PERIODIC";
             static final String COMMAND_REQUEST_ENSURER_TRIGGERED = "REQ_ENSURER_TRIGGERED";
-            static final String COMMAND_REQUEST_SENDING = "REQ_SEND";
+            static final String COMMAND_REQUEST_SEND = "REQ_SEND";
             static final String COMMAND_UPDATE_FULL = "UPDATE_FULL";
             static final String COMMAND_UPDATE_PARTIAL = "UPDATE_PARTIAL";
             static final String COMMAND_SIBLING_COMMAND = "SIBLING_COMMAND";
@@ -2197,20 +2274,25 @@ public interface MatsEagerCacheServer {
             long sentTimestamp;
             long sentNanoTime;
 
+            // ===== For "chained" commands
+            String originalCommand;
+
             // ===== For cache request replies
-            // NOTE: All these will for be of the first of the coalesced requests.
+            // NOTE: All these will for be of the first of any coalesced requests.
             String correlationId;
-            String requestNodename;
-            long requestSentTimestamp;
-            long requestSentNanoTime;
+            String reqNodename;
+            long reqTimestamp;
+            long reqNanoTime;
 
             // ===== For the actual updates to clients.
+            String reason;
             int dataCount;
             String metadata;
             long uncompressedSize;
             int compressedSize;
-            double millisTotalProduceAndCompress; // Total time to produce the Data set
-            double millisCompress; // Compress (and write to byte array, but that's ~0) only
+            double msTotal; // Total time to produce the Data set
+            double msCompress; // .. of which Compress and write to byte array, but that's ~0
+            double msSerialize; // .. of which Serialize
             // Note: The actual Deflated data is added as a binary sideload: 'SIDELOAD_KEY_SOURCE_DATA'
 
             // ====== For sibling commands
@@ -2218,7 +2300,7 @@ public interface MatsEagerCacheServer {
             String siblingStringData;
             // Note: Bytes are sideloaded
 
-            // ===== Mechanism to synchronize the updates
+            // ===== Electing leader and coalescing requests
             String handlingNodename;
         }
 

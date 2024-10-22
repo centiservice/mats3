@@ -5,9 +5,9 @@ import static io.mats3.util.eagercache.MatsEagerCacheServer.LogLevel.WARN;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatBytes;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatNiceBytes;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -71,7 +71,7 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.MonitorCategory;
  * 
  * @param <DATA>
  *            the type of the data structures object that shall be returned to the "end user" - this is opposed to the
- *            additional {@literal <TRANSFER>} type in the constructor, which is the type that the server sends.
+ *            additional {@literal <TRANSPORT>} type in the constructor, which is the type that the server sends.
  * 
  * @author Endre Stølsvik 2024-09-03 19:30 - http://stolsvik.com/, endre@stolsvik.com
  */
@@ -100,22 +100,22 @@ public interface MatsEagerCacheClient<DATA> {
      *            the MatsFactory to use for the Mats Eager Cache client.
      * @param dataName
      *            the name of the data that the client will receive.
-     * @param transferDataType
-     *            the type of the received/transfer data (the type that the server sends).
+     * @param cacheTransportDataType
+     *            the type of the received Cache Transport Data, "CTO" (the type that the server sends).
      * @param fullUpdateMapper
      *            the function that will be invoked when a full update is received from the server. It is illegal to
      *            return <code>null</code> or throw from this function, which will result in the client throwing an
      *            exception on {@link #get()}.
-     * @param <TRANSFER>
-     *            the type of the transferDataType - which obviously must correspond to the type of the data that the
-     *            server sends, but importantly, the Jackson serializer is configured very leniently, so it will accept
-     *            any kind of JSON structure, and will not fail on missing fields or extra fields.
+     * @param <TRANSPORT>
+     *            the type of the cacheTransportDataType - which obviously must correspond to the type of the data that
+     *            the server sends, but importantly, the Jackson serializer is configured very leniently, so it will
+     *            accept any kind of JSON structure, and will not fail on missing fields or extra fields.
      * @param <DATA>
      *            the type of the data structures object that shall be returned by {@link #get()}.
      */
-    static <TRANSFER, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
-            Class<TRANSFER> transferDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper) {
-        return new MatsEagerCacheClientImpl<>(matsFactory, dataName, transferDataType, fullUpdateMapper);
+    static <TRANSPORT, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
+            Class<TRANSPORT> cacheTransportDataType, Function<CacheReceivedData<TRANSPORT>, DATA> fullUpdateMapper) {
+        return new MatsEagerCacheClientImpl<>(matsFactory, dataName, cacheTransportDataType, fullUpdateMapper);
     }
 
     /**
@@ -131,7 +131,7 @@ public interface MatsEagerCacheClient<DATA> {
      *            the MatsFactory to use for the Mats Eager Cache client.
      * @param dataName
      *            the name of the data that the client will receive.
-     * @param transferDataType
+     * @param cacheTransportDataType
      *            the type of the received/transfer data (the type that the server sends).
      * @param fullUpdateMapper
      *            the function that will be invoked when a full update is received from the server. It is illegal to
@@ -141,21 +141,22 @@ public interface MatsEagerCacheClient<DATA> {
      *            the function that will be invoked when a partial update is received from the server. It is illegal to
      *            return <code>null</code> or throw from this function, which will result in the client throwing an
      *            exception on {@link #get()}.
-     * @param <TRANSFER>
-     *            the type of the transferDataType - which obviously must correspond to the type of the data that the
-     *            server sends, but importantly, the Jackson serializer is configured very leniently, so it will accept
-     *            any kind of JSON structure, and will not fail on missing fields or extra fields.
+     * @param <TRANSPORT>
+     *            the type of the cacheTransportDataType - which obviously must correspond to the type of the data that
+     *            the server sends, but importantly, the Jackson serializer is configured very leniently, so it will
+     *            accept any kind of JSON structure, and will not fail on missing fields or extra fields.
      * @param <DATA>
      *            the type of the data structures object that shall be returned by {@link #get()}.
      *
      * @see CacheReceivedPartialData
      * @see MatsEagerCacheServer#sendPartialUpdate(CacheDataCallback)
      */
-    static <TRANSFER, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
-            Class<TRANSFER> transferDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper,
-            Function<CacheReceivedPartialData<TRANSFER, DATA>, DATA> partialUpdateMapper) {
-        MatsEagerCacheClientImpl<DATA> client = new MatsEagerCacheClientImpl<>(matsFactory, dataName, transferDataType,
-                fullUpdateMapper);
+    static <TRANSPORT, DATA> MatsEagerCacheClient<DATA> create(MatsFactory matsFactory, String dataName,
+            Class<TRANSPORT> cacheTransportDataType,
+            Function<CacheReceivedData<TRANSPORT>, DATA> fullUpdateMapper,
+            Function<CacheReceivedPartialData<TRANSPORT, DATA>, DATA> partialUpdateMapper) {
+        MatsEagerCacheClientImpl<DATA> client = new MatsEagerCacheClientImpl<>(matsFactory, dataName,
+                cacheTransportDataType, fullUpdateMapper);
         client.setPartialUpdateMapper(partialUpdateMapper);
         return client;
     }
@@ -202,7 +203,20 @@ public interface MatsEagerCacheClient<DATA> {
 
     /**
      * Sets the size cutover for the cache: The size in bytes for the uncompressed JSON where the cache will consider
-     * the update to be "large", and hence use a different scheme for handling the update. The default is 15 MB.
+     * the update to be "large", and hence use a more GC friendly scheme when processing the update and constructing the
+     * new {@link #get() DATA} instance. If large, it will null out the existing DATA instance, then add an intentional
+     * lag of 100 millisecond (25 ms for partial updates), before starting the decompression, deserialization and
+     * construction of the new DATA instance. During this time, the {@link #get() get()} method will block. This is so
+     * that any thread currently using the existing DATA instance shall have time to "let go" of it, and to prevent any
+     * other thread from getting hold of it, so that it is eligible for GC if the JVM is memory pressured by the
+     * generation of the new dataset. <b>The default is 15 MB.</b>
+     * <p>
+     * If you don't want this feature, you can set the size cutover to {@link Integer#MAX_VALUE}, which will effectively
+     * disable it.
+     * <p>
+     * If you see that the data size (as e.g. will be presented in the {@link MatsEagerCacheHtmlGui}) is close to the
+     * size cutover, you might want to either increase or decrease it, so that it doesn't alternate between the two
+     * schemes.
      *
      * @param size
      *            the size hint.
@@ -253,12 +267,17 @@ public interface MatsEagerCacheClient<DATA> {
     // ----- Interface: Client data access
 
     /**
-     * Returns the data - will block until the initial full population is done, and during subsequent repopulations.
-     * <b>It is imperative that neither the data object itself, or any of its contained larger data or structures (e.g.
-     * any Lists or Maps) aren't read out and stored in any object, or held onto by any threads for any timespan above
-     * some few milliseconds, but rather queried anew from the cache for every needed access.</b> This both to ensure
-     * timely update when new data arrives, but more importantly to avoid that memory isn't held up by the old data
-     * structures being kept alive (this is particularly important for large caches).
+     * Returns the data - will block until the initial full population is done, and may block during subsequent cache
+     * updates while the new data object is being constructed. Whether it blocks during cache updates depends on the
+     * size of the data as specified by the {@link #setSizeCutover(int) size cutover}.
+     * <p>
+     * <b>It is imperative that neither the DATA object itself, nor any of its contained larger data or structures (e.g.
+     * any Lists or Maps) are read out and stored in any object, or held onto by any threads for any timespan above some
+     * few milliseconds, but rather queried anew from the cache for every needed access.</b> For example, if you iterate
+     * over a database ResultSet (i.e. perform I/O), you should fetch the data (i.e. call this method) for each new row
+     * - but can access it multiple times when processing each row. This both to ensure timely update when new data
+     * arrives, <b>but more importantly to avoid that memory is held up by the old data structures being kept alive when
+     * constructing the new data!</b> (this is particularly important for large caches!)
      * <p>
      * It is legal for a thread to call this method before {@link #start()} is invoked, but then some other (startup)
      * thread must eventually invoke {@link #start()}, otherwise you'll have a deadlock.
@@ -406,7 +425,11 @@ public interface MatsEagerCacheClient<DATA> {
 
         double getLastUpdateDecompressMillis();
 
+        double getLastUpdateDeserializeMillis();
+
         double getLastUpdateProduceAndCompressTotalMillis();
+
+        double getLastUpdateSerializeMillis();
 
         double getLastUpdateCompressMillis();
 
@@ -509,14 +532,14 @@ public interface MatsEagerCacheClient<DATA> {
      * {@link MatsEagerCacheClient}. This object contains the data that was received from the server, and the metadata
      * that was sent along with the data.
      *
-     * @param <TRANSFER>
+     * @param <TRANSPORT>
      *            the type of the received data.
      */
-    interface CacheReceivedData<TRANSFER> extends CacheReceived {
+    interface CacheReceivedData<TRANSPORT> extends CacheReceived {
         /**
          * @return the received data as a Stream.
          */
-        Stream<TRANSFER> getReceivedDataStream();
+        Stream<TRANSPORT> getReceivedDataStream();
     }
 
     /**
@@ -531,14 +554,14 @@ public interface MatsEagerCacheClient<DATA> {
      * (e.g. Lists or Maps of entities) are cloned or copied, and then the new data is overwritten or appended to in
      * this copy.</b>
      * 
-     * @param <TRANSFER>
+     * @param <TRANSPORT>
      *            the type of the received data.
      * @param <DATA>
      *            the type of the data structures object that shall be returned.
      *
      * @see MatsEagerCacheServer#sendPartialUpdate(CacheDataCallback)
      */
-    interface CacheReceivedPartialData<TRANSFER, DATA> extends CacheReceivedData<TRANSFER> {
+    interface CacheReceivedPartialData<TRANSPORT, DATA> extends CacheReceivedData<TRANSPORT> {
         /**
          * Returns the previous data, whose structures (e.g. Lists, Sets or Maps of entities) should be read out and
          * cloned/copied, and the copies updated or appended with the new data before returning the newly created data
@@ -563,8 +586,8 @@ public interface MatsEagerCacheClient<DATA> {
         private final ThreadPoolExecutor _receiveSingleBlockingThreadExecutorService;
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        private <TRANSFER> MatsEagerCacheClientImpl(MatsFactory matsFactory, String dataName,
-                Class<TRANSFER> transferDataType, Function<CacheReceivedData<TRANSFER>, DATA> fullUpdateMapper) {
+        private <TRANSPORT> MatsEagerCacheClientImpl(MatsFactory matsFactory, String dataName,
+                Class<TRANSPORT> transferDataType, Function<CacheReceivedData<TRANSPORT>, DATA> fullUpdateMapper) {
             _matsFactory = matsFactory;
             _dataName = dataName;
             _fullUpdateMapper = (Function<CacheReceivedData<?>, DATA>) (Function) fullUpdateMapper;
@@ -593,8 +616,8 @@ public interface MatsEagerCacheClient<DATA> {
         private volatile Function<CacheReceivedPartialData<?, DATA>, DATA> _partialUpdateMapper;
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        <TRANSFER> MatsEagerCacheClient<DATA> setPartialUpdateMapper(
-                Function<CacheReceivedPartialData<TRANSFER, DATA>, DATA> partialUpdateMapper) {
+        <TRANSPORT> MatsEagerCacheClient<DATA> setPartialUpdateMapper(
+                Function<CacheReceivedPartialData<TRANSPORT, DATA>, DATA> partialUpdateMapper) {
             _partialUpdateMapper = (Function<CacheReceivedPartialData<?, DATA>, DATA>) (Function) partialUpdateMapper;
             return this;
         }
@@ -634,7 +657,9 @@ public interface MatsEagerCacheClient<DATA> {
         private volatile long _lastPartialUpdateReceivedTimestamp;
         private volatile double _lastUpdateDecompressAndConsumeTotalMillis;
         private volatile double _lastUpdateDecompressMillis;
+        private volatile double _lastUpdateDeserializeMillis;
         private volatile double _lastUpdateProduceAndCompressTotalMillis;
+        private volatile double _lastUpdateSerializeMillis;
         private volatile double _lastUpdateCompressMillis;
 
         private volatile double _lastRoundTripTimeMillis;
@@ -729,8 +754,18 @@ public interface MatsEagerCacheClient<DATA> {
             }
 
             @Override
+            public double getLastUpdateDeserializeMillis() {
+                return _lastUpdateDeserializeMillis;
+            }
+
+            @Override
             public double getLastUpdateProduceAndCompressTotalMillis() {
                 return _lastUpdateProduceAndCompressTotalMillis;
+            }
+
+            @Override
+            public double getLastUpdateSerializeMillis() {
+                return _lastUpdateSerializeMillis;
             }
 
             @Override
@@ -1070,11 +1105,12 @@ public interface MatsEagerCacheClient<DATA> {
                 return;
             }
 
-            _cacheMonitor.log(INFO, MonitorCategory.RECEIVED_UPDATE, "Received cache update for data [" + _dataName
-                    + "], command [" + msg.command + "]: meta: [" + msg.metadata
-                    + "], compressed: [" + _formatNiceBytes(msg.compressedSize)
-                    + "], decompressed: [" + _formatNiceBytes(msg.uncompressedSize)
-                    + "], dataCount: [" + msg.dataCount + "].");
+            _cacheMonitor.log(INFO, MonitorCategory.RECEIVED_UPDATE, "Received " + msg.command
+                    + " \"" + msg.reason
+                    + "\": meta: " + msg.metadata
+                    + ", compressed: " + _formatNiceBytes(msg.compressedSize)
+                    + ", decompressed: " + _formatNiceBytes(msg.uncompressedSize)
+                    + ", dataCount: " + msg.dataCount + ".");
 
             // ?: Check if we're running (or awaiting), so we don't accidentally process updates after close.
             if ((_cacheClientLifecycle != CacheClientLifecycle.RUNNING)
@@ -1198,6 +1234,8 @@ public interface MatsEagerCacheClient<DATA> {
                 _cacheContentWriteLock.lock();
                 lockTaken = true;
             }
+            long nanosTaken_decompress;
+            long nanosTaken_deserialize;
             try {
                 int dataSize = msg.dataCount;
                 String metadata = msg.metadata;
@@ -1213,8 +1251,7 @@ public interface MatsEagerCacheClient<DATA> {
                         _data = null;
                         // Sleep for a little while, both to let the Mats thread finish up and release the underlying MQ
                         // resources (e.g. JMS Message), and to let any threads that have acquired references to the
-                        // data
-                        // finish up and release them. E.g. if a thread has acquired a reference to e.g. a Map from
+                        // data finish up and release them. E.g. if a thread has acquired a reference to e.g. a Map from
                         // DATA, and is iterating over it, it will be done within a few milliseconds, and then the
                         // thread will release the reference. If we're in a tight memory situation, the GC will then
                         // be able to collect the data structure, before we populate it anew.
@@ -1237,15 +1274,20 @@ public interface MatsEagerCacheClient<DATA> {
                     DATA newData = null;
                     try {
                         // Invoke the full update mapper
-                        // (Note: we hold onto as little as possible while invoking the mapper, to let the GC do its
-                        // job.)
+                        // (Holding onto as little as possible while invoking the mapper, to let the GC do its job.)
+                        InflaterInputStreamWithStats iis = new InflaterInputStreamWithStats(payload);
+                        MappingIterator<Object> mappingIterator = _transferDataTypeReader.readValues(iis);
+                        TimedIterator timedIterator = new TimedIterator(mappingIterator);
+                        Stream<?> stream = Stream.iterate(timedIterator, Iterator::hasNext, UnaryOperator.identity())
+                                .map(Iterator::next);
                         newData = _fullUpdateMapper.apply(new CacheReceivedDataImpl<>(true, msg.compressedSize,
-                                msg.uncompressedSize, dataSize, metadata,
-                                _getReceiveStreamFromPayload(payload)));
+                                msg.uncompressedSize, dataSize, metadata, stream));
+                        nanosTaken_decompress = iis.getReadAndInflateTimeNanos();
+                        nanosTaken_deserialize = timedIterator.getIterateNanos() - nanosTaken_decompress;
                     }
                     catch (Throwable e) {
                         _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
-                                "Got exception when invoking the full update mapper - this is VERY BAD!", e);
+                                "Got exception when invoking the full update mapper - this is BAD!", e);
                         // Nothing to do. Everything is bad.
                         return;
                     }
@@ -1265,10 +1307,9 @@ public interface MatsEagerCacheClient<DATA> {
                     // -> :: PARTIAL UPDATE, so then we update the data "in place".
 
                     if (_data == null) {
-                        _cacheMonitor.log(WARN, MonitorCategory.RECEIVED_UPDATE,
-                                "We got a partial update without having any"
-                                        + " data. This is probably due to the initial population not being done yet, or the"
-                                        + " data being nulled out due to some error. Ignoring the partial update.");
+                        _cacheMonitor.log(WARN, MonitorCategory.RECEIVED_UPDATE, "We got a partial update without"
+                                + " having any data. This is probably due to the initial population not being done yet,"
+                                + " or the data being nulled out due to some error. Ignoring the partial update.");
                         return;
                     }
 
@@ -1297,10 +1338,9 @@ public interface MatsEagerCacheClient<DATA> {
                             Thread.sleep(25);
                         }
                         catch (InterruptedException e) {
-                            _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
-                                    "Got interrupted while sleeping before"
-                                            + " acting on partial update. Assuming shutdown, thus returning immediately.",
-                                    e);
+                            _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got interrupted while"
+                                    + " sleeping before acting on partial update. Assuming shutdown,"
+                                    + " thus returning immediately.", e);
                             return;
                         }
                     }
@@ -1309,16 +1349,20 @@ public interface MatsEagerCacheClient<DATA> {
                     DATA newData = null;
                     try {
                         // Invoke the partial update mapper to get the new data.
-                        // (Note: we hold onto as little as possible while invoking the mapper, to let the GC do its
-                        // job.)
+                        // (Holding onto as little as possible while invoking the mapper, to let the GC do its job.)
+                        InflaterInputStreamWithStats iis = new InflaterInputStreamWithStats(payload);
+                        MappingIterator<Object> mappingIterator = _transferDataTypeReader.readValues(iis);
+                        TimedIterator timedIterator = new TimedIterator(mappingIterator);
+                        Stream<?> stream = Stream.iterate(timedIterator, Iterator::hasNext, UnaryOperator.identity())
+                                .map(Iterator::next);
                         newData = _partialUpdateMapper.apply(new CacheReceivedPartialDataImpl<>(false, _data,
-                                msg.compressedSize, msg.uncompressedSize, dataSize, metadata,
-                                _getReceiveStreamFromPayload(payload)));
+                                msg.compressedSize, msg.uncompressedSize, dataSize, metadata, stream));
+                        nanosTaken_decompress = iis.getReadAndInflateTimeNanos();
+                        nanosTaken_deserialize = timedIterator.getIterateNanos() - nanosTaken_decompress;
                     }
                     catch (Throwable e) {
-                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE,
-                                "Got exception when invoking the partial update"
-                                        + " mapper - this is VERY BAD!", e);
+                        _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, "Got exception when invoking"
+                                + " the partial update mapper - this is BAD!", e);
                         // Nothing to do. Everything is bad.
                         return;
                     }
@@ -1364,15 +1408,17 @@ public interface MatsEagerCacheClient<DATA> {
             _lastUpdateWasLarge = largeUpdate;
             // .. and the client timings
             _lastUpdateDecompressAndConsumeTotalMillis = (System.nanoTime() - nanosAsStart_update) / 1_000_000d;
-            _lastUpdateDecompressMillis = 0; // TODO: Implement this
+            _lastUpdateDecompressMillis = nanosTaken_decompress / 1_000_000d;
+            _lastUpdateDeserializeMillis = nanosTaken_deserialize / 1_000_000d;
             // .. and the server timings
-            _lastUpdateCompressMillis = msg.millisCompress;
-            _lastUpdateProduceAndCompressTotalMillis = msg.millisTotalProduceAndCompress;
+            _lastUpdateCompressMillis = msg.msCompress;
+            _lastUpdateSerializeMillis = msg.msSerialize;
+            _lastUpdateProduceAndCompressTotalMillis = msg.msTotal;
 
             // ?: IF this update's correlationId is the same as the latest used one, we'll log it.
             double roundTripTimeMillis = 0;
             if ((msg.correlationId != null) && msg.correlationId.equals(_latestUsedCorrelationId)) {
-                roundTripTimeMillis = (System.nanoTime() - msg.requestSentNanoTime) / 1_000_000d;
+                roundTripTimeMillis = (System.nanoTime() - msg.reqNanoTime) / 1_000_000d;
                 _latestUsedCorrelationId = null;
             }
             // NOTE: We could make an approximate guess for when others initiated the request, but this is susceptible
@@ -1458,25 +1504,47 @@ public interface MatsEagerCacheClient<DATA> {
             Thread.currentThread().setName(originalThreadName);
         }
 
-        private Stream<?> _getReceiveStreamFromPayload(byte[] payload) throws IOException {
-            InflaterInputStreamWithStats iis = new InflaterInputStreamWithStats(payload);
-            MappingIterator<?> mappingIterator = _transferDataTypeReader.readValues(iis);
-            // Convert iterator to stream
-            return Stream.iterate(mappingIterator, MappingIterator::hasNext,
-                    UnaryOperator.identity()).map(MappingIterator::next);
+        private static class TimedIterator implements Iterator<Object> {
+            private final Iterator<Object> _iterator;
+
+            public TimedIterator(Iterator<Object> iterator) {
+                _iterator = iterator;
+            }
+
+            long _nanosTotal;
+
+            @Override
+            public boolean hasNext() {
+                long nanosStart = System.nanoTime();
+                boolean hasNext = _iterator.hasNext();
+                _nanosTotal += System.nanoTime() - nanosStart;
+                return hasNext;
+            }
+
+            @Override
+            public Object next() {
+                long nanosStart = System.nanoTime();
+                Object next = _iterator.next();
+                _nanosTotal += System.nanoTime() - nanosStart;
+                return next;
+            }
+
+            public long getIterateNanos() {
+                return _nanosTotal;
+            }
         }
 
-        private static class CacheReceivedDataImpl<TRANSFER> implements CacheReceivedData<TRANSFER> {
+        private static class CacheReceivedDataImpl<TRANSPORT> implements CacheReceivedData<TRANSPORT> {
             protected final boolean _fullUpdate;
             protected final int _dataCount;
             protected final String _metadata;
             protected final long _decompressedSize;
             protected final long _compressedSize;
 
-            private final Stream<TRANSFER> _rStream;
+            private final Stream<TRANSPORT> _rStream;
 
             public CacheReceivedDataImpl(boolean fullUpdate, long compressedSize, long decompressedSize, int dataCount,
-                    String metadata, Stream<TRANSFER> recvStream) {
+                    String metadata, Stream<TRANSPORT> recvStream) {
                 _fullUpdate = fullUpdate;
                 _dataCount = dataCount;
                 _metadata = metadata;
@@ -1512,7 +1580,7 @@ public interface MatsEagerCacheClient<DATA> {
             }
 
             @Override
-            public Stream<TRANSFER> getReceivedDataStream() {
+            public Stream<TRANSPORT> getReceivedDataStream() {
                 return _rStream;
             }
 
@@ -1555,13 +1623,13 @@ public interface MatsEagerCacheClient<DATA> {
             }
         }
 
-        private static class CacheReceivedPartialDataImpl<TRANSFER, DATA> extends CacheReceivedDataImpl<TRANSFER>
-                implements CacheReceivedPartialData<TRANSFER, DATA> {
+        private static class CacheReceivedPartialDataImpl<TRANSPORT, DATA> extends CacheReceivedDataImpl<TRANSPORT>
+                implements CacheReceivedPartialData<TRANSPORT, DATA> {
             private final DATA _previousData;
 
             public CacheReceivedPartialDataImpl(boolean fullUpdate, DATA previousData,
                     long receivedCompressedSize, long receivedUncompressedSize, int dataSize,
-                    String metadata, Stream<TRANSFER> rStream) {
+                    String metadata, Stream<TRANSPORT> rStream) {
                 super(fullUpdate, receivedCompressedSize, receivedUncompressedSize, dataSize, metadata, rStream);
                 _previousData = previousData;
             }
@@ -1883,7 +1951,17 @@ public interface MatsEagerCacheClient<DATA> {
                 }
 
                 @Override
+                public double getLastUpdateDeserializeMillis() {
+                    return 42.0;
+                }
+
+                @Override
                 public double getLastUpdateProduceAndCompressTotalMillis() {
+                    return 42.0;
+                }
+
+                @Override
+                public double getLastUpdateSerializeMillis() {
                     return 42.0;
                 }
 

@@ -247,20 +247,26 @@ public interface MatsEagerCacheHtmlGui {
                                     + " - " + _formatMillis(millisBetween) + " after request"
                             : "<i>Waiting</i>")
                     .append("</b><br>\n");
-            out.append("<br>\n");
-
             out.append("LastFullUpdateReceived: ")
                     .append(_formatHtmlTimestamp(info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
             out.append("LastPartialUpdateReceived: ")
                     .append(_formatHtmlTimestamp(info.getLastPartialUpdateReceivedTimestamp())).append("<br>\n");
             out.append("<br>\n");
 
+            out.append("NumberOfFullUpdatesReceived: ").append("<b>")
+                    .append(Integer.toString(info.getNumberOfFullUpdatesReceived())).append("</b><br>\n");
+            out.append("NumberOfPartialUpdatesReceived: ").append("<b>")
+                    .append(Integer.toString(info.getNumberOfPartialUpdatesReceived())).append("</b><br>\n");
+            out.append("NumberOfAccesses: ").append("<b>")
+                    .append(Long.toString(info.getNumberOfAccesses())).append("</b><br>\n");
+            out.append("<br>\n");
+
             double lastRoundTripTimeMillis = info.getLastRoundTripTimeMillis();
-            out.append("LastRoundTripTime: ")
+            out.append("LastRoundTripTime: <b>")
                     .append(lastRoundTripTimeMillis > 0
                             ? _formatMillis(info.getLastRoundTripTimeMillis())
-                            : "N/A <i>(Hit [Refresh]!)</i>")
-                    .append("&nbsp;&nbsp;&nbsp;<span style='font-size:80%'><i>(Must chill ")
+                            : "N/A - <i>Click [Refresh]!</i>")
+                    .append("</b>&nbsp;&nbsp;&nbsp;<span style='font-size:80%'><i>(Must chill ")
                     .append(Integer.toString(MatsEagerCacheServer.FAST_RESPONSE_LAST_RECV_THRESHOLD_SECONDS))
                     .append(" seconds between [Refresh] to get precise timing)</i></span><br>\n");
             out.append("</div>\n");
@@ -273,40 +279,43 @@ public interface MatsEagerCacheHtmlGui {
             }
             else {
                 // -> Yes, initial population done - show info.
-                out.append("LastUpdateType: ").append("<b>")
+                out.append("<h3>Last Received Update</h3><br>\n");
+                out.append("&nbsp;&nbsp;Received: ")
+                        .append(_formatHtmlTimestamp(info.getAnyUpdateReceivedTimestamp())).append("<br>\n");
+                out.append("&nbsp;&nbsp;Type: ").append("<b>")
                         .append(info.isLastUpdateFull() ? "Full" : "Partial").append("</b><br>\n");
-                out.append("LastUpdateMode: ").append("<b>")
+                out.append("&nbsp;&nbsp;Mode: ").append("<b>")
                         .append(info.isLastUpdateLarge() ? "LARGE" : "Small").append("</b><br>\n");
-                out.append("LastUpdateDecompressAndConsumeTotal: <b>")
-                        .append(_formatMillis(info.getLastUpdateDecompressAndConsumeTotalMillis()))
-                        .append("</b>&nbsp;&nbsp;&nbsp;<span style='font-size:80%'><i>(If LARGE update, 100 ms"
-                                + " intentional GC-lag is added)</i></span></b><br>\n");
-                // out.append("LastUpdateDecompress: <b>")
-                // .append(_formatMillis(info.getLastUpdateDecompressMillis())).append("</b><br>\n");
-                out.append("LastUpdateProduceAndCompressTotal: <b>")
+                out.append("&nbsp;&nbsp;<i>Server:</i> ProduceAndCompressTotal: <b>")
                         .append(_formatMillis(info.getLastUpdateProduceAndCompressTotalMillis()))
-                        .append("</b> <i>(server)</i><br>\n");
-                out.append("LastUpdateCompress: <b>")
-                        .append(_formatMillis(info.getLastUpdateCompressMillis()))
-                        .append("</b> <i>(server)</i><br>\n");
+                        .append("</b>")
+                        .append(", of which compress: <b>")
+                        .append(_formatMillis(info.getLastUpdateCompressMillis())).append("</b>")
+                        .append("</b>, serialize: <b>")
+                        .append(_formatMillis(info.getLastUpdateSerializeMillis())).append("</b><br>\n");
+                out.append("&nbsp;&nbsp;<i>Client:</i> DecompressAndConsumeTotal: <b>")
+                        .append(_formatMillis(info.getLastUpdateDecompressAndConsumeTotalMillis()))
+                        .append("</b>, of which decompress: <b>")
+                        .append(_formatMillis(info.getLastUpdateDecompressMillis())).append("</b>")
+                        .append("</b>, deserialize: <b>")
+                        .append(_formatMillis(info.getLastUpdateDeserializeMillis())).append("</b><br>\n");
                 String meta = info.getLastUpdateMetadata();
-                out.append("LastUpdateMetadata: ").append(meta != null ? "<b>" + meta + "</b>" : "<i>none</i>")
+                out.append("&nbsp;&nbsp;Metadata: ").append(meta != null ? "<b>" + meta + "</b>" : "<i>none</i>")
                         .append("<br>\n");
-                out.append("LastUpdateCompressedSize: ")
+                out.append("&nbsp;&nbsp;CompressedSize: ")
                         .append(_formatHtmlBytes(info.getLastUpdateCompressedSize())).append("<br>\n");
-                out.append("LastUpdateDecompressedSize: ")
+                out.append("&nbsp;&nbsp;DecompressedSize: ")
                         .append(_formatHtmlBytes(info.getLastUpdateDecompressedSize())).append("<br>\n");
-                out.append("LastUpdateDataCount: ").append("<b>")
+                out.append("&nbsp;&nbsp;DataCount: ").append("<b>")
                         .append(Integer.toString(info.getLastUpdateDataCount())).append("</b><br>\n");
                 out.append("<br>\n");
+
+                out.append("&nbsp;&nbsp;<span style='font-size:80%'><i>NOTE: If LARGE update, intentional lag is"
+                        + " added between nulling existing dataset and producing new to aid GC:"
+                        + " 100ms for Full, 25ms for Small.</i></span></b><br>\n");
+
             }
 
-            out.append("NumberOfFullUpdatesReceived: ").append("<b>")
-                    .append(Integer.toString(info.getNumberOfFullUpdatesReceived())).append("</b><br>\n");
-            out.append("NumberOfPartialUpdatesReceived: ").append("<b>")
-                    .append(Integer.toString(info.getNumberOfPartialUpdatesReceived())).append("</b><br>\n");
-            out.append("NumberOfAccesses: ").append("<b>")
-                    .append(Long.toString(info.getNumberOfAccesses())).append("</b><br>\n");
             out.append("</div>\n");
             out.append("</div>\n");
 
@@ -565,25 +574,29 @@ public interface MatsEagerCacheHtmlGui {
                     .append(Double.toString(info.getPeriodicFullUpdateIntervalMinutes())).append("</b><br>\n");
             out.append("<br>\n");
 
-            out.append("LastFullUpdateRequestReceived: ")
+            out.append("<h3>Last Cluster Full Update</h3><br>\n");
+            out.append("&nbsp;&nbsp;RequestReceived: ")
                     .append(_formatHtmlTimestamp(info.getLastFullUpdateRequestReceivedTimestamp())).append("<br>\n");
-            out.append("LastFullUpdateProductionStarted: ")
+            out.append("&nbsp;&nbsp;ProductionStarted: ")
                     .append(_formatHtmlTimestamp(info.getLastFullUpdateProductionStartedTimestamp()))
                     .append("</b><br>\n");
-            out.append("LastFullUpdateReceived: ")
+            out.append("&nbsp;&nbsp;Received: ")
                     .append(_formatHtmlTimestamp(info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
-            out.append("LastPartialUpdateReceived: ")
-                    .append(_formatHtmlTimestamp(info.getLastPartialUpdateReceivedTimestamp())).append("<br>\n");
+            out.append("&nbsp;&nbsp;RequestToUpdate: ")
+                    .append(info.getLastFullUpdateRequestToUpdateMillis() == 0
+                            ? "<i>none</i>"
+                            : "<b>" + _formatMillis(info.getLastFullUpdateRequestToUpdateMillis()) + "</b>")
+                    .append("<br>\n");
+            out.append("<br>\n");
             out.append("</div>\n");
 
             out.append("<div class='matsec-column'>\n");
             long lastUpdateSent = info.getLastUpdateSentTimestamp();
             if (lastUpdateSent > 0) {
-                out.append("LastUpdateSent: ").append("<b>")
-                        .append(_formatHtmlTimestamp(lastUpdateSent)).append("</b><br>\n");
-                out.append("LastUpdateType: ").append("<b>")
+                out.append("<h3>Last Update Produced on this Node</h3><br>\n");
+                out.append("&nbsp;&nbsp;Type: ").append("<b>")
                         .append(info.isLastUpdateFull() ? "Full" : "Partial").append("</b><br>\n");
-                out.append("LastUpdateProductionTotal: <b>")
+                out.append("&nbsp;&nbsp;ProductionTotal: <b>")
                         .append(_formatMillis(info.getLastUpdateProduceTotalMillis()))
                         .append("</b> - source: <b>")
                         .append(_formatMillis(info.getLastUpdateSourceMillis()))
@@ -593,14 +606,15 @@ public interface MatsEagerCacheHtmlGui {
                         .append(_formatMillis(info.getLastUpdateCompressMillis()))
                         .append("</b><br>\n");
                 String meta = info.getLastUpdateMetadata();
-                out.append("LastUpdateMetadata: ").append(meta != null ? "<b>" + meta + "</b>" : "<i>none</i>")
+                out.append("&nbsp;&nbsp;Metadata: ").append(meta != null ? "<b>" + meta + "</b>" : "<i>none</i>")
                         .append("<br>\n");
-                out.append("LastUpdateDataCount: ").append("<b>")
+                out.append("&nbsp;&nbsp;DataCount: ").append("<b>")
                         .append(Integer.toString(info.getLastUpdateDataCount())).append("</b><br>\n");
-                out.append("LastUpdateUncompressedSize: ")
+                out.append("&nbsp;&nbsp;UncompressedSize: ")
                         .append(_formatHtmlBytes(info.getLastUpdateUncompressedSize())).append("<br>\n");
-                out.append("LastUpdateCompressedSize: ")
+                out.append("&nbsp;&nbsp;CompressedSize: ")
                         .append(_formatHtmlBytes(info.getLastUpdateCompressedSize())).append("<br>\n");
+                out.append("&nbsp;&nbsp;Sent: ").append(_formatHtmlTimestamp(lastUpdateSent)).append("<br>\n");
                 out.append("<br>\n");
             }
             else {
@@ -613,6 +627,11 @@ public interface MatsEagerCacheHtmlGui {
             out.append("PartialUpdates: <b>").append(Integer.toString(info.getNumberOfPartialUpdatesSent()));
             out.append("</b> sent, out of <b>").append(Integer.toString(info.getNumberOfPartialUpdatesReceived()))
                     .append("</b> received.<br>\n");
+            out.append("<br>\n");
+
+            out.append("LastPartialUpdateReceived: ")
+                    .append(_formatHtmlTimestamp(info.getLastPartialUpdateReceivedTimestamp())).append("<br>\n");
+
             out.append("</div>\n");
             out.append("</div>\n");
 
