@@ -98,39 +98,41 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * <p>
  * <h3>Serializer configuration and consequences</h3>
  * <p>
- * The Jackson serializer will serialize and deserialize <b>all fields of the DTO, of all visibility levels.</b> It
- * introspects the fields - not using any getters. On the deserializing side, <b>it depends on a present no-args
- * constructor to make the object</b>, and it does not use any argument-taking constructor to instantiate. It doesn't
- * use any setters, instead relying on Jackson's ability to set fields directly (technically, the process is different
- * for Records, but that does not make any difference in this context).
+ * The serialization/deserialization system will serialize and deserialize <b>all fields of the <code>TRANSPORT</code>
+ * CTO, of all visibility levels.</b> It introspects the fields - not using any getters. On the deserializing side,
+ * <b>it depends on a present no-args constructor to make the object</b>, and it does not use any argument-taking
+ * constructor to instantiate. It doesn't use any setters, instead relying on Jackson's ability to set fields directly
+ * (technically, the process is different for Records, but that does not make any difference in this context).
  * <p>
- * Jackson is also configured for compact serialization, and lenient deserialization: On the sending side, it does not
- * include fields that are null. On the receiving side, it does not require DTO specified fields to be present in the
- * JSON, and it does not fail if there are extra fields in the JSON compared to the DTO. If some native data fields,
- * e.g. int, double or boolean, often are the default value, you can consider using their respective boxed variants,
- * e.g. Integer, Double and Boolean, instead, and leave them null - they will thus not be serialized (saving space!),
- * and end up with the default value on the receiving side. <b>Importantly, this setup means that there are clear ways
- * of evolving the data structures: You can both add and remove fields to the server side DTO without breaking the
- * client side.</b> This is because the client side will simply ignore fields it does not know about, and it will not
- * fail if fields are missing. Obviously, if you remove a field that one of the cache's clients are dependent on, it
- * will now receive default values <code>null</code>, <code>0</code>, or <code>false</code> when the client code reads
- * the field, which probably is rather bad. (A multi-repo source-viewing and -searching system like
- * <a href="https://oracle.github.io/opengrok/">OpenGrok</a> is invaluable in such contexts!) <b>This flexibility also
- * implies that you shall NEVER include fields in the Transfer DTO that no clients yet are using "just in case"</b> -
- * this is a complete waste of both CPU, memory and network bandwidth, and will just clutter up your maintenance. Add
- * the field when a client needs it. You might even want to make two caches: One for those services that just need a few
- * fields, and another for those that use many.
+ * <b>You shall not depend on any Jackson specific features!</b> The idea is that you make a simple
+ * <code>TRANSPORT</code> CTO (it can be as deep as you need, with nested CTOs and Collections), but not using any
+ * Jackson specific annotations or features. This is to ensure that we can easily switch out Jackson for another
+ * serializer if we find a faster or more efficient one. <i>The only contract the cache system gives is that the
+ * <code>TRANSPORT</code> CTO object will be "magically transported" from the server to the client side, using direct
+ * field access on both read and write, with support for both POJOs and Records.</i>
+ * <p>
+ * The serialization/deserialization system is also configured for compact serialization, and lenient deserialization:
+ * On the sending side, it does not include fields that are null. On the receiving side, it does not require CTO
+ * specified fields to be present in the JSON, and it does not fail if there are extra fields in the JSON compared to
+ * the CTO. If some native data fields, e.g. int, double or boolean, often are the default value, you can consider using
+ * their respective boxed variants, e.g. Integer, Double and Boolean, instead, and leave them null - they will thus not
+ * be serialized (saving space!), and end up with the default value on the receiving side. <b>Importantly, this setup
+ * means that there are clear ways of evolving the data structures: You can both add and remove fields to the server
+ * side CTO without breaking the client side.</b> This is because the client side will simply ignore fields it does not
+ * know about, and it will not fail if fields are missing. Obviously, if you remove a field that one of the cache's
+ * clients are dependent on, it will now receive default values <code>null</code>, <code>0</code>, or <code>false</code>
+ * when the client code reads the field, which probably is rather bad. (A multi-repo source-viewing and -searching
+ * system like <a href="https://oracle.github.io/opengrok/">OpenGrok</a> is invaluable in such contexts!) <b>This
+ * flexibility also implies that you shall never include fields in the <code>TRANSPORT</code> CTO that no clients yet
+ * are using "just in case"</b> - this is a complete waste of both CPU, memory and network bandwidth, and will just
+ * clutter up your maintenance. Add the field when a client needs it. You might even want to make two or more different
+ * caches (with different TRANSFER objects): One for those services that just need a few fields, and another for those
+ * that use many.
  * <p>
  * <b>You are advised against using enums!</b> The problem is evolution: If you add a new enum value, and the client
  * does not yet know about it, it will fail deserialization! Rather use Strings for the enum constants, mapping back
- * (including a default) to enum values when constructing domain objects from the <code>TRANSPORT</code> DTOs on the
+ * (including a default) to enum values when constructing domain objects from the <code>TRANSPORT</code> CTOs on the
  * client side.
- * <p>
- * <b>You shall not depend on any Jackson specific features!</b> The idea is that you make a simple
- * <code>TRANSPORT</code> DTO (it can be as deep as you need, with nested DTOs and Maps and Lists and whatever), but not
- * using any Jackson specific annotations or features. This is to ensure that we can easily switch out Jackson for
- * another serializer if we find a faster or more efficient one. The only contract the cache system gives is that the
- * DTO object will "magically appear" on the client side.
  * <p>
  * <h3>Memory usage on client when deserializing / Sharing common instances</h3>
  * <p>
@@ -138,7 +140,7 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * there are many instances of date representations and other common identifiers like ISIN. Java does not natively help
  * one bit with this, so you might end up with a lot of e.g. <code>LocalDate</code> instances representing the same
  * date. This is a waste of memory, and you will want to consider using a simple shared instance cache for these when
- * going from the <code>TRANSPORT</code> DTO to the actual domain object on the client - this can substantially reduce
+ * going from the <code>TRANSPORT</code> CTO to the actual domain object on the client - this can substantially reduce
  * memory usage. A simple <code>Map&lt;String, LocalDate&gt;</code> or <code>Map&lt;String, Isin&gt;</code> can do
  * wonders here, using the {@link Map#computeIfAbsent(Object, java.util.function.Function) computeIfAbsent(..)} method.
  * If you're sure some particular Strings are common and will effectively live for the duration of the JVM, you should
@@ -157,15 +159,16 @@ import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
  * <p>
  * You should probably make unit tests that serialize and deserialize the <code>TRANSPORT</code> CTOs with relevant
  * (deep) content, to ensure that it works as expected. Use the
- * {@link FieldBasedJacksonMapper#getMats3DefaultJacksonObjectMapper()} for your tests: Make a DTO setup, serialize it
- * and keep the String JSON, then deserialize it, and serialize the result again, asserting that the String JSON is
- * identical.
+ * {@link FieldBasedJacksonMapper#getMats3DefaultJacksonObjectMapper()} for your tests: Make a <code>TRANSPORT</code>
+ * CTO setup, serialize it and keep the String JSON, then deserialize it, and serialize the result again, asserting that
+ * the String JSON is identical.
  * <p>
  * You should make integration tests on the server side which additionally creates the cache client, and then do a full
- * run from actual source data, via the cache server and client's use of the <code>TRANSFER</code> CTOs, and then back
- * up to the target DATA container and objects, and then checks that the client has received the full DATA as expected.
- * This goes "double up" if you use the partial update feature, as then also the client side becomes a bit more complex.
- * You'll want to read the JavaDoc on {@link MatsEagerCacheClient#linkToServer(MatsEagerCacheServer)}.
+ * run from actual source data that server consumes, via the cache server and client's use of the <code>TRANSFER</code>
+ * CTOs, and then back up to the target DATA container and objects on client side, and then checks that the client has
+ * received the full DATA as expected. This is even more important if you use the partial update feature, as then also
+ * the client side becomes a bit more complex. You'll want to read the JavaDoc on
+ * {@link MatsEagerCacheClient#linkToServer(MatsEagerCacheServer)}.
  * <p>
  * <b>Thread-safety:</b> After the cache server is started, it is thread-safe: Calls to
  * {@link #initiateFullUpdate(int)}, {@link #sendPartialUpdate(CacheDataCallback) sendPartialUpdate(..)}, and
@@ -468,9 +471,9 @@ public interface MatsEagerCacheServer {
      * the cache-server may request the information when it needs it. The cache server may ask for the data at any time,
      * and the supplier must provide a consistent snapshot of the data. The only required method to implement,
      * {@link #provideSourceData(Consumer)}, is invoked by the cache server to retrieve the data. The service must
-     * invoke the provided DTO-{@link Consumer} repeatedly until the entire dataset (for full updates), or the partial
-     * dataset (for partial updates), has been provided, and then close any resources (e.g. SQL Connection), and return
-     * - thus marking the end of data, which will be sent to the cache clients.
+     * invoke the provided <code>TRANSPORT</code> CTO-{@link Consumer} repeatedly until the entire dataset (for full
+     * updates), or the partial dataset (for partial updates), has been provided, and then close any resources (e.g. SQL
+     * Connection), and return - thus marking the end of data, which will be sent to the cache clients.
      *
      * @param <TRANSPORT>
      *            the data type to transmit to the cache clients. It should be tailored to what the cache clients need,
