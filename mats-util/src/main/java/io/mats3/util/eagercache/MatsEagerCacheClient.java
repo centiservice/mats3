@@ -3,11 +3,13 @@ package io.mats3.util.eagercache;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.LogLevel.INFO;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.LogLevel.WARN;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatBytes;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatMillis;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatNiceBytes;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -693,6 +695,8 @@ public interface MatsEagerCacheClient<DATA> {
 
         private volatile MatsEagerCacheServer _forwardingLinkedServer_ForDevelopment;
 
+        private volatile String _latestUsedCorrelationId;
+
         private final CacheMonitor _cacheMonitor;
         private volatile NodeAdvertiser _nodeAdvertiser;
 
@@ -1132,83 +1136,6 @@ public interface MatsEagerCacheClient<DATA> {
             return this;
         }
 
-        void _processLambdaForSubscriptionTerminator(ProcessContext<?> ctx, Void state, BroadcastDto msg) {
-            // :: Snoop on messages for keeping track of whom the clients and servers are.
-            if (_nodeAdvertiser != null) {
-                _nodeAdvertiser.handleAdvertise(msg);
-            }
-
-            // ?: Check if we're interested in this message - we only care about updates.
-            if (!(BroadcastDto.COMMAND_UPDATE_FULL.equals(msg.command)
-                    || BroadcastDto.COMMAND_UPDATE_PARTIAL.equals(msg.command))) {
-                // -> None of my concern
-                return;
-            }
-
-            _cacheMonitor.log(INFO, MonitorCategory.RECEIVED_UPDATE, "Received " + msg.command
-                    + " \"" + msg.reason
-                    + "\" from '" + msg.sentAppName + "' @ '" + msg.sentNodename
-                    + "', compressed: " + _formatNiceBytes(msg.compressedSize)
-                    + ", decompressed: " + _formatNiceBytes(msg.uncompressedSize)
-                    + ", dataCount: " + msg.dataCount + ".");
-
-            // ?: Check if we're running (or awaiting), so we don't accidentally process updates after close.
-            if ((_cacheClientLifecycle != CacheClientLifecycle.RUNNING)
-                    && (_cacheClientLifecycle != CacheClientLifecycle.STARTING_AWAITING_INITIAL)) {
-                // -> We're not running or waiting for initial population, so we don't process the update.
-                return;
-            }
-
-            final byte[] payload = ctx.getBytes(MatsEagerCacheServer.SIDELOAD_KEY_DATA_PAYLOAD);
-
-            /*
-             * :: Now perform hack to relieve the Mats thread, and do the actual work in a separate thread. The
-             * rationale is to let the data structures underlying in the Mats system (e.g. the representation of the
-             * incoming JMS Message) be GCable. The thread pool is special in that it only accepts a single task, and if
-             * it is busy, it will block the submitting thread. NOTE: We do NOT capture the context (which holds the
-             * MatsTrace and byte arrays) in the Runnable, as that would prevent the JMS Message from being GC'ed. We
-             * only capture the message DTO and the payload.
-             */
-            _receiveSingleBlockingThreadExecutorService.submit(() -> {
-                _handleUpdateInExecutorThread(msg, payload);
-            });
-        }
-
-        /**
-         * Single threaded, blocking {@link ExecutorService}. This is used to "distance" ourselves from Mats, so that
-         * the large ProcessContext and the corresponding JMS Message can be GC'ed <i>while</i> we're decompressing and
-         * deserializing the possibly large set of large objects: We've fetched the data we need from the JMS Message,
-         * and now we're done with it, but we need to exit the Mats StageProcessor to let the Mats thread let go of the
-         * ProcessContext and any JMS Message reference. However, we still want the data to be sequentially processed -
-         * thus use a single-threaded executor with synchronous queue, and special rejection handler, to ensure that the
-         * submitting works as follows: Either the task is immediately handed over to the single thread, or the
-         * submitting thread (the Mats stage processor thread) is blocked - waiting out the current
-         * decompress/deserializing/processing.
-         */
-        static ThreadPoolExecutor _createSingleThreadedExecutorService(String threadName) {
-            return new ThreadPoolExecutor(1, 1, 1L, TimeUnit.MINUTES,
-                    new SynchronousQueue<>(),
-                    runnable -> {
-                        Thread t = new Thread(runnable, threadName);
-                        t.setDaemon(true);
-                        return t;
-                    },
-                    (r, executor) -> { // Trick: For Rejections, we'll just block until able to enqueue the task.
-                        try {
-                            // Block until able to enqueue the task anyway.
-                            executor.getQueue().put(r);
-                        }
-                        catch (InterruptedException e) {
-                            // Remember, this is the *submitting* thread that is interrupted, not the pool thread.
-                            Thread.currentThread().interrupt();
-                            // We gotta get outta here.
-                            throw new RejectedExecutionException("Interrupted while waiting to enqueue task", e);
-                        }
-                    });
-        }
-
-        private volatile String _latestUsedCorrelationId;
-
         private void _sendUpdateRequest(String command) {
             // :: Construct the request message
             CacheRequestDto req = new CacheRequestDto();
@@ -1246,6 +1173,45 @@ public interface MatsEagerCacheClient<DATA> {
                 _cacheMonitor.exception(category, msg, t);
                 throw new IllegalStateException(msg, t);
             }
+        }
+
+        void _processLambdaForSubscriptionTerminator(ProcessContext<?> ctx, Void state, BroadcastDto msg) {
+            // :: Snoop on messages for keeping track of whom the clients and servers are.
+            if (_nodeAdvertiser != null) {
+                _nodeAdvertiser.handleAdvertise(msg);
+            }
+
+            // ?: Check if we're interested in this message - we only care about updates.
+            if (!(BroadcastDto.COMMAND_UPDATE_FULL.equals(msg.command)
+                    || BroadcastDto.COMMAND_UPDATE_PARTIAL.equals(msg.command))) {
+                // -> None of my concern
+                return;
+            }
+
+            // ?: Check if we're running (or awaiting), so we don't accidentally process updates after close.
+            if ((_cacheClientLifecycle != CacheClientLifecycle.RUNNING)
+                    && (_cacheClientLifecycle != CacheClientLifecycle.STARTING_AWAITING_INITIAL)) {
+                // -> We're not running or waiting for initial population, so we don't process the update.
+                return;
+            }
+
+            final byte[] payload = ctx.getBytes(MatsEagerCacheServer.SIDELOAD_KEY_DATA_PAYLOAD);
+
+            /*
+             * :: Now perform hack to relieve the Mats thread, and do the actual work in a separate thread. The
+             * rationale is to let the data structures underlying in the Mats system (e.g. the representation of the
+             * incoming JMS Message) be GCable. The thread pool is special in that it only accepts a single task, and if
+             * it is busy, it will block the submitting thread. NOTE: We do NOT capture the context (which holds the
+             * MatsTrace and byte arrays) in the Runnable, as that would prevent the JMS Message from being GC'ed. We
+             * only capture the message DTO and the payload.
+             */
+            _sendUpdateToExecutor_EnsureWhatIsCaptured(msg, payload);
+        }
+
+        private void _sendUpdateToExecutor_EnsureWhatIsCaptured(BroadcastDto msg, byte[] payload) {
+            _receiveSingleBlockingThreadExecutorService.submit(() -> {
+                _handleUpdateInExecutorThread(msg, payload);
+            });
         }
 
         private void _handleUpdateInExecutorThread(BroadcastDto msg, byte[] payload) {
@@ -1449,9 +1415,12 @@ public interface MatsEagerCacheClient<DATA> {
             _lastUpdateWasFull = fullUpdate;
             _lastUpdateWasLarge = largeUpdate;
             // .. and the client timings
-            _lastUpdateDecompressAndConsumeTotalMillis = (System.nanoTime() - nanosAsStart_update) / 1_000_000d;
-            _lastUpdateDecompressMillis = nanosTaken_decompress / 1_000_000d;
-            _lastUpdateDeserializeMillis = nanosTaken_deserialize / 1_000_000d;
+            double decompressAndConsumeTotalMillis = (System.nanoTime() - nanosAsStart_update) / 1_000_000d;
+            _lastUpdateDecompressAndConsumeTotalMillis = decompressAndConsumeTotalMillis;
+            double decompressMillis = nanosTaken_decompress / 1_000_000d;
+            _lastUpdateDecompressMillis = decompressMillis;
+            double deserializeMillis = nanosTaken_deserialize / 1_000_000d;
+            _lastUpdateDeserializeMillis = deserializeMillis;
             // .. and the server timings
             _lastUpdateCompressMillis = msg.msCompress;
             _lastUpdateSerializeMillis = msg.msSerialize;
@@ -1543,6 +1512,44 @@ public interface MatsEagerCacheClient<DATA> {
                 }
             }
 
+            // Log the update!
+            String type = fullUpdate ? "Full" : "Partial";
+
+            Map<String, String> mdc = new LinkedHashMap<>();
+            mdc.put("mats.ec.updateReceived", "true");
+            mdc.put("mats.ec.type", type);
+            mdc.put("mats.ec.reason", msg.reason);
+            mdc.put("mats.ec.mode", largeUpdate ? "Large" : "Small");
+            mdc.put("mats.ec.metadata", msg.metadata != null ? msg.metadata : "-null-");
+            mdc.put("mats.ec.compressedSize", Integer.toString(msg.compressedSize));
+            mdc.put("mats.ec.decompressedSize", Long.toString(msg.uncompressedSize));
+            mdc.put("mats.ec.dataCount", Integer.toString(msg.dataCount));
+            mdc.put("mats.ec.produce.msTotal", Double.toString(msg.msTotal));
+            mdc.put("mats.ec.produce.msSerialize", Double.toString(msg.msSerialize));
+            mdc.put("mats.ec.produce.msCompress", Double.toString(msg.msCompress));
+            mdc.put("mats.ec.consume.msTotal", Double.toString(decompressAndConsumeTotalMillis));
+            mdc.put("mats.ec.consume.msDecompress", Double.toString(decompressMillis));
+            mdc.put("mats.ec.consume.msDeserialize", Double.toString(deserializeMillis));
+            if (roundTripTimeMillis != 0) {
+                mdc.put("mats.ec.roundTripTimeMillis", Double.toString(roundTripTimeMillis));
+            }
+
+            _cacheMonitor.logWithMdc(INFO, mdc, MonitorCategory.RECEIVED_UPDATE, "Received " + type
+                    + " Update - MDC:"
+                    + " type=" + type
+                    + "; reason=" + msg.reason
+                    + "; metadata=" + msg.metadata
+                    + "; compressedSize=" + _formatNiceBytes(msg.compressedSize)
+                    + "; decompressedSize=" + _formatNiceBytes(msg.uncompressedSize)
+                    + "; dataCount=" + msg.dataCount
+                    + "; produce.msTotal=" + _formatMillis(msg.msTotal)
+                    + "; produce.msCompress=" + _formatMillis(msg.msCompress)
+                    + "; produce.msSerialize=" + _formatMillis(msg.msSerialize)
+                    + "; consume.msTotal=" + _formatMillis(decompressAndConsumeTotalMillis)
+                    + "; consume.msDecompress=" + _formatMillis(decompressMillis)
+                    + "; consume.msDeserialize=" + _formatMillis(deserializeMillis)
+                    + (roundTripTimeMillis != 0 ? ("; roundTripTimeMillis=" + _formatMillis(roundTripTimeMillis)) : ""));
+
             Thread.currentThread().setName(originalThreadName);
         }
 
@@ -1574,6 +1581,39 @@ public interface MatsEagerCacheClient<DATA> {
             public long getIterateNanos() {
                 return _nanosTotal;
             }
+        }
+
+        /**
+         * Single threaded, blocking {@link ExecutorService}. This is used to "distance" ourselves from Mats, so that
+         * the large ProcessContext and the corresponding JMS Message can be GC'ed <i>while</i> we're decompressing and
+         * deserializing the possibly large set of large objects: We've fetched the data we need from the JMS Message,
+         * and now we're done with it, but we need to exit the Mats StageProcessor to let the Mats thread let go of the
+         * ProcessContext and any JMS Message reference. However, we still want the data to be sequentially processed -
+         * thus use a single-threaded executor with synchronous queue, and special rejection handler, to ensure that the
+         * submitting works as follows: Either the task is immediately handed over to the single thread, or the
+         * submitting thread (the Mats stage processor thread) is blocked - waiting out the current
+         * decompress/deserializing/processing.
+         */
+        static ThreadPoolExecutor _createSingleThreadedExecutorService(String threadName) {
+            return new ThreadPoolExecutor(1, 1, 1L, TimeUnit.MINUTES,
+                    new SynchronousQueue<>(),
+                    runnable -> {
+                        Thread t = new Thread(runnable, threadName);
+                        t.setDaemon(true);
+                        return t;
+                    },
+                    (r, executor) -> { // Trick: For Rejections, we'll just block until able to enqueue the task.
+                        try {
+                            // Block until able to enqueue the task anyway.
+                            executor.getQueue().put(r);
+                        }
+                        catch (InterruptedException e) {
+                            // Remember, this is the *submitting* thread that is interrupted, not the pool thread.
+                            Thread.currentThread().interrupt();
+                            // We gotta get outta here.
+                            throw new RejectedExecutionException("Interrupted while waiting to enqueue task", e);
+                        }
+                    });
         }
 
         private static class CacheReceivedDataImpl<TRANSPORT> implements CacheReceivedData<TRANSPORT> {

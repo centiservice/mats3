@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -1195,7 +1196,7 @@ public interface MatsEagerCacheServer {
             _cacheMonitor.log(INFO, MonitorCategory.SEND_UPDATE, "cacheServer.sendPartialUpdate! ["
                     + partialDataCallback + "]");
             _produceAndSendUpdate(null, () -> partialDataCallback, false,
-                    "Server - Manual Partial");
+                    "Server/Manual/Partial");
         }
 
         @Override
@@ -2163,26 +2164,25 @@ public interface MatsEagerCacheServer {
                     && _produceAndSendExecutor.getQueue().isEmpty()) {
                 // -> Yes it was us, and there are no other updates already in the queue.
                 _produceAndSendExecutor.execute(() -> {
-                    // TODO: Add logging with MDC values for timings and sizes!
-                    _cacheMonitor.log(INFO, MonitorCategory.SEND_UPDATE, "We are the elected node, and thus"
+                    _cacheMonitor.log(DEBUG, MonitorCategory.SEND_UPDATE, "We are the elected node, and thus"
                             + " we now produce and send full update! [" + _nodename
                             + "] (currentOutstanding: [" + _updateRequest_OutstandingCount + "])");
                     String reason;
                     switch (inBroadcast.originalCommand) {
                         case BroadcastDto.COMMAND_REQUEST_SERVER_PERIODIC:
-                            reason = "Server - Periodic";
+                            reason = "Server/Periodic";
                             break;
                         case BroadcastDto.COMMAND_REQUEST_SERVER_MANUAL:
-                            reason = "Server - Manual";
-                            break;
-                        case BroadcastDto.COMMAND_REQUEST_CLIENT_BOOT:
-                            reason = "Client - Boot";
-                            break;
-                        case BroadcastDto.COMMAND_REQUEST_CLIENT_MANUAL:
-                            reason = "Client - Manual";
+                            reason = "Server/Manual/Full";
                             break;
                         case BroadcastDto.COMMAND_REQUEST_ENSURER_TRIGGERED:
-                            reason = "Server - Ensurer Triggered";
+                            reason = "Server/EnsurerTriggered";
+                            break;
+                        case BroadcastDto.COMMAND_REQUEST_CLIENT_BOOT:
+                            reason = "Client/Boot";
+                            break;
+                        case BroadcastDto.COMMAND_REQUEST_CLIENT_MANUAL:
+                            reason = "Client/Manual";
                             break;
                         default:
                             reason = "Unknown";
@@ -2265,6 +2265,30 @@ public interface MatsEagerCacheServer {
                             .addBytes(SIDELOAD_KEY_DATA_PAYLOAD, result.byteArray)
                             .publish(broadcast);
                 });
+
+                Map<String, String> mdc = Map.of(
+                        "mats.ec.updateSent", "true",
+                        "mats.ec.type", type,
+                        "mats.ec.reason", reason,
+                        "mats.ec.metadata", result.metadata != null ? result.metadata : "-null-",
+                        "mats.ec.dataCount", Integer.toString(result.dataCountFromSourceProvider),
+                        "mats.ec.uncompressedSize", Long.toString(result.uncompressedSize),
+                        "mats.ec.compressedSize", Integer.toString(result.compressedSize),
+                        "mats.ec.msTotal", Double.toString(result.millisTotal),
+                        "mats.ec.msSerialize", Double.toString(result.millisSerialize),
+                        "mats.ec.msCompress", Double.toString(result.millisCompress));
+                _cacheMonitor.logWithMdc(INFO, mdc, MonitorCategory.SEND_UPDATE, "Sent " + type
+                        + " Update - MDC:"
+                        + " type=" + type
+                        + "; reason=" + reason
+                        + "; metadata=" + result.metadata
+                        + "; dataCount=" + result.dataCountFromSourceProvider
+                        + "; compressedSize=" + _formatNiceBytes(result.compressedSize)
+                        + "; uncompressedSize=" + _formatNiceBytes(result.uncompressedSize)
+                        + "; msTotal=" + _formatMillis(result.millisTotal)
+                        + "; msCompress=" + _formatMillis(result.millisCompress)
+                        + "; msSerialize=" + _formatMillis(result.millisSerialize));
+
             }
             finally {
                 _produceAndSendUpdateLock.unlock();
@@ -2414,7 +2438,7 @@ public interface MatsEagerCacheServer {
                         long nanosStart = System.nanoTime();
                         jacksonSeq.write(sent);
                         nanosTaken_serializeAndCompress[0] += (System.nanoTime() - nanosStart);
-                        // TODO: Log each entity's size to monitor and HealthCheck. (up to max 1_000 entities)
+                        // TODO/CONSIDER: Log each entity's size to monitor and HealthCheck. (up to max 1_000 entities)
                     }
                     catch (IOException e) {
                         _cacheMonitor.exception(MonitorCategory.PRODUCE_DATA, "Got IOException while writing"
@@ -2620,11 +2644,24 @@ public interface MatsEagerCacheServer {
             private final List<LogEntry> logEntries = new ArrayList<>();
             private final List<ExceptionEntry> exceptionEntries = new ArrayList<>();
 
-            public synchronized void log(LogLevel level, MonitorCategory monitorCategory, String message) {
-                if (logEntries.size() >= MAX_ENTRIES) {
-                    logEntries.remove(0);
+            public void logWithMdc(LogLevel level, Map<String, String> mdcs, MonitorCategory monitorCategory,
+                    String message) {
+                mdcs.forEach(MDC::put);
+                try {
+                    log(level, monitorCategory, message);
                 }
-                logEntries.add(new LogEntryImpl(level, monitorCategory, message));
+                finally {
+                    mdcs.keySet().forEach(MDC::remove);
+                }
+            }
+
+            public void log(LogLevel level, MonitorCategory monitorCategory, String message) {
+                synchronized (logEntries) {
+                    if (logEntries.size() >= MAX_ENTRIES) {
+                        logEntries.remove(0);
+                    }
+                    logEntries.add(new LogEntryImpl(level, monitorCategory, message));
+                }
                 if (DEBUG.equals(level)) {
                     if (_log.isDebugEnabled()) _log.debug(_logPrefix + monitorCategory + " [" + _dataName + "]: "
                             + message);
@@ -2639,25 +2676,31 @@ public interface MatsEagerCacheServer {
                 }
             }
 
-            public synchronized void exception(MonitorCategory monitorCategory, String message, Throwable throwable) {
-                if (exceptionEntries.size() >= MAX_ENTRIES) {
-                    exceptionEntries.remove(0);
+            public void exception(MonitorCategory monitorCategory, String message, Throwable throwable) {
+                synchronized (exceptionEntries) {
+                    if (exceptionEntries.size() >= MAX_ENTRIES) {
+                        exceptionEntries.remove(0);
+                    }
+                    exceptionEntries.add(new ExceptionEntryImpl(monitorCategory, message, throwable));
                 }
-                exceptionEntries.add(new ExceptionEntryImpl(monitorCategory, message, throwable));
                 if (_log.isWarnEnabled()) _log.error(_logPrefix + monitorCategory + " [" + _dataName + "]: "
                         + message, throwable);
             }
 
-            public synchronized List<LogEntry> getLogEntries() {
-                return Collections.unmodifiableList(new ArrayList<>(logEntries));
+            public List<LogEntry> getLogEntries() {
+                synchronized (logEntries) {
+                    return Collections.unmodifiableList(new ArrayList<>(logEntries));
+                }
             }
 
-            public synchronized List<ExceptionEntry> getExceptionEntries() {
-                return Collections.unmodifiableList(new ArrayList<>(exceptionEntries));
+            public List<ExceptionEntry> getExceptionEntries() {
+                synchronized (exceptionEntries) {
+                    return Collections.unmodifiableList(new ArrayList<>(exceptionEntries));
+                }
             }
 
             boolean acknowledgeException(String id, String username) {
-                synchronized (this) {
+                synchronized (exceptionEntries) {
                     for (ExceptionEntry exceptionEntry : exceptionEntries) {
                         if (exceptionEntry.getId().equals(id)) {
                             // ?: Already acknowledged?
@@ -2676,7 +2719,7 @@ public interface MatsEagerCacheServer {
             }
 
             int acknowledgeExceptionsUpTo(long timestamp, String username) {
-                synchronized (this) {
+                synchronized (exceptionEntries) {
                     int count = 0;
                     for (ExceptionEntry exceptionEntry : exceptionEntries) {
                         if (exceptionEntry.getTimestamp() <= timestamp) {
