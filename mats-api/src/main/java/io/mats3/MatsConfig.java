@@ -131,9 +131,8 @@ public interface MatsConfig {
 
     /**
      * Returning the attribute value for the specified key, or <code>null</code> if no attribute is set for the key.
-     * Practical if you do assignment in the same line as you use the value, e.g. <code>String name =
-     * config.getAttribute("name");</code>, and check for <code>null</code>. There's also a variant which takes a
-     * <code>Class</code> parameter, which will do the casting for you: {@link #getAttribute(String, Class)}.
+     * It uses the hack of generics to avoid explicit casting, but you should really know the type, otherwise let the
+     * left-hand side be <code>Object</code>.
      *
      * @param key
      *            the key name for this attribute.
