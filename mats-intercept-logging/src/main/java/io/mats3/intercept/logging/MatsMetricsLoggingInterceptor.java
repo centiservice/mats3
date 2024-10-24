@@ -646,10 +646,20 @@ public class MatsMetricsLoggingInterceptor
 
         // Might be multiple messages: All messages must say suppress to actually do suppression.
         for (MatsSentOutgoingMessage outgoingMessage : outgoingMessages) {
-            Object suppressed = outgoingMessage.getTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Object.class);
-            // ?: Does this message NOT want suppression?
-            if (suppressed != Boolean.TRUE) {
-                // -> This message DOES NOT want suppression, so we shall not suppress.
+            try {
+                Boolean suppressed = outgoingMessage.getTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.class);
+                // ?: Does this message NOT want suppression?
+                if (suppressed != Boolean.TRUE) {
+                    // -> This message DOES NOT want suppression, so we shall not suppress.
+                    return false;
+                }
+            }
+            catch (Exception e) {
+                // Note: Overabundance of caution: We catch all exceptions, as we do not want to fail init because of
+                // this. We log the exception, and then return false, i.e. do not suppress.
+                log_init.warn(LOG_PREFIX + "Got exception when trying to get trace property '"
+                        + SUPPRESS_LOGGING_TRACE_PROPERTY_KEY + "' from outgoing message.", e);
+                // Exception, so we shall NOT suppress.
                 return false;
             }
         }
@@ -738,10 +748,21 @@ public class MatsMetricsLoggingInterceptor
         if (suppressionAllowed == Boolean.TRUE) {
             // -> Yes, endpoint allows for log suppression.
             // ?: Does this Mats Flow want log suppression?
-            Object suppressed = ctx.getProcessContext()
-                    .getTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Object.class);
-            // Return whether this Stage wants log suppression
-            return suppressed == Boolean.TRUE; // Will be 'null' if not.
+
+            try {
+                Boolean suppressed = ctx.getProcessContext()
+                        .getTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.class);
+                // Return whether this Stage wants log suppression
+                return suppressed == Boolean.TRUE; // Will be 'null' if not.
+            }
+            catch (Exception e) {
+                // Note: Overabundance of caution: We catch all exceptions, as we do not want to fail the stage because
+                // of this. We log the exception, and then return false, i.e. do not suppress.
+                log_init.warn(LOG_PREFIX + "Got exception when trying to get trace property '"
+                        + SUPPRESS_LOGGING_TRACE_PROPERTY_KEY + "' from stage.", e);
+                // Exception, so we shall NOT suppress.
+                return false;
+            }
         }
         return false;
     }
