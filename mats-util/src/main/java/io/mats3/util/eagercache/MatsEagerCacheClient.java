@@ -9,8 +9,11 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -28,6 +31,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
@@ -51,6 +55,7 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.BroadcastDto;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.CacheMonitor;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.CacheRequestDto;
+import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.NodeAdvertiser;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MonitorCategory;
 
 /**
@@ -453,6 +458,8 @@ public interface MatsEagerCacheClient<DATA> {
 
         long getNumberOfAccesses();
 
+        Map<String, Set<String>> getServerAppNamesToNodenames();
+
         List<LogEntry> getLogEntries();
 
         List<ExceptionEntry> getExceptionEntries();
@@ -590,6 +597,7 @@ public interface MatsEagerCacheClient<DATA> {
                 Class<TRANSPORT> transferDataType, Function<CacheReceivedData<TRANSPORT>, DATA> fullUpdateMapper) {
             _matsFactory = matsFactory;
             _dataName = dataName;
+            _cacheMonitor = new CacheMonitor(log, LOG_PREFIX_FOR_CLIENT, dataName);
             _fullUpdateMapper = (Function<CacheReceivedData<?>, DATA>) (Function) fullUpdateMapper;
 
             // :: Jackson JSON ObjectMapper
@@ -685,7 +693,8 @@ public interface MatsEagerCacheClient<DATA> {
 
         private volatile MatsEagerCacheServer _forwardingLinkedServer_ForDevelopment;
 
-        private final CacheMonitor _cacheMonitor = new CacheMonitor(log, LOG_PREFIX_FOR_CLIENT);
+        private final CacheMonitor _cacheMonitor;
+        private volatile NodeAdvertiser _nodeAdvertiser;
 
         private class CacheClientInformationImpl implements CacheClientInformation {
             @Override
@@ -821,6 +830,15 @@ public interface MatsEagerCacheClient<DATA> {
             @Override
             public long getNumberOfAccesses() {
                 return _accessCounter.get();
+            }
+
+            @Override
+            public Map<String, Set<String>> getServerAppNamesToNodenames() {
+                synchronized (_nodeAdvertiser._serversAppNamesToNodenames) {
+                    // Return copy, with copy of sets.
+                    return _nodeAdvertiser._serversAppNamesToNodenames.entrySet().stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey, e -> new TreeSet<>(e.getValue())));
+                }
             }
 
             @Override
@@ -969,6 +987,11 @@ public interface MatsEagerCacheClient<DATA> {
                 }
                 _initialPopulationRequestSentTimestamp = System.currentTimeMillis();
                 _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_BOOT);
+
+                // Start the AppName and Nodename advertiser.
+                _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, false,
+                        BroadcastDto.COMMAND_CLIENT_ADVERTISE, _dataName,
+                        _matsFactory.getFactoryConfig().getAppName(), _matsFactory.getFactoryConfig().getNodename());
             });
             thread.setName("MatsEagerCacheClient-" + _dataName + "-initialCacheUpdateRequest");
             // If the JVM is shut down due to bad boot, this thread should not prevent it from exiting.
@@ -1045,6 +1068,9 @@ public interface MatsEagerCacheClient<DATA> {
                 _cacheClientLifecycle = CacheClientLifecycle.STOPPING;
             }
             // -> Yes, we're started, so close down.
+            if (_nodeAdvertiser != null) {
+                _nodeAdvertiser.stop();
+            }
             if (_broadcastTerminator != null) {
                 _broadcastTerminator.remove(30_000);
             }
@@ -1099,16 +1125,22 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         void _processLambdaForSubscriptionTerminator(ProcessContext<?> ctx, Void state, BroadcastDto msg) {
-            if (!(msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL)
-                    || msg.command.equals(BroadcastDto.COMMAND_UPDATE_PARTIAL))) {
-                // None of my concern
+            // :: Snoop on messages for keeping track of whom the clients and servers are.
+            if (_nodeAdvertiser != null) {
+                _nodeAdvertiser.handleAdvertise(msg);
+            }
+
+            // ?: Check if we're interested in this message - we only care about updates.
+            if (!(BroadcastDto.COMMAND_UPDATE_FULL.equals(msg.command)
+                    || BroadcastDto.COMMAND_UPDATE_PARTIAL.equals(msg.command))) {
+                // -> None of my concern
                 return;
             }
 
             _cacheMonitor.log(INFO, MonitorCategory.RECEIVED_UPDATE, "Received " + msg.command
                     + " \"" + msg.reason
-                    + "\": meta: " + msg.metadata
-                    + ", compressed: " + _formatNiceBytes(msg.compressedSize)
+                    + "\" from '" + msg.sentAppName + "' @ '" + msg.sentNodename
+                    + "', compressed: " + _formatNiceBytes(msg.compressedSize)
                     + ", decompressed: " + _formatNiceBytes(msg.uncompressedSize)
                     + ", dataCount: " + msg.dataCount + ".");
 
@@ -1173,6 +1205,7 @@ public interface MatsEagerCacheClient<DATA> {
             // :: Construct the request message
             CacheRequestDto req = new CacheRequestDto();
             req.nodename = _matsFactory.getFactoryConfig().getNodename();
+            req.appName = _matsFactory.getFactoryConfig().getAppName();
             req.sentTimestamp = System.currentTimeMillis();
             req.sentNanoTime = System.nanoTime();
             req.command = command;
@@ -1658,8 +1691,11 @@ public interface MatsEagerCacheClient<DATA> {
 
         private final String _dataName;
 
+        private final CacheMonitor _cacheMonitor;
+
         MatsEagerCacheClientMockImpl(String dataName) {
             _dataName = dataName;
+            _cacheMonitor = new CacheMonitor(log, "#MatsEagerCache#MOCK ", dataName);
         }
 
         private volatile long _startedTimestamp;
@@ -1684,8 +1720,6 @@ public interface MatsEagerCacheClient<DATA> {
         // Note: Also used as a fast-path indicator for addOnInitialPopulationTask(), by being nulled.
         // Synchronized on this, but also volatile since we use it as fast-path indicator.
         private volatile List<Runnable> _onInitialPopulationTasks = new ArrayList<>();
-
-        private final CacheMonitor _cacheMonitor = new CacheMonitor(log, "#MatsEagerCache#MOCK ");
 
         @Override
         public MatsEagerCacheClientMock<DATA> setMockData(DATA data) {
@@ -2018,6 +2052,11 @@ public interface MatsEagerCacheClient<DATA> {
                 @Override
                 public long getNumberOfAccesses() {
                     return _accessCounter.get();
+                }
+
+                @Override
+                public Map<String, Set<String>> getServerAppNamesToNodenames() {
+                    return Map.of("ServerApp-Mock", Set.of(getNodename()));
                 }
 
                 @Override

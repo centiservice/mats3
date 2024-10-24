@@ -3,6 +3,8 @@ package io.mats3.util.eagercache;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatBytes;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,6 +104,53 @@ public class MatsEagerCacheStorebrandHealthCheck {
                                     + unacknowledged + " of " + exceptionEntries.size());
                             checkContext.text(" -> Go to the Cache Server's GUI page to resolve and acknowledge them!");
                         }
+
+                        return ret;
+                    });
+
+            boolean[] haveBeenOk = new boolean[1];
+
+            // :: Check that there are no unacknowledged Exceptions
+            checkSpec.check(responsibleF,
+                    Axis.of(Axis.NOT_READY, Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
+                    checkContext -> {
+                        CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
+                        Map<String, Set<String>> map = info.getServerAppNamesToNodenames();
+                        CheckResult ret;
+                        if (map.isEmpty()) {
+                            ret = checkContext.fault("Not yet seeing any applications serving the Cache '"
+                                    + info.getDataName() + "!")
+                                    .turnOffAxes(Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED);
+                        }
+                        else if (map.size() == 1) {
+                            String who = map.keySet().iterator().next();
+                            if (info.getAppName().equals(who)) {
+                                ret = checkContext.ok("We are the single application serving Cache '"
+                                        + info.getDataName() + "'!");
+                                haveBeenOk[0] = true;
+                            }
+                            else {
+                                ret = checkContext.fault("There is a single application serving Cache '"
+                                        + info.getDataName() + "', but it is not us!");
+                                ret.text(" -> This is REALLY BAD! The app is '" + who + "'.");
+                                ret.text(" -> This means that there is a name-clash between multiple cache servers using");
+                                ret.text("    the same DataName, living on different applications.");
+                                if (haveBeenOk[0]) {
+                                    ret.turnOffAxes(Axis.NOT_READY);
+                                }
+                            }
+                        }
+                        else {
+                            ret = checkContext.fault("There are " + map.size() + " applications serving Cache '"
+                                    + info.getDataName() + "'!");
+                            ret.text(" -> This is REALLY BAD! The apps are " + map.keySet() + ".");
+                            ret.text(" -> This means that there is a name-clash between multiple cache servers using");
+                            ret.text("    the same DataName, living on different applications.");
+                            if (haveBeenOk[0]) {
+                                ret.turnOffAxes(Axis.NOT_READY);
+                            }
+                        }
+
                         if (info.getCacheServerLifeCycle() == CacheServerLifeCycle.RUNNING) {
                             checkContext.text("- Count: " + info.getLastUpdateDataCount()
                                     + ", Uncompressed: " + _formatBytes(info.getLastUpdateUncompressedSize())

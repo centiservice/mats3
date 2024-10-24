@@ -14,6 +14,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -222,8 +224,8 @@ public interface MatsEagerCacheHtmlGui {
 
             if (_client instanceof MatsEagerCacheClientMock) {
                 out.append(
-                        "<br><i><b>NOTICE! This is a MOCK of the MatsEagerCacheClient</b>, and some of the information"
-                                + " below is mocked! (Notably all the LastUpdate* data)</i><br><br>\n");
+                        "<br><i><b>NOTICE! This is a MOCK of the MatsEagerCacheClient</b>, and much of the information"
+                                + " below is mocked!</i><br><br>\n");
             }
 
             out.append("<div class='matsec-column-container'>\n");
@@ -275,7 +277,7 @@ public interface MatsEagerCacheHtmlGui {
             // ?: Is the initial population done?
             if (!initialDone) {
                 // -> No, initial population not done yet.
-                out.append("<i>Initial population not done yet.</i><br><br>\n");
+                out.append("&nbsp;&nbsp;<i>Initial population not done yet.</i><br><br>\n");
             }
             else {
                 // -> Yes, initial population done - show info.
@@ -308,12 +310,23 @@ public interface MatsEagerCacheHtmlGui {
                         .append(_formatHtmlBytes(info.getLastUpdateDecompressedSize())).append("<br>\n");
                 out.append("&nbsp;&nbsp;DataCount: ").append("<b>")
                         .append(Integer.toString(info.getLastUpdateDataCount())).append("</b><br>\n");
-                out.append("<br>\n");
+                out.append("<div style='height: 7px'></div>\n");
 
                 out.append("&nbsp;&nbsp;<span style='font-size:80%'><i>NOTE: If LARGE update, intentional lag is"
                         + " added between nulling existing dataset and producing new to aid GC:"
-                        + " 100ms for Full, 25ms for Small.</i></span></b><br>\n");
-
+                        + " 100ms for Full, 25ms for Small.</i></span><br>\n");
+            }
+            out.append("<br>\n");
+            out.append("Cache Servers: ");
+            Map<String, Set<String>> appsNodes = info.getServerAppNamesToNodenames();
+            boolean first = true;
+            for (Map.Entry<String, Set<String>> entry : appsNodes.entrySet()) {
+                if (!first) {
+                    out.append(", ");
+                }
+                first = false;
+                out.append("<b>").append(entry.getKey()).append("</b>: ");
+                out.append(entry.getValue().stream().collect(Collectors.joining(", ", "", ". ")));
             }
 
             out.append("</div>\n");
@@ -575,17 +588,17 @@ public interface MatsEagerCacheHtmlGui {
             out.append("<br>\n");
 
             out.append("<h3>Last Cluster Full Update</h3><br>\n");
-            out.append("&nbsp;&nbsp;RequestReceived: ")
-                    .append(_formatHtmlTimestamp(info.getLastFullUpdateRequestReceivedTimestamp())).append("<br>\n");
+            out.append("&nbsp;&nbsp;RequestRegistered: ")
+                    .append(_formatHtmlTimestamp(info.getLastFullUpdateRequestRegisteredTimestamp())).append("<br>\n");
             out.append("&nbsp;&nbsp;ProductionStarted: ")
                     .append(_formatHtmlTimestamp(info.getLastFullUpdateProductionStartedTimestamp()))
                     .append("</b><br>\n");
-            out.append("&nbsp;&nbsp;Received: ")
+            out.append("&nbsp;&nbsp;UpdateReceived: ")
                     .append(_formatHtmlTimestamp(info.getLastFullUpdateReceivedTimestamp())).append("<br>\n");
-            out.append("&nbsp;&nbsp;RequestToUpdate: ")
-                    .append(info.getLastFullUpdateRequestToUpdateMillis() == 0
+            out.append("&nbsp;&nbsp;RegisterToUpdate: ")
+                    .append(info.getLastFullUpdateRegisterToUpdateMillis() == 0
                             ? "<i>none</i>"
-                            : "<b>" + _formatMillis(info.getLastFullUpdateRequestToUpdateMillis()) + "</b>")
+                            : "<b>" + _formatMillis(info.getLastFullUpdateRegisterToUpdateMillis()) + "</b>")
                     .append("<br>\n");
             out.append("<br>\n");
             out.append("</div>\n");
@@ -634,6 +647,38 @@ public interface MatsEagerCacheHtmlGui {
 
             out.append("</div>\n");
             out.append("</div>\n");
+
+            out.append("Cache Servers: ");
+            Map<String, Set<String>> appsNodes = info.getServerAppNamesToNodenames();
+            boolean first = true;
+            for (Map.Entry<String, Set<String>> entry : appsNodes.entrySet()) {
+                if (!first) {
+                    out.append(", ");
+                }
+                first = false;
+                out.append("<b>").append(entry.getKey()).append("</b>: ");
+                out.append(entry.getValue().stream().collect(Collectors.joining(", ", "<i>(", ")</i>")));
+            }
+
+            out.append("<br>\n");
+            appsNodes = info.getClientAppNamesToNodenames();
+            out.append("Cache Client Apps (").append(Integer.toString(appsNodes.size())).append("): ");
+            out.append(appsNodes.keySet().stream().collect(Collectors.joining("</b>, <b>", "<b>", "</b>")));
+            out.append("<br>\n");
+
+            out.append("&nbsp;&nbsp;&nbsp;&nbsp;<span style='font-size:80%'>Cache Client Nodes: ");
+            first = true;
+            for (Map.Entry<String, Set<String>> entry : appsNodes.entrySet()) {
+                if (!first) {
+                    out.append(", ");
+                }
+                first = false;
+                out.append("[");
+                out.append(entry.getValue().stream().collect(Collectors.joining(", ", "", "")));
+                out.append("]");
+            }
+            out.append("<br>(Reset when Cache Server nodes start, and at 04:00 - updated within 5 minutes after, and"
+                    + " every hour)</span><br>\n");
 
             MatsEagerCacheClientHtmlGui._logsAndExceptions(out, ac, getRoutingId(), info.getExceptionEntries(), info
                     .getLogEntries());

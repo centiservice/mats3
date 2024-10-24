@@ -18,7 +18,9 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 
 import io.mats3.MatsFactory;
-import io.mats3.test.MatsTestFactory;
+import io.mats3.impl.jms.JmsMatsFactory;
+import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
+import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.DummyFinancialService;
@@ -111,13 +113,22 @@ public class CommonSetup_TwoServers_TwoClients {
         // :: Create four MatsFactories, representing two different instances of the server-side service, and
         // two different instances of the client-side service.
         matsTestBroker = MatsTestBroker.create();
-        serverMatsFactory1 = MatsTestFactory.createWithBroker(matsTestBroker);
+        MatsSerializerJson matsSerializer = MatsSerializerJson.create();
+
+        serverMatsFactory1 = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions("CustomerService", "*testing*",
+                JmsMatsJmsSessionHandler_Pooling.create(matsTestBroker.getConnectionFactory()), matsSerializer);
         serverMatsFactory1.getFactoryConfig().setNodename(serverMatsFactory1.getFactoryConfig().getNodename() + "-1s");
-        serverMatsFactory2 = MatsTestFactory.createWithBroker(matsTestBroker);
+
+        serverMatsFactory2 = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions("CustomerService", "*testing*",
+                JmsMatsJmsSessionHandler_Pooling.create(matsTestBroker.getConnectionFactory()), matsSerializer);
         serverMatsFactory2.getFactoryConfig().setNodename(serverMatsFactory2.getFactoryConfig().getNodename() + "-2s");
-        clientMatsFactory1 = MatsTestFactory.createWithBroker(matsTestBroker);
+
+        clientMatsFactory1 = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions("OrderService", "*testing*",
+                JmsMatsJmsSessionHandler_Pooling.create(matsTestBroker.getConnectionFactory()), matsSerializer);
         clientMatsFactory1.getFactoryConfig().setNodename(clientMatsFactory1.getFactoryConfig().getNodename() + "-1c");
-        clientMatsFactory2 = MatsTestFactory.createWithBroker(matsTestBroker);
+
+        clientMatsFactory2 = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions("AccountService", "*testing*",
+                JmsMatsJmsSessionHandler_Pooling.create(matsTestBroker.getConnectionFactory()), matsSerializer);
         clientMatsFactory2.getFactoryConfig().setNodename(clientMatsFactory2.getFactoryConfig().getNodename() + "-2c");
 
         // :: Create the CacheServers:
