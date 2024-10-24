@@ -49,6 +49,7 @@ import io.mats3.MatsEndpoint;
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.MatsInitiate;
+import io.mats3.api.intercept.MatsLoggingInterceptor;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.TraceId;
 import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
@@ -777,6 +778,10 @@ public interface MatsEagerCacheServer {
     // ======== The 'MatsEagerCacheServer' implementation class
 
     class MatsEagerCacheServerImpl implements MatsEagerCacheServer {
+        // These should be statically inlined by compiler, AFAIK.
+        static String SUPPRESS_LOGGING_TRACE_PROPERTY_KEY = MatsLoggingInterceptor.SUPPRESS_LOGGING_TRACE_PROPERTY_KEY;
+        static String SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY = MatsLoggingInterceptor.SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY;
+
         private static final Logger log = LoggerFactory.getLogger(MatsEagerCacheServer.class);
 
         private static final String SIDELOAD_KEY_SIBLING_COMMAND_BYTES = "scb";
@@ -1121,7 +1126,12 @@ public interface MatsEagerCacheServer {
         @Override
         public void sendSiblingCommand(String command, String stringData, byte[] binaryData) {
             _cacheMonitor.log(INFO, MonitorCategory.SIBLING_COMMAND, "cacheServer.sendSiblingCommand! ["
-                    + command + "]");
+                    + command + "] - [" + (stringData != null
+                            ? "stringData: " + stringData.length() + " chars"
+                            : "-no stringData-")
+                    + "], [" + (binaryData != null
+                            ? "binaryData: " + binaryData.length + " bytes"
+                            : "-no binaryData-") + "].");
             // We must be in correct state, and the broadcast terminator must be ready to receive.
             _waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS);
 
@@ -1132,10 +1142,11 @@ public interface MatsEagerCacheServer {
 
             // Send the broadcast
             _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
-                init.traceId(TraceId.create("EagerCache." + _dataName, "SiblingCommand").add("cmd", command))
+                init.traceId(TraceId.create("MatsEagerCacheServer." + _dataName, "SiblingCommand").add("cmd", command))
                         .addBytes(SIDELOAD_KEY_SIBLING_COMMAND_BYTES, binaryData)
                         .from("MatsEagerCacheServer." + _dataName + ".SiblingCommand")
                         .to(_getBroadcastTopic(_dataName))
+                        .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
                         .publish(broadcast);
             });
         }
@@ -1189,12 +1200,12 @@ public interface MatsEagerCacheServer {
 
         @Override
         public void start() {
-            start_internal("start");
+            _start_internal("start");
         }
 
         @Override
         public void startAndWaitForReceiving() {
-            start_internal("startAndWaitForReceiving");
+            _start_internal("startAndWaitForReceiving");
             _waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS);
         }
 
@@ -1252,7 +1263,7 @@ public interface MatsEagerCacheServer {
             _longDelay = longDelay;
         }
 
-        private void start_internal(String whatMethod) {
+        private void _start_internal(String whatMethod) {
             synchronized (this) {
                 // ?: Assert that we are not already started.
                 if (_cacheServerLifeCycle != CacheServerLifeCycle.NOT_YET_STARTED) {
@@ -1286,7 +1297,7 @@ public interface MatsEagerCacheServer {
                                         + result.dataCountFromSourceProvider + "]");
 
                         // Start the endpoints
-                        _createCacheEndpoints();
+                        _createMatsEndpoints();
 
                         // We're now running.
                         _cacheStartedTimestamp = System.currentTimeMillis();
@@ -1327,7 +1338,7 @@ public interface MatsEagerCacheServer {
             checkThread.start();
         }
 
-        private void _createCacheEndpoints() {
+        private void _createMatsEndpoints() {
             // ::: Create the Mats endpoints
 
             _cacheMonitor.log(INFO, MonitorCategory.CACHE_SERVER, "Creating the Mats endpoints for the"
@@ -1398,6 +1409,10 @@ public interface MatsEagerCacheServer {
                                     new IllegalArgumentException("Unknown broadcast command, shouldn't happen."));
                         }
                     });
+            // Allow log suppression
+            _broadcastTerminator.getEndpointConfig().setAttribute(
+                    SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY, Boolean.TRUE);
+
         }
 
         /**
@@ -1618,7 +1633,7 @@ public interface MatsEagerCacheServer {
             private final MatsFactory _matsFactory;
             private final CacheMonitor _cacheMonitor;
             private final boolean _server;
-            private final String _what;
+            private final String _serverOrClassName;
             private final String _command;
             private final String _dataName;
             private final String _appName;
@@ -1639,7 +1654,7 @@ public interface MatsEagerCacheServer {
                 _matsFactory = matsFactory;
                 _cacheMonitor = cacheMonitor;
                 _server = server;
-                _what = server ? MatsEagerCacheServer.class.getSimpleName()
+                _serverOrClassName = server ? MatsEagerCacheServer.class.getSimpleName()
                         : MatsEagerCacheClient.class.getSimpleName();
                 _command = command;
                 _dataName = dataName;
@@ -1718,7 +1733,7 @@ public interface MatsEagerCacheServer {
                             }
                         }
                     }
-                }, _what + "." + dataName + ".AdvertiseAppAndNodeName");
+                }, _serverOrClassName + "." + dataName + ".AdvertiseAppAndNodeName");
                 _thread.setDaemon(true);
                 _thread.start();
             }
@@ -1739,30 +1754,33 @@ public interface MatsEagerCacheServer {
                     // -> No, not client - so then it is a server app and nodename, for any type of message.
                     // ?: Should we clear the maps? (Happens when servers start)
                     if (broadcastDto.clearAppsNodes) {
-                        // -> Yes, clear the maps.
+                        // -> Yes, clear the maps (all nodes will do this)
                         _serversAppNamesToNodenames.clear();
                         _clientsAppNamesToNodenames.clear();
                         // Now ensure that we will advertise soon (a bit of coalescing logic here!)
-                        _advertiseCounter.set(10);
-                        // But also immediately advertise if we're a server - this is to try to catch multiple caches
-                        // with the same dataname as soon as possible.
+                        _advertiseCounter.set(8 + ThreadLocalRandom.current().nextInt(4));
+                        // But if we're server, also immediately advertise - this is to try to catch multiple caches
+                        // (servers, on different apps) with the same dataname as soon as possible. The idea is that
+                        // all of them will honor this contract, and immediately send their advertisement, and then
+                        // we all will see each other ASAP, and the healthcheck can screech.
                         if (_server) {
                             doAdvertise(false, "Server advertisement after clearAppsNodes=true from"
                                     + " sibling '" + broadcastDto.sentAppName + "' @ '" + broadcastDto.sentNodename
                                     + "'.");
-                            // Hack to ensure that we won't be caught in the problem where there is no guarantee of
+                            // Hack to ensure that we won't be caught with the problem where there is no guarantee of
                             // ordering between messages sent from different producers, and thus one server might get
-                            // the clearAppsNodes=true message after the advertisement.
+                            // the clearAppsNodes=true message, that I react to here, after my advertisement!
                             Thread extraAdvertise = new Thread(() -> {
                                 try {
                                     Thread.sleep(25);
                                     doAdvertise(false, "");
                                     Thread.sleep(200);
                                     doAdvertise(false, "");
-                                } catch (Throwable e) {
+                                }
+                                catch (Throwable e) {
                                     /* no-op */
                                 }
-                            }, _what + "." + _dataName + ".BroadcastAppAndNodeName-ExtraAdvertise");
+                            }, _serverOrClassName + "." + _dataName + ".BroadcastAppAndNodeName-ExtraAdvertise");
                             extraAdvertise.setDaemon(true);
                             extraAdvertise.start();
                         }
@@ -1773,17 +1791,18 @@ public interface MatsEagerCacheServer {
                 }
             }
 
-            private void doAdvertise(boolean clearAppsNodes, String what) {
-                if (!"".equals(what)) {
-                    _cacheMonitor.log(DEBUG, MonitorCategory.ADVERTISE_APP_AND_NODE, "Advertise: " + what
-                            + " - I am: '" + _appName + "' @ '" + _nodename + "'.");
+            private void doAdvertise(boolean clearAppsNodes, String logText) {
+                if (!"".equals(logText)) {
+                    _cacheMonitor.log(DEBUG, MonitorCategory.ADVERTISE_APP_AND_NODE, "Advertise: " + logText
+                            + "  I am: '" + _dataName + "' @ '" + _appName + "' @ '" + _nodename + "'.");
                 }
                 _matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.traceId(
-                        TraceId.create(_what + "." + _dataName, "AdvertiseAppAndNode")
+                        TraceId.create(_serverOrClassName + "." + _dataName, "AdvertiseAppAndNode")
                                 .add("app", _appName)
                                 .add("node", _nodename))
-                        .from(_what + "." + _dataName + ".AdvertiseAppAndNode")
+                        .from(_serverOrClassName + "." + _dataName + ".AdvertiseAppAndNode")
                         .to(_getBroadcastTopic(_dataName))
+                        .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
                         .publish(new AdvertiseBroadcastDto(_command, _appName, _nodename, clearAppsNodes)));
             }
 
@@ -1891,8 +1910,9 @@ public interface MatsEagerCacheServer {
                             .add("initiateSide", initiateSide)
                             .add("initiateNode", initatedNode)
                             .add("reason", reason))
-                    .from("MatsEagerCache." + _dataName + ".InitiateFullUpdate")
+                    .from("MatsEagerCacheServer." + _dataName + ".InitiateFullUpdate")
                     .to(_getBroadcastTopic(_dataName))
+                    .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
                     .publish(broadcast));
         }
 
@@ -1983,9 +2003,10 @@ public interface MatsEagerCacheServer {
                     // Note: This is quite directly a message to this very same handling method!
                     BroadcastDto broadcast = _createBroadcastDto(BroadcastDto.COMMAND_REQUEST_ENSURER_TRIGGERED);
                     _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
-                        init.traceId(TraceId.create("MatsEagerCache." + _dataName, "FullUpdateEnsurer"))
-                                .from("MatsEagerCache." + _dataName + ".FullUpdateEnsurer")
+                        init.traceId(TraceId.create("MatsEagerCacheServer." + _dataName, "FullUpdateEnsurer"))
+                                .from("MatsEagerCacheServer." + _dataName + ".FullUpdateEnsurer")
                                 .to(_getBroadcastTopic(_dataName))
+                                .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
                                 .publish(broadcast);
                     });
                 }
@@ -2093,9 +2114,10 @@ public interface MatsEagerCacheServer {
                         outBroadcast.reqNanoTime = inBroadcast.reqNanoTime;
 
                         _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
-                            init.traceId(TraceId.create("MatsEagerCache." + _dataName, "UpdateRequestsCoalesced"))
-                                    .from("MatsEagerCache." + _dataName + ".UpdateRequestsCoalesced")
+                            init.traceId(TraceId.create("MatsEagerCacheServer." + _dataName, "UpdateRequestsCoalesced"))
+                                    .from("MatsEagerCacheServer." + _dataName + ".UpdateRequestsCoalesced")
                                     .to(_getBroadcastTopic(_dataName))
+                                    .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
                                     .publish(outBroadcast);
                         });
                     }
@@ -2229,15 +2251,16 @@ public interface MatsEagerCacheServer {
                 }
 
                 // :: Send the broadcast message, with the data sideloaded.
+                TraceId traceId = TraceId.create("MatsEagerCacheServer." + _dataName, "Update")
+                        .add("type", type)
+                        .add("count", result.dataCountFromSourceProvider);
+                if (result.metadata != null) {
+                    traceId.add("meta", result.metadata);
+                }
+                // NOTE: WE DO *NOT* LOG-SUPPRESS THE ACTUAL UPDATE MESSAGE!
                 _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
-                    TraceId traceId = TraceId.create("MatsEagerCache." + _dataName, "Update")
-                            .add("type", type)
-                            .add("count", result.dataCountFromSourceProvider);
-                    if (result.metadata != null) {
-                        traceId.add("meta", result.metadata);
-                    }
                     init.traceId(traceId)
-                            .from("MatsEagerCache." + _dataName + ".Update")
+                            .from("MatsEagerCacheServer." + _dataName + ".Update")
                             .to(_getBroadcastTopic(_dataName))
                             .addBytes(SIDELOAD_KEY_DATA_PAYLOAD, result.byteArray)
                             .publish(broadcast);

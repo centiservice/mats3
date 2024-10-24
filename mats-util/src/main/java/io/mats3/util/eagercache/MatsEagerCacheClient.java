@@ -969,6 +969,9 @@ public interface MatsEagerCacheClient<DATA> {
             _broadcastTerminator = _matsFactory.subscriptionTerminator(
                     MatsEagerCacheServerImpl._getBroadcastTopic(_dataName),
                     void.class, BroadcastDto.class, this::_processLambdaForSubscriptionTerminator);
+            // Allow log suppression
+            _broadcastTerminator.getEndpointConfig().setAttribute(
+                    MatsEagerCacheServerImpl.SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY, Boolean.TRUE);
 
             // :: Perform the initial cache update request in a separate thread, so that we can wait for the endpoint to
             // be ready, and then send the request. We return immediately.
@@ -977,21 +980,26 @@ public interface MatsEagerCacheClient<DATA> {
                 // 10 minutes should really be enough for the service to finish boot and start the MatsFactory, right?
                 boolean started = _broadcastTerminator.waitForReceiving(600_000);
 
-                // ?: Did it start?
-                if (!started) {
-                    // -> No, so that's bad.
-                    var msg = "The Update handling SubscriptionTerminator Endpoint would not start within 10 minutes.";
-                    var up = new IllegalStateException(msg);
-                    _cacheMonitor.exception(MonitorCategory.INITIAL_POPULATION, msg, up);
-                    throw up;
-                }
-                _initialPopulationRequestSentTimestamp = System.currentTimeMillis();
-                _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_BOOT);
+                try {
+                    _initialPopulationRequestSentTimestamp = System.currentTimeMillis();
+                    _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_BOOT);
 
-                // Start the AppName and Nodename advertiser.
-                _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, false,
-                        BroadcastDto.COMMAND_CLIENT_ADVERTISE, _dataName,
-                        _matsFactory.getFactoryConfig().getAppName(), _matsFactory.getFactoryConfig().getNodename());
+                    // Start the AppName and Nodename advertiser.
+                    _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, false,
+                            BroadcastDto.COMMAND_CLIENT_ADVERTISE, _dataName,
+                            _matsFactory.getFactoryConfig().getAppName(), _matsFactory.getFactoryConfig()
+                                    .getNodename());
+
+                }
+                finally {
+                    // ?: Did it start?
+                    if (!started) {
+                        // -> No, so that's bad.
+                        var msg = "The Update handling SubscriptionTerminator Endpoint would not start within 10 minutes.";
+                        _cacheMonitor.exception(MonitorCategory.INITIAL_POPULATION, msg, new IllegalStateException(
+                                msg));
+                    }
+                }
             });
             thread.setName("MatsEagerCacheClient-" + _dataName + "-initialCacheUpdateRequest");
             // If the JVM is shut down due to bad boot, this thread should not prevent it from exiting.
@@ -1225,6 +1233,7 @@ public interface MatsEagerCacheClient<DATA> {
 
             // :: Send it off
             try {
+                // NOTE: WE DO *NOT* LOG-SUPPRESS THE REQUEST FROM CLIENT MESSAGES!
                 _matsFactory.getDefaultInitiator().initiate(init -> init.traceId(
                         TraceId.create(_matsFactory.getFactoryConfig().getAppName(),
                                 "MatsEagerCacheClient-" + _dataName, reason))
