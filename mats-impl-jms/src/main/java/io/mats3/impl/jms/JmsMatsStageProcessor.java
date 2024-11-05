@@ -1479,7 +1479,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
             try {
                 // ?: Choose between NEXT_DIRECT stage completed, and ordinary (final) stage completed.
                 if (stageProcessResult == StageProcessResult.NEXT_DIRECT) {
-                    interceptorsForStage.get(i).stageCompletedNextDirect(stageCompletedContext);
+                    interceptorsForStage.get(i).stageCompletedDirect(stageCompletedContext);
                 }
                 else {
                     interceptorsForStage.get(i).stageCompleted(stageCompletedContext);

@@ -86,7 +86,7 @@ public interface MatsStageInterceptor extends MatsPlugin {
      * Invoked <i>after</i> the stage is fully completed, outgoing messages sent, db and messaging system committed. You
      * cannot anymore modify any outgoing messages etc - for this, implement {@link MatsStageInterceptOutgoingMessages}.
      *
-     * @see #stageCompletedNextDirect(StageCompletedContext)
+     * @see #stageCompletedDirect(StageCompletedContext)
      */
     default void stageCompleted(StageCompletedContext context) {
         /* no-op */
@@ -99,7 +99,7 @@ public interface MatsStageInterceptor extends MatsPlugin {
      * within the same transactional demarcation as the stage which invoked nextDirect. Therefore, no outgoing messages
      * has yet been sent, and db and message system are not yet committed.
      */
-    default void stageCompletedNextDirect(StageCompletedContext context) {
+    default void stageCompletedDirect(StageCompletedContext context) {
         stageCompleted(context);
     }
 
