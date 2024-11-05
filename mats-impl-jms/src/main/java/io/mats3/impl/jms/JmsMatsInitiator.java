@@ -140,6 +140,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
             MDC.put(MDC_MATS_TOTAL_CALL_NUMBER, String.valueOf(init.getInitialTotalCallNumber()));
 
+            boolean initWentOk = false; // Used to determine whether to run DoAfterCommit or not.
             try {
                 // ===== Going into Transactional Demarcation
                 _transactionContext.doTransaction(internalExecutionContext, () -> {
@@ -232,18 +233,12 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
                 // ----- Transaction is now committed (if exceptions were raised, we've been thrown out earlier)
 
-                // :: Handle the context.doAfterCommit(Runnable) lambda.
-                try {
-                    doAfterCommitRunnableHolder.runDoAfterCommitIfAny();
-                }
-                catch (RuntimeException re) {
-                    log.error(LOG_PREFIX + "Got RuntimeException when running the doAfterCommit Runnable."
-                            + " Ignoring.", re);
-                }
+                // NOTE: DoAfterCommit is performed in the finally (releases JMS Session and unbinds resources).
+                initWentOk = true;
+
             }
             catch (JmsMatsUndeclaredCheckedExceptionRaisedRuntimeException e) {
-                // Just record this for interceptor (but the original undeclared Exception, which is the
-                // cause)..
+                // Just record this for interceptor (but the original undeclared Exception, which is the cause)..
                 throwableResult = e.getCause();
                 throwableInitiateProcessResult = InitiateProcessResult.USER_EXCEPTION;
                 // .. and throw on out
@@ -387,6 +382,25 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                         log.error("InitiateInterceptor [" + interceptorsForInitiation.get(i) + "] raised a ["
                                 + t.getClass().getSimpleName() + "] when invoking initiateCompleted(..)"
                                 + " - ignoring, but this is probably quite bad.", t);
+                    }
+                }
+
+                // :: Handle the context.doAfterCommit(Runnable) lambda. (Only relevant for unstash!)
+                // ?: Did the initiation go well?
+                if (initWentOk) {
+                    // -> Yes, it went well, so we should run the doAfterCommit Runnable.
+                    // (Now we're "fully outside" the Mats3 transactional and contextual handling.)
+                    try {
+                        doAfterCommitRunnableHolder.runDoAfterCommitIfAny();
+                    }
+                    catch (RuntimeException re) {
+                        // We could have thrown out here, to let the user know that the Runnable failed, but since
+                        // everything else went well - transaction is committed and message is sent - that would be hard
+                        // for the user to distinguish from the normal errors (he might start doing compensating
+                        // operations for the processing). Thus, we just log and ignore it - the user will have to dig
+                        // in the logs.
+                        log.error(LOG_PREFIX + "Got RuntimeException when running the doAfterCommit Runnable."
+                                + " Ignoring.", re);
                     }
                 }
             }

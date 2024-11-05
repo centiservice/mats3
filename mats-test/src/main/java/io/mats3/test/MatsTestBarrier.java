@@ -95,7 +95,8 @@ public class MatsTestBarrier {
                 throw new AssertionError("Barrier was not resolved within timeout [" + timeoutMillis + " ms].");
             }
             if (_exception != null) {
-                throw new AssertionError("Barrier was unexpectedly resolved with exception.", _exception);
+                throw new AssertionError("Barrier was unexpectedly resolved with exception: "
+                        + _exception.getMessage(), _exception);
             }
             @SuppressWarnings("unchecked")
             T ret = (T) _result;

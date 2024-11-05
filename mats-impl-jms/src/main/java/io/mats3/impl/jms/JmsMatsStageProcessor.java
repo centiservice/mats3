@@ -427,6 +427,7 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                     @SuppressWarnings({ "unchecked", "rawtypes" })
                     JmsMatsProcessContext<R, S, Z>[] processContext = new JmsMatsProcessContext[1];
 
+                    boolean stageWentOk = false;
                     try { // try-catch-finally: Catch processing Exceptions, handle cleanup in finally
 
                         // :: Going into Mats Transaction
@@ -667,16 +668,8 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
                         // ----- Transaction is now committed (if exceptions were raised, we've been thrown out earlier)
 
-                        // :: Handle the DoAfterCommit lambda.
-                        try {
-                            doAfterCommitRunnableHolder.runDoAfterCommitIfAny();
-                        }
-                        catch (RuntimeException | AssertionError e) {
-                            // Message processing is per definition finished here, so no way to DLQ or otherwise
-                            // notify world except logging an error.
-                            log.error(LOG_PREFIX + "Got [" + e.getClass().getSimpleName()
-                                    + "] when running the doAfterCommit Runnable. Ignoring.", e);
-                        }
+                        // NOTE: DoAfterCommit is performed in the finally (releases JMS Session and unbinds resources).
+                        stageWentOk = true;
                     }
 
                     // ===== CATCH: HANDLE THE DIFFERENT ERROR SITUATIONS =====
@@ -799,6 +792,21 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
                                     nanosTaken_totalEnvelopeSerAndComp[0], nanosTaken_totalMsgSysProdAndSend[0],
                                     throwableResult, throwableStageProcessResult, processContext[0],
                                     nanosTaken_TotalStartReceiveToFinished);
+                        }
+
+                        // ?: Did the stage go well?
+                        if (stageWentOk) {
+                            // -> Yes, it went well, so we should run the doAfterCommit Runnable.
+                            // (Now we're "fully outside" the Mats3 transactional and contextual handling.)
+                            try {
+                                doAfterCommitRunnableHolder.runDoAfterCommitIfAny();
+                            }
+                            catch (RuntimeException | AssertionError e) {
+                                // Message processing is per definition finished here, so no way to DLQ or otherwise
+                                // notify world except logging an error.
+                                log.error(LOG_PREFIX + "Got [" + e.getClass().getSimpleName()
+                                        + "] when running the doAfterCommit Runnable. Ignoring.", e);
+                            }
                         }
                     }
 
