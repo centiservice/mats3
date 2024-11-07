@@ -52,7 +52,7 @@ public class DeflaterOutputStreamWithStats extends DeflaterOutputStream {
      *            the destination for the compressed data.
      */
     public DeflaterOutputStreamWithStats(OutputStream out) {
-        super(out, new Deflater(DEFAULT_COMPRESSION_LEVEL), 512);
+        this(out, 512);
     }
 
     /**
@@ -153,18 +153,36 @@ public class DeflaterOutputStreamWithStats extends DeflaterOutputStream {
     private boolean _closed;
 
     @Override
+    public void finish() throws IOException {
+        // Must override to do the def.end() call as super.finish() does not do this when supplying a Deflater.
+        try {
+            super.finish();
+        }
+        catch (IOException e) {
+            def.end();
+        }
+    }
+
+    @Override
     public void close() throws IOException {
         // ?: Have we already closed?
         if (!_closed) {
             // -> No, we haven't closed yet, so close now.
             _closed = true;
 
-            // Finish the compression
-            finish();
+            // Must do the def.end() call as super.finish() does not do this when supplying a Deflater.
+            try {
+                // Finish the compression
+                finish();
 
-            // Read and store the final stats
-            _uncompressedBytesInput = def.getBytesRead();
-            _compressedBytesOutput = def.getBytesWritten();
+                // Read and store the final stats
+                _uncompressedBytesInput = def.getBytesRead();
+                _compressedBytesOutput = def.getBytesWritten();
+            }
+            finally {
+                // Must call def.end() to release off-heap resources.
+                def.end();
+            }
 
             // Invoke super. This also closes the underlying stream.
             super.close();
