@@ -40,12 +40,23 @@ public class ByteArrayDeflaterOutputStreamWithStats extends DeflaterOutputStream
 
     private long _growTimeNanos;
 
+    // dummy output stream, since super's constructor null-checks the output stream argument.
+    private static final OutputStream __dummyOutputStream = new OutputStream() {
+        @Override
+        public void write(int b) {
+            throw new AssertionError("This output stream should never be written to - it is just a dummy."
+                    + " We are writing to a byte array. You're witnessing a bug in this class.");
+        }
+    };
+
     public ByteArrayDeflaterOutputStreamWithStats() {
         this(new byte[1024], 0);
     }
 
     public ByteArrayDeflaterOutputStreamWithStats(byte[] outputArray, int offset) {
-        super(dummyOutputStream, 1);
+        // We're not using the super's output stream, so we just pass a dummy output stream.
+        // We're also not using the super's buffer, so we just pass 1 (it will allocate it, but we won't use it).
+        super(__dummyOutputStream, 1);
         if (outputArray == null) {
             throw new IllegalArgumentException("outputArray must not be null.");
         }
@@ -59,14 +70,11 @@ public class ByteArrayDeflaterOutputStreamWithStats extends DeflaterOutputStream
         _currentPosition = offset;
     }
 
-    private byte[] _tempBuffer;
-
-    // dummy output stream, since super's constructor null-checks the output stream argument.
-    private static final OutputStream dummyOutputStream = new OutputStream() {
-        @Override
-        public void write(int b) {
-        }
-    };
+    // ================================================================================================================
+    // All write methods just call through to super, but rethrowing exceptions as RuntimeExceptions, as they should
+    // never happen in this class, since we're writing to a byte array.
+    // Note that the actual writing is "caught" in deflate() - the dummy output stream is never written to.
+    // ================================================================================================================
 
     @Override
     public void write(int b) {
@@ -203,34 +211,8 @@ public class ByteArrayDeflaterOutputStreamWithStats extends DeflaterOutputStream
     private final static int OBJECT_HEADER_SIZE = 24; // Approximate size of array object header
     private final static int MAX_ARRAY_SIZE = Integer.MAX_VALUE - OBJECT_HEADER_SIZE;
 
+    private byte[] _tempBuffer;
     private int _increment = FIRST_INCREMENT;
-
-    private void growOutputArray() {
-        // :: Calculate the target length
-        long targetLength = _outputArray.length + _increment;
-
-        // Calculate the new increment size
-        _increment = Math.min(MAX_INCREMENT, _increment * 2);
-
-        // ?: Is the target length larger than the maximum array size?
-        if (targetLength > MAX_ARRAY_SIZE) {
-            // -> Yes, the target length is larger than the maximum array size.
-            // ?: Is the current array size already at the maximum size?
-            if (_outputArray.length >= MAX_ARRAY_SIZE) {
-                // -> Yes, the current array size is already at the maximum size, so we can't grow the array more.
-                throw new OutOfMemoryError("When resizing array, we hit MAX_ARRAY_SIZE=" + MAX_ARRAY_SIZE + ".");
-            }
-            else {
-                // -> No, the current array size is not at the maximum size, so set the target length to max.
-                targetLength = MAX_ARRAY_SIZE;
-            }
-        }
-
-        // :: Allocate a new array of the target length, and copy the data over.
-        byte[] newOutputArray = new byte[(int) targetLength];
-        System.arraycopy(_outputArray, 0, newOutputArray, 0, _outputArray.length);
-        _outputArray = newOutputArray;
-    }
 
     @Override
     protected void deflate() {
@@ -277,5 +259,32 @@ public class ByteArrayDeflaterOutputStreamWithStats extends DeflaterOutputStream
         long nanos_Total = System.nanoTime() - nanos_Start;
         _deflateTimeNanos += nanos_Total;
         _deflateAndWriteTimeNanos += nanos_Total;
+    }
+
+    private void growOutputArray() {
+        // :: Calculate the target length
+        long targetLength = _outputArray.length + _increment;
+
+        // Calculate the new increment size
+        _increment = Math.min(MAX_INCREMENT, _increment * 2);
+
+        // ?: Is the target length larger than the maximum array size?
+        if (targetLength > MAX_ARRAY_SIZE) {
+            // -> Yes, the target length is larger than the maximum array size.
+            // ?: Is the current array size already at the maximum size?
+            if (_outputArray.length >= MAX_ARRAY_SIZE) {
+                // -> Yes, the current array size is already at the maximum size, so we can't grow the array more.
+                throw new OutOfMemoryError("When resizing array, we hit MAX_ARRAY_SIZE=" + MAX_ARRAY_SIZE + ".");
+            }
+            else {
+                // -> No, the current array size is not at the maximum size, so set the target length to max.
+                targetLength = MAX_ARRAY_SIZE;
+            }
+        }
+
+        // :: Allocate a new array of the target length, and copy the data over.
+        byte[] newOutputArray = new byte[(int) targetLength];
+        System.arraycopy(_outputArray, 0, newOutputArray, 0, _outputArray.length);
+        _outputArray = newOutputArray;
     }
 }
