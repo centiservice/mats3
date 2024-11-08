@@ -144,9 +144,14 @@ public class MatsSerializerJson implements MatsSerializer<String> {
             // Set the compression level on the underlying Deflater.
             out.setCompressionLevel(_compressionLevel);
             // Write the MatsTrace to the compressed stream.
-            // NOTE: Upon having fully written the MatsTrace, it will close the underlying DeflaterOutputStream,
-            // which will close the underlying ByteArrayOutputStream.
-            _matsTraceJson_Writer.writeValue(out, matsTrace);
+            try {
+                _matsTraceJson_Writer.writeValue(out, matsTrace);
+            }
+            finally {
+                // .. even though .writeValue() should close the stream, we do it here as well in case of exceptions.
+                // Rationale: We must ensure that the contained Deflater is .end()'ed, as it uses off-heap memory.
+                out.close();
+            }
             // Get the time taken for compression.
             long nanosTaken_Compression = out.getDeflateAndWriteTimeNanos();
             // Calculate the time taken for serialization, by subtracting the compression time from the total.
