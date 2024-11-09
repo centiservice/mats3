@@ -37,6 +37,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * property "mats.jackson.useBlackbird", setting it to "true" or "false" before this class is loaded - if true, and the
  * module is not on the classpath, it will throw an exception. Add it to your project with:<br>
  * <code>implementation "com.fasterxml.jackson.module:jackson-module-blackbird:${jacksonVersion}"</code>
+ * <p>
+ * Thread-safety: The returned ObjectMappers are thread-safe, meant for sharing.
  */
 public class FieldBasedJacksonMapper {
     private static final Logger log = LoggerFactory.getLogger(FieldBasedJacksonMapper.class);
@@ -56,6 +58,7 @@ public class FieldBasedJacksonMapper {
         }
         __blackbirdModuleClass = blackbirdModuleClass;
 
+        // Logic: Defaults to true if Blackbird is on the classpath - but can be overridden by system property.
         __useBlackbird = System.getProperty("mats.jackson.useBlackbird",
                 blackbirdModuleClass != null ? "true" : "false").equalsIgnoreCase("true");
     }
@@ -67,8 +70,10 @@ public class FieldBasedJacksonMapper {
     }
 
     /**
-     * Returns the singleton ObjectMapper used by all Mats3 components. It is thread-safe, meant for sharing. You must
-     * not further configure this ObjectMapper instance, as it is shared by all Mats3 components.
+     * Returns the singleton ObjectMapper used by all Mats3 components - <b>You must not further configure this
+     * ObjectMapper instance, as it is shared by all Mats3 components.</b>
+     * <p>
+     * Thread-safety: It is thread-safe, meant for sharing.
      *
      * @return the default ObjectMapper used by Mats3 components - <b>do not mess with this!</b>
      */
@@ -78,9 +83,11 @@ public class FieldBasedJacksonMapper {
 
     /**
      * Creates a new Jackson ObjectMapper configured exactly the same as the default ObjectMapper used by Mats3
-     * components. It is thread-safe, meant for sharing. Note that it is imperative that you do not create a new
-     * ObjectMapper for each JSON serialization or deserialization, as this is an expensive operation, but worse, it
-     * will - according to documentation for the Blackbird module - lead to a memory leak.
+     * components - <b>Note that it is imperative that you do not create a new ObjectMapper for each JSON serialization
+     * or deserialization</b>, as this is an expensive operation, but worse, it will - according to documentation for
+     * the Blackbird module - lead to a memory leak.
+     * <p>
+     * Thread-safety: It is thread-safe, meant for sharing.
      *
      * @return a new Jackson ObjectMapper configured as if for Mats3.
      */
