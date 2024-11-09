@@ -66,7 +66,9 @@ public class MatsEagerCacheStorebrandHealthCheck {
         meta.description("MatsEagerCacheServer: " + id);
         meta.sync(true);
         healthCheckRegistry.registerHealthCheck(meta.build(), checkSpec -> {
-            // Check whether running
+            boolean[] serverInstancesHasBeenOk = new boolean[1];
+
+            // :: Check whether running
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY),
                     checkContext -> {
@@ -81,6 +83,51 @@ public class MatsEagerCacheStorebrandHealthCheck {
                             ret = checkContext.fault("Server is NOT running - it is '"
                                     + info.getCacheServerLifeCycle() + "'");
                         }
+                        return ret;
+                    });
+
+            // :: Check that there is only one application serving this Cache, and that it is us.
+            checkSpec.check(responsibleF,
+                    Axis.of(Axis.NOT_READY, Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
+                    checkContext -> {
+                        CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
+                        Map<String, Set<String>> map = info.getServerAppNamesToNodenames();
+                        CheckResult ret;
+                        if (map.isEmpty()) {
+                            ret = checkContext.fault("Not yet seeing any applications serving the Cache '"
+                                    + info.getDataName() + "!")
+                                    .turnOffAxes(Axis.EXTERNAL, Axis.DEGRADED_PARTIAL,
+                                            Axis.MANUAL_INTERVENTION_REQUIRED);
+                        }
+                        else if (map.size() == 1) {
+                            String who = map.keySet().iterator().next();
+                            if (info.getAppName().equals(who)) {
+                                ret = checkContext.ok("We are the single application serving Cache '"
+                                        + info.getDataName());
+                                serverInstancesHasBeenOk[0] = true;
+                            }
+                            else {
+                                ret = checkContext.fault("There is a single application serving Cache '"
+                                        + info.getDataName() + "', but it is not us!");
+                                ret.text(" -> This is REALLY BAD! The app is '" + who + "'.");
+                                ret.text(" -> This means that there is a name-clash between multiple cache servers")
+                                        .text("    using the same DataName, living on different applications.");
+                                if (serverInstancesHasBeenOk[0]) {
+                                    ret.turnOffAxes(Axis.NOT_READY);
+                                }
+                            }
+                        }
+                        else {
+                            ret = checkContext.fault("There are " + map.size() + " applications serving Cache '"
+                                    + info.getDataName() + "'!");
+                            ret.text(" -> This is REALLY BAD! The apps are " + map.keySet() + ".");
+                            ret.text(" -> This means that there is a name-clash between multiple cache servers")
+                                    .text("    using the same DataName, living on different applications.");
+                            if (serverInstancesHasBeenOk[0]) {
+                                ret.turnOffAxes(Axis.NOT_READY);
+                            }
+                        }
+
                         return ret;
                     });
 
@@ -103,63 +150,30 @@ public class MatsEagerCacheStorebrandHealthCheck {
                             ret = checkContext.fault("There are unacknowledged Exceptions present: "
                                     + unacknowledged + " of " + exceptionEntries.size());
                             checkContext.text(" -> Go to the Cache Server's GUI page to resolve and acknowledge them!");
+
+                            // Add up to 3 of the exceptions to the context
+                            exceptionEntries.stream()
+                                    .filter(e -> !e.isAcknowledged())
+                                    .limit(3)
+                                    .forEach(e -> checkContext.exception(e.getCategory() + ": " + e.getMessage(),
+                                            e.getThrowable()));
                         }
 
-                        return ret;
-                    });
+                        // :: Add a info line about the last update, if the server is running, and count > 0.
+                        if (info.getCacheServerLifeCycle() == CacheServerLifeCycle.RUNNING) {
+                            if (info.getLastUpdateDataCount() == 0) {
+                                checkContext.text("# Data: We've not yet sent any data.");
 
-            boolean[] haveBeenOk = new boolean[1];
-
-            // :: Check that there are no unacknowledged Exceptions
-            checkSpec.check(responsibleF,
-                    Axis.of(Axis.NOT_READY, Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
-                    checkContext -> {
-                        CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
-                        Map<String, Set<String>> map = info.getServerAppNamesToNodenames();
-                        CheckResult ret;
-                        if (map.isEmpty()) {
-                            ret = checkContext.fault("Not yet seeing any applications serving the Cache '"
-                                    + info.getDataName() + "!")
-                                    .turnOffAxes(Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED);
-                        }
-                        else if (map.size() == 1) {
-                            String who = map.keySet().iterator().next();
-                            if (info.getAppName().equals(who)) {
-                                ret = checkContext.ok("We are the single application serving Cache '"
-                                        + info.getDataName() + "'!");
-                                haveBeenOk[0] = true;
                             }
                             else {
-                                ret = checkContext.fault("There is a single application serving Cache '"
-                                        + info.getDataName() + "', but it is not us!");
-                                ret.text(" -> This is REALLY BAD! The app is '" + who + "'.");
-                                ret.text(" -> This means that there is a name-clash between multiple cache servers using");
-                                ret.text("    the same DataName, living on different applications.");
-                                if (haveBeenOk[0]) {
-                                    ret.turnOffAxes(Axis.NOT_READY);
-                                }
+                                checkContext.text("# Data: Count: " + info.getLastUpdateDataCount()
+                                        + ", Uncompressed: " + _formatBytes(info.getLastUpdateUncompressedSize())
+                                        + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize()));
                             }
-                        }
-                        else {
-                            ret = checkContext.fault("There are " + map.size() + " applications serving Cache '"
-                                    + info.getDataName() + "'!");
-                            ret.text(" -> This is REALLY BAD! The apps are " + map.keySet() + ".");
-                            ret.text(" -> This means that there is a name-clash between multiple cache servers using");
-                            ret.text("    the same DataName, living on different applications.");
-                            if (haveBeenOk[0]) {
-                                ret.turnOffAxes(Axis.NOT_READY);
-                            }
-                        }
-
-                        if (info.getCacheServerLifeCycle() == CacheServerLifeCycle.RUNNING) {
-                            checkContext.text("- Count: " + info.getLastUpdateDataCount()
-                                    + ", Uncompressed: " + _formatBytes(info.getLastUpdateUncompressedSize())
-                                    + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize()));
                         }
 
                         return ret;
                     });
-
         });
     }
 
@@ -246,9 +260,19 @@ public class MatsEagerCacheStorebrandHealthCheck {
                             ret = checkContext.fault("There are unacknowledged Exceptions present: "
                                     + unacknowledged + " of " + exceptionEntries.size());
                             checkContext.text(" -> Go to the Cache Client's GUI page to resolve and acknowledge them!");
+
+                            // Add up to 3 of the exceptions to the context
+                            exceptionEntries.stream()
+                                    .filter(e -> !e.isAcknowledged())
+                                    .limit(3)
+                                    .forEach(e -> checkContext.exception(e.getCategory() + ": " + e.getMessage(),
+                                            e.getThrowable()));
                         }
+
+                        // :: Add a info line about the last update, if the client is running
+
                         if (info.isInitialPopulationDone()) {
-                            checkContext.text("- Count: " + info.getLastUpdateDataCount()
+                            checkContext.text("# Data: Count: " + info.getLastUpdateDataCount()
                                     + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize())
                                     + ", Decompressed: " + _formatBytes(info.getLastUpdateDecompressedSize()));
                         }
