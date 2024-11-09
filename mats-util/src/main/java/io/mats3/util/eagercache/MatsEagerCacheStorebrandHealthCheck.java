@@ -70,7 +70,7 @@ public class MatsEagerCacheStorebrandHealthCheck {
         healthCheckRegistry.registerHealthCheck(meta.build(), checkSpec -> {
             boolean[] serverInstancesHasBeenOk = new boolean[1];
 
-            // :: Check whether running
+            // :: Check: RUNNING
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY),
                     checkContext -> {
@@ -88,7 +88,7 @@ public class MatsEagerCacheStorebrandHealthCheck {
                         return ret;
                     });
 
-            // :: Check that there is only one application serving this Cache, and that it is us.
+            // :: Check: Only one application serving this Cache, and that it is us.
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY, Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
@@ -96,7 +96,7 @@ public class MatsEagerCacheStorebrandHealthCheck {
                         Map<String, Set<String>> map = info.getServerAppNamesToNodenames();
                         CheckResult ret;
                         if (map.isEmpty()) {
-                            ret = checkContext.fault("Not yet seeing any applications serving the Cache '"
+                            ret = checkContext.fault("Not yet seeing any applications serving the DataName '"
                                     + info.getDataName() + "!")
                                     .turnOffAxes(Axis.EXTERNAL, Axis.DEGRADED_PARTIAL,
                                             Axis.MANUAL_INTERVENTION_REQUIRED);
@@ -104,12 +104,12 @@ public class MatsEagerCacheStorebrandHealthCheck {
                         else if (map.size() == 1) {
                             String who = map.keySet().iterator().next();
                             if (info.getAppName().equals(who)) {
-                                ret = checkContext.ok("We're the single application serving Cache '"
+                                ret = checkContext.ok("We're the single application serving DataName '"
                                         + info.getDataName() + "'");
                                 serverInstancesHasBeenOk[0] = true;
                             }
                             else {
-                                ret = checkContext.fault("There is a single application serving Cache '"
+                                ret = checkContext.fault("There is a single application serving DataName '"
                                         + info.getDataName() + "', but it is not us!");
                                 ret.text(" -> This is REALLY BAD! The app is '" + who + "'.");
                                 ret.text(" -> This means that there is a name-clash between multiple cache servers")
@@ -120,8 +120,8 @@ public class MatsEagerCacheStorebrandHealthCheck {
                             }
                         }
                         else {
-                            ret = checkContext.fault("There are " + map.size() + " applications serving Cache '"
-                                    + info.getDataName() + "'!");
+                            ret = checkContext.fault("There are " + map.size() + " applications serving"
+                                    + " DataName '" + info.getDataName() + "'!");
                             ret.text(" -> This is REALLY BAD! The apps are " + map.keySet() + ".");
                             ret.text(" -> This means that there is a name-clash between multiple cache servers")
                                     .text("    using the same DataName, living on different applications.");
@@ -133,7 +133,47 @@ public class MatsEagerCacheStorebrandHealthCheck {
                         return ret;
                     });
 
-            // :: Check that there are no unacknowledged Exceptions
+            // :: Check: Clients present
+            checkSpec.check(responsibleF,
+                    Axis.MANUAL_INTERVENTION_REQUIRED,
+                    checkContext -> {
+                        CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
+                        Map<String, Set<String>> clientAppNamesToNodenames = info.getClientAppNamesToNodenames();
+                        // ?: Are there any clients?
+                        if (clientAppNamesToNodenames.isEmpty()) {
+                            long timeStarted = info.getCacheStartedTimestamp();
+                            long timeRunning = System.currentTimeMillis() - timeStarted;
+                            int allowedHours = 8;
+                            // Longer than allowed hours since?
+                            boolean longTime = timeRunning > allowedHours * 60 * 60_000;
+                            if (longTime) {
+                                var ret = checkContext.fault("No clients are listening to the Cache Server!");
+                                ret.text(" -> It is more than " + allowedHours
+                                        + " hours since the Cache Server started.");
+                                ret.text(" -> This is most probably not intentional, indicating dead functionality.");
+                                ret.text(" -> The Cache Server must be removed from the application code, or do not");
+                                ret.text("    start it. A temporary solution is to restart the application.");
+                                return ret;
+                            }
+                            else {
+                                return checkContext.ok("No clients are listening to the Cache Server, but it"
+                                        + " is less than " + allowedHours + " hours since it started.");
+                            }
+                        }
+                        else {
+                            int totalNodes = clientAppNamesToNodenames.values().stream().mapToInt(Set::size).sum();
+                            var ret = checkContext.ok("We have clients listening: "
+                                    + clientAppNamesToNodenames.size() + " apps, " + totalNodes + " nodes");
+
+                            clientAppNamesToNodenames.forEach((app, nodes) -> {
+                                ret.text(" -> " + app + ": " + nodes);
+                            });
+
+                            return ret;
+                        }
+                    });
+
+            // :: Check: Unacknowledged Exceptions
             checkSpec.check(responsibleF,
                     Axis.of(Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
@@ -161,43 +201,51 @@ public class MatsEagerCacheStorebrandHealthCheck {
                                             e.getThrowable()));
                         }
 
-                        // :: Add a info line about the last update, if the server is running, and count > 0.
-                        if (info.getCacheServerLifeCycle() == CacheServerLifeCycle.RUNNING) {
-                            // Information about last update:
-                            if (info.getLastUpdateDataCount() == 0) {
-                                checkContext.text("# Data: -We've not yet sent any data-");
-
-                            }
-                            else {
-                                checkContext.text("# Data: Count: " + info.getLastUpdateDataCount()
-                                        + ", Uncompressed: " + _formatBytes(info.getLastUpdateUncompressedSize())
-                                        + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize()));
-                            }
-                            // Update sent:
-                            if (info.getLastUpdateSentTimestamp() == 0) {
-                                checkContext.text("# Last update sent: -We've not yet sent any data-");
-                            }
-                            else {
-                                checkContext.text("# Last update sent: " + _formatTimestamp(info
-                                        .getLastUpdateSentTimestamp())
-                                        + " (" + _formatMillis(System.currentTimeMillis()
-                                                - info.getLastUpdateSentTimestamp()) + " ago)");
-                            }
-                            // Update Received:
-                            if (info.getLastAnyUpdateReceivedTimestamp() == 0) {
-                                checkContext.text("# Last update received: -We've not yet received any data-");
-                            }
-                            else {
-                                checkContext.text("# Last update received: " + _formatTimestamp(info
-                                        .getLastAnyUpdateReceivedTimestamp())
-                                        + " (" + _formatMillis(System.currentTimeMillis()
-                                                - info.getLastAnyUpdateReceivedTimestamp()) + " ago)");
-                            }
-                        }
-
                         return ret;
                     });
+
+            // --------------------------------------------------------
+            // :: Add some information about the Cache Server
+            // Last update sent:
+            checkSpec.dynamicText(checkContext -> {
+                CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
+                if (info.getLastUpdateSentTimestamp() > 0) {
+                    return "# Last update sent: " + _formatTimestamp(info
+                            .getLastUpdateSentTimestamp())
+                            + " (" + _formatMillis(System.currentTimeMillis()
+                                    - info.getLastUpdateSentTimestamp()) + " ago)";
+                }
+                else {
+                    return "# Last update: -I've yet to send any data-";
+                }
+            });
+            // Information about last update sent:
+            checkSpec.dynamicText(checkContext -> {
+                CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
+                if (info.getLastUpdateDataCount() > 0) {
+                    return "# Data: Count: " + info.getLastUpdateDataCount()
+                            + ", Uncompressed: " + _formatBytes(info.getLastUpdateUncompressedSize())
+                            + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize());
+                }
+                else {
+                    return "# Data: -I've yet to send any data-";
+                }
+            });
+            // Update Received:
+            checkSpec.dynamicText(checkContext -> {
+                CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
+                if (info.getLastAnyUpdateReceivedTimestamp() == 0) {
+                    return "# Last update received: -I've not yet received any data-";
+                }
+                else {
+                    return "# Last update received: " + _formatTimestamp(info
+                            .getLastAnyUpdateReceivedTimestamp())
+                            + " (" + _formatMillis(System.currentTimeMillis()
+                                    - info.getLastAnyUpdateReceivedTimestamp()) + " ago)";
+                }
+            });
         });
+
     }
 
     /**
@@ -237,36 +285,31 @@ public class MatsEagerCacheStorebrandHealthCheck {
         meta.description("MatsEagerCacheClient: " + id);
         meta.sync(true);
         healthCheckRegistry.registerHealthCheck(meta.build(), checkSpec -> {
-            // :: Check whether running
+            // :: Check: RUNNING
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY),
                     checkContext -> {
                         CacheClientInformation info = client.getCacheClientInformation();
                         checkContext.put("info", info);
 
-                        if (info.getCacheClientLifeCycle() == CacheClientLifecycle.RUNNING) {
-                            return checkContext.ok("Client is RUNNING");
+                        if ((info.getCacheClientLifeCycle() == CacheClientLifecycle.RUNNING)
+                                && info.isInitialPopulationDone()) {
+                            return checkContext.ok("Client is RUNNING, and initial population is done");
                         }
                         else {
-                            return checkContext.fault("Client is NOT running - it is '"
+                            var ret = checkContext.fault("Client is NOT running - it is '"
                                     + info.getCacheClientLifeCycle() + "'");
+                            if (info.isInitialPopulationDone()) {
+                                ret.text(" -> Initial population is (somehow!) done.");
+                            }
+                            else {
+                                ret.text(" -> Initial population is NOT done yet.");
+                            }
+                            return ret;
                         }
                     });
 
-            // :: Check whether initial population is done (is really already checked with above - but just to show)
-            checkSpec.check(responsibleF,
-                    Axis.of(Axis.NOT_READY),
-                    checkContext -> {
-                        CacheClientInformation info = checkContext.get("info", CacheClientInformation.class);
-                        if (info.isInitialPopulationDone()) {
-                            return checkContext.ok("Initial population is done");
-                        }
-                        else {
-                            return checkContext.fault("Initial population is NOT yet done");
-                        }
-                    });
-
-            // :: Check that there are servers advertising.
+            // :: Check: Server Seen
             checkSpec.check(responsibleF,
                     Axis.of(Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
@@ -281,21 +324,27 @@ public class MatsEagerCacheStorebrandHealthCheck {
                                 + _formatMillis(System.currentTimeMillis() - lastServerSeenTimestamp) + " ago]";
 
                         long shouldBeWithin = lastServerSeenTimestamp + (maxMinutesAllow * 60_000);
+                        CheckResult ret;
                         if (System.currentTimeMillis() < shouldBeWithin) {
-                            return checkContext.ok("Server last seen " + lastAdvertise + " (max "
+                            ret = checkContext.ok("Server last seen " + lastAdvertise + " (max "
                                     + maxMinutesAllow + " minutes)");
                         }
                         else {
-                            var ret = checkContext.fault("Servers MISSING! Last seen " + lastAdvertise);
+                            ret = checkContext.fault("Servers LOST! Last seen " + lastAdvertise);
                             checkContext.text(" -> We expect advertise at least every " + maxAdvertisementMinutes
                                     + " minutes.");
                             checkContext.text(" -> Next advertise should have been within "
                                     + _formatTimestamp(shouldBeWithin));
                             return ret;
                         }
+                        // Add info about the servers
+                        info.getServerAppNamesToNodenames().forEach((app, nodes) -> {
+                            ret.text(" -> " + app + ": " + nodes);
+                        });
+                        return ret;
                     });
 
-            // :: Check that there are no unacknowledged Exceptions
+            // :: Check: Unacknowledged Exceptions
             checkSpec.check(responsibleF,
                     Axis.of(Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
@@ -323,20 +372,39 @@ public class MatsEagerCacheStorebrandHealthCheck {
                                             e.getThrowable()));
                         }
 
-                        // :: Add a info line about the last update, if the client is running
-
-                        if (info.isInitialPopulationDone()) {
-                            checkContext.text("# Data: Count: " + info.getLastUpdateDataCount()
-                                    + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize())
-                                    + ", Decompressed: " + _formatBytes(info.getLastUpdateDecompressedSize()));
-                        }
-                        checkContext.text("# Last update: " + _formatTimestamp(info.getLastAnyUpdateReceivedTimestamp())
-                                + " (" + _formatMillis(System.currentTimeMillis()
-                                        - info.getLastAnyUpdateReceivedTimestamp()) + " ago)");
-                        checkContext.text("# Number of accesses: " + info.getNumberOfAccesses());
-
                         return ret;
                     });
+
+            // --------------------------------------------------------
+            // :: Add some information about the Cache Client
+            // Update received:
+            checkSpec.dynamicText(checkContext -> {
+                CacheClientInformation info = checkContext.get("info", CacheClientInformation.class);
+                // ?: Is the client running?
+                if (info.isInitialPopulationDone()) {
+                    return "# Last update: " + _formatTimestamp(info
+                            .getLastAnyUpdateReceivedTimestamp())
+                            + " (" + _formatMillis(System.currentTimeMillis()
+                                    - info.getLastAnyUpdateReceivedTimestamp()) + " ago)";
+                }
+                return "# Last update: -Initial population not yet done-";
+            });
+            // Information about last update received:
+            checkSpec.dynamicText(checkContext -> {
+                CacheClientInformation info = checkContext.get("info", CacheClientInformation.class);
+                // ?: Have we gotten any data?
+                if (info.getLastUpdateDataCount() > 0) {
+                    return "# Data: Count: " + info.getLastUpdateDataCount()
+                            + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize())
+                            + ", Decompressed: " + _formatBytes(info.getLastUpdateDecompressedSize());
+                }
+                return "# Data: -No data received yet-";
+            });
+            // Number of accesses:
+            checkSpec.dynamicText(checkContext -> {
+                CacheClientInformation info = checkContext.get("info", CacheClientInformation.class);
+                return "# Number of accesses: " + info.getNumberOfAccesses();
+            });
         });
     }
 }
