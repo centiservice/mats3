@@ -422,7 +422,7 @@ public interface MatsEagerCacheClient<DATA> {
 
         long getInitialPopulationTimestamp();
 
-        long getAnyUpdateReceivedTimestamp();
+        long getLastAnyUpdateReceivedTimestamp();
 
         long getLastFullUpdateReceivedTimestamp();
 
@@ -747,7 +747,7 @@ public interface MatsEagerCacheClient<DATA> {
             }
 
             @Override
-            public long getAnyUpdateReceivedTimestamp() {
+            public long getLastAnyUpdateReceivedTimestamp() {
                 return _lastAnyUpdateReceivedTimestamp;
             }
 
@@ -2024,7 +2024,7 @@ public interface MatsEagerCacheClient<DATA> {
                 }
 
                 @Override
-                public long getAnyUpdateReceivedTimestamp() {
+                public long getLastAnyUpdateReceivedTimestamp() {
                     return _fullUpdateTimestamp;
                 }
 

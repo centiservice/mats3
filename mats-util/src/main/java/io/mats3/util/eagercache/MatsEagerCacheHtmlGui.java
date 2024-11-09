@@ -283,7 +283,7 @@ public interface MatsEagerCacheHtmlGui {
                 // -> Yes, initial population done - show info.
                 out.append("<h3>Last Received Update</h3><br>\n");
                 out.append("&nbsp;&nbsp;Received: ")
-                        .append(_formatHtmlTimestamp(info.getAnyUpdateReceivedTimestamp())).append("<br>\n");
+                        .append(_formatHtmlTimestamp(info.getLastAnyUpdateReceivedTimestamp())).append("<br>\n");
                 out.append("&nbsp;&nbsp;Type: ").append("<b>")
                         .append(info.isLastUpdateFull() ? "Full" : "Partial").append("</b><br>\n");
                 out.append("&nbsp;&nbsp;Mode: ").append("<b>")

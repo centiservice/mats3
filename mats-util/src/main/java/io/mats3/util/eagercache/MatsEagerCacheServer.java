@@ -904,10 +904,10 @@ public interface MatsEagerCacheServer {
         private final AtomicInteger _numberOfFullUpdatesReceived = new AtomicInteger();
         private final AtomicInteger _numberOfPartialUpdatesReceived = new AtomicInteger();
 
-        // Us as a node in the cluster:
+        // Us as a node in the server cluster:
         private final AtomicInteger _numberOfFullUpdatesSent = new AtomicInteger();
         private final AtomicInteger _numberOfPartialUpdatesSent = new AtomicInteger();
-        private volatile long _lastUpdateSent;
+        private volatile long _lastUpdateSentTimestamp;
         private volatile boolean _lastUpdateWasFull;
         private volatile double _lastUpdateProduceTotalMillis;
         private volatile double _lastUpdateSourceMillis;
@@ -1004,7 +1004,7 @@ public interface MatsEagerCacheServer {
 
             @Override
             public long getLastUpdateSentTimestamp() {
-                return _lastUpdateSent;
+                return _lastUpdateSentTimestamp;
             }
 
             @Override
@@ -2215,7 +2215,7 @@ public interface MatsEagerCacheServer {
                 DataResult result = _produceDataResult(dataCallbackSupplier);
 
                 _lastUpdateWasFull = fullUpdate;
-                _lastUpdateSent = System.currentTimeMillis();
+                _lastUpdateSentTimestamp = System.currentTimeMillis();
                 _lastUpdateProduceTotalMillis = result.millisTotal;
                 _lastUpdateSourceMillis = result.millisSource;
                 _lastUpdateSerializeMillis = result.millisSerialize;
@@ -2924,7 +2924,7 @@ public interface MatsEagerCacheServer {
             }
             double seconds = millis / 1000d;
             if (seconds < 60) {
-                return String.format("%.2f s", seconds);
+                return String.format("%.2fs", seconds);
             }
             long minutes = (long) (seconds / 60);
             if (minutes < 60) {

@@ -104,8 +104,8 @@ public class MatsEagerCacheStorebrandHealthCheck {
                         else if (map.size() == 1) {
                             String who = map.keySet().iterator().next();
                             if (info.getAppName().equals(who)) {
-                                ret = checkContext.ok("We are the single application serving Cache '"
-                                        + info.getDataName());
+                                ret = checkContext.ok("We're the single application serving Cache '"
+                                        + info.getDataName() + "'");
                                 serverInstancesHasBeenOk[0] = true;
                             }
                             else {
@@ -163,14 +163,35 @@ public class MatsEagerCacheStorebrandHealthCheck {
 
                         // :: Add a info line about the last update, if the server is running, and count > 0.
                         if (info.getCacheServerLifeCycle() == CacheServerLifeCycle.RUNNING) {
+                            // Information about last update:
                             if (info.getLastUpdateDataCount() == 0) {
-                                checkContext.text("# Data: We've not yet sent any data.");
+                                checkContext.text("# Data: -We've not yet sent any data-");
 
                             }
                             else {
                                 checkContext.text("# Data: Count: " + info.getLastUpdateDataCount()
                                         + ", Uncompressed: " + _formatBytes(info.getLastUpdateUncompressedSize())
                                         + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize()));
+                            }
+                            // Update sent:
+                            if (info.getLastUpdateSentTimestamp() == 0) {
+                                checkContext.text("# Last update sent: -We've not yet sent any data-");
+                            }
+                            else {
+                                checkContext.text("# Last update sent: " + _formatTimestamp(info
+                                        .getLastUpdateSentTimestamp())
+                                        + " (" + _formatMillis(System.currentTimeMillis()
+                                                - info.getLastUpdateSentTimestamp()) + " ago)");
+                            }
+                            // Update Received:
+                            if (info.getLastAnyUpdateReceivedTimestamp() == 0) {
+                                checkContext.text("# Last update received: -We've not yet received any data-");
+                            }
+                            else {
+                                checkContext.text("# Last update received: " + _formatTimestamp(info
+                                        .getLastAnyUpdateReceivedTimestamp())
+                                        + " (" + _formatMillis(System.currentTimeMillis()
+                                                - info.getLastAnyUpdateReceivedTimestamp()) + " ago)");
                             }
                         }
 
@@ -251,21 +272,23 @@ public class MatsEagerCacheStorebrandHealthCheck {
                     checkContext -> {
                         CacheClientInformation info = checkContext.get("info", CacheClientInformation.class);
                         long lastServerSeenTimestamp = info.getLastServerSeenTimestamp();
-                        // 45 min + 1/3 more, as per JavaDoc + 10 minutes for leniency
-                        long numMinutesAllow = (MatsEagerCacheServer.ADVERTISEMENT_INTERVAL_MINUTES * 4 / 3) + 10;
+                        // 45 min + 1/3 more, as per JavaDoc ..
+                        long maxAdvertisementMinutes = (MatsEagerCacheServer.ADVERTISEMENT_INTERVAL_MINUTES * 4 / 3);
+                        // .. then + 10 minutes for leniency
+                        long maxMinutesAllow = maxAdvertisementMinutes + 10;
 
-                        String lastAdvertise = "last seen: ["
-                                + _formatTimestamp(lastServerSeenTimestamp) + " ("
-                                + _formatMillis(System.currentTimeMillis() - lastServerSeenTimestamp)
-                                + " ago)]";
+                        String lastAdvertise = "[" + _formatTimestamp(lastServerSeenTimestamp) + ", "
+                                + _formatMillis(System.currentTimeMillis() - lastServerSeenTimestamp) + " ago]";
 
-                        long shouldBeWithin = lastServerSeenTimestamp + (numMinutesAllow * 60_000);
+                        long shouldBeWithin = lastServerSeenTimestamp + (maxMinutesAllow * 60_000);
                         if (System.currentTimeMillis() < shouldBeWithin) {
-                            return checkContext.ok("Servers are advertising/updating - " + lastAdvertise);
+                            return checkContext.ok("Server last seen " + lastAdvertise + " (max "
+                                    + maxMinutesAllow + " minutes)");
                         }
                         else {
-                            var ret = checkContext.fault("Servers are NOT advertising/updating - " + lastAdvertise);
-                            checkContext.text(" -> We allow " + numMinutesAllow + " minutes.");
+                            var ret = checkContext.fault("Servers MISSING! Last seen " + lastAdvertise);
+                            checkContext.text(" -> We expect advertise at least every " + maxAdvertisementMinutes
+                                    + " minutes.");
                             checkContext.text(" -> Next advertise should have been within "
                                     + _formatTimestamp(shouldBeWithin));
                             return ret;
@@ -307,9 +330,9 @@ public class MatsEagerCacheStorebrandHealthCheck {
                                     + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize())
                                     + ", Decompressed: " + _formatBytes(info.getLastUpdateDecompressedSize()));
                         }
-                        checkContext.text("# Last update: " + _formatTimestamp(info.getAnyUpdateReceivedTimestamp())
+                        checkContext.text("# Last update: " + _formatTimestamp(info.getLastAnyUpdateReceivedTimestamp())
                                 + " (" + _formatMillis(System.currentTimeMillis()
-                                        - info.getAnyUpdateReceivedTimestamp()) + " ago)");
+                                        - info.getLastAnyUpdateReceivedTimestamp()) + " ago)");
                         checkContext.text("# Number of accesses: " + info.getNumberOfAccesses());
 
                         return ret;
