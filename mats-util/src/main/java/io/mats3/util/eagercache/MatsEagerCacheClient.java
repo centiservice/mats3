@@ -460,6 +460,11 @@ public interface MatsEagerCacheClient<DATA> {
 
         long getNumberOfAccesses();
 
+        /**
+         * @return timestamp of the last time the server was seen: Update, or advertisement.
+         */
+        long getLastServerSeenTimestamp();
+
         Map<String, Set<String>> getServerAppNamesToNodenames();
 
         List<LogEntry> getLogEntries();
@@ -837,6 +842,11 @@ public interface MatsEagerCacheClient<DATA> {
             }
 
             @Override
+            public long getLastServerSeenTimestamp() {
+                return _nodeAdvertiser._lastServerSeenTimestamp;
+            }
+
+            @Override
             public Map<String, Set<String>> getServerAppNamesToNodenames() {
                 synchronized (_nodeAdvertiser._serversAppNamesToNodenames) {
                     // Return copy, with copy of sets.
@@ -1176,8 +1186,9 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         void _processLambdaForSubscriptionTerminator(ProcessContext<?> ctx, Void state, BroadcastDto msg) {
-            // :: Snoop on messages for keeping track of whom the clients and servers are.
+            // ?: Is the NodeAdvertiser in place? (Will be after RUNNING)
             if (_nodeAdvertiser != null) {
+                // -> Yes, so snoop on messages for keeping track of whom the clients and servers are.
                 _nodeAdvertiser.handleAdvertise(msg);
             }
 
@@ -2105,6 +2116,11 @@ public interface MatsEagerCacheClient<DATA> {
                 @Override
                 public long getNumberOfAccesses() {
                     return _accessCounter.get();
+                }
+
+                @Override
+                public long getLastServerSeenTimestamp() {
+                    return System.currentTimeMillis();
                 }
 
                 @Override

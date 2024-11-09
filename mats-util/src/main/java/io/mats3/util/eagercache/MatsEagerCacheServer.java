@@ -1374,7 +1374,9 @@ public interface MatsEagerCacheServer {
             // we then actually get the updates on the server, which is good for introspection & monitoring.
             _broadcastTerminator = _matsFactory.subscriptionTerminator(_getBroadcastTopic(_dataName),
                     void.class, BroadcastDto.class, (ctx, state, broadcastDto) -> {
+                        // ?: Is the NodeAdvertiser in place? (Will be after RUNNING)
                         if (_nodeAdvertiser != null) {
+                            // -> Yes, so snoop on messages for keeping track of whom the clients and servers are.
                             _nodeAdvertiser.handleAdvertise(broadcastDto);
                         }
                         // ?: Is this a periodic advertisement?
@@ -1648,6 +1650,8 @@ public interface MatsEagerCacheServer {
 
             private final AtomicInteger _advertiseCounter = new AtomicInteger(getNextTicks());
 
+            volatile long _lastServerSeenTimestamp;
+
             private volatile boolean _running = true;
 
             NodeAdvertiser(MatsFactory matsFactory, CacheMonitor cacheMonitor, boolean server, String command,
@@ -1753,6 +1757,8 @@ public interface MatsEagerCacheServer {
                 }
                 else {
                     // -> No, not client - so then it is a server app and nodename, for any type of message.
+                    // Update the timestamp
+                    _lastServerSeenTimestamp = System.currentTimeMillis();
                     // ?: Should we clear the maps? (Happens when servers start)
                     if (broadcastDto.clearAppsNodes) {
                         // -> Yes, clear the maps (all nodes will do this)

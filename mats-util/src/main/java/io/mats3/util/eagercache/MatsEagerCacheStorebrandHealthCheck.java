@@ -1,6 +1,8 @@
 package io.mats3.util.eagercache;
 
 import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatBytes;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatMillis;
+import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl._formatTimestamp;
 
 import java.util.List;
 import java.util.Map;
@@ -229,6 +231,7 @@ public class MatsEagerCacheStorebrandHealthCheck {
                                     + info.getCacheClientLifeCycle() + "'");
                         }
                     });
+
             // :: Check whether initial population is done (is really already checked with above - but just to show)
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY),
@@ -241,6 +244,34 @@ public class MatsEagerCacheStorebrandHealthCheck {
                             return checkContext.fault("Initial population is NOT yet done");
                         }
                     });
+
+            // :: Check that there are servers advertising.
+            checkSpec.check(responsibleF,
+                    Axis.of(Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
+                    checkContext -> {
+                        CacheClientInformation info = checkContext.get("info", CacheClientInformation.class);
+                        long lastServerSeenTimestamp = info.getLastServerSeenTimestamp();
+                        // 45 min + 1/3 more, as per JavaDoc + 10 minutes for leniency
+                        long numMinutesAllow = (MatsEagerCacheServer.ADVERTISEMENT_INTERVAL_MINUTES * 4 / 3) + 10;
+
+                        String lastAdvertise = "last seen: ["
+                                + _formatTimestamp(lastServerSeenTimestamp) + " ("
+                                + _formatMillis(System.currentTimeMillis() - lastServerSeenTimestamp)
+                                + " ago)]";
+
+                        long shouldBeWithin = lastServerSeenTimestamp + (numMinutesAllow * 60_000);
+                        if (System.currentTimeMillis() < shouldBeWithin) {
+                            return checkContext.ok("Servers are advertising/updating - " + lastAdvertise);
+                        }
+                        else {
+                            var ret = checkContext.fault("Servers are NOT advertising/updating - " + lastAdvertise);
+                            checkContext.text(" -> We allow " + numMinutesAllow + " minutes.");
+                            checkContext.text(" -> Next advertise should have been within "
+                                    + _formatTimestamp(shouldBeWithin));
+                            return ret;
+                        }
+                    });
+
             // :: Check that there are no unacknowledged Exceptions
             checkSpec.check(responsibleF,
                     Axis.of(Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
@@ -276,6 +307,10 @@ public class MatsEagerCacheStorebrandHealthCheck {
                                     + ", Compressed: " + _formatBytes(info.getLastUpdateCompressedSize())
                                     + ", Decompressed: " + _formatBytes(info.getLastUpdateDecompressedSize()));
                         }
+                        checkContext.text("# Last update: " + _formatTimestamp(info.getAnyUpdateReceivedTimestamp())
+                                + " (" + _formatMillis(System.currentTimeMillis()
+                                        - info.getAnyUpdateReceivedTimestamp()) + " ago)");
+                        checkContext.text("# Number of accesses: " + info.getNumberOfAccesses());
 
                         return ret;
                     });
