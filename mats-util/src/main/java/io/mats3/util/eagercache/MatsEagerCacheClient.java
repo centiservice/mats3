@@ -1192,6 +1192,8 @@ public interface MatsEagerCacheClient<DATA> {
             if ((_cacheClientLifecycle != CacheClientLifecycle.RUNNING)
                     && (_cacheClientLifecycle != CacheClientLifecycle.STARTING_AWAITING_INITIAL)) {
                 // -> We're not running or waiting for initial population, so we don't process the update.
+                _cacheMonitor.log(INFO, MonitorCategory.RECEIVED_UPDATE, "Got update [" + msg.command
+                        + "] from server, but we're not RUNNING or STARTING_AWAITING_INITIAL, so we don't process it.");
                 return;
             }
 
@@ -1548,7 +1550,9 @@ public interface MatsEagerCacheClient<DATA> {
                     + "; consume.msTotal=" + _formatMillis(decompressAndConsumeTotalMillis)
                     + "; consume.msDecompress=" + _formatMillis(decompressMillis)
                     + "; consume.msDeserialize=" + _formatMillis(deserializeMillis)
-                    + (roundTripTimeMillis != 0 ? ("; roundTripTimeMillis=" + _formatMillis(roundTripTimeMillis)) : ""));
+                    + (roundTripTimeMillis != 0
+                            ? ("; roundTripTimeMillis=" + _formatMillis(roundTripTimeMillis))
+                            : ""));
 
             Thread.currentThread().setName(originalThreadName);
         }

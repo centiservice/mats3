@@ -157,6 +157,7 @@ public class Test_EagerCache_RequestFullUpdate {
         Assert.assertTrue(cacheUpdated.getCompressedSize() > 8_000);
         Assert.assertTrue(cacheUpdated.getDecompressedSize() > 25_000);
 
+        // NOTE: This check failed once on GHA for Mac OS..? (Run #3544, 2024-11-09 14:56)
         Assert.assertTrue("We should have Round Trip Time, as we were the initiator, with no"
                 + " other concurrent requests.", cacheUpdated.getRoundTripTimeMillis().isPresent());
         Assert.assertTrue("Round Trip Time should take at least some time.",
