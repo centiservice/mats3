@@ -28,6 +28,10 @@ dependencies {
     // JMS API - since you must pull in a JMS Client, which thus provides the JMS API, we use compileOnly.
     compileOnly "$jmsApiDependency"
 
+    // For Extension_MatsSpring, mats-test-jupiter is needed. However, this is an optional dependency, and without
+    // it, it does not make sense to use Extension_MatsSpring.
+    compileOnly project(":mats-test-jupiter")
+
     // :: TEST
 
     // @Inject
