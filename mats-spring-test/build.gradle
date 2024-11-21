@@ -31,6 +31,7 @@ dependencies {
     // For Extension_MatsSpring, mats-test-jupiter is needed. However, this is an optional dependency, and without
     // it, it does not make sense to use Extension_MatsSpring.
     compileOnly project(":mats-test-jupiter")
+    compileOnly project(":mats-test-junit")
 
     // :: TEST
 
