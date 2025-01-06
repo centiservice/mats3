@@ -169,19 +169,21 @@ public class JmsMatsMessageBrokerSpecifics {
         if ((_activeMqConnection_class != null) && _activeMqConnection_class.isInstance(jmsConnection)) {
             try {
                 if ((Boolean) _activeMqConnection_isClosing.invoke(jmsConnection)) {
-                    throw new JmsMatsJmsException("JMS Connection [" + jmsConnection + "].isClosing() == true.");
+                    throw new JmsMatsJmsException("ActiveMQ JMS Connection [" + jmsConnection + "].isClosing()"
+                            + " == true.");
                 }
                 if ((Boolean) _activeMqConnection_isClosed.invoke(jmsConnection)) {
-                    throw new JmsMatsJmsException("JMS Connection [" + jmsConnection + "].isClosed() == true.");
+                    throw new JmsMatsJmsException("ActiveMQ JMS Connection [" + jmsConnection + "].isClosed()"
+                            + " == true.");
                 }
                 if ((Boolean) _activeMqConnection_isTransportFailed.invoke(jmsConnection)) {
-                    throw new JmsMatsJmsException("JMS Connection [" + jmsConnection
-                            + "].isTransportFailed() == true.");
+                    throw new JmsMatsJmsException("Active MQ JMS Connection [" + jmsConnection + "].isTransportFailed()"
+                            + " == true.");
                 }
             }
             catch (IllegalAccessException | InvocationTargetException e) {
                 log.warn("Invoking ActiveMqConnection.is[Closing|Closed|TransportFailed]() raised exception, which"
-                        + "is not expected: Report a bug on Mats!", e);
+                        + " is not expected: Report a bug on Mats!", e);
             }
         }
         // ----- No problems found, return w/o throwing.
@@ -236,7 +238,7 @@ public class JmsMatsMessageBrokerSpecifics {
     }
 
     @FunctionalInterface
-    interface JmsMatsJmsExceptionThrowingRunnable {
+    public interface JmsMatsJmsExceptionThrowingRunnable {
         void run() throws JmsMatsJmsException;
     }
 }
