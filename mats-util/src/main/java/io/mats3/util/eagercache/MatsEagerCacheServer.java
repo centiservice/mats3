@@ -2289,11 +2289,11 @@ public interface MatsEagerCacheServer {
                         + "; reason=" + reason
                         + "; metadata=" + result.metadata
                         + "; dataCount=" + result.dataCountFromSourceProvider
-                        + "; compressedSize=" + _formatNiceBytes(result.compressedSize)
                         + "; uncompressedSize=" + _formatNiceBytes(result.uncompressedSize)
+                        + "; compressedSize=" + _formatNiceBytes(result.compressedSize)
                         + "; msTotal=" + _formatMillis(result.millisTotal)
-                        + "; msCompress=" + _formatMillis(result.millisCompress)
-                        + "; msSerialize=" + _formatMillis(result.millisSerialize));
+                        + "; msSerialize=" + _formatMillis(result.millisSerialize)
+                        + "; msCompress=" + _formatMillis(result.millisCompress));
 
             }
             finally {

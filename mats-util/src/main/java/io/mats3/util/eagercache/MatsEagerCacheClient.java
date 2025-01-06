@@ -1556,8 +1556,8 @@ public interface MatsEagerCacheClient<DATA> {
                     + "; decompressedSize=" + _formatNiceBytes(msg.uncompressedSize)
                     + "; dataCount=" + msg.dataCount
                     + "; produce.msTotal=" + _formatMillis(msg.msTotal)
-                    + "; produce.msCompress=" + _formatMillis(msg.msCompress)
                     + "; produce.msSerialize=" + _formatMillis(msg.msSerialize)
+                    + "; produce.msCompress=" + _formatMillis(msg.msCompress)
                     + "; consume.msTotal=" + _formatMillis(decompressAndConsumeTotalMillis)
                     + "; consume.msDecompress=" + _formatMillis(decompressMillis)
                     + "; consume.msDeserialize=" + _formatMillis(deserializeMillis)
