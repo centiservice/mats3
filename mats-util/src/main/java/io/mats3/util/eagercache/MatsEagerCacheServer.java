@@ -663,9 +663,9 @@ public interface MatsEagerCacheServer {
 
         int getNumberOfPartialUpdatesReceived();
 
-        Map<String, Set<String>> getServerAppNamesToNodenames();
+        Optional<Map<String, Set<String>>> getServersAppNamesToNodenames();
 
-        Map<String, Set<String>> getClientAppNamesToNodenames();
+        Optional<Map<String, Set<String>>> getClientsAppNamesToNodenames();
 
         List<LogEntry> getLogEntries();
 
@@ -1078,21 +1078,19 @@ public interface MatsEagerCacheServer {
             }
 
             @Override
-            public Map<String, Set<String>> getServerAppNamesToNodenames() {
-                synchronized (_nodeAdvertiser._serversAppNamesToNodenames) {
-                    // Return copy, with copy of sets.
-                    return _nodeAdvertiser._serversAppNamesToNodenames.entrySet().stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey, e -> new TreeSet<>(e.getValue())));
+            public Optional<Map<String, Set<String>>> getServersAppNamesToNodenames() {
+                if (_nodeAdvertiser == null) {
+                    return Optional.empty();
                 }
+                return Optional.of(_nodeAdvertiser.getServersAppNamesToNodenames());
             }
 
             @Override
-            public Map<String, Set<String>> getClientAppNamesToNodenames() {
-                synchronized (_nodeAdvertiser._clientsAppNamesToNodenames) {
-                    // Return copy, with copy of sets.
-                    return _nodeAdvertiser._clientsAppNamesToNodenames.entrySet().stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey, e -> new TreeSet<>(e.getValue())));
+            public Optional<Map<String, Set<String>>> getClientsAppNamesToNodenames() {
+                if (_nodeAdvertiser == null) {
+                    return Optional.empty();
                 }
+                return Optional.of(_nodeAdvertiser.getClientsAppNamesToNodenames());
             }
 
             @Override
@@ -1655,7 +1653,7 @@ public interface MatsEagerCacheServer {
             private volatile boolean _running = true;
 
             NodeAdvertiser(MatsFactory matsFactory, CacheMonitor cacheMonitor, boolean server, String command,
-                    String dataName, String appName, String nodename) {
+                           String dataName, String appName, String nodename) {
                 _matsFactory = matsFactory;
                 _cacheMonitor = cacheMonitor;
                 _server = server;
@@ -1741,6 +1739,22 @@ public interface MatsEagerCacheServer {
                 }, _serverOrClassName + "." + dataName + ".AdvertiseAppAndNodeName");
                 _thread.setDaemon(true);
                 _thread.start();
+            }
+
+            Map<String, Set<String>> getServersAppNamesToNodenames() {
+                synchronized (_serversAppNamesToNodenames) {
+                    // Return copy, with copy of sets.
+                    return _serversAppNamesToNodenames.entrySet().stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey, e -> new TreeSet<>(e.getValue())));
+                }
+            }
+
+            Map<String, Set<String>> getClientsAppNamesToNodenames() {
+                synchronized (_clientsAppNamesToNodenames) {
+                    // Return copy, with copy of sets.
+                    return _clientsAppNamesToNodenames.entrySet().stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey, e -> new TreeSet<>(e.getValue())));
+                }
             }
 
             private static int getNextTicks() {

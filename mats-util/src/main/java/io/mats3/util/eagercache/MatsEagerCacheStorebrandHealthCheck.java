@@ -6,6 +6,7 @@ import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServer
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerLifeCycle;
 import io.mats3.util.eagercache.MatsEagerCacheServer.ExceptionEntry;
 
 /**
- * HealthCheck for {@link MatsEagerCacheServer} and {@link MatsEagerCacheClient}.
+ * Storebrand HealthChecks for {@link MatsEagerCacheServer} and {@link MatsEagerCacheClient}.
  *
  * @author Endre Stølsvik 2024-10-02 22:59 - http://stolsvik.com/, endre@stolsvik.com
  */
@@ -71,98 +72,137 @@ public class MatsEagerCacheStorebrandHealthCheck {
             boolean[] serverInstancesHasBeenOk = new boolean[1];
 
             // :: Check: RUNNING
+            // !! We want the Cache Server to (eventually) be running, otherwise we're not serving the cache.
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY),
                     checkContext -> {
+                        // Get the CacheServerInformation from the cache server
                         CacheServerInformation info = server.getCacheServerInformation();
+                        // .. put the information in the context, for the other checks to use.
                         checkContext.put("info", info);
 
-                        CheckResult ret;
+                        // ?: Is the Cache Server running?
                         if (info.getCacheServerLifeCycle() == CacheServerLifeCycle.RUNNING) {
-                            ret = checkContext.ok("Server is RUNNING");
+                            // -> Yes, it is running! **This is the only correct steady-state.**
+                            return checkContext.ok("Server is RUNNING");
                         }
-                        else {
-                            ret = checkContext.fault("Server is NOT running - it is '"
-                                    + info.getCacheServerLifeCycle() + "'");
-                        }
-                        return ret;
+                        // E-> No, it is not running - fault this check, thus setting NOT_READY.
+                        return checkContext.fault("Server is NOT running - it is '"
+                                + info.getCacheServerLifeCycle() + "'");
                     });
 
             // :: Check: Only one application serving this Cache, and that it is us.
+            // !! We want to be the only application serving this DataName, as otherwise it is a name-clash.
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY, Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
                         CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
-                        Map<String, Set<String>> map = info.getServerAppNamesToNodenames();
-                        CheckResult ret;
-                        if (map.isEmpty()) {
-                            ret = checkContext.fault("Not yet seeing any applications serving the DataName '"
-                                    + info.getDataName() + "!")
-                                    .turnOffAxes(Axis.EXTERNAL, Axis.DEGRADED_PARTIAL,
-                                            Axis.MANUAL_INTERVENTION_REQUIRED);
+                        Optional<Map<String, Set<String>>> mapO = info.getServersAppNamesToNodenames();
+                        // ?: Optional is empty: NodeAdvertiser has not yet started.
+                        if (mapO.isEmpty()) {
+                            CheckResult ret = checkContext.fault("Not yet info about applications serving"
+                                    + " DataName '" + info.getDataName() + "'!");
+                            ret.text(" -> \"NodeAdvertiser\" has not yet started, which might mean we can't get data.");
+                            ret.turnOffAxes(Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED);
+                            return ret;
                         }
-                        else if (map.size() == 1) {
-                            String who = map.keySet().iterator().next();
+                        Map<String, Set<String>> serversAppNamesToNodenames = mapO.get();
+                        // ?: No applications serving this DataName?
+                        if (serversAppNamesToNodenames.isEmpty()) {
+                            // -> Yes, no applications - let's hope it is "not yet"! (We should be serving it!)
+                            CheckResult ret = checkContext.fault("Not yet seeing any applications serving the"
+                                    + " DataName '" + info.getDataName() + "!");
+                            ret.text(" -> This should definitely be a temporary state, as *we* should be serving it!");
+                            ret.turnOffAxes(Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED);
+                            return ret;
+                        }
+                        // ?: A single application serving this DataName?
+                        if (serversAppNamesToNodenames.size() == 1) {
+                            // -> Yes, single application - let's hope it is us!
+                            String who = serversAppNamesToNodenames.keySet().iterator().next();
+                            // ?: Is it us?
                             if (info.getAppName().equals(who)) {
-                                ret = checkContext.ok("We're the single application serving DataName '"
-                                        + info.getDataName() + "'");
+                                // -> Yes, it is us! **This is the only correct steady-state.**
                                 serverInstancesHasBeenOk[0] = true;
+                                return checkContext.ok("We're the single application serving"
+                                        + " DataName '" + info.getDataName() + "'");
                             }
                             else {
-                                ret = checkContext.fault("There is a single application serving DataName '"
-                                        + info.getDataName() + "', but it is not us!");
+                                // -> No, it is not us! Argh!
+                                CheckResult ret = checkContext.fault("There is a single application serving"
+                                        + " DataName '" + info.getDataName() + "', but it is not us!");
                                 ret.text(" -> This is REALLY BAD! The app is '" + who + "'.");
-                                ret.text(" -> This means that there is a name-clash between multiple cache servers")
-                                        .text("    using the same DataName, living on different applications.");
+                                ret.text(" -> This means that there is a name-clash between multiple cache servers");
+                                ret.text("    using the same DataName, living on different applications.");
                                 if (serverInstancesHasBeenOk[0]) {
                                     ret.turnOffAxes(Axis.NOT_READY);
                                 }
+                                return ret;
                             }
                         }
-                        else {
-                            ret = checkContext.fault("There are " + map.size() + " applications serving"
-                                    + " DataName '" + info.getDataName() + "'!");
-                            ret.text(" -> This is REALLY BAD! The apps are " + map.keySet() + ".");
-                            ret.text(" -> This means that there is a name-clash between multiple cache servers")
-                                    .text("    using the same DataName, living on different applications.");
-                            if (serverInstancesHasBeenOk[0]) {
-                                ret.turnOffAxes(Axis.NOT_READY);
-                            }
+                        // E-> More than one application serving this DataName!
+                        CheckResult ret = checkContext.fault("There are " + serversAppNamesToNodenames.size()
+                                + " applications serving DataName '" + info.getDataName() + "'!");
+                        ret.text(" -> This is REALLY BAD! The apps are " + serversAppNamesToNodenames.keySet() + ".");
+                        ret.text(" -> This means that there is a name-clash between multiple cache servers");
+                        ret.text("    using the same DataName, living on different applications.");
+                        if (serverInstancesHasBeenOk[0]) {
+                            ret.turnOffAxes(Axis.NOT_READY);
                         }
-
                         return ret;
                     });
 
             // :: Check: Clients present
-            checkSpec.check(responsibleF,
-                    Axis.MANUAL_INTERVENTION_REQUIRED,
+            // !! We want there to be clients listening to the Cache Server, as otherwise it is useless.
+            checkSpec.check(responsibleF, Axis.of(Axis.NOT_READY, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
                         CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
-                        Map<String, Set<String>> clientAppNamesToNodenames = info.getClientAppNamesToNodenames();
+                        Optional<Map<String, Set<String>>> mapO = info.getClientsAppNamesToNodenames();
+                        // ?: Optional is empty: NodeAdvertiser has not yet started.
+                        if (mapO.isEmpty()) {
+                            CheckResult ret = checkContext.fault("Not yet info about clients listening to"
+                                    + " DataName '" + info.getDataName() + "'!");
+                            ret.text(" -> \"NodeAdvertiser\" has not yet started, which might mean we can't get data.");
+                            // We're NOT_READY, but we're not MANUAL_INTERVENTION_REQUIRED, as this is expected.
+                            // Remove the MANUAL_INTERVENTION_REQUIRED axis, leaving NOT_READY.
+                            ret.turnOffAxes(Axis.MANUAL_INTERVENTION_REQUIRED);
+                            return ret;
+                        }
+                        Map<String, Set<String>> clientAppNamesToNodenames = mapO.get();
                         // ?: Are there any clients?
                         if (clientAppNamesToNodenames.isEmpty()) {
+                            // -> No, no clients - this isn't good! (No need having this CacheServer if no-one listens!)
                             long timeStarted = info.getCacheStartedTimestamp();
                             long timeRunning = System.currentTimeMillis() - timeStarted;
                             int allowedHours = 8;
                             // Longer than allowed hours since?
                             boolean longTime = timeRunning > allowedHours * 60 * 60_000;
+                            // ?: Are we within the grace period?
                             if (longTime) {
-                                var ret = checkContext.fault("No clients are listening to the Cache Server!");
+                                // -> No, we're outside the grace period - whine about this problem.
+                                CheckResult ret = checkContext.fault("No clients are listening to the"
+                                        + " Cache Server!");
                                 ret.text(" -> It is more than " + allowedHours
                                         + " hours since the Cache Server started.");
                                 ret.text(" -> This is most probably not intentional, indicating dead functionality.");
                                 ret.text(" -> The Cache Server must be removed from the application code, or do not");
                                 ret.text("    start it. A temporary solution is to restart the application.");
+                                // We're in MANUAL_INTERVENTION_REQUIRED, as this is not expected.
+                                // But we should not say NOT_READY, as that could take us out of the load balancer.
+                                ret.turnOffAxes(Axis.NOT_READY);
                                 return ret;
                             }
                             else {
+                                // Grace period - we're ok.
                                 return checkContext.ok("No clients are listening to the Cache Server, but it"
-                                        + " is less than " + allowedHours + " hours since it started.");
+                                        + " is less than " + allowedHours + " hours since it started (grace period).");
                             }
                         }
                         else {
+                            // -> There are clients, great. **This is the only correct steady-state.**
+                            // We have clients listening
                             int totalNodes = clientAppNamesToNodenames.values().stream().mapToInt(Set::size).sum();
-                            var ret = checkContext.ok("We have clients listening: "
+                            CheckResult ret = checkContext.ok("We have clients listening: "
                                     + clientAppNamesToNodenames.size() + " apps, " + totalNodes + " nodes");
 
                             clientAppNamesToNodenames.forEach((app, nodes) -> {
@@ -174,6 +214,7 @@ public class MatsEagerCacheStorebrandHealthCheck {
                     });
 
             // :: Check: Unacknowledged Exceptions
+            // !! There should not be ANY exceptions. If there are, they should be acknowledged (and then fixed!).
             checkSpec.check(responsibleF,
                     Axis.of(Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
@@ -183,24 +224,24 @@ public class MatsEagerCacheStorebrandHealthCheck {
                         long unacknowledged = exceptionEntries.stream()
                                 .filter(e -> !e.isAcknowledged())
                                 .count();
-                        CheckResult ret;
+                        // ?: Are there any unacknowledged exceptions?
                         if (unacknowledged == 0) {
-                            ret = checkContext.ok("No unacknowledged Exceptions present ("
+                            // -> No, there are no unacknowledged exceptions. **This is the only correct steady-state.**
+                            return checkContext.ok("No unacknowledged Exceptions present ("
                                     + exceptionEntries.size() + " total)");
                         }
-                        else {
-                            ret = checkContext.fault("There are unacknowledged Exceptions present: "
-                                    + unacknowledged + " of " + exceptionEntries.size());
-                            checkContext.text(" -> Go to the Cache Server's GUI page to resolve and acknowledge them!");
+                        // E-> Yes, there are unacknowledged exceptions - fault this check, thus setting
+                        // DEGRADED_PARTIAL and MANUAL_INTERVENTION_REQUIRED.
+                        CheckResult ret = checkContext.fault("There are unacknowledged Exceptions present: "
+                                + unacknowledged + " of " + exceptionEntries.size());
+                        ret.text(" -> Go to the Cache Server's GUI page to resolve and acknowledge them!");
 
-                            // Add up to 3 of the exceptions to the context
-                            exceptionEntries.stream()
-                                    .filter(e -> !e.isAcknowledged())
-                                    .limit(3)
-                                    .forEach(e -> checkContext.exception(e.getCategory() + ": " + e.getMessage(),
-                                            e.getThrowable()));
-                        }
-
+                        // Add up to 3 of the exceptions to the context
+                        exceptionEntries.stream()
+                                .filter(e -> !e.isAcknowledged())
+                                .limit(3)
+                                .forEach(e -> checkContext.exception(e.getCategory()
+                                        + ": " + e.getMessage(), e.getThrowable()));
                         return ret;
                     });
 
@@ -286,23 +327,33 @@ public class MatsEagerCacheStorebrandHealthCheck {
         meta.sync(true);
         healthCheckRegistry.registerHealthCheck(meta.build(), checkSpec -> {
             // :: Check: RUNNING
+            // !! We want the Cache Client to (eventually) be RUNNING, otherwise we're we can't provide data.
             checkSpec.check(responsibleF,
                     Axis.of(Axis.NOT_READY),
                     checkContext -> {
+                        // Get the CacheClientInformation from the cache client
                         CacheClientInformation info = client.getCacheClientInformation();
+                        // .. put the information in the context, for the other checks to use.
                         checkContext.put("info", info);
 
+                        // ?: Is the Cache Client running, and has it done its initial population?
                         if ((info.getCacheClientLifeCycle() == CacheClientLifecycle.RUNNING)
                                 && info.isInitialPopulationDone()) {
+                            // -> Yes, it is running and populated! **This is the only correct steady-state.**
                             return checkContext.ok("Client is RUNNING, and initial population is done");
                         }
                         else {
-                            var ret = checkContext.fault("Client is NOT running - it is '"
+                            // E-> No, it is not running or populated - fault this check, thus setting NOT_READY.
+                            CheckResult ret = checkContext.fault("Client is NOT running - it is '"
                                     + info.getCacheClientLifeCycle() + "'");
+                            // ?: Is the initial population done?
                             if (info.isInitialPopulationDone()) {
+                                // -> Yes, it is done, but the client is not running.
+                                // (This should really not happen, as the client should start after initial population.)
                                 ret.text(" -> Initial population is (somehow!) done.");
                             }
                             else {
+                                // -> No, it is not done yet, and the client is not running.
                                 ret.text(" -> Initial population is NOT done yet.");
                             }
                             return ret;
@@ -310,10 +361,12 @@ public class MatsEagerCacheStorebrandHealthCheck {
                     });
 
             // :: Check: Server Seen
+            // !! We want the Cache Client to have seen the server recently, otherwise we're not getting updates.
             checkSpec.check(responsibleF,
                     Axis.of(Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
                         CacheClientInformation info = checkContext.get("info", CacheClientInformation.class);
+
                         long lastServerSeenTimestamp = info.getLastServerSeenTimestamp();
                         // 45 min + 1/3 more, as per JavaDoc ..
                         long maxAdvertisementMinutes = (MatsEagerCacheServer.ADVERTISEMENT_INTERVAL_MINUTES * 4 / 3);
@@ -325,17 +378,20 @@ public class MatsEagerCacheStorebrandHealthCheck {
 
                         long shouldBeWithin = lastServerSeenTimestamp + (maxMinutesAllow * 60_000);
                         CheckResult ret;
+                        // ?: Is the server seen within the allowed time?
                         if (System.currentTimeMillis() < shouldBeWithin) {
+                            // -> Yes, it is seen within the allowed time. **This is the only correct steady-state.**
                             ret = checkContext.ok("Server last seen " + lastAdvertise + " (max "
                                     + maxMinutesAllow + " minutes)");
                         }
                         else {
+                            // -> No, it is not seen within the allowed time - fault this check, thus setting
+                            // DEGRADED_PARTIAL and MANUAL_INTERVENTION_REQUIRED.
                             ret = checkContext.fault("Servers LOST! Last seen " + lastAdvertise);
                             checkContext.text(" -> We expect advertise at least every " + maxAdvertisementMinutes
                                     + " minutes.");
                             checkContext.text(" -> Next advertise should have been within "
                                     + _formatTimestamp(shouldBeWithin));
-                            return ret;
                         }
                         // Add info about the servers
                         info.getServerAppNamesToNodenames().forEach((app, nodes) -> {
@@ -344,7 +400,9 @@ public class MatsEagerCacheStorebrandHealthCheck {
                         return ret;
                     });
 
+
             // :: Check: Unacknowledged Exceptions
+            // !! There should not be ANY exceptions. If there are, they should be acknowledged (and then fixed!).
             checkSpec.check(responsibleF,
                     Axis.of(Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
@@ -354,24 +412,24 @@ public class MatsEagerCacheStorebrandHealthCheck {
                         long unacknowledged = exceptionEntries.stream()
                                 .filter(e -> !e.isAcknowledged())
                                 .count();
-                        CheckResult ret;
+                        // ?: Are there any unacknowledged exceptions?
                         if (unacknowledged == 0) {
-                            ret = checkContext.ok("No unacknowledged Exceptions present ("
+                            // -> No, there are no unacknowledged exceptions. **This is the only correct steady-state.**
+                            return checkContext.ok("No unacknowledged Exceptions present ("
                                     + exceptionEntries.size() + " total)");
                         }
-                        else {
-                            ret = checkContext.fault("There are unacknowledged Exceptions present: "
-                                    + unacknowledged + " of " + exceptionEntries.size());
-                            checkContext.text(" -> Go to the Cache Client's GUI page to resolve and acknowledge them!");
+                        // E-> Yes, there are unacknowledged exceptions - fault this check, thus setting
+                        // DEGRADED_PARTIAL and MANUAL_INTERVENTION_REQUIRED.
+                        CheckResult ret = checkContext.fault("There are unacknowledged Exceptions present: "
+                                + unacknowledged + " of " + exceptionEntries.size());
+                        ret.text(" -> Go to the Cache Client's GUI page to resolve and acknowledge them!");
 
-                            // Add up to 3 of the exceptions to the context
-                            exceptionEntries.stream()
-                                    .filter(e -> !e.isAcknowledged())
-                                    .limit(3)
-                                    .forEach(e -> checkContext.exception(e.getCategory() + ": " + e.getMessage(),
-                                            e.getThrowable()));
-                        }
-
+                        // Add up to 3 of the exceptions to the context
+                        exceptionEntries.stream()
+                                .filter(e -> !e.isAcknowledged())
+                                .limit(3)
+                                .forEach(e -> checkContext.exception(e.getCategory()
+                                        + ": " + e.getMessage(), e.getThrowable()));
                         return ret;
                     });
 

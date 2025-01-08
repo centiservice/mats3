@@ -600,7 +600,6 @@ public interface MatsEagerCacheHtmlGui {
                             ? "<i>none</i>"
                             : "<b>" + _formatMillis(info.getLastFullUpdateRegisterToUpdateMillis()) + "</b>")
                     .append("<br>\n");
-            out.append("<br>\n");
             out.append("</div>\n");
 
             out.append("<div class='matsec-column'>\n");
@@ -648,37 +647,53 @@ public interface MatsEagerCacheHtmlGui {
             out.append("</div>\n");
             out.append("</div>\n");
 
+            out.append("<br>\n");
+            out.append("<div class='matsec-column-container'>\n");
+            out.append("<div class='matsec-column'>\n");
             out.append("Cache Servers: ");
-            Map<String, Set<String>> appsNodes = info.getServerAppNamesToNodenames();
-            boolean first = true;
-            for (Map.Entry<String, Set<String>> entry : appsNodes.entrySet()) {
-                if (!first) {
-                    out.append(", ");
+            Optional<Map<String, Set<String>>> appsNodesO = info.getServersAppNamesToNodenames();
+            if (appsNodesO.isEmpty()) {
+                out.append("<i>The \"NodeAdvertiser\" have evidently not started yet.</i><br>\n");
+            }
+            else {
+                Map<String, Set<String>> appsNodes = appsNodesO.get();
+                boolean first = true;
+                for (Map.Entry<String, Set<String>> entry : appsNodes.entrySet()) {
+                    if (!first) {
+                        out.append(", ");
+                    }
+                    first = false;
+                    int nodes = entry.getValue().size();
+                    out.append("<b>").append(entry.getKey()).append("</b> (")
+                            .append(Integer.toString(nodes)).append(nodes == 1 ? " node): " : " nodes): ");
+                    out.append("<span style='font-size:80%'>").append(entry.getValue().toString()).append("</span>");
                 }
-                first = false;
-                out.append("<b>").append(entry.getKey()).append("</b>: ");
-                out.append(entry.getValue().stream().collect(Collectors.joining(", ", "<i>(", ")</i>")));
             }
 
             out.append("<br>\n");
-            appsNodes = info.getClientAppNamesToNodenames();
-            out.append("Cache Client Apps (").append(Integer.toString(appsNodes.size())).append("): ");
-            out.append(appsNodes.keySet().stream().collect(Collectors.joining("</b>, <b>", "<b>", "</b>")));
-            out.append("<br>\n");
-
-            out.append("&nbsp;&nbsp;&nbsp;&nbsp;<span style='font-size:80%'>Cache Client Nodes: ");
-            first = true;
-            for (Map.Entry<String, Set<String>> entry : appsNodes.entrySet()) {
-                if (!first) {
-                    out.append(", ");
-                }
-                first = false;
-                out.append("[");
-                out.append(entry.getValue().stream().collect(Collectors.joining(", ", "", "")));
-                out.append("]");
+            appsNodesO = info.getClientsAppNamesToNodenames();
+            if (appsNodesO.isEmpty()) {
+                out.append("Cache Clients: ");
+                out.append("<i>The \"NodeAdvertiser\" have evidently not started yet.</i><br>\n");
             }
-            out.append("<br>(Reset when Cache Server nodes start, and at 04:00 - updated within 5 minutes after, and"
-                    + " every hour)</span><br>\n");
+            else {
+                Map<String, Set<String>> appsNodes = appsNodesO.get();
+                int totalNodes = appsNodes.values().stream().mapToInt(Set::size).sum();
+                out.append("Cache Clients: <b>").append(Integer.toString(appsNodes.size())).append(" apps, "
+                        + totalNodes + " total nodes</b>:<br>\n");
+
+                for (Map.Entry<String, Set<String>> entry : appsNodes.entrySet()) {
+                    int nodes = entry.getValue().size();
+                    out.append("&nbsp;&nbsp;&nbsp;&nbsp;<b>").append(entry.getKey()).append("</b> (")
+                            .append(Integer.toString(nodes)).append(nodes == 1 ? " node): " : " nodes): ");
+                    out.append("<span style='font-size:80%'>").append(entry.getValue().toString())
+                            .append("</span><br>\n");
+                }
+                out.append("<span style='font-size:80%'>(Reset when Cache Server nodes start, and at 04:00 - updated within 5 minutes after,"
+                        + " and every hour)</span><br>\n");
+            }
+            out.append("</div>\n");
+            out.append("</div>\n");
 
             MatsEagerCacheClientHtmlGui._logsAndExceptions(out, ac, getRoutingId(), info.getExceptionEntries(), info
                     .getLogEntries());
