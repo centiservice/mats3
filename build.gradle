@@ -37,6 +37,7 @@ ext {
     jettyVersion = '9.4.56.v20240826'
     hibernateVersion = '5.6.15.Final' // Hibernate 6 depends on Jakarta.persistence. Holding back for now, 2023-10-27
     remockVersion = '2.0.0'
+    mockitoVersion = '5.15.2'
 
     // Need the JMS API to build several modules, but ONLY on 'compileOnly' and 'testCompileOnly'!
     // On runtime, the JMS API will be provided by the user. For tests, by 'mats-test' which includes an

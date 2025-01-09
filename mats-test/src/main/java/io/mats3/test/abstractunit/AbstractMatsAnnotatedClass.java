@@ -1,13 +1,18 @@
 package io.mats3.test.abstractunit;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.UnsatisfiedDependencyException;
 import org.springframework.beans.factory.annotation.AnnotatedGenericBeanDefinition;
 import org.springframework.beans.factory.support.GenericBeanDefinition;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.util.ReflectionUtils;
+
+import com.github.benmanes.caffeine.cache.AsyncCache;
 
 import io.mats3.MatsEndpoint;
 import io.mats3.MatsFactory;
@@ -18,7 +23,7 @@ import io.mats3.spring.MatsSpringAnnotationRegistration;
  *
  * @author Ståle Undheim <stale.undheim@storebrand.no> 2025-01-09
  */
-public class AbstractMatsAnnotatedClass {
+public abstract class AbstractMatsAnnotatedClass {
 
     private final AbstractMatsTest _matsTest;
 
@@ -32,6 +37,9 @@ public class AbstractMatsAnnotatedClass {
             MatsSpringAnnotationRegistration.class
     );
     private final List<String> _uninitializedBeans = new ArrayList<>();
+
+    // To detect duplicate registrations of the same class, we keep track of the registration locations.
+    private final Map<String, StackTraceElement> _registrationLocations = new HashMap<>();
 
     protected AbstractMatsAnnotatedClass(AbstractMatsTest matsTest) {
         _matsTest = matsTest;
@@ -121,6 +129,24 @@ public class AbstractMatsAnnotatedClass {
      */
     private void addAnnotatedMatsBean(GenericBeanDefinition beanDefinition) {
         String beanName = beanDefinition.getBeanClass().getSimpleName();
+
+        if (_registrationLocations.containsKey(beanName)) {
+            throw new AssertionError("Bean of type [" + beanName + "] already exists in the Spring context."
+                                     + " Did you register the same class twice? Perhaps in a nested class?"
+                                     + " Previous registration was at [" + _registrationLocations.get(beanName) + "]");
+        }
+
+        // There are 2 scenarios that we need to consider here, either the method call is directly on
+        // AbstractMatsAnnotatedClass, or it is called from a subclass. We know our entry point is at
+        // index 2, but we do not know if we are called directly, or from a subclass. As such we skip 3
+        // elements, and then skip while the class name is the same as the current class. This should give us
+        // the correct calling location.
+        StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+        int index = 3;
+        while (stackTrace[index].getClassName().equals(getClass().getName())) {
+            index++;
+        }
+        _registrationLocations.put(beanName, stackTrace[index]);
 
         try {
             // Register the matsAnnotatedClass, and refresh the Spring context. This will cause the
