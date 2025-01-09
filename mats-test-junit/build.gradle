@@ -27,6 +27,9 @@ dependencies {
     testImplementation project(':mats-util')
     testImplementation project(':mats-test-broker')
 
+    // To test MatsAnnotatedClass
+    testImplementation project(':mats-spring')
+
     // ..Removed in Java 11
     testImplementation "javax.annotation:javax.annotation-api:$javaxAnnotationVersion"
 
@@ -41,6 +44,8 @@ dependencies {
     // Single Spring test inside
     testImplementation "org.springframework:spring-test:$springVersion"
     testImplementation "org.springframework:spring-context:$springVersion"
+    testImplementation "org.springframework:spring-tx:$springVersion"
+
 }
 
 publishing {
