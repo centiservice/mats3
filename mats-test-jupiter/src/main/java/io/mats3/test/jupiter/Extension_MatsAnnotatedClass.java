@@ -52,10 +52,19 @@ public final class Extension_MatsAnnotatedClass extends AbstractMatsAnnotatedCla
     /**
      * Add classes to act as a source for annotations to register Mats endpoints for each test.
      */
-    public Extension_MatsAnnotatedClass withClasses(Class<?>... annotatedMatsClasses) {
-        addClasses(annotatedMatsClasses);
+    public Extension_MatsAnnotatedClass withAnnotatedMatsClasses(Class<?>... annotatedMatsClasses) {
+        registerMatsAnnotatedClasses(annotatedMatsClasses);
         return this;
     }
+
+    /**
+     * Add instances of classes annotated with Mats annotations to register Mats endpoints for each test.
+     */
+    public Extension_MatsAnnotatedClass withAnnotatedMatsInstances(Object... annotatedMatsInstances) {
+        super.registerMatsAnnotatedInstances(annotatedMatsInstances);
+        return this;
+    }
+
 
     @Override
     @SuppressWarnings("PMD.AvoidAccessibilityAlteration")
