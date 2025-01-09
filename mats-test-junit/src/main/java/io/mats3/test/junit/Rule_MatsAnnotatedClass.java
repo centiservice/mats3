@@ -51,8 +51,16 @@ public class Rule_MatsAnnotatedClass extends AbstractMatsAnnotatedClass implemen
      * Add classes to act as a source for annotations to register Mats endpoints for each test.
      *
      */
-    public Rule_MatsAnnotatedClass withClasses(Class<?>... annotatedMatsClasses) {
-        super.addClasses(annotatedMatsClasses);
+    public Rule_MatsAnnotatedClass withAnnotatedMatsClasses(Class<?>... annotatedMatsClasses) {
+        super.registerMatsAnnotatedClasses(annotatedMatsClasses);
+        return this;
+    }
+
+    /**
+     * Add instances of classes annotated with Mats annotations to register Mats endpoints for each test.
+     */
+    public Rule_MatsAnnotatedClass withAnnotatedMatsInstances(Object... annotatedMatsInstances) {
+        super.registerMatsAnnotatedInstances(annotatedMatsInstances);
         return this;
     }
 
