@@ -1,11 +1,11 @@
-package io.mats3.spring.test;
+package io.mats3.test.jupiter;
 
-import org.junit.rules.MethodRule;
-import org.junit.runners.model.FrameworkMethod;
-import org.junit.runners.model.Statement;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 import io.mats3.MatsFactory;
-import io.mats3.test.junit.Rule_Mats;
+import io.mats3.test.abstractunit.AbstractMatsAnnotatedClass;
 
 /**
  * Helper class to test classes annotated with Mats annotations.
@@ -29,45 +29,44 @@ import io.mats3.test.junit.Rule_Mats;
  * This will still allow for an integration test of the Mats endpoint, checking annotations, and that state and
  * dtos can be serialized if needed.
  *
- * @author Ståle Undheim <stale.undheim@storebrand.no> 2024-11-21
+ * @author Ståle Undheim, 2023.09.13 stale.undheim@storebrand.no
  */
-public class Rule_MatsSpring extends AbstractMatsSpring implements MethodRule {
+public final class Extension_MatsAnnotatedClass extends AbstractMatsAnnotatedClass
+        implements BeforeEachCallback, AfterEachCallback {
 
-    private Rule_MatsSpring(Rule_Mats ruleMats) {
-        super(ruleMats);
+
+    private Extension_MatsAnnotatedClass(Extension_Mats extensionMats) {
+        super(extensionMats);
     }
 
     /**
-     * Create a new Rule_MatsSpring instance, register to Junit using
-     * {@link org.junit.Rule}.
-     * @param ruleMats {@link Rule_Mats} to read the {@link MatsFactory} from.
-     * @return a new {@link Rule_MatsSpring}
+     * Create a new Extension_MatsSpring instance, register to Junit using
+     * {@link org.junit.jupiter.api.extension.RegisterExtension}.
+     * @param extensionMats {@link Extension_Mats} to read the {@link MatsFactory} from.
+     * @return a new {@link Extension_MatsAnnotatedClass}
      */
-    public static Rule_MatsSpring create(Rule_Mats ruleMats) {
-        return new Rule_MatsSpring(ruleMats);
+    public static Extension_MatsAnnotatedClass create(Extension_Mats extensionMats) {
+        return new Extension_MatsAnnotatedClass(extensionMats);
     }
 
     /**
      * Add classes to act as a source for annotations to register Mats endpoints for each test.
      */
-    @Override
-    public Rule_MatsSpring withClasses(Class<?>... annotatedMatsClasses) {
-        super.withClasses(annotatedMatsClasses);
+    public Extension_MatsAnnotatedClass withClasses(Class<?>... annotatedMatsClasses) {
+        addClasses(annotatedMatsClasses);
         return this;
     }
 
     @Override
-    public Statement apply(Statement base, FrameworkMethod method, Object target) {
-        return new Statement() {
-            public void evaluate() throws Throwable {
-                beforeEach(target);
-                try {
-                    base.evaluate();
-                }
-                finally {
-                    afterEach();
-                }
-            }
-        };
+    @SuppressWarnings("PMD.AvoidAccessibilityAlteration")
+    // AvoidAccessibilityAlteration - need to reflect into test class to get fields.
+    public void beforeEach(ExtensionContext extensionContext) {
+        beforeEach(extensionContext.getTestInstance().orElse(null));
     }
+
+    @Override
+    public void afterEach(ExtensionContext context) {
+        afterEach();
+    }
+
 }

@@ -1,4 +1,4 @@
-package io.mats3.spring.test;
+package io.mats3.test.abstractunit;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -13,28 +13,28 @@ import org.springframework.util.ReflectionUtils;
 import io.mats3.MatsEndpoint;
 import io.mats3.MatsFactory;
 import io.mats3.spring.MatsSpringAnnotationRegistration;
-import io.mats3.test.abstractunit.AbstractMatsTest;
 
 /**
- * Implementation for use in {@link Extension_MatsSpring}
+ * Base class used in specific test runtimes to support testing of classes annotated with Mats annotations.
+ *
+ * @author Ståle Undheim <stale.undheim@storebrand.no> 2025-01-09
  */
-public class AbstractMatsSpring {
+public class AbstractMatsAnnotatedClass {
 
 
     private final AbstractMatsTest _matsTest;
     private final List<MatsEndpoint<?, ?>> _endpoints = new ArrayList<>();
     private final List<Class<?>> _annotatedMatsClasses = new ArrayList<>();
 
-    protected AbstractMatsSpring(AbstractMatsTest matsTest) {
+    protected AbstractMatsAnnotatedClass(AbstractMatsTest matsTest) {
         _matsTest = matsTest;
     }
 
     /**
      * Add classes to act as a source for annotations to register Mats endpoints for each test.
      */
-    public AbstractMatsSpring withClasses(Class<?>... annotatedMatsClasses) {
+    public void addClasses(Class<?>... annotatedMatsClasses) {
         Collections.addAll(_annotatedMatsClasses, annotatedMatsClasses);
-        return this;
     }
 
     public void beforeEach(Object testInstance) {
