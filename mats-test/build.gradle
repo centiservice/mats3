@@ -35,6 +35,11 @@ dependencies {
     // H2 Database, for database tests - but we do not want to make this dependency transitive, so compileOnly.
     compileOnly "com.h2database:h2:$h2Version"
 
+    // Spring dependencies for MatsAnnotatedClasses. This is compileOnly, as if you are not using Spring, then
+    // you should not need this.
+    compileOnly "org.springframework:spring-context:$springVersion"
+    compileOnly project(':mats-spring')
+
     // === TEST
     testImplementation "junit:junit:$junitVersion"
 }
