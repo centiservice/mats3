@@ -53,6 +53,9 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter-params:$jupiterVersion"
     testImplementation "org.junit.platform:junit-platform-launcher:$jupiterPlatformVersion"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:$jupiterVersion"
+
+    // Mockito
+    testImplementation "org.mockito:mockito-junit-jupiter:$mockitoVersion"
 }
 
 test {

@@ -1,16 +1,28 @@
 package io.mats3.test.jupiter;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import javax.inject.Inject;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+import io.mats3.MatsEndpoint;
 import io.mats3.spring.Dto;
 import io.mats3.spring.MatsMapping;
 import io.mats3.util.MatsFuturizer.Reply;
@@ -143,6 +155,91 @@ class J_ExtensionMatsAnnotatedClassTest {
             // :: Verify
             Assertions.assertEquals(expectedReturn, reply);
         }
+    }
+
+    /**
+     * Replace the dependency with mockito
+     */
+    @Nested
+    @ExtendWith(MockitoExtension.class)
+    class TestAnnotatedWithMockito {
+
+        @RegisterExtension
+        private final Extension_MatsAnnotatedClass _matsAnnotatedClassExtension = Extension_MatsAnnotatedClass
+                .create(MATS)
+                .withAnnotatedMatsClasses(MatsAnnotatedClass_Endpoint.class);
+
+        // Note, since we declare this here, it will take precedence over the same bean declared in the
+        // enclosing Extension_MatsAnnotatedClass. This is however based on the field name, so this needs to have the
+        // same name as the same field in the enclosing class.
+        @Mock
+        private ServiceDependency _serviceDependency;
+
+        @Test
+        void testMockedService() throws ExecutionException, InterruptedException, TimeoutException {
+            // :: Setup
+            String expectedReturn = "Hello World!";
+            when(_serviceDependency.formatMessage(anyString())).thenReturn(expectedReturn);
+
+            // :: Act
+            String reply = callMatsAnnotatedEndpoint("World!");
+
+            // :: Verify
+            Assertions.assertEquals(expectedReturn, reply);
+            verify(_serviceDependency).formatMessage("World!");
+        }
+
+    }
+
+    // :: Life cycle test
+    // This cannot be performed in a nested class, as BeforeAll and AfterAll must be static
+
+    // Since the MatsFactory is in global scope for the entire test, if we register the annotated class here, this
+    // will fail in the nested classes, as the endpoint will already exist.
+    @RegisterExtension
+    private final Extension_MatsAnnotatedClass _matsAnnotatedClassExtension = Extension_MatsAnnotatedClass.create(MATS);
+
+    @BeforeAll
+    static void beforeAll() {
+        // Endpoint should not exists before all tests
+        Assertions.assertFalse(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
+    }
+
+    @Test
+    void testEndpointExistsAfterRegistration() {
+        // :: Setup
+        _matsAnnotatedClassExtension.withAnnotatedMatsInstances(new MatsAnnotatedClass_Endpoint(_serviceDependency));
+
+        // :: Act
+        Optional<MatsEndpoint<?, ?>> endpoint = MATS.getMatsFactory().getEndpoint(ENDPOINT_ID);
+
+        // :: Verify
+        Assertions.assertTrue(endpoint.isPresent());
+    }
+
+    @Test
+    void testDuplicateRegistration() {
+        // :: Setup
+        MatsAnnotatedClass_Endpoint annotatedMatsInstance = new MatsAnnotatedClass_Endpoint(_serviceDependency);
+        // First registration, OK
+        _matsAnnotatedClassExtension.withAnnotatedMatsInstances(annotatedMatsInstance);
+
+        // :: Act
+        AssertionError assertionError = Assertions.assertThrows(AssertionError.class, () ->
+                // Second registration, should fail
+                _matsAnnotatedClassExtension.withAnnotatedMatsInstances(annotatedMatsInstance));
+
+        // :: Verify
+        // This will of course change if this file changes. But just look at the line number in your editor for
+        // the first call to withAnnotatedMatsInstances (the 2nd call will be present in the stacktrace)
+        assertionError.printStackTrace();
+        Assertions.assertTrue(assertionError.getMessage().contains("J_ExtensionMatsAnnotatedClassTest.java:225"));
+    }
+
+    @AfterAll
+    static void afterAll() {
+        // Endpoint should have been removed after all tests
+        Assertions.assertFalse(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
     }
 
     private String callMatsAnnotatedEndpoint(String message)
