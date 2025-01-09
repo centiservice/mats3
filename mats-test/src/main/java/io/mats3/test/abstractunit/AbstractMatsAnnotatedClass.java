@@ -47,19 +47,37 @@ public class AbstractMatsAnnotatedClass {
         // If we have a test instance, we register each non-null field as a singleton in the Spring context.
         // This is so that those fields are available to inject into the Mats annotated classes.
         if (testInstance != null) {
-            ReflectionUtils.doWithFields(testInstance.getClass(), field -> {
-                field.setAccessible(true);
-                String beanName = field.getName();
-                Object beanInstance = field.get(testInstance);
-
-                // ?: Is there no bean registered with this name, and we have a value for the field?
-                if (!_applicationContext.containsBean(beanName) && beanInstance != null) {
-                    // Yes -> add this to the Spring context as a singleton
-                    _applicationContext.getBeanFactory().registerSingleton(beanName, beanInstance);
-                }
-            });
+            addBeans(testInstance);
         }
         initializeBeansAndRegisterEndpoints();
+    }
+
+    private void addBeans(Object testInstance) {
+        Class<?> enclosingClass = testInstance.getClass().getEnclosingClass();
+
+        ReflectionUtils.doWithFields(testInstance.getClass(), field -> {
+            field.setAccessible(true);
+            String beanName = field.getName();
+            Object beanInstance = field.get(testInstance);
+            // Do not inject this utility into Spring
+            if (beanInstance == this) {
+                return;
+            }
+
+            // ?: Is this a synthetic field created by the compiler for the enclosing class?
+            if (field.getType().equals(enclosingClass) && field.isSynthetic()) {
+                // Yes, then add the fields from the enclosing class as well to the Spring context (but not
+                // the test itself). This is to support nested tests in Jupiter.
+                addBeans(beanInstance);
+                return;
+            }
+
+            // ?: Is there no bean registered with this name, and we have a value for the field?
+            if (!_applicationContext.containsBean(beanName) && beanInstance != null) {
+                // Yes -> add this to the Spring context as a singleton
+                _applicationContext.getBeanFactory().registerSingleton(beanName, beanInstance);
+            }
+        });
     }
 
     public void afterEach() {
