@@ -1,7 +1,6 @@
 package io.mats3.test.abstractunit;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,8 +10,6 @@ import org.springframework.beans.factory.annotation.AnnotatedGenericBeanDefiniti
 import org.springframework.beans.factory.support.GenericBeanDefinition;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.util.ReflectionUtils;
-
-import com.github.benmanes.caffeine.cache.AsyncCache;
 
 import io.mats3.MatsEndpoint;
 import io.mats3.MatsFactory;
@@ -25,7 +22,7 @@ import io.mats3.spring.MatsSpringAnnotationRegistration;
  */
 public abstract class AbstractMatsAnnotatedClass {
 
-    private final AbstractMatsTest _matsTest;
+    private final MatsFactory _matsFactory;
 
     // List of endpoints that we have created. Since this util can be used in conjunction with other tools to create
     // endpoints, we need to know which endpoint we created for a test, so that we can remove them after the test, but
@@ -41,16 +38,15 @@ public abstract class AbstractMatsAnnotatedClass {
     // To detect duplicate registrations of the same class, we keep track of the registration locations.
     private final Map<String, StackTraceElement> _registrationLocations = new HashMap<>();
 
-    protected AbstractMatsAnnotatedClass(AbstractMatsTest matsTest) {
-        _matsTest = matsTest;
+    protected AbstractMatsAnnotatedClass(MatsFactory matsFactory) {
+        _matsFactory = matsFactory;
     }
 
     public void beforeEach(Object testInstance) {
-        MatsFactory matsFactory = _matsTest.getMatsFactory();
         // Note: we need to register the MatsFactory as a singleton, otherwise the MatsSpringAnnotationRegistration
         //       will register the MatsFactory to the Spring context, and start it when the Spring context starts.
         //       This will cause duplicate start of MatsFuturizer threads, which will throw IllegalStateException.
-        _applicationContext.getBeanFactory().registerSingleton("matsFactory", matsFactory);
+        _applicationContext.getBeanFactory().registerSingleton("matsFactory", _matsFactory);
 
         // If we have a test instance, we register each non-null field as a singleton in the Spring context.
         // This is so that those fields are available to inject into the Mats annotated classes.
