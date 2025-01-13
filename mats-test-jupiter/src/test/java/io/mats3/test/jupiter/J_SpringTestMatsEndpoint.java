@@ -24,20 +24,21 @@ import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.test.SpringInjectRulesAndExtensions;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
+import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
-import io.mats3.test.broker.MatsTestBroker;
 
 /**
  * Illustrates that {@link Extension_MatsEndpoint} is autowired by Spring when using the test execution listener
  * provided by this library. We use two static inner <code>{@literal @Configuration classes}</code>, which automagically
- * is picked up by the Spring test facility:
+ * is picked up by the Spring Test facilities due to the test-class being annotated with
+ * <code>{@literal ExtendWith(SpringExtension.class)}</code>.
  * <ol>
  * <li>{@link MatsSpringContext} to set up the Mats infrastructure. This thus sets up the MatsFactory, which "magically"
  * will be injected into the {@link Extension_MatsEndpoint} with the help from the
- * {@link SpringInjectRulesAndExtensions}. Note that the configured beans in this Configuration could much simpler have
+ * {@link SpringInjectRulesAndExtensions}. Note that the configured beans in that Configuration could much simpler have
  * been "imported" into a test by means of the <code>{@literal @MatsTestContext}</code> annotation from the
- * mats-spring-test project.</li>
+ * mats-spring-test project; Read JavaDoc of {@link MatsSpringContext}.</li>
  * <li>{@link SetupTerminatorMatsEndpoint} to set up a Terminator using the direct, programmatic non-SpringConfig way,
  * this needing the <code>MatsFactory</code> injected, as well as a {@link MatsTestLatch} to notify the test that it has
  * received the reply.</li>
@@ -53,10 +54,13 @@ import io.mats3.test.broker.MatsTestBroker;
 public class J_SpringTestMatsEndpoint {
 
     /**
-     * NOTICE: This entire <code>{@literal @Configuration}</code> class can be replaced by annotating either the test
-     * class (the outer class here, {@link J_SpringTestMatsEndpoint}), or an inner
-     * <code>{@literal @Configuration}</code>-class (i.e. {@link SetupTerminatorMatsEndpoint}) with the
-     * <code>{@literal @MatsSimpleTestContext}</code> annotation from the mats-spring-test project.
+     * Spring Configuration pulling up the Mats infrastructure.
+     * <p>
+     * MAKE NOTICE!! This entire <code>{@literal @Configuration}</code> class can be replaced by annotating either the
+     * test class (the outer class here, {@link J_SpringTestMatsEndpoint}), or an inner
+     * <code>{@literal @Configuration}</code>-class (i.e. {@link SetupTerminatorMatsEndpoint}), with the
+     * <code>{@literal @MatsSimpleTestContext}</code> annotation from the mats-spring-test project. The Beans defined in
+     * this Configuration are exactly the ones which that convenient annotation sets up (and more, read its JavaDoc)!
      */
     @Configuration
     public static class MatsSpringContext {

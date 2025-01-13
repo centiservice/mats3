@@ -102,10 +102,10 @@ public class ATest_AbstractConcurrency {
         boolean windowsOs = System.getProperty("os.name", "x").toLowerCase().contains("windows");
         boolean macOs = System.getProperty("os.name", "x").toLowerCase().contains("mac");
         long maxWait = windowsOs
-                ? (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 6.0)
+                ? (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 6.0) // Windows
                 : macOs
-                ? (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 4.0)
-                : (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 2.5);
+                ? (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 4.0) // Mac
+                : (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 2.5); // Linux
         log.info("Waiting for " + CONCURRENCY + " messages to reach terminator, with a maxWait of [" + maxWait
                 + " ms] (Windows OS: " + windowsOs + ", Mac OS: " + macOs + ")");
         long startMillis = System.currentTimeMillis();

@@ -9,10 +9,15 @@ import org.junit.Test;
 
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsInitiator.MessageReference;
-import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
+import io.mats3.test.MatsTestHelp;
 
+/**
+ * Tests the {@link MatsTestBrokerInterface}, which is an interfacing facility to the underlying broker, allowing you to
+ * inspect DLQs. The test sets up a Terminator which throws, and then sends a message to it, and then inspects the DLQ
+ * to see that the message is there.
+ */
 public class U_MatsTestBrokerInterface {
 
     private static final String TERMINATOR_WHICH_THROWS = MatsTestHelp.terminator();
@@ -34,6 +39,9 @@ public class U_MatsTestBrokerInterface {
             this.number = number;
         }
 
+        /**
+         * Used for the test's assertions.
+         */
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
