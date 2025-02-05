@@ -176,6 +176,9 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
             + matsStage.getParentEndpoint().getParentFactory().getFactoryConfig().getMatsDestinationPrefix()
             + matsStage.getStageConfig().getStageId();
 
+    // Set to default, which is COMPACT
+    private KeepTrace _defaultKeepTrace = KeepTrace.COMPACT;
+
     // From API Config
 
     // Set to default, which is null.
@@ -202,9 +205,6 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
 
     // Set to default, which is false. Volatile since quite probably set by differing threads.
     private volatile boolean _holdEndpointsUntilFactoryIsStarted = false;
-
-    // Set to default, which is COMPACT
-    private KeepTrace _defaultKeepTrace = KeepTrace.COMPACT;
 
     // :: Internal state
 
@@ -295,6 +295,19 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         /* no-op - not yet implemented */
     }
 
+    /**
+     * Sets the default KeepTrace if the initiation doesn't set one itself. The default for this default is
+     * {@link KeepTrace#COMPACT}. Not yet moved to FactoryConfig, because I want to evaluate.
+     * <p/>
+     * Must be set before the MatsFactory is "published", memory wise.
+     *
+     * @param defaultKeepTrace
+     *            the default KeepTrace for Mats flows - the default for this default is {@link KeepTrace#COMPACT}.
+     */
+    public void setDefaultKeepTrace(KeepTrace defaultKeepTrace) {
+        _defaultKeepTrace = defaultKeepTrace;
+    }
+
     // --- getters
 
     int getNumberOfDeliveryAttemptsBeforeMatsManagedDlqDivert() {
@@ -346,19 +359,6 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
                 return "_cannot_find_hostname_";
             }
         }
-    }
-
-    /**
-     * Sets the default KeepTrace if the initiation doesn't set one itself. The default for this default is
-     * {@link KeepTrace#COMPACT}. Not yet moved to FactoryConfig, because I want to evaluate.
-     * <p/>
-     * Must be set before the MatsFactory is "published", memory wise.
-     *
-     * @param defaultKeepTrace
-     *            the default KeepTrace for Mats flows - the default for this default is {@link KeepTrace#COMPACT}.
-     */
-    public void setDefaultKeepTrace(KeepTrace defaultKeepTrace) {
-        _defaultKeepTrace = defaultKeepTrace;
     }
 
     KeepTrace getDefaultKeepTrace() {
