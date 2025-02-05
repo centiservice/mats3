@@ -197,7 +197,8 @@ public class MatsSpringAnnotationRegistration implements
         }
         catch (NoSuchBeanDefinitionException e) {
             // -> This is a non-registered bean, which evidently is used when doing unit tests with JUnit SpringRunner.
-            log.info(LOG_PREFIX + getClass().getSimpleName()
+            // (possibly also for scopes other than singleton, like request-scoped beans?? - not sure)
+            if (log.isTraceEnabled()) log.trace(LOG_PREFIX + getClass().getSimpleName()
                     + ".postProcessAfterInitialization(bean, \"" + beanName
                     + "\"): Found no bean definition for the given bean name! Test class?! Ignoring.");
             return bean;
@@ -1205,7 +1206,7 @@ public class MatsSpringAnnotationRegistration implements
                 // If the param is ProcessContext, then it is not the DTO.
                 return parameters[1].getType() == ProcessContext.class ? -1 : 1;
             }
-            // ->No: ?: Is the second param ProcessContext?
+            // -> No: ?: Is the second param ProcessContext?
             else if (parameters[1].getType() == ProcessContext.class) {
                 // -> Yes, second param is processContext, check the other (first)
                 // If the param is ProcessContext, then it is not the DTO.
@@ -1401,12 +1402,19 @@ public class MatsSpringAnnotationRegistration implements
                     + " Check your specifications on the element [" + annotatedElement + "].");
         }
         // ?: If there was one specified MatsFactory, use that, otherwise find any MatsFactory (fails if more than one).
-        MatsFactory matsFactory = specifiedMatsFactories.size() == 1
-                ? specifiedMatsFactories.get(0)
-                : getMatsFactoryUnspecified(forWhat);
+        MatsFactory matsFactory;
+        String matsFactoryName;
+        if (specifiedMatsFactories.size() == 1) {
+            matsFactory = specifiedMatsFactories.get(0);
+            matsFactoryName = _matsFactoriesToName.get(matsFactory);
+        }
+        else {
+            matsFactory = getMatsFactoryUnspecified(forWhat);
+            matsFactoryName = "<unspecified/default>";
+        }
 
-        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + ".. using MatsFactory ["
-                + _matsFactoriesToName.get(matsFactory) + "]: [" + matsFactory + "].");
+        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + ".. using MatsFactory [" + matsFactoryName
+                + "]: [" + matsFactory + "].");
 
         return matsFactory;
     }
