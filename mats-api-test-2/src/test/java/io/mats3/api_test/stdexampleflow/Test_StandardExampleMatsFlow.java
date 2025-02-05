@@ -75,6 +75,6 @@ public class Test_StandardExampleMatsFlow {
         Reply<_EndpointAReplyDTO> reply = future.get(10, TimeUnit.SECONDS);
 
         // :: ASSERT
-        Assert.assertEquals(3d * 4d - ((5d / 6d) + 7d), reply.getReply().result, 0);
+        Assert.assertEquals(3d * 4d - ((5d / 6d) + 7d), reply.get().result, 0);
     }
 }

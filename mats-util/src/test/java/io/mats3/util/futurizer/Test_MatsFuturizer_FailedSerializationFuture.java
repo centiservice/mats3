@@ -11,8 +11,8 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.slf4j.Logger;
 
-import io.mats3.test.junit.Rule_Mats;
 import io.mats3.test.MatsTestHelp;
+import io.mats3.test.junit.Rule_Mats;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
@@ -53,7 +53,7 @@ public class Test_MatsFuturizer_FailedSerializationFuture {
                 DtoWeExpect.class, "NOK");
         try {
             Reply<DtoWeExpect> reply = future.get();
-            Assert.fail("We should not get a response. Currency was " + reply.getReply().currency);
+            Assert.fail("We should not get a response. Currency was " + reply.get().currency);
         }
         catch (Throwable e) {
             log.info("Got the exception. Hoping it's the right one. Logging stacktrace just in case.", e);
@@ -79,7 +79,7 @@ public class Test_MatsFuturizer_FailedSerializationFuture {
                 ENDPOINT,
                 DtoWeExpect.class,
                 "NOK")
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .exceptionally(e -> {
                     log.info("Got the exception. Hoping it's the right one. Logging stacktrace just in case.", e);
                     Assert.assertEquals("Could not deserialize the data contained in MatsObject to class "

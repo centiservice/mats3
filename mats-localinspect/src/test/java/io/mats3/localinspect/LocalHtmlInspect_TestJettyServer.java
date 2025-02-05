@@ -360,7 +360,7 @@ public class LocalHtmlInspect_TestJettyServer {
                     });
             try {
                 Reply<DataTO> reply = future1.get();
-                out.println("-> got reply: " + reply.getReply());
+                out.println("-> got reply: " + reply.get());
             }
             catch (InterruptedException | ExecutionException e) {
                 out.println("Failed! " + e.getClass().getSimpleName() + ": " + e.getMessage());

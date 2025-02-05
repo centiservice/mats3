@@ -15,8 +15,8 @@ import org.junit.Test;
 
 import io.mats3.MatsEndpoint.DetachedProcessContext;
 import io.mats3.MatsInitiator.InitiateLambda;
-import io.mats3.test.junit.Rule_Mats;
 import io.mats3.test.MatsTestHelp;
+import io.mats3.test.junit.Rule_Mats;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
@@ -76,7 +76,7 @@ public class Test_MatsFuturizer_ContextPayloadsAndTraceProperties {
         Reply<String> reply = future.get(1, TimeUnit.SECONDS);
 
         // Assert that we got the expected reply.
-        Assert.assertEquals(request + ENDPOINT_MESSAGE_APPEND, reply.getReply());
+        Assert.assertEquals(request + ENDPOINT_MESSAGE_APPEND, reply.get());
 
         // :: Assert that the attached String and Byte Array, and 2 x Trace Properties, are present on the context.
         DetachedProcessContext context = reply.getContext();

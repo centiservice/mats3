@@ -56,7 +56,7 @@ public class Test_MatsFuturizer_ManyFutures {
                     UUID.randomUUID().toString(), "futureGet", ENDPOINT, DataTO.class,
                     new DataTO(Math.PI, "FutureGet:" + i));
             Reply<DataTO> reply = future.get(30, TimeUnit.SECONDS);
-            Assert.assertEquals(new DataTO(Math.PI * 2, "FutureGet:" + i + ":FromService"), reply.getReply());
+            Assert.assertEquals(new DataTO(Math.PI * 2, "FutureGet:" + i + ":FromService"), reply.get());
         }
     }
 

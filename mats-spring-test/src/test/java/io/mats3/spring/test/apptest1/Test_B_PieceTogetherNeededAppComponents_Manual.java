@@ -23,10 +23,10 @@ import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.ComponentScanExcludingConfigurationForTest;
 import io.mats3.spring.ConfigurationForTest;
 import io.mats3.spring.EnableMats;
+import io.mats3.spring.test.SpringTestDataTO;
 import io.mats3.spring.test.TestSpringMatsFactoryProvider;
 import io.mats3.spring.test.apptest1.Test_B_PieceTogetherNeededAppComponents_Manual.TestConfiguration;
 import io.mats3.spring.test.apptest2.AppMain_TwoMatsFactories;
-import io.mats3.spring.test.SpringTestDataTO;
 import io.mats3.test.MatsTestHelp;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
@@ -87,7 +87,7 @@ public class Test_B_PieceTogetherNeededAppComponents_Manual {
 
         SpringTestDataTO reply;
         try {
-            reply = future.get(10, TimeUnit.SECONDS).getReply();
+            reply = future.get(10, TimeUnit.SECONDS).get();
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
             throw new AssertionError("Didn't get reply", e);

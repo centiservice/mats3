@@ -43,7 +43,7 @@ public class Test_C_PieceTogetherNeededAppComponents_Auto {
 
         SpringTestDataTO reply;
         try {
-            reply = future.get(10, TimeUnit.SECONDS).getReply();
+            reply = future.get(10, TimeUnit.SECONDS).get();
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
             throw new AssertionError("Didn't get reply", e);
