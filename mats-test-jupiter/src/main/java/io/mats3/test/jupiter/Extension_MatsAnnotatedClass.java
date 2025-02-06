@@ -1,5 +1,10 @@
 package io.mats3.test.jupiter;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -102,7 +107,11 @@ public final class Extension_MatsAnnotatedClass extends AbstractMatsAnnotatedCla
 
     @Override
     public void beforeEach(ExtensionContext extensionContext) {
-        beforeEach(extensionContext.getTestInstance().orElse(null));
+        List<Object> allInstances = new ArrayList<>(extensionContext.getRequiredTestInstances().getAllInstances());
+        // By default, the instance order is from the root to the leaf. We instead want the leaf first, so that
+        // fields there take precedence over fields higher up in the hierarchy.
+        Collections.reverse(allInstances);
+        beforeEach(allInstances);
     }
 
     @Override

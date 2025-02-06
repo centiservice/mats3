@@ -81,15 +81,15 @@ public abstract class AbstractMatsAnnotatedClass {
         _applicationContext.refresh();
     }
 
-    private Object _testInstance;
+    private List<Object> _testInstances;
     private final Map<String, BeanDefinition> _beanDefinitionToRegisterAtBeforeEach = new HashMap<>();
     private boolean _beforeEachCalled = false;
 
-    public void beforeEach(Object testInstance) {
-        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "beforeEach: Set up for " + testInstance);
+    public void beforeEach(List<Object> testInstances) {
+        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "beforeEach: Set up for " + testInstances);
 
         // Store the test instance for later reading of fields to register as beans.
-        _testInstance = testInstance;
+        _testInstances = testInstances;
 
         // If this Rule was field-inited with 'registerMatsAnnotatedClasses', we need to initialize those beans now.
         _beanDefinitionToRegisterAtBeforeEach.forEach(_applicationContext::registerBeanDefinition);
@@ -197,7 +197,7 @@ public abstract class AbstractMatsAnnotatedClass {
         // Note that we might end up doing this multiple times, but it is idempotent, so it is safe.
         // The reason for multiple times, is to do it as late as possible, to handle late initialization of Mockito
         // mocks, which in some setups are initialized after beforeEach is called.
-        addTestFieldsAsBeans(_testInstance);
+        _testInstances.forEach(this::addTestFieldsAsBeans);
 
         // We first need to capture the current set of endpoints, so that we can detect any new endpoints
         // created by forcing the bean initialization.
@@ -288,12 +288,12 @@ public abstract class AbstractMatsAnnotatedClass {
             if (field.getType().equals(testInstance.getClass().getEnclosingClass()) && field.isSynthetic()) {
                 // Yes, then add the fields from the enclosing class as well to the Spring context (but not
                 // the test itself). This is to support nested tests in Jupiter.
-                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Recursing into the enclosing class"
+                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Skipping the enclosing class"
                         + " represented by synthetic field [" + fieldName + "]: "
                         + testInstance.getClass().getEnclosingClass());
-                addTestFieldsAsBeans(fieldInstance);
                 return;
             }
+
             if (fieldInstance instanceof MatsFactory) {
                 // -> Yes, then we should not register this as a bean
                 if (log.isTraceEnabled()) log.trace(LOG_PREFIX + "    \\- Skipping field, as it is a MatsFactory.");
