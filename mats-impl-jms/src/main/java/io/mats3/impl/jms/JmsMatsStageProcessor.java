@@ -141,6 +141,10 @@ class JmsMatsStageProcessor<R, S, I, Z> implements JmsMatsStatics, JmsMatsTxCont
 
     @Override
     public void start() {
+        if (_processorThread.isAlive()) {
+            // ignore if already started, as per JavaDoc.
+            return;
+        }
         _processorThread.start();
     }
 
