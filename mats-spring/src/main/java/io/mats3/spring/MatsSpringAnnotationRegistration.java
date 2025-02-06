@@ -139,6 +139,27 @@ public class MatsSpringAnnotationRegistration implements
     private static final Log log = LogFactory.getLog(MatsSpringAnnotationRegistration.class);
     private static final String LOG_PREFIX = "#SPRINGMATS# ";
 
+    private final boolean _ignoreQualifiersAndDoubleRegistrations;
+
+    public MatsSpringAnnotationRegistration() {
+        this(false);
+    }
+
+    public static MatsSpringAnnotationRegistration createForTesting_IgnoreQualifiersAndDoubleRegistration() {
+        return new MatsSpringAnnotationRegistration(true);
+    }
+
+    private MatsSpringAnnotationRegistration(boolean ignoreQualifiersAndDoubleRegistrations) {
+        _ignoreQualifiersAndDoubleRegistrations = ignoreQualifiersAndDoubleRegistrations;
+        if (ignoreQualifiersAndDoubleRegistrations) {
+            log.info(LOG_PREFIX + "@MatsSpringAnnotationRegistration Created, TESTING mode: Ignoring qualifiers and"
+                    + " double registrations.");
+        }
+        else {
+            log.info(LOG_PREFIX + "@MatsSpringAnnotationRegistration Created, standard mode.");
+        }
+    }
+
     private ConfigurableApplicationContext _configurableApplicationContext;
     private ConfigurableListableBeanFactory _configurableListableBeanFactory;
 
@@ -403,7 +424,7 @@ public class MatsSpringAnnotationRegistration implements
     @EventListener
     public void onContextRefreshedEvent(ContextRefreshedEvent e) {
         log.info(LOG_PREFIX + "ContextRefreshedEvent: Registering all SpringConfig-defined Mats Endpoints, then"
-                + " running MatsFactory.start() on all MatsFactories in the Spring Context to start all registered"
+                + " running MatsFactory.start() on all MatsFactories we've seen to start all registered"
                 + " Mats Endpoints.");
 
         /*
@@ -432,12 +453,17 @@ public class MatsSpringAnnotationRegistration implements
         _contextHasBeenRefreshed = true;
 
         // :: Start the MatsFactories
-        log.info(LOG_PREFIX + "Invoking matsFactory.start() on all MatsFactories in Spring Context to start"
-                + " registered endpoints.");
-        _matsFactories.forEach((name, factory) -> {
-            log.info(LOG_PREFIX + "  \\- MatsFactory '" + name + "'.start()");
-            factory.start();
-        });
+        if (_matsFactoriesToName.isEmpty()) {
+            log.info(LOG_PREFIX + "We have not seen any MatsFactories, so nothing to start.");
+        }
+        else {
+            log.info(LOG_PREFIX + "Invoking matsFactory.start() on all " + _matsFactories.size() + " MatsFactories"
+                    + " we've seen to start registered endpoints.");
+            _matsFactories.forEach((name, factory) -> {
+                log.info(LOG_PREFIX + "  \\- MatsFactory '" + name + "'.start()");
+                factory.start();
+            });
+        }
     }
 
     /**
@@ -447,13 +473,17 @@ public class MatsSpringAnnotationRegistration implements
      */
     @EventListener
     public void onContextClosedEvent(ContextClosedEvent e) {
-        log.info(LOG_PREFIX
-                + "ContextClosedEvent: Running MatsFactory.stop() on all MatsFactories in the Spring Context"
-                + " to stop all registered MATS Endpoints and clean out the JmsMatsJmsSessionHandler.");
-        _matsFactories.forEach((name, factory) -> {
-            log.info(LOG_PREFIX + "  \\- MatsFactory '" + name + "'.stop()");
-            factory.stop(30_000);
-        });
+        if (_matsFactories.isEmpty()) {
+            log.info(LOG_PREFIX + "ContextClosedEvent: We have not seen any MatsFactories, so nothing to stop.");
+        }
+        else {
+            log.info(LOG_PREFIX + "ContextClosedEvent: Running MatsFactory.stop() on all MatsFactories we've seen"
+                    + " to stop all registered MATS Endpoints and clean out the JmsMatsJmsSessionHandler.");
+            _matsFactories.forEach((name, factory) -> {
+                log.info(LOG_PREFIX + "  \\- MatsFactory '" + name + "'.stop()");
+                factory.stop(30_000);
+            });
+        }
 
         // Reset the state. Not that I ever believe this will ever be refreshed again afterwards.
         _contextHasBeenRefreshed = false;
@@ -557,6 +587,11 @@ public class MatsSpringAnnotationRegistration implements
                 matsMapping.matsFactoryCustomQualifierType(),
                 matsMapping.matsFactoryQualifierValue(),
                 matsMapping.matsFactoryBeanName());
+
+        // :: If we're in testing mode, we'll check whether this is a double registration, and just ignore it.
+        if (shouldWeIgnoreThis(matsFactoryToUse, matsMapping.endpointId())) {
+            return;
+        }
 
         // :: Find the concurrency to use, if set (-1 if not)
         int concurrency = getConcurrencyToUse(descriptionOfAnnotation, matsMapping.concurrency());
@@ -868,6 +903,11 @@ public class MatsSpringAnnotationRegistration implements
                 matsClassMapping.matsFactoryQualifierValue(),
                 matsClassMapping.matsFactoryBeanName());
 
+        // :: If we're in testing mode, we'll check whether this is a double registration, and just ignore it.
+        if (shouldWeIgnoreThis(matsFactoryToUse, matsClassMapping.endpointId())) {
+            return;
+        }
+
         // :: Find the concurrency to use, if set (-1 if not)
 
         int concurrencyForEndpoint = getConcurrencyToUse(descriptionOfAnnotation, matsClassMapping.concurrency());
@@ -1057,7 +1097,8 @@ public class MatsSpringAnnotationRegistration implements
             log.info(LOG_PREFIX + "  -> Stage '" + ordinal + "': '" + simpleMethodDescription(method)
                     + ", DTO paramIdx:" + dtoParamIdx + ", DTO class:"
                     + classNameWithoutPackage(incomingClass) + " - ProcessContext paramIdx:" + processContextParamIdx
-                    + ", Concurrency:[" + (concurrencyForEndpoint != -1 ? Integer.toString(concurrencyForEndpoint) : "~default~") + "]");
+                    + ", Concurrency:[" + (concurrencyForEndpoint != -1 ? Integer.toString(concurrencyForEndpoint)
+                            : "~default~") + "]");
 
             Object[] defaultArgsArray = defaultArgsArray(method);
 
@@ -1183,6 +1224,20 @@ public class MatsSpringAnnotationRegistration implements
         ep.finishSetup();
         log.info(LOG_PREFIX + "Processed Mats Class Mapped Endpoint by @MatsClassMapping-annotated bean '"
                 + classNameWithoutPackage(bean) + "'.");
+    }
+
+    private boolean shouldWeIgnoreThis(MatsFactory matsFactoryToUse, String matsClassMapping) {
+        if (_ignoreQualifiersAndDoubleRegistrations) {
+            // ?: Have we already seen this endpointId on this MatsFactory?
+            if (matsFactoryToUse.getEndpoint(matsClassMapping).isPresent()) {
+                // -> Yes, we've already seen this endpointId on this MatsFactory, so we'll just ignore this.
+                log.info(LOG_PREFIX + "In TESTING mode: Ignoring double registration of endpointId '"
+                        + matsClassMapping + "' on MatsFactory [" + matsFactoryToUse.getFactoryConfig()
+                        .getName() + "], as we've already seen this endpointId on this MatsFactory.");
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1337,6 +1392,17 @@ public class MatsSpringAnnotationRegistration implements
     private MatsFactory getMatsFactoryToUse(String forWhat, AnnotatedElement annotatedElement,
             Class<? extends Annotation> aeCustomQualifierType,
             String aeQualifierValue, String aeBeanName) {
+
+        // :: First check whether we're in the testing mode.
+        // ?: Are we in the testing mode?
+        if (_ignoreQualifiersAndDoubleRegistrations) {
+            // -> Yes, testing mode: Just get the MatsFactory straight from the Spring context.
+            if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "TESTING MODE: Getting MatsFactory straight form Spring"
+                    + " context, ignoring any qualifiers if present.");
+            return getMatsFactoryUnspecified(forWhat);
+        }
+        // E-> No, not testing mode - resolve the MatsFactory based on the qualifiers, if present.
+
         List<MatsFactory> specifiedMatsFactories = new ArrayList<>();
 
         int numberOfQualifications = 0;
