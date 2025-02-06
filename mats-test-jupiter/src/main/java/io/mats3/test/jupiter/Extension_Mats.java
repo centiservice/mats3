@@ -1,5 +1,6 @@
 package io.mats3.test.jupiter;
 
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.sql.DataSource;
@@ -7,6 +8,7 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.ExtensionContext.Store;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
@@ -111,6 +113,9 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
      * <p>
      * Note that if you crate multiple {@link Extension_Mats}, then this will only provide the last created extension.
      * In that case, you should instead provide the actual MatsFactory to each extension.
+     * <p>
+     * In a scenario with nested classes, we only register the Extension_Mats in the top level class, where
+     * the extension has been added with {@link org.junit.jupiter.api.extension.RegisterExtension}.
      *
      * @param extensionContext
      *            to get {@link Extension_Mats} from
@@ -122,6 +127,10 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
         Extension_Mats extensionMats = extensionContext.getStore(NAMESPACE).get(Extension_Mats.class,
                 Extension_Mats.class);
         if (extensionMats == null) {
+            // If we have a parent context, we should get the Extension_Mats from there
+            if (extensionContext.getParent().isPresent()) {
+                return getExtension(extensionContext.getParent().get());
+            }
             throw new IllegalStateException("Could not find Extension_Mats in ExtensionContext,"
                     + " make sure to include Extension_Mats as a test extension.");
         }
@@ -129,23 +138,38 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
     }
 
     /**
+     * Checks if the {@link Extension_Mats} is registered in the test context already.
+     *
+     * @param context current test context
+     * @return true if the {@link Extension_Mats} is registered, false otherwise
+     */
+    public static boolean isExtensionRegistered(ExtensionContext context) {
+        // Check if the Extension_Mats is registered in the current context or any parent context
+        return context.getStore(NAMESPACE).get(Extension_Mats.class, Extension_Mats.class) != null
+                || context.getParent().filter(Extension_Mats::isExtensionRegistered).isPresent();
+    }
+
+    /**
      * Executed by Jupiter before any test method is executed. (Once at the start of the class.)
      */
     @Override
     public void beforeAll(ExtensionContext context) {
-        context.getStore(NAMESPACE).put(Extension_Mats.class, this);
-        // Handle the "nesting level'ing" of the beforeAll/afterAll
-        int nestingLevel = _nestinglevel.getAndIncrement();
-        // ?: Are we at the top level?
-        if (nestingLevel != 0) {
-            // -> No not at top, so then we ignore the beforeAll
-            log.debug("+++ Jupiter +++ beforeAll(..) invoked, but ignoring since nesting level is > 0: "
-                    + nestingLevel);
+        Optional<Extension_Mats> parentExtension = context.getParent()
+                .map(parentContext -> parentContext.getStore(NAMESPACE))
+                .map(store -> store.get(Extension_Mats.class, Extension_Mats.class));
+        Store contextStore = context.getStore(NAMESPACE);
+
+        // Are we already inside a Extension_Mats?
+        if (parentExtension.isPresent()) {
+            log.debug("+++ Jupiter +++ beforeAll(..) invoked, but ignoring since we are already registered");
+            // Also add ourselves to the current context, so that we can be found by other extensions.
+            // contextStore.put(Extension_Mats.class, parentExtension.get());
+            return;
         }
-        else {
-            // -> Yes, we are at the top level, so then we do the beforeAll
-            super.beforeAll();
-        }
+
+        // -> No, we are not inside a Extension_Mats, so this is the top level, and we do the beforeAll
+        contextStore.put(Extension_Mats.class, this);
+        super.beforeAll();
     }
 
     /**
@@ -153,17 +177,17 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
      */
     @Override
     public void afterAll(ExtensionContext context) {
-        // Handle the "nesting level'ing" of the beforeAll/afterAll
-        int nestingLevel = _nestinglevel.decrementAndGet();
-        // ?: Are we at the top level?
-        if (nestingLevel != 0) {
-            // -> No not at top, so then we ignore the afterAll
-            log.debug("--- Jupiter --- afterAll(..) invoked, but ignoring since nesting level is > 0: "
-                    + nestingLevel);
+        Optional<Extension_Mats> parentExtension = context.getParent()
+                .map(parentContext -> parentContext.getStore(NAMESPACE))
+                .map(store -> store.get(Extension_Mats.class, Extension_Mats.class));
+
+        // Are we inside a Extension_Mats?
+        if (parentExtension.isPresent()) {
+            // -> Yes, we are inside a Extension_Mats, so we do not do the afterAll
+            log.debug("--- Jupiter --- afterAll(..) invoked, but ignoring since we are not at the root");
+            return;
         }
-        else {
-            // -> Yes, we are at the top level, so then we do the afterAll
-            super.afterAll();
-        }
+        // -> No, we are not inside a Extension_Mats, so this is the top level, and we do the afterAll
+        super.afterAll();
     }
 }

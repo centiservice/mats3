@@ -21,7 +21,17 @@ class Extension_MatsRegistration implements Extension, BeforeAllCallback, AfterA
 
     @Override
     public void beforeAll(ExtensionContext context) throws ReflectiveOperationException {
+        // If the Extension_Mats is already registered, we do not need to do anything.
+        if (Extension_Mats.isExtensionRegistered(context)) {
+            return;
+        }
         MatsTest matsTest = context.getRequiredTestClass().getAnnotation(MatsTest.class);
+        // If the test class is not annotated with MatsTest, then we should not register the Extension_Mats in
+        // this context.
+        if (matsTest == null) {
+            return;
+        }
+
         SerializerFactory serializerFactory = matsTest.serializerFactory().getDeclaredConstructor().newInstance();
         MatsSerializer<?> matsSerializer = serializerFactory.createSerializer();
 
