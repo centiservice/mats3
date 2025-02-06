@@ -24,9 +24,9 @@ import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.test.SpringInjectRulesAndExtensions;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
+import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
-import io.mats3.test.broker.MatsTestBroker;
 
 /**
  * Illustrates that {@link Rule_MatsEndpoint} is autowired by Spring when using the test execution listener provided by
@@ -142,7 +142,7 @@ public class U_SpringTestMatsEndpoint {
         Reply<String> reply = future.get(10, TimeUnit.SECONDS);
 
         // Assert that the endpoint replied
-        Assert.assertEquals("Hello World!", reply.getReply());
+        Assert.assertEquals("Hello World!", reply.get());
     }
 
     @Test

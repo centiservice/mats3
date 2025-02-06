@@ -15,28 +15,41 @@ import org.junit.Test;
 
 import io.mats3.spring.Dto;
 import io.mats3.spring.MatsMapping;
+import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**
  * Test of {@link Rule_MatsAnnotatedClass}.
- * <p>
- * <b>NOTICE: Note that more extensive testing of all the features are only done in the Extension-variant of this test,
- * at 'io.mats3.test.jupiter.J_ExtensionMatsAnnotatedClassTest'.</b>
  *
  * @author Ståle Undheim <stale.undheim@storebrand.no> 2025-01-09
  */
-public class U_RuleMatsAnnotatedClassTest {
-
+public class U_RuleMatsAnnotatedClassBasicsTest {
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
-    public static final String ENDPOINT_ID = "AnnotatedEndpoint";
 
+    @Rule
+    public final Rule_MatsAnnotatedClass _matsAnnotationRule = Rule_MatsAnnotatedClass.create(MATS);
+
+    /**
+     * For the {@link Rule_MatsAnnotatedClass#withAnnotatedMatsClasses(Class[]) classes}-variant, this dependency will
+     * be picked up by Rule_MatsAnnotatedClass, and result in injecting this instance into the Mats3 Endpoints. This
+     * also works for Mockito {@code @Mock} mocks, see other tests.
+     */
+    private final ServiceDependency _serviceDependency = new ServiceDependency();
+
+    /**
+     * Dummy example of a service dependency - taking a String, and prepend "Hello " to it.
+     */
     public static class ServiceDependency {
         String formatMessage(String msg) {
             return "Hello " + msg;
         }
     }
 
+    public static final String ENDPOINT_ID = "AnnotatedEndpoint";
+    /**
+     * Example of a class with annotated MatsEndpoints.
+     */
     public static class AnnotatedMats3Endpoint {
         private ServiceDependency _serviceDependency;
 
@@ -53,18 +66,7 @@ public class U_RuleMatsAnnotatedClassTest {
         public String matsEndpoint(@Dto String msg) {
             return _serviceDependency.formatMessage(msg);
         }
-
     }
-
-    /**
-     * For the {@link Rule_MatsAnnotatedClass#withAnnotatedMatsClasses(Class[]) classes}-variant, this dependency will
-     * be picked up by Rule_MatsAnnotatedClass, and result in injecting this instance into the Mats3 Endpoints. This
-     * also works for Mockito {@code @Mock} mocks, example in the Extension-variant.
-     */
-    private final ServiceDependency _serviceDependency = new ServiceDependency();
-
-    @Rule
-    public final Rule_MatsAnnotatedClass _matsAnnotationRule = Rule_MatsAnnotatedClass.create(MATS);
 
     /**
      * Example of adding a mats annotated class inside a test case, that will then be created and started.
@@ -76,7 +78,7 @@ public class U_RuleMatsAnnotatedClassTest {
         String expectedReturn = "Hello World!";
 
         // :: Act
-        String reply = callMatsAnnotatedEndpoint("World!");
+        String reply = callMatsAnnotatedEndpoint(MATS.getMatsFuturizer(), "World!");
 
         // :: Verify
         Assert.assertEquals(expectedReturn, reply);
@@ -91,10 +93,10 @@ public class U_RuleMatsAnnotatedClassTest {
         // We now create the instance ourselves, including dependency injection, and then register it.
         AnnotatedMats3Endpoint annotatedMatsInstance = new AnnotatedMats3Endpoint(_serviceDependency);
         _matsAnnotationRule.withAnnotatedMatsInstances(annotatedMatsInstance);
-        String expectedReturn = "Hello World!";
+        String expectedReturn = "Hello World 2!";
 
         // :: Act
-        String reply = callMatsAnnotatedEndpoint("World!");
+        String reply = callMatsAnnotatedEndpoint(MATS.getMatsFuturizer(), "World 2!");
 
         // :: Verify
         Assert.assertEquals(expectedReturn, reply);
@@ -103,26 +105,26 @@ public class U_RuleMatsAnnotatedClassTest {
     // Life cycle test
 
     @BeforeClass
-    public static void beforeAll() {
+    public static void beforeClass() {
         // Endpoint should not exist before all tests
         Assert.assertFalse(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
     }
 
     @AfterClass
-    public static void afterAll() {
+    public static void afterClass() {
         // Endpoint should have been removed after all tests
         Assert.assertFalse(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
     }
 
-    private static String callMatsAnnotatedEndpoint(String message)
+    static String callMatsAnnotatedEndpoint(MatsFuturizer futurizer, String message)
             throws InterruptedException, ExecutionException, TimeoutException {
-        return MATS.getMatsFuturizer().futurizeNonessential(
+        return futurizer.futurizeNonessential(
                 "invokeAnnotatedEndpoint",
-                U_RuleMatsAnnotatedClassTest.class.getSimpleName(),
+                "UnitTest",
                 ENDPOINT_ID,
                 String.class,
                 message)
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .get(10, TimeUnit.SECONDS);
     }
 

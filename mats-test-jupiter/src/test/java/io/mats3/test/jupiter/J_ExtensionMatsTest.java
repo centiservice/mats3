@@ -38,7 +38,7 @@ public class J_ExtensionMatsTest {
                 "MyEndpoint",
                 String.class,
                 "World!")
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .get(10, TimeUnit.SECONDS);
 
         // :: Assert

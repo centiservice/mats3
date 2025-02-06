@@ -81,7 +81,7 @@ public class U_RuleMatsEndpointComplexTest {
                 "MultiStage",
                 String.class,
                 "Request")
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .get(3, TimeUnit.SECONDS);
 
         // :: Verify

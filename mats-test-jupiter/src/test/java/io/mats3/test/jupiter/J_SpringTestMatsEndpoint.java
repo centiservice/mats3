@@ -148,7 +148,7 @@ public class J_SpringTestMatsEndpoint {
         Reply<String> reply = future.get(10, TimeUnit.SECONDS);
 
         // Assert that the endpoint replied
-        Assertions.assertEquals("Hello World!", reply.getReply());
+        Assertions.assertEquals("Hello World!", reply.get());
     }
 
     @Test

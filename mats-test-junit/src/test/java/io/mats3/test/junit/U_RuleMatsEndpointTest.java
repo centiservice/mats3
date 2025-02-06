@@ -81,7 +81,7 @@ public class U_RuleMatsEndpointTest {
                         HELLO_ENDPOINT_ID,
                         String.class,
                         "Hello")
-                        .thenApply(Reply::getReply)
+                        .thenApply(Reply::get)
                         .get(10, TimeUnit.SECONDS);
 
         // :: First Verify
@@ -97,7 +97,7 @@ public class U_RuleMatsEndpointTest {
                 HELLO_ENDPOINT_ID,
                 String.class,
                 "Hello")
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .get(10, TimeUnit.SECONDS);
 
         // :: Final verify
@@ -119,7 +119,7 @@ public class U_RuleMatsEndpointTest {
                         HELLO_ENDPOINT_ID,
                         String.class,
                         null)
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .get(10, TimeUnit.SECONDS);
 
         // :: Verify

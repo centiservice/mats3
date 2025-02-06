@@ -5,7 +5,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -86,7 +85,7 @@ public class J_ExtensionMatsEndpointTest {
                 HELLO_ENDPOINT_ID,
                 String.class,
                 "Hello")
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .get(10, TimeUnit.SECONDS);
 
         // :: First Verify
@@ -102,7 +101,7 @@ public class J_ExtensionMatsEndpointTest {
                 HELLO_ENDPOINT_ID,
                 String.class,
                 "Hello")
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .get(10, TimeUnit.SECONDS);
 
         // :: Final verify
@@ -124,7 +123,7 @@ public class J_ExtensionMatsEndpointTest {
                 HELLO_ENDPOINT_ID,
                 String.class,
                 null)
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .get(10, TimeUnit.SECONDS);
         Assertions.assertEquals("null World!", reply);
     }
@@ -142,7 +141,7 @@ public class J_ExtensionMatsEndpointTest {
                 NO_MATS_FACTORY_ENDPOINT_ID,
                 String.class,
                 "Hello")
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .get(10, TimeUnit.SECONDS);
 
         // :: Verify

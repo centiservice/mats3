@@ -24,19 +24,26 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import io.mats3.MatsEndpoint;
 import io.mats3.spring.Dto;
 import io.mats3.spring.MatsMapping;
+import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**
  * Test of {@link Extension_MatsAnnotatedClass}, with example of adding annotated classes when the extension is created,
- * or within each test method, and using Mockito to replace a dependency.
+ * or within each test method, and using Mockito to replace a dependency, and nested Jupiter tests.
  *
  * @author Ståle Undheim <stale.undheim@storebrand.no> 2025-01-09
  */
-class J_ExtensionMatsAnnotatedClassTest {
+class J_ExtensionMatsAnnotatedClassBasicsTest {
 
     @RegisterExtension
     private static final Extension_Mats MATS = Extension_Mats.create();
-    public static final String ENDPOINT_ID = "AnnotatedEndpoint";
+
+    /**
+     * For the {@link Extension_MatsAnnotatedClass#withAnnotatedMatsClasses(Class[]) classes}-variant, this dependency
+     * will be picked up by Extension_MatsAnnotatedClass, and result in injecting this instance into the Mats3
+     * Endpoints. This also works for Mockito {@code @Mock} mocks, example in nested test below, and other tests.
+     */
+    private final ServiceDependency _serviceDependency = new ServiceDependency();
 
     /**
      * Dummy example of a service dependency - taking a String, and prepend "Hello " to it.
@@ -46,6 +53,8 @@ class J_ExtensionMatsAnnotatedClassTest {
             return "Hello " + msg;
         }
     }
+
+    public static final String ENDPOINT_ID = "AnnotatedEndpoint";
 
     /**
      * Example of a class with annotated MatsEndpoints.
@@ -70,13 +79,6 @@ class J_ExtensionMatsAnnotatedClassTest {
     }
 
     /**
-     * For the {@link Extension_MatsAnnotatedClass#withAnnotatedMatsClasses(Class[]) classes}-variant, this dependency
-     * will be picked up by Extension_MatsAnnotatedClass, and result in injecting this instance into the Mats3
-     * Endpoints. This also works for Mockito {@code @Mock} mocks, example in nested test below.
-     */
-    private final ServiceDependency _serviceDependency = new ServiceDependency();
-
-    /**
      * Example for how to provide a <b>class</b> with annotated MatsEndpoints to test.
      */
     @Nested
@@ -86,13 +88,18 @@ class J_ExtensionMatsAnnotatedClassTest {
                 .create(MATS)
                 .withAnnotatedMatsClasses(AnnotatedMats3Endpoint.class);
 
+        // This is evidently needed for some runs on Java 21: It seems to sometimes elide the synthetic field
+        // representing the outer/enclosing class instance when there are no references to it, which there ain't in
+        // this test class.
+        private ServiceDependency _serviceDependency = J_ExtensionMatsAnnotatedClassBasicsTest.this._serviceDependency;
+
         @Test
         void testAnnotatedMatsClass() throws ExecutionException, InterruptedException, TimeoutException {
             // :: Setup
             String expectedReturn = "Hello World!";
 
             // :: Act
-            String reply = callMatsAnnotatedEndpoint("World!");
+            String reply = callMatsAnnotatedEndpoint(MATS.getMatsFuturizer(), "World!");
 
             // :: Verify
             Assertions.assertEquals(expectedReturn, reply);
@@ -116,7 +123,7 @@ class J_ExtensionMatsAnnotatedClassTest {
             String expectedReturn = "Hello World!";
 
             // :: Act
-            String reply = callMatsAnnotatedEndpoint("World!");
+            String reply = callMatsAnnotatedEndpoint(MATS.getMatsFuturizer(), "World!");
 
             // :: Verify
             Assertions.assertEquals(expectedReturn, reply);
@@ -130,8 +137,8 @@ class J_ExtensionMatsAnnotatedClassTest {
     class TestAnnotatedWithDelayedConfiguration {
 
         @RegisterExtension
-        private final Extension_MatsAnnotatedClass _matsAnnotatedClassExtension = Extension_MatsAnnotatedClass.create(
-                MATS);
+        private final Extension_MatsAnnotatedClass _matsAnnotatedClassExtension = Extension_MatsAnnotatedClass
+                .create(MATS);
 
         @Test
         void testAnnotatedMatsClass() throws ExecutionException, InterruptedException, TimeoutException {
@@ -140,7 +147,7 @@ class J_ExtensionMatsAnnotatedClassTest {
             String expectedReturn = "Hello World!";
 
             // :: Act
-            String reply = callMatsAnnotatedEndpoint("World!");
+            String reply = callMatsAnnotatedEndpoint(MATS.getMatsFuturizer(), "World!");
 
             // :: Verify
             Assertions.assertEquals(expectedReturn, reply);
@@ -154,7 +161,7 @@ class J_ExtensionMatsAnnotatedClassTest {
             String expectedReturn = "Hello World!";
 
             // :: Act
-            String reply = callMatsAnnotatedEndpoint("World!");
+            String reply = callMatsAnnotatedEndpoint(MATS.getMatsFuturizer(), "World!");
 
             // :: Verify
             Assertions.assertEquals(expectedReturn, reply);
@@ -182,16 +189,16 @@ class J_ExtensionMatsAnnotatedClassTest {
         @Test
         void testMockedService() throws ExecutionException, InterruptedException, TimeoutException {
             // :: Setup
-            String willBeOverriddenByMock = "Earth! (But this will be mocked)";
-            String expectedReturn = "Not really hello World!";
-            when(_serviceDependency.formatMessage(anyString())).thenReturn(expectedReturn);
+            String invokeServiceWith = "The String that the service will be invoked with";
+            String serviceWillReply = "The String that the service will reply with";
+            when(_serviceDependency.formatMessage(anyString())).thenReturn(serviceWillReply);
 
             // :: Act
-            String reply = callMatsAnnotatedEndpoint(willBeOverriddenByMock);
+            String reply = callMatsAnnotatedEndpoint(MATS.getMatsFuturizer(), invokeServiceWith);
 
             // :: Verify
-            Assertions.assertEquals(expectedReturn, reply);
-            verify(_serviceDependency).formatMessage(willBeOverriddenByMock);
+            Assertions.assertEquals(serviceWillReply, reply);
+            verify(_serviceDependency).formatMessage(invokeServiceWith);
         }
 
     }
@@ -201,8 +208,8 @@ class J_ExtensionMatsAnnotatedClassTest {
 
     /**
      * Register an instance of the Extension, but don't register any Mats3 annotated endpoints on it: Since the
-     * MatsFactory is in global scope for the entire test, if we register the Mats endpoint annotated class here, this
-     * will fail in the nested classes, as the endpoint will already exist.
+     * MatsFactory is in global scope for the entire test class, included nested tests, if we register the Mats endpoint
+     * annotated class here, this will fail in the nested classes, as the endpoint will already exist.
      */
     @RegisterExtension
     private final Extension_MatsAnnotatedClass _matsAnnotatedClassExtension = Extension_MatsAnnotatedClass.create(MATS);
@@ -240,8 +247,13 @@ class J_ExtensionMatsAnnotatedClassTest {
         // :: Verify
         // This will of course change if this file changes. But just look at the line number in your editor for
         // the first call to withAnnotatedMatsInstances (the 2nd call will be present in the stacktrace)
-        assertionError.printStackTrace();
-        Assertions.assertTrue(assertionError.getMessage().contains("J_ExtensionMatsAnnotatedClassTest.java:233"));
+        boolean exceptionAsExpected = assertionError.getMessage()
+                .contains("J_ExtensionMatsAnnotatedClassBasicsTest.java:240");
+        if (!exceptionAsExpected) {
+            throw new AssertionError("The exception message did not contain the expected content!"
+                    + " (including line number of expected double registration! Did you change the test class?"
+                    + " Update the test with correct line number!).", assertionError);
+        }
     }
 
     @AfterAll
@@ -250,16 +262,15 @@ class J_ExtensionMatsAnnotatedClassTest {
         Assertions.assertFalse(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
     }
 
-    private String callMatsAnnotatedEndpoint(String message)
+    static String callMatsAnnotatedEndpoint(MatsFuturizer futurizer, String message)
             throws InterruptedException, ExecutionException, TimeoutException {
-        return MATS.getMatsFuturizer().futurizeNonessential(
+        return futurizer.futurizeNonessential(
                 "invokeAnnotatedEndpoint",
-                getClass().getSimpleName(),
+                "UnitTest",
                 ENDPOINT_ID,
                 String.class,
                 message)
-                .thenApply(Reply::getReply)
+                .thenApply(Reply::get)
                 .get(10, TimeUnit.SECONDS);
     }
-
 }
