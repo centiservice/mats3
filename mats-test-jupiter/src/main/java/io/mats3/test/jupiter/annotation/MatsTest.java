@@ -44,8 +44,8 @@ import io.mats3.serial.json.MatsSerializerJson;
         Extension_MatsRegistration.class,
         ParameterResolver_MatsFactory.class,
         ParameterResolver_MatsFuturizer.class,
-        PostProcessor_MatsEndpoint.class,
-        PostProcessor_MatsAnnotatedClass.class
+        FieldInject_MatsEndpoint.class,
+        FieldInject_MatsAnnotatedClass.class
 })
 public @interface MatsTest {
 

@@ -171,6 +171,8 @@ public abstract class AbstractMatsAnnotatedClass {
         while (stackTrace[index].getClassName().equals(getClass().getName())) {
             index++;
         }
+        // Register where we found this bean, so that in case we have another registration of the same Bean, we can
+        // provide a nice message to the user about where the previous registration of the same bean was.
         _registrationLocations.put(beanName, stackTrace[index]);
 
         // :: Register the matsAnnotatedClass.

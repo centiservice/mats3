@@ -17,7 +17,7 @@ import io.mats3.test.jupiter.annotation.MatsTest.SerializerFactory;
  */
 class Extension_MatsRegistration implements Extension, BeforeAllCallback, AfterAllCallback {
 
-    static final String LOG_PREFIX = "#MATSTEST:ANNOTATED# ";
+    static final String LOG_PREFIX = "#MATSTEST:MTA# ";
 
     @Override
     public void beforeAll(ExtensionContext context) throws ReflectiveOperationException {

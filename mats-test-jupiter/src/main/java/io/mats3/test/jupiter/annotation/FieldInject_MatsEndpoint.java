@@ -26,11 +26,11 @@ import io.mats3.test.jupiter.Extension_MatsEndpoint;
  *
  * @author Ståle Undheim <stale.undheim@storebrand.no> 2025-02-06
  */
-class PostProcessor_MatsEndpoint implements
+class FieldInject_MatsEndpoint implements
         Extension, TestInstancePostProcessor,
         BeforeEachCallback, AfterEachCallback {
 
-    private static final Logger log = LoggerFactory.getLogger(PostProcessor_MatsEndpoint.class);
+    private static final Logger log = LoggerFactory.getLogger(FieldInject_MatsEndpoint.class);
 
     private final List<Extension_MatsEndpoint<?, ?>> _testEndpoints = new ArrayList<>();
 
