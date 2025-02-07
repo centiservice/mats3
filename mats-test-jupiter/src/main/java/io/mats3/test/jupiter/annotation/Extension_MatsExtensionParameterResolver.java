@@ -1,7 +1,6 @@
 package io.mats3.test.jupiter.annotation;
 
 import java.util.Set;
-import java.util.stream.Stream;
 
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
@@ -22,7 +21,7 @@ import io.mats3.util.MatsFuturizer;
  *
  * @author Ståle Undheim <stale.undheim@storebrand.no> 2025-02-06
  */
-class ParameterResolver_MatsProperties implements ParameterResolver {
+class Extension_MatsExtensionParameterResolver implements ParameterResolver {
 
     // This corresponds to the getters on Extension_Mats
     private static final Set<Class<?>> SUPPORTED_TYPES = Set.of(
