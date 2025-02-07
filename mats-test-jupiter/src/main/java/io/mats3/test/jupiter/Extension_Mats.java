@@ -128,11 +128,10 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
                 Extension_Mats.class);
         if (extensionMats == null) {
             // If we have a parent context, we should get the Extension_Mats from there
-            if (extensionContext.getParent().isPresent()) {
-                return getExtension(extensionContext.getParent().get());
-            }
-            throw new IllegalStateException("Could not find Extension_Mats in ExtensionContext,"
-                    + " make sure to include Extension_Mats as a test extension.");
+            return extensionContext.getParent()
+                    .map(Extension_Mats::getExtension)
+                    .orElseThrow(() -> new IllegalStateException("Could not find Extension_Mats in ExtensionContext,"
+                            + " make sure to include Extension_Mats as a test extension."));
         }
         return extensionMats;
     }
