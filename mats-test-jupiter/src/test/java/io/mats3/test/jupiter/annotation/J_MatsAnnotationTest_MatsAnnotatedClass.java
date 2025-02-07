@@ -103,10 +103,15 @@ public class J_MatsAnnotationTest_MatsAnnotatedClass {
 
     static String callMatsAnnotatedEndpoint(MatsFuturizer futurizer, String request)
             throws InterruptedException, ExecutionException, TimeoutException {
+        return callMatsAnnotatedEndpoint(futurizer, ENDPOINT_ID, request);
+    }
+
+    static String callMatsAnnotatedEndpoint(MatsFuturizer futurizer, String endpointId, String request)
+            throws InterruptedException, ExecutionException, TimeoutException {
         return futurizer.futurizeNonessential(
                         "invokeAnnotatedEndpoint",
                         "UnitTest",
-                        ENDPOINT_ID,
+                        endpointId,
                         String.class,
                         request)
                 .thenApply(Reply::get)

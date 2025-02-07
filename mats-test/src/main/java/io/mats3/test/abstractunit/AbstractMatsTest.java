@@ -179,7 +179,7 @@ public abstract class AbstractMatsTest {
     /**
      * @return the JMS ConnectionFactory that this JUnit Rule sets up.
      */
-    public ConnectionFactory getJmsConnectionFactory() {
+        public ConnectionFactory getJmsConnectionFactory() {
         return _matsTestBroker.getConnectionFactory();
     }
 

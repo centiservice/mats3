@@ -1,6 +1,12 @@
 package io.mats3.test.jupiter.annotation;
 
+import static io.mats3.test.jupiter.annotation.J_MatsAnnotationTest_MatsAnnotatedClass.callMatsAnnotatedEndpoint;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import io.mats3.test.jupiter.Extension_MatsEndpoint;
@@ -15,21 +21,38 @@ import io.mats3.util.MatsFuturizer;
 class J_MatsAnnotationTest_MatsEndpoint {
 
     private static final String ENDPOINT_ID = "TestEndpoint";
+    private static final String NESTED_ENDPOINT_ID = "NestedTestEndpoint";
 
     @MatsTest.Endpoint(name = ENDPOINT_ID)
     private Extension_MatsEndpoint<String, String> _matsEndpoint;
 
     @Test
-    void testMatsEndpointRegistered(MatsFuturizer matsFuturizer) {
+    void testMatsEndpointRegistered(MatsFuturizer matsFuturizer)
+            throws ExecutionException, InterruptedException, TimeoutException {
         _matsEndpoint.setProcessLambda((ctx, msg) -> "Hello " + msg);
 
-        String result = matsFuturizer.futurizeNonessential(
-                "testMatsEndpointRegistered",
-                "UnitTest",
-                ENDPOINT_ID,
-                String.class,
-                "World").join().get();
+        String result = callMatsAnnotatedEndpoint(matsFuturizer, ENDPOINT_ID, "World");
 
         Assertions.assertEquals("Hello World", result);
+    }
+
+    @Nested
+    class NestedEndpointRegistrationTest {
+
+        @MatsTest.Endpoint(name = NESTED_ENDPOINT_ID)
+        private Extension_MatsEndpoint<String, String> _nestedEndpoint;
+
+        @Test
+        void testMatsEndpointRegistered(MatsFuturizer matsFuturizer)
+                throws ExecutionException, InterruptedException, TimeoutException {
+            _matsEndpoint.setProcessLambda((ctx, msg) -> "Outer message: " + msg);
+            _nestedEndpoint.setProcessLambda((ctx, msg) -> "Nested message: " + msg);
+
+            String resultOuter = callMatsAnnotatedEndpoint(matsFuturizer, ENDPOINT_ID, "Outer");
+            String resultNested = callMatsAnnotatedEndpoint(matsFuturizer, NESTED_ENDPOINT_ID, "Inner");
+
+            Assertions.assertEquals("Outer message: Outer", resultOuter);
+            Assertions.assertEquals("Nested message: Inner", resultNested);
+        }
     }
 }

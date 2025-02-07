@@ -42,8 +42,7 @@ import io.mats3.serial.json.MatsSerializerJson;
 @Target(ElementType.TYPE)
 @ExtendWith({
         Extension_MatsRegistration.class,
-        ParameterResolver_MatsFactory.class,
-        ParameterResolver_MatsFuturizer.class,
+        ParameterResolver_MatsProperties.class,
         FieldInject_MatsEndpoint.class,
         FieldInject_MatsAnnotatedClass.class
 })
