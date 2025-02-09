@@ -52,7 +52,8 @@ public abstract class AbstractMatsAnnotatedClass {
 
     protected AbstractMatsAnnotatedClass(MatsFactory matsFactory) {
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Instantiating AbstractMatsAnnotatedClass (" + this.getClass()
-                .getSimpleName() + "), creating Spring Context with MatsFactory: " + matsFactory);
+                .getSimpleName() + "), creating Spring Context with MatsFactory: " + matsFactory+ " - on this: "
+                + this.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this)));
         _matsFactory = matsFactory;
 
         // Create Spring Context
@@ -85,7 +86,8 @@ public abstract class AbstractMatsAnnotatedClass {
     private boolean _beforeEachCalled = false;
 
     public void beforeEach(Object testInstance) {
-        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "beforeEach: Set up for " + testInstance);
+        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "beforeEach: Set up for " + testInstance + " - on this: "
+                + this.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this)));
 
         // Store the test instance for later reading of fields to register as beans.
         _testInstance = testInstance;
@@ -101,7 +103,8 @@ public abstract class AbstractMatsAnnotatedClass {
 
     public void afterEach() {
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "afterEach: Remove Mats3 endpoints we created, and close"
-                + " Spring context.");
+                + " Spring context - on this: "
+                + this.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this)));
         for (MatsEndpoint<?, ?> endpoint : _registeredEndpoints) {
             if (log.isDebugEnabled()) log.debug(LOG_PREFIX + " \\- Removing endpoint: " + endpoint);
             endpoint.remove(30_000);
@@ -119,7 +122,8 @@ public abstract class AbstractMatsAnnotatedClass {
      */
     public void registerMatsAnnotatedClasses(Class<?>... annotatedMatsClasses) {
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "registerMatsAnnotatedClasses: "
-                + Arrays.asList(annotatedMatsClasses));
+                + Arrays.asList(annotatedMatsClasses)+ " - on this: "
+                + this.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this)));
         for (Class<?> annotatedMatsClass : annotatedMatsClasses) {
             addAnnotatedMatsBean(new AnnotatedGenericBeanDefinition(annotatedMatsClass));
         }
@@ -135,7 +139,8 @@ public abstract class AbstractMatsAnnotatedClass {
      */
     public void registerMatsAnnotatedInstances(Object... annotatedMatsInstances) {
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "registerMatsAnnotatedInstances: "
-                + Arrays.asList(annotatedMatsInstances));
+                + Arrays.asList(annotatedMatsInstances)+ " - on this: "
+                + this.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this)));
         for (Object annotatedMatsInstance : annotatedMatsInstances) {
             GenericBeanDefinition beanDefinition = new AnnotatedGenericBeanDefinition(annotatedMatsInstance.getClass());
             beanDefinition.setInstanceSupplier(() -> annotatedMatsInstance);
@@ -260,10 +265,11 @@ public abstract class AbstractMatsAnnotatedClass {
                         + "], as it is null.");
                 return;
             }
-            if (fieldInstance == this) {
+            // ?: Is it the [Rule|Extension]_MatsAnnotatedClass?
+            if (fieldInstance instanceof AbstractMatsAnnotatedClass) {
                 // -> Yes, then we should not register this as a bean
                 if (log.isTraceEnabled()) log.trace(LOG_PREFIX + "   \\- Skipping field [" + fieldName
-                        + "], as it is this Rule itself.");
+                        + "], as it is a [Rule|Extension]_MatsAnnotatedClass.");
                 return;
             }
             // ?: Is it the [Rule|Extension]_Mats?
