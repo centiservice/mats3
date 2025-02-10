@@ -1,8 +1,5 @@
 package io.mats3.test.junit;
 
-import static io.mats3.test.junit.U_RuleMatsAnnotatedClassBasicsTest.ENDPOINT_ID;
-import static io.mats3.test.junit.U_RuleMatsAnnotatedClassBasicsTest.callMatsAnnotatedEndpoint;
-
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -25,11 +22,17 @@ import io.mats3.util.MatsFuturizer.Reply;
 /**
  * Test of {@link Rule_MatsAnnotatedClass}, where we also set up endpoints outside of the annotated class, both on a
  * "global basis" (before and after class), and on a "per test" basis (before and after each test) - the annotation
- * stuff should not interfere with these other endpoints.
+ * stuff should not interfere with these other endpoints. Also uses the {@link Rule_MatsEndpoint} to set up an
+ * endpoint.
  */
 public class U_RuleMatsAnnotatedClass_LifeCycling_ExistingEndpoints {
     private static final Logger log = LoggerFactory.getLogger(
             U_RuleMatsAnnotatedClass_LifeCycling_ExistingEndpoints.class);
+
+    private static final String GLOBAL_ENDPOINT_ID = "GlobalEndpoint";
+    private static final String ANNOTATION_ENDPOINT_ID = "AnnotatedEndpoint";
+    private static final String RULE_MATS_ENDPOINT_ID = "ExtensionMatsEndpoint";
+    private static final String PER_TEST_ENDPOINT_ID = "PerTestEndpoint";
 
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
@@ -39,16 +42,15 @@ public class U_RuleMatsAnnotatedClass_LifeCycling_ExistingEndpoints {
     // needed as a "bean" to be injected into the AnnotatedMats3Endpoint
     private final ServiceDependency _serviceDependency = new ServiceDependency();
 
-    /**
-     * Here we're explicitly giving it the MatsFactory from the Rule_Mats.
-     */
     @Rule
     public final Rule_MatsAnnotatedClass _matsAnnotationRule = Rule_MatsAnnotatedClass
-            .create(MATS.getMatsFactory())
+            .create(MATS)
             .withAnnotatedMatsClasses(AnnotatedMats3Endpoint.class);
 
-    private static final String GLOBAL_ENDPOINT_ID = "GlobalEndpoint";
-    private static final String PER_TEST_ENDPOINT_ID = "PerTestEndpoint";
+    @Rule
+    public final Rule_MatsEndpoint<String, String> _helloEndpoint = Rule_MatsEndpoint
+            .create(MATS, RULE_MATS_ENDPOINT_ID, String.class, String.class)
+            .setProcessLambda((context, msg) -> msg + " RuleMatsEndpoint");
 
     @BeforeClass
     public static void beforeClass() {
@@ -56,7 +58,8 @@ public class U_RuleMatsAnnotatedClass_LifeCycling_ExistingEndpoints {
 
         // :: No endpoints should be here at start!
         Assert.assertFalse(MATS.getMatsFactory().getEndpoint(GLOBAL_ENDPOINT_ID).isPresent());
-        Assert.assertFalse(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
+        Assert.assertFalse(MATS.getMatsFactory().getEndpoint(ANNOTATION_ENDPOINT_ID).isPresent());
+        Assert.assertFalse(MATS.getMatsFactory().getEndpoint(RULE_MATS_ENDPOINT_ID).isPresent());
         Assert.assertFalse(MATS.getMatsFactory().getEndpoint(PER_TEST_ENDPOINT_ID).isPresent());
 
         // Set up "global" endpoint
@@ -73,8 +76,10 @@ public class U_RuleMatsAnnotatedClass_LifeCycling_ExistingEndpoints {
         // The "Global" SHOULD be here
         Assert.assertTrue(MATS.getMatsFactory().getEndpoint(GLOBAL_ENDPOINT_ID).isPresent());
         // The annotated endpoint SHOULD be here
-        Assert.assertTrue(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
-        // The "per test" endpoint should NOT be here
+        Assert.assertTrue(MATS.getMatsFactory().getEndpoint(ANNOTATION_ENDPOINT_ID).isPresent());
+        // The Rule_MatsEndpoint SHOULD be here
+        Assert.assertTrue(MATS.getMatsFactory().getEndpoint(RULE_MATS_ENDPOINT_ID).isPresent());
+        // The "per test" endpoint should NOT be here (because it is set up right below!)
         Assert.assertFalse(MATS.getMatsFactory().getEndpoint(PER_TEST_ENDPOINT_ID).isPresent());
 
         // Set up "per test" endpoint
@@ -88,59 +93,67 @@ public class U_RuleMatsAnnotatedClass_LifeCycling_ExistingEndpoints {
 
         // ASSERT:
 
-        // The "Global" SHOULD still be here
+        // :: All endpoints SHOULD still be here!
         Assert.assertTrue(MATS.getMatsFactory().getEndpoint(GLOBAL_ENDPOINT_ID).isPresent());
-        // The annotated endpoint SHOULD still be here
-        Assert.assertTrue(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
-        // The "per test" endpoint SHOULD still be here
+        Assert.assertTrue(MATS.getMatsFactory().getEndpoint(ANNOTATION_ENDPOINT_ID).isPresent());
+        Assert.assertTrue(MATS.getMatsFactory().getEndpoint(RULE_MATS_ENDPOINT_ID).isPresent());
+        // The "per test" endpoint SHOULD still be here! (because it is torn down right below!)
         Assert.assertTrue(MATS.getMatsFactory().getEndpoint(PER_TEST_ENDPOINT_ID).isPresent());
 
         // Tear down "per test" endpoint
         MATS.getMatsFactory().getEndpoint(PER_TEST_ENDPOINT_ID)
                 .ifPresent(ep -> ep.remove(30_000));
 
+        Assert.assertFalse(MATS.getMatsFactory().getEndpoint(PER_TEST_ENDPOINT_ID).isPresent());
     }
 
     @AfterClass
     public static void afterClass() {
         log.info("=!=: @AfterClass: Assert, then tear down \"global\" endpoint.");
 
-        // The "Global" SHOULD still be here
+        // ASSERT:
+
+        // The "Global" SHOULD still be here (because it is torn down right below!)
         Assert.assertTrue(MATS.getMatsFactory().getEndpoint(GLOBAL_ENDPOINT_ID).isPresent());
-        // The annotated endpoint should NOT be here anymore
-        Assert.assertFalse(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
-        // The "per test" endpoint should NOT be here anymore
+        // :: The rest of the endpoints should NOT be here anymore!
+        Assert.assertFalse(MATS.getMatsFactory().getEndpoint(ANNOTATION_ENDPOINT_ID).isPresent());
+        Assert.assertFalse(MATS.getMatsFactory().getEndpoint(RULE_MATS_ENDPOINT_ID).isPresent());
         Assert.assertFalse(MATS.getMatsFactory().getEndpoint(PER_TEST_ENDPOINT_ID).isPresent());
 
         // Tear down "global" endpoint
         MATS.getMatsFactory().getEndpoint(GLOBAL_ENDPOINT_ID)
                 .ifPresent(ep -> ep.remove(30_000));
+
+        Assert.assertFalse(MATS.getMatsFactory().getEndpoint(GLOBAL_ENDPOINT_ID).isPresent());
     }
 
     @Test
-    public void test1() throws ExecutionException, InterruptedException, TimeoutException {
+    public void lifeCycle_Round1() throws ExecutionException, InterruptedException, TimeoutException {
         test("1A");
         test("1B");
     }
 
     @Test
-    public void test2() throws ExecutionException, InterruptedException, TimeoutException {
+    public void lifeCycle_Round2() throws ExecutionException, InterruptedException, TimeoutException {
         test("2A");
         test("2B");
     }
 
     @Test
-    public void test3() throws ExecutionException, InterruptedException, TimeoutException {
+    public void lifeCycle_Round3() throws ExecutionException, InterruptedException, TimeoutException {
         test("3A");
         test("3B");
     }
 
     public void test(String which) throws ExecutionException, InterruptedException, TimeoutException {
-        String reply = callMatsAnnotatedEndpoint(MATS.getMatsFuturizer(), "World " + which);
+        String reply = callEndpoint(ANNOTATION_ENDPOINT_ID, "World " + which);
         Assert.assertEquals("Hello World " + which, reply);
 
         String global = callEndpoint(GLOBAL_ENDPOINT_ID, "XYZ " + which);
         Assert.assertEquals("XYZ " + which + " Global", global);
+
+        String extensionMats = callEndpoint(RULE_MATS_ENDPOINT_ID, "123 " + which);
+        Assert.assertEquals("123 " + which + " RuleMatsEndpoint", extensionMats);
 
         String perTest = callEndpoint(PER_TEST_ENDPOINT_ID, "ABC " + which);
         Assert.assertEquals("ABC " + which + " PerTest", perTest);
