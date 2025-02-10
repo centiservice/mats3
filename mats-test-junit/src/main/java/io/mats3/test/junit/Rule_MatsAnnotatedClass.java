@@ -13,25 +13,36 @@ import io.mats3.test.abstractunit.AbstractMatsAnnotatedClass;
 
 /**
  * Helper class to test Mats3 Endpoints which are defined using the Mats3 SpringConfig annotations, but without using
- * the full Spring harness for testing. That is, you write tests in a "pure Java" style, but can still test your
- * Spring-defined Mats endpoints. This can be terser and faster than using the full Spring test harness.
+ * the full Spring harness for testing. That is, you write tests in a "pure Java" style, but can still test your Mats3
+ * SpringConfig annotation defined Mats endpoints. This can be terser and faster than using the full Spring test
+ * harness.
  * <p>
- * By having at least one such test, you ensure an "integration test" of the Mats endpoint by taking it up, checking the
- * annotations, and that state and DTOs can be instantiated and serialized.
+ * By having at least one such test per SpringConfig defined Mats3 endpoints, you ensure an integration test of the
+ * SpringConfig aspects of your Mats endpoints: The annotations are read, the endpoint is set up, and the STOs (state)
+ * and DTOs (data) can be instantiated and serialized. For corner case unit testing where you want lots of tests, you
+ * can instead invoke the individual methods directly on the instantiated endpoint class, thus getting the fastests
+ * speeds.
  * <p>
- * The solution still creates a Spring context internally to initialize the Mats endpoints, but this should be viewed as
- * an implementation detail, and the Spring context is not made available for the test - the endpoints are just present
- * in the MatsFactory. The Spring context is created for each test, and is not shared between tests. The specified
- * Endpoints will be registered (anew) on the provided {@link MatsFactory} for each test method, and deleted after the
- * test method has run.
+ * The solution creates a Spring context internally to initialize the Mats endpoints, but this should be viewed as an
+ * implementation detail, and the Spring context is not made available for the test - the specified SpringConfig
+ * annotated endpoints just turns up in the MatsFactory so that you can test it using e.g. the MatsFuturizer. The Spring
+ * context is created anew for each test, and is not shared between tests. Endpoints specified at the Rule's field init
+ * will be registered anew on the provided {@link MatsFactory} for each test method. All Endpoints are deleted after the
+ * test method has run. (The supplied MatsFactory and its underlying MQ Broker is shared between all tests.)
  * <p>
- * <b>MatsFactory qualifiers</b>: If the Mats annotated class has qualifiers for the MatsFactory, these will be ignored.
- * For the same reason, any duplicate endpointIds will be ignored, and only one instance will be registered: The reason
- * for using qualifiers are that you have multiple MatsFactories in the application, and some endpoints might be
- * registered on multiple MatsFactories (repeating the annotation with the same endpointId, but with different
+ * <b>"Field beans" dependency injection: </b> Fields in the test class are read out, and entered as beans into the
+ * Spring context, thus made available for injection into the Mats annotated classes when using the
+ * {@link #withAnnotatedMatsClasses(Class...)} method. There is no support for qualifiers, so if your Mats-annotated
+ * endpoints require multiple beans of the same type (made unique by qualifiers), you will have to use a full Spring
+ * setup for your tests.
+ * <p>
+ * <b>MatsFactory qualifiers</b>: If the Mats annotated endpoints has qualifiers for the MatsFactory, these will be
+ * ignored. For the same reason, any duplicate endpointIds will be ignored, and only one instance will be registered:
+ * The reason for using qualifiers are that you have multiple MatsFactories in the application, and some endpoints might
+ * be registered on multiple MatsFactories (repeating the annotation with the same endpointId, but with different
  * qualifier). For the testing scenario using this class, we only have one MatsFactory, which will be used for all
- * endpoints, and duplicates will thus have to be ignored. If this is a problem, you should consider using the full
- * Spring test harness.
+ * endpoints, and duplicates will thus have to be ignored. If this is a problem, you will have to use a full Spring
+ * setup for your tests.
  * <p>
  * Classes with SpringConfig Mats3 Endpoints can either be registered using the
  * {@link #withAnnotatedMatsClasses(Class...)} method, or by using the {@link #withAnnotatedMatsInstances(Object...)}
@@ -51,7 +62,7 @@ import io.mats3.test.abstractunit.AbstractMatsAnnotatedClass;
  * <li>Manually create the mocks using {@code Mockito.mock(ServiceToMock.class)}, and manually inject them on the mats
  * annotated endpoint class's instance, inside the test method.</li>
  * </ol>
- * Note that if you use "field init endpoint registration" of the {@link Rule_MatsAnnotatedClass}, you need to use the
+ * Note that if you use field init endpoint registration of the {@link Rule_MatsAnnotatedClass}, you need to use the
  * rule variant, or manually create the mocks, due to initialization order.
  * <p>
  * <b>The instances-variant</b> registers the Mats annotated class as an Endpoint when called. You will then have to

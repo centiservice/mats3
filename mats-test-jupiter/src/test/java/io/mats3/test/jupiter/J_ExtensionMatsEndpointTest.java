@@ -29,6 +29,7 @@ public class J_ExtensionMatsEndpointTest {
     public final Extension_MatsEndpoint<String, String> _helloEndpoint = Extension_MatsEndpoint
             .create(MATS, HELLO_ENDPOINT_ID, String.class, String.class);
 
+    // This variant finds the MatsFactory from the ExtensionContext, set there by Extension_Mats.
     @RegisterExtension
     public final Extension_MatsEndpoint<String, String> _endpointWithoutMatsFactory = Extension_MatsEndpoint
             .create(NO_MATS_FACTORY_ENDPOINT_ID, String.class, String.class);
