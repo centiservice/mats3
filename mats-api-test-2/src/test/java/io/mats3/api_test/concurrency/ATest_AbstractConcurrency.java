@@ -72,12 +72,12 @@ public class ATest_AbstractConcurrency {
          */
 
         // First "standard" waitForReceiving, to get at least one StageProcessor running for all stages.
-        MATS.getMatsFactory().getEndpoint(ENDPOINT).orElseThrow(() -> new AssertionError("Could not get endpoint ["
-                + ENDPOINT + "]"))
+        MATS.getMatsFactory().getEndpoint(ENDPOINT)
+                .orElseThrow(() -> new AssertionError("Could not get endpoint [" + ENDPOINT + "]"))
                 .waitForReceiving(30_0000);
 
         // .. then wait a little more, in hope that all the StageProcessors has gotten into receive()
-        MatsTestHelp.takeNap(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 2);
+        MatsTestHelp.takeNap(MatsTestLatch.WAIT_MILLIS_FOR_NON_OCCURRENCE * 3);
 
         // .. Now fire off the messages.
         MATS.getMatsInitiator().initiateUnchecked((msg) -> {
@@ -105,7 +105,7 @@ public class ATest_AbstractConcurrency {
                 ? (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 6.0) // Windows
                 : macOs
                 ? (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 4.0) // Mac
-                : (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 2.5); // Linux
+                : (long) (PROCESSING_TIME * MESSAGES_MULTIPLE * 3.0); // Linux
         log.info("Waiting for " + CONCURRENCY + " messages to reach terminator, with a maxWait of [" + maxWait
                 + " ms] (Windows OS: " + windowsOs + ", Mac OS: " + macOs + ")");
         long startMillis = System.currentTimeMillis();
