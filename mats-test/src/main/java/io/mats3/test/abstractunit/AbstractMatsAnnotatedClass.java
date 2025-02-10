@@ -3,8 +3,10 @@ package io.mats3.test.abstractunit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +46,10 @@ public abstract class AbstractMatsAnnotatedClass {
     private final List<MatsEndpoint<?, ?>> _registeredEndpoints = new ArrayList<>();
 
     private final List<String> _uninitializedBeans = new ArrayList<>();
+
+    // Used to enable the overriding of the field beans for Jupiter, where fields from the inner, @Nested test class
+    // should take precedence over the fields from the outer, "parent" test class.
+    private final Set<Class<?>> _registeredFieldTypes = new HashSet<>();
 
     // To detect duplicate registrations of the same class, we keep track of the registration locations.
     private final Map<String, StackTraceElement> _registrationLocations = new HashMap<>();
@@ -267,8 +273,9 @@ public abstract class AbstractMatsAnnotatedClass {
 
         ReflectionUtils.doWithFields(testInstance.getClass(), field -> {
             field.setAccessible(true);
-            String fieldName = field.getName(); // Used as bean name
-            String beanName = fieldName;
+            String fieldName = field.getName();
+            String descFieldName = testInstance.getClass().getSimpleName() + "." + fieldName;
+            String beanName = testInstance.getClass().getName() + "." + fieldName; // Unique name for the bean
             Object fieldInstance = field.get(testInstance);
             if (log.isTraceEnabled()) log.trace(LOG_PREFIX + ".. Evaluating field: " + field + ", instance: "
                     + fieldInstance);
@@ -278,28 +285,28 @@ public abstract class AbstractMatsAnnotatedClass {
             // ?: Do we have a value for the field?
             if (fieldInstance == null) {
                 // -> No, then we cannot register this as a bean
-                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Skipping field [" + fieldName
+                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Skipping field [" + descFieldName
                         + "], as it is currently null.");
                 return;
             }
             // ?: Is it the [Rule|Extension]_MatsAnnotatedClass?
             if (fieldInstance instanceof AbstractMatsAnnotatedClass) {
                 // -> Yes, then we should not register this as a bean
-                if (log.isTraceEnabled()) log.trace(LOG_PREFIX + "   \\- Skipping field [" + fieldName
+                if (log.isTraceEnabled()) log.trace(LOG_PREFIX + "   \\- Skipping field [" + descFieldName
                         + "], as it is a [Rule|Extension]_MatsAnnotatedClass.");
                 return;
             }
             // ?: Is it the [Rule|Extension]_Mats?
             if (fieldInstance instanceof AbstractMatsTest) {
                 // -> Yes, then we should not register this as a bean
-                if (log.isTraceEnabled()) log.trace(LOG_PREFIX + "   \\- Skipping field [" + fieldName
+                if (log.isTraceEnabled()) log.trace(LOG_PREFIX + "   \\- Skipping field [" + descFieldName
                         + "], as it is a [Rule|Extension]_Mats.");
                 return;
             }
             // ?: Is it a MatsFactory?
             if (fieldInstance instanceof MatsFactory) {
                 // -> Yes, then we should not register this as a bean
-                if (log.isTraceEnabled()) log.trace(LOG_PREFIX + "   \\- Skipping field [" + fieldName
+                if (log.isTraceEnabled()) log.trace(LOG_PREFIX + "   \\- Skipping field [" + descFieldName
                         + "], as it is a MatsFactory.");
                 return;
             }
@@ -308,8 +315,20 @@ public abstract class AbstractMatsAnnotatedClass {
             if (field.getType().equals(testInstance.getClass().getEnclosingClass()) && field.isSynthetic()) {
                 // -> Yes, so we should not register this as a bean
                 if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Skipping the enclosing class"
-                        + " represented by synthetic field [" + fieldName + "]: "
+                        + " represented by synthetic field [" + descFieldName + "]: "
                         + testInstance.getClass().getEnclosingClass());
+                return;
+            }
+
+            // :: If we find a field with the same type as we've already registered, we skip it.
+            // This makes the feature whereby fields from the inner, @Nested test class should take precedence over
+            // the fields from the outer, "parent" test class.
+
+            // ?: Is there already a bean with this type?
+            if (_registeredFieldTypes.contains(field.getType())) {
+                // -> Yes, there is already a bean with this type, so we skip it.
+                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Skipping field [" + descFieldName
+                        + "], as a bean with the same type already exists.");
                 return;
             }
 
@@ -318,9 +337,10 @@ public abstract class AbstractMatsAnnotatedClass {
             // ?: Is there already a bean with this name?
             if (!_applicationContext.containsBean(beanName)) {
                 // -> No, no existing bean -> add this to the Spring context as a singleton
-                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Registering field as Spring bean: "
-                        + beanName + " -> " + fieldInstance);
+                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Registering field [" + descFieldName
+                        + "] as Spring bean: " + beanName + " -> " + fieldInstance);
                 _applicationContext.getBeanFactory().registerSingleton(beanName, fieldInstance);
+                _registeredFieldTypes.add(field.getType());
             }
             else {
                 // -> Yes, it is already, so skip it.

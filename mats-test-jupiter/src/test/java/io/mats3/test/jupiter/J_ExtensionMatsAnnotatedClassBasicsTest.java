@@ -12,8 +12,10 @@ import java.util.concurrent.TimeoutException;
 import javax.inject.Inject;
 
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -164,11 +166,11 @@ class J_ExtensionMatsAnnotatedClassBasicsTest {
     }
 
     /**
-     * Replace the dependency with mockito
+     * Override the dependency - where we're using Mockito to replace the dependency from the outer class.
      */
     @Nested
     @ExtendWith(MockitoExtension.class)
-    class TestAnnotatedWithMockito {
+    class TestOverrideDependencyInNestedClass {
 
         @RegisterExtension
         private final Extension_MatsAnnotatedClass _matsAnnotatedClassExtension = Extension_MatsAnnotatedClass
@@ -176,13 +178,12 @@ class J_ExtensionMatsAnnotatedClassBasicsTest {
                 .withAnnotatedMatsClasses(AnnotatedMats3Endpoint.class);
 
         // Note, since we declare this here, it will take precedence over the same bean declared in the
-        // enclosing Extension_MatsAnnotatedClass. This is however based on the field name, so this needs to have the
-        // same name as the same field in the enclosing class.
+        // enclosing Extension_MatsAnnotatedClass. This is based on the type of the field, not the name.
         @Mock
         private ServiceDependency _serviceDependency;
 
         @Test
-        void testMockedService() throws ExecutionException, InterruptedException, TimeoutException {
+        void testOverrideDependencyInNestedClass() throws ExecutionException, InterruptedException, TimeoutException {
             // :: Setup
             String invokeServiceWith = "The String that the service will be invoked with";
             String serviceWillReply = "The String that the service will reply with";
@@ -195,7 +196,6 @@ class J_ExtensionMatsAnnotatedClassBasicsTest {
             Assertions.assertEquals(serviceWillReply, reply);
             verify(_serviceDependency).formatMessage(invokeServiceWith);
         }
-
     }
 
     // :: Life cycle test
@@ -212,6 +212,24 @@ class J_ExtensionMatsAnnotatedClassBasicsTest {
     @BeforeAll
     static void beforeAll() {
         // Endpoint should not exist before all tests
+        Assertions.assertFalse(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
+    }
+
+    @BeforeEach
+    void beforeEach() {
+        // We can't test anything here, since the endpoint will be present if defined using the
+        // Extension's field init, but not if defined in the test methods.
+    }
+
+    @AfterEach
+    void afterEach() {
+        // Endpoints are NOT removed yet - i.e. they are still there.
+        Assertions.assertTrue(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
+    }
+
+    @AfterAll
+    static void afterAll() {
+        // Endpoint should have been removed after all tests
         Assertions.assertFalse(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
     }
 
@@ -243,18 +261,12 @@ class J_ExtensionMatsAnnotatedClassBasicsTest {
         // This will of course change if this file changes. But just look at the line number in your editor for
         // the first call to withAnnotatedMatsInstances (the 2nd call will be present in the stacktrace)
         boolean exceptionAsExpected = assertionError.getMessage()
-                .contains("J_ExtensionMatsAnnotatedClassBasicsTest.java:235");
+                .contains("J_ExtensionMatsAnnotatedClassBasicsTest.java:253");
         if (!exceptionAsExpected) {
             throw new AssertionError("The exception message did not contain the expected content!"
                     + " (including line number of expected double registration! Did you change the test class?"
                     + " Update the test with correct line number!).", assertionError);
         }
-    }
-
-    @AfterAll
-    static void afterAll() {
-        // Endpoint should have been removed after all tests
-        Assertions.assertFalse(MATS.getMatsFactory().getEndpoint(ENDPOINT_ID).isPresent());
     }
 
     static String callMatsAnnotatedEndpoint(MatsFuturizer futurizer, String message)
