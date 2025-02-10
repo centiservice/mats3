@@ -37,10 +37,14 @@ import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
  * If no process lambda is specified for the endpoint it will act as a terminator, thus it does not generate a reply.
  * <p>
  *
+ * Example:
+ *
  * <pre>
  * &#64;Rule
- * public Rule_MatsEndpoint&lt;String, String&gt; _world = Rule_MatsEndpoint.single(endpointFactory, "World",
- *         String.class, String.class, (context, in) -&gt; in + "World");
+ * public Rule_MatsEndpoint&lt;String, String&gt; _helloEndpoint = Rule_MatsEndpoint.create("endpointId",
+ *         String.class, String.class)
+ *         .setMatsFactory(matsFactory) // Optional in Spring context, read paragraph below.
+ *         .setProcessLambda((context, msg) -&gt; "Hello " + msg + "!");
  * </pre>
  *
  * Should one want to utilize this test endpoint approach in a test which brings up a Spring context which contains a
