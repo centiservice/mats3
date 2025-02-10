@@ -132,7 +132,8 @@ public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I>
     /**
      * Convenience variant of {@link #create(String, Class, Class) create(endpointId, replyClass, incomingClass)} taking
      * a {@link Extension_Mats} as first argument for fetching the {@link MatsFactory}, for use in "pure Java"
-     * environments (read as: non-Spring).
+     * environments (read as: non-Spring) - but note that if you also use {@link Extension_Mats}, a MatsFactory will
+     * also be available in the ExtensionContext, which this extension then will find and use.
      * <p>
      * <b>Do notice that you need to invoke {@link #setProcessLambda(ProcessSingleLambda)} - typically inside the
      * &#64;Test method - before sending messages to it, as there is no default.</b>
@@ -151,8 +152,19 @@ public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I>
 
     @Override
     public void beforeEach(ExtensionContext context) {
+        // ?: Do we have the MatsFactory set yet?
         if (_matsFactory == null) {
-            _matsFactory = Extension_Mats.findFromContext(context).getMatsFactory();
+            // -> No, so let's see if we can find it in the ExtensionContext (throws if not).
+            Optional<Extension_Mats> matsFromContext = Extension_Mats.findFromContext(context);
+            if (matsFromContext.isPresent()) {
+                setMatsFactory(matsFromContext.get().getMatsFactory());
+            }
+            else {
+                throw new IllegalStateException("MatsFactory is not set. Didn't find Extension_Mats in"
+                        + " ExtensionContext, so couldn't get it from there either. Either set it explicitly"
+                        + " using setMatsFactory(matsFactory), or use Extension_Mats (which adds itself to the"
+                        + " ExtensionContext), and ensure that it is initialized before this Extension_MatsEndpoint.");
+            }
         }
         super.before();
     }

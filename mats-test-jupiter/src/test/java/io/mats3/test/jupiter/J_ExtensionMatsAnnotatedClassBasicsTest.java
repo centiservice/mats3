@@ -174,7 +174,7 @@ class J_ExtensionMatsAnnotatedClassBasicsTest {
 
         @RegisterExtension
         private final Extension_MatsAnnotatedClass _matsAnnotatedClassExtension = Extension_MatsAnnotatedClass
-                .create(MATS)
+                .create()
                 .withAnnotatedMatsClasses(AnnotatedMats3Endpoint.class);
 
         // Note, since we declare this here, it will take precedence over the same bean declared in the

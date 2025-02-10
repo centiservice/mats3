@@ -1,5 +1,7 @@
 package io.mats3.test.jupiter;
 
+import java.util.Optional;
+
 import javax.sql.DataSource;
 
 import org.junit.jupiter.api.extension.AfterAllCallback;
@@ -113,19 +115,9 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
      * @throws IllegalStateException
      *             if no {@link Extension_Mats} is found in the test context
      */
-    public static Extension_Mats findFromContext(ExtensionContext extensionContext) {
-        // :: Get it from Root context, if present.
-        Extension_Mats mats = extensionContext.getRoot().getStore(NAMESPACE)
-                .get(Extension_Mats.class, Extension_Mats.class);
-        // ?: Did we find it in root?
-        if (mats == null) {
-            // -> No, we did not find it in root - throw exception
-            throw new IllegalStateException("Could not find Extension_Mats in ExtensionContext, make sure to include"
-                    + " Extension_Mats as a test extension.");
-        }
-
-        // E-> Yes, we found it in root, return it.
-        return mats;
+    public static Optional<Extension_Mats> findFromContext(ExtensionContext extensionContext) {
+        return Optional.ofNullable(extensionContext.getRoot().getStore(NAMESPACE)
+                .get(Extension_Mats.class, Extension_Mats.class));
     }
 
     /**

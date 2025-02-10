@@ -38,8 +38,6 @@ public abstract class AbstractMatsAnnotatedClass {
 
     public static final String LOG_PREFIX = "#MATSTEST:MAC# ";
 
-    private final MatsFactory _matsFactory;
-
     // List of endpoints that we have created. Since this util can be used in conjunction with other tools to create
     // endpoints, we need to know which endpoint we created for a test, so that we can remove them after the test, but
     // not remove unrelated endpoints. One of these is the MatsFuturizer of the test class's Rule|Extension_Mats.
@@ -56,11 +54,9 @@ public abstract class AbstractMatsAnnotatedClass {
 
     private final AnnotationConfigApplicationContext _applicationContext;
 
-    protected AbstractMatsAnnotatedClass(MatsFactory matsFactory) {
+    protected AbstractMatsAnnotatedClass() {
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Instantiating AbstractMatsAnnotatedClass (" + this.getClass()
-                .getSimpleName() + "), creating Spring Context with MatsFactory: " + matsFactory+ " - on this: "
-                + this.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this)));
-        _matsFactory = matsFactory;
+                .getSimpleName() + "), creating Spring Context - on this: " + idThis());
 
         // Create Spring Context
         _applicationContext = new AnnotationConfigApplicationContext();
@@ -73,6 +69,28 @@ public abstract class AbstractMatsAnnotatedClass {
         _applicationContext.registerBean(MatsSpringAnnotationRegistration.class,
                 () -> MatsSpringAnnotationRegistration.createForTesting_IgnoreQualifiersAndDoubleRegistration());
 
+        // Start the Spring context. Note that this will also call the MatsSpringAnnotationRegistration's
+        // ContextRefreshedEvent. This will put it into "immediate annotation processing"-mode for subsequent
+        // Mats-annotated beans that are registered, and thus read their annotations and start them immediately.
+        _applicationContext.refresh();
+    }
+
+    protected AbstractMatsAnnotatedClass(MatsFactory matsFactory) {
+        this();
+        setMatsFactory(matsFactory);
+    }
+
+    protected MatsFactory _matsFactory;
+    private List<Object> _testInstances;
+    private final Map<String, BeanDefinition> _beanDefinitionToRegisterAtBeforeEach = new HashMap<>();
+    private boolean _beforeEachCalled = false;
+
+    protected void setMatsFactory(MatsFactory matsFactory) {
+        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Setting MatsFactory: " + matsFactory + " - on this: "
+                + idThis());
+
+        _matsFactory = matsFactory;
+
         // We register the MatsFactory as a singleton to "hide it" from the MatsSpringAnnotationRegistration's
         // postProcessAfterInitialization(..)-invocations, as otherwise it will start the MatsFactory on
         // ContextRefreshedEvent, which by itself isn't bad (starting is idempotent), but it also stops it (and thus
@@ -80,16 +98,7 @@ public abstract class AbstractMatsAnnotatedClass {
         // want to stop the endpoints that we have created, so as not to interfere with other endpoints that might be
         // created by other means.
         _applicationContext.getBeanFactory().registerSingleton("matsFactory", _matsFactory);
-
-        // Start the Spring context. Note that this will also call the MatsSpringAnnotationRegistration's
-        // ContextRefreshedEvent. This will put it into "immediate annotation processing"-mode for subsequent
-        // Mats-annotated beans that are registered, and thus read their annotations and start them immediately.
-        _applicationContext.refresh();
     }
-
-    private List<Object> _testInstances;
-    private final Map<String, BeanDefinition> _beanDefinitionToRegisterAtBeforeEach = new HashMap<>();
-    private boolean _beforeEachCalled = false;
 
     /**
      * This is invoked by the implemntations Rule/Extension_MatsAnnotatedClass before each test method. The list shall
@@ -140,7 +149,7 @@ public abstract class AbstractMatsAnnotatedClass {
      */
     public void registerMatsAnnotatedClasses(Class<?>... annotatedMatsClasses) {
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "registerMatsAnnotatedClasses: "
-                + Arrays.asList(annotatedMatsClasses)+ " - on this: "
+                + Arrays.asList(annotatedMatsClasses) + " - on this: "
                 + this.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this)));
         for (Class<?> annotatedMatsClass : annotatedMatsClasses) {
             addAnnotatedMatsBean(new AnnotatedGenericBeanDefinition(annotatedMatsClass));
@@ -157,7 +166,7 @@ public abstract class AbstractMatsAnnotatedClass {
      */
     public void registerMatsAnnotatedInstances(Object... annotatedMatsInstances) {
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "registerMatsAnnotatedInstances: "
-                + Arrays.asList(annotatedMatsInstances)+ " - on this: "
+                + Arrays.asList(annotatedMatsInstances) + " - on this: "
                 + this.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this)));
         for (Object annotatedMatsInstance : annotatedMatsInstances) {
             GenericBeanDefinition beanDefinition = new AnnotatedGenericBeanDefinition(annotatedMatsInstance.getClass());
@@ -348,5 +357,13 @@ public abstract class AbstractMatsAnnotatedClass {
                         + " name already exists: " + beanName);
             }
         });
+    }
+
+    protected String id(Object instance) {
+        return instance.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(instance));
+    }
+
+    protected String idThis() {
+        return id(this);
     }
 }

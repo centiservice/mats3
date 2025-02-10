@@ -3,6 +3,7 @@ package io.mats3.test.jupiter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -72,13 +73,26 @@ import io.mats3.test.abstractunit.AbstractMatsAnnotatedClass;
 public final class Extension_MatsAnnotatedClass extends AbstractMatsAnnotatedClass
         implements BeforeEachCallback, AfterEachCallback {
 
+    private Extension_MatsAnnotatedClass() {
+        super();
+    }
+
     private Extension_MatsAnnotatedClass(MatsFactory matsFactory) {
         super(matsFactory);
     }
 
     /**
-     * Create a new Extension_MatsSpring instance based on the supplied {@link MatsFactory} instance, register to Junit
-     * using {@link org.junit.jupiter.api.extension.RegisterExtension}.
+     * Create a new instance without MatsFactory - which will be found through the ExtensionContext if
+     * {@link Extension_Mats} is also used.
+     *
+     * @return a new {@link Extension_MatsAnnotatedClass}
+     */
+    public static Extension_MatsAnnotatedClass create() {
+        return new Extension_MatsAnnotatedClass();
+    }
+
+    /**
+     * Create a new instance based on the supplied {@link MatsFactory} instance.
      *
      * @param matsFactory
      *            {@link MatsFactory} on which to register Mats endpoints for each test.
@@ -89,8 +103,7 @@ public final class Extension_MatsAnnotatedClass extends AbstractMatsAnnotatedCla
     }
 
     /**
-     * Create a new Extension_MatsSpring instance based on a {@link Extension_Mats} instance (from which the needed
-     * MatsFactory is gotten), register to Junit using {@link org.junit.jupiter.api.extension.RegisterExtension}.
+     * Create a new instance based on a {@link Extension_Mats} instance (from which the needed MatsFactory is gotten).
      *
      * @param extensionMats
      *            {@link Extension_Mats} to read the {@link MatsFactory} from, on which to register Mats endpoints for
@@ -119,6 +132,24 @@ public final class Extension_MatsAnnotatedClass extends AbstractMatsAnnotatedCla
 
     @Override
     public void beforeEach(ExtensionContext extensionContext) {
+        // ?: Do we have the MatsFactory set yet?
+        if (_matsFactory == null) {
+            // -> No, so let's see if we can find it in the ExtensionContext (throws if not).
+            Optional<Extension_Mats> matsFromContext = Extension_Mats.findFromContext(extensionContext);
+            if (matsFromContext.isPresent()) {
+                setMatsFactory(matsFromContext.get().getMatsFactory());
+            }
+            else {
+                throw new IllegalStateException("MatsFactory is not set. Didn't find Extension_Mats in"
+                        + " ExtensionContext, so couldn't get it from there either. Either set it explicitly"
+                        + " using setMatsFactory(matsFactory), or use Extension_Mats (which adds itself to the"
+                        + " ExtensionContext), and ensure that it is initialized before this"
+                        + " Extension_MatsAnnotatedEndpoint.");
+            }
+        }
+
+        // :: Find all the test instances: The instances of the test class, and the instances of the nested test classes
+        // to the current test class running.
         List<Object> allInstances = new ArrayList<>(extensionContext.getRequiredTestInstances().getAllInstances());
         // By default, the instance order is from the root to the leaf. We instead want the leaf first, so that
         // fields there take precedence over fields higher up in the hierarchy.
