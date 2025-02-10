@@ -88,11 +88,6 @@ class J_ExtensionMatsAnnotatedClassBasicsTest {
                 .create(MATS)
                 .withAnnotatedMatsClasses(AnnotatedMats3Endpoint.class);
 
-        // This is evidently needed for some runs on Java 21: It seems to sometimes elide the synthetic field
-        // representing the outer/enclosing class instance when there are no references to it, which there ain't in
-        // this test class.
-        private ServiceDependency _serviceDependency = J_ExtensionMatsAnnotatedClassBasicsTest.this._serviceDependency;
-
         @Test
         void testAnnotatedMatsClass() throws ExecutionException, InterruptedException, TimeoutException {
             // :: Setup
@@ -248,7 +243,7 @@ class J_ExtensionMatsAnnotatedClassBasicsTest {
         // This will of course change if this file changes. But just look at the line number in your editor for
         // the first call to withAnnotatedMatsInstances (the 2nd call will be present in the stacktrace)
         boolean exceptionAsExpected = assertionError.getMessage()
-                .contains("J_ExtensionMatsAnnotatedClassBasicsTest.java:240");
+                .contains("J_ExtensionMatsAnnotatedClassBasicsTest.java:235");
         if (!exceptionAsExpected) {
             throw new AssertionError("The exception message did not contain the expected content!"
                     + " (including line number of expected double registration! Did you change the test class?"

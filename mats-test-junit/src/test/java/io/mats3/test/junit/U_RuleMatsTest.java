@@ -23,7 +23,8 @@ public class U_RuleMatsTest {
 
     @Rule
     public final Rule_MatsEndpoint<String, String> _helloEndpoint = Rule_MatsEndpoint
-            .create(MATS, "HelloEndpoint", String.class, String.class).setProcessLambda((ctx, msg) -> "Hello " + msg);
+            .create(MATS, "HelloEndpoint", String.class, String.class)
+            .setProcessLambda((ctx, msg) -> "Hello " + msg);
 
     @Rule
     public final Rule_MatsEndpoint<Void, String> _terminator = Rule_MatsEndpoint

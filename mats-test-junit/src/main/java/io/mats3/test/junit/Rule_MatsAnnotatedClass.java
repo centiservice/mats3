@@ -1,5 +1,7 @@
 package io.mats3.test.junit;
 
+import java.util.Collections;
+
 import org.junit.rules.MethodRule;
 import org.junit.runners.model.FrameworkMethod;
 import org.junit.runners.model.Statement;
@@ -119,7 +121,7 @@ public class Rule_MatsAnnotatedClass extends AbstractMatsAnnotatedClass implemen
                 + "target [" + target + "], base [" + base + "]");
         return new Statement() {
             public void evaluate() throws Throwable {
-                beforeEach(target);
+                beforeEach(Collections.singletonList(target));
                 try {
                     base.evaluate();
                 }

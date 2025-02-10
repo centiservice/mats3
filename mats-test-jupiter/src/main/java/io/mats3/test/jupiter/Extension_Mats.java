@@ -1,25 +1,19 @@
 package io.mats3.test.jupiter;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 import javax.sql.DataSource;
 
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.junit.jupiter.api.extension.ExtensionContext.Namespace;
 
-import io.mats3.MatsFactory;
-import io.mats3.MatsInitiator;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
-import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.TestH2DataSource;
 import io.mats3.test.abstractunit.AbstractMatsTest;
-import io.mats3.util.MatsFuturizer;
 
 /**
  * Provides a full MATS harness for unit testing by creating {@link JmsMatsFactory MatsFactory} utilizing an in-vm
@@ -101,8 +95,6 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
         return new Extension_Mats(matsSerializer, testH2DataSource);
     }
 
-    private final AtomicInteger _nestinglevel = new AtomicInteger(0);
-
     /**
      * Returns the {@link Extension_Mats} from the test context, provided that this has been initialized prior to
      * calling this method. This is intended for use by other extensions that rely on the presence of a
@@ -111,6 +103,9 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
      * <p>
      * Note that if you crate multiple {@link Extension_Mats}, then this will only provide the last created extension.
      * In that case, you should instead provide the actual MatsFactory to each extension.
+     * <p>
+     * In a scenario with nested classes, we only register the Extension_Mats in the top level class, where the
+     * extension has been added with {@link org.junit.jupiter.api.extension.RegisterExtension}.
      *
      * @param extensionContext
      *            to get {@link Extension_Mats} from
@@ -118,14 +113,19 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
      * @throws IllegalStateException
      *             if no {@link Extension_Mats} is found in the test context
      */
-    public static Extension_Mats getExtension(ExtensionContext extensionContext) {
-        Extension_Mats extensionMats = extensionContext.getStore(NAMESPACE).get(Extension_Mats.class,
-                Extension_Mats.class);
-        if (extensionMats == null) {
-            throw new IllegalStateException("Could not find Extension_Mats in ExtensionContext,"
-                    + " make sure to include Extension_Mats as a test extension.");
+    public static Extension_Mats findFromContext(ExtensionContext extensionContext) {
+        // :: Get it from Root context, if present.
+        Extension_Mats mats = extensionContext.getRoot().getStore(NAMESPACE)
+                .get(Extension_Mats.class, Extension_Mats.class);
+        // ?: Did we find it in root?
+        if (mats == null) {
+            // -> No, we did not find it in root - throw exception
+            throw new IllegalStateException("Could not find Extension_Mats in ExtensionContext, make sure to include"
+                    + " Extension_Mats as a test extension.");
         }
-        return extensionMats;
+
+        // E-> Yes, we found it in root, return it.
+        return mats;
     }
 
     /**
@@ -133,19 +133,32 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
      */
     @Override
     public void beforeAll(ExtensionContext context) {
-        context.getStore(NAMESPACE).put(Extension_Mats.class, this);
-        // Handle the "nesting level'ing" of the beforeAll/afterAll
-        int nestingLevel = _nestinglevel.getAndIncrement();
-        // ?: Are we at the top level?
-        if (nestingLevel != 0) {
-            // -> No not at top, so then we ignore the beforeAll
-            log.debug("+++ Jupiter +++ beforeAll(..) invoked, but ignoring since nesting level is > 0: "
-                    + nestingLevel);
+        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "beforeAll: Context chain to root: "
+                + getContextsToRoot(context));
+
+        // Get root Extension context.
+        // Note: The 0th level of tests actually still have a parent, which is the "engine" level.
+        // This seems to be the root.
+        ExtensionContext root = context.getRoot();
+
+        // ?: Check if the Extension_Mats is already registered in the root context
+        if (root.getStore(NAMESPACE).get(Extension_Mats.class, Extension_Mats.class) != null) {
+            // -> Already present: We do not need to do anything
+            log.info(LOG_PREFIX + "INIT SKIPPED: beforeAll on Jupiter @Extension " + idThis() + " for "
+                    + id(context) + " - skipping since the root context already has Extension_Mats present.");
+            return;
         }
-        else {
-            // -> Yes, we are at the top level, so then we do the beforeAll
-            super.beforeAll();
-        }
+
+        // E-> We do not have an Extension_Mats in the root context, so we do the init of this Extension_Mats.
+        log.info(LOG_PREFIX + "INIT: beforeAll on Jupiter @Extension " + idThis() + " for " + id(context)
+                + ", root is " + id(root) + " - setting up MQ Broker and JMS MatsFactory.");
+        // Put in root context
+        root.getStore(NAMESPACE).put(Extension_Mats.class, this);
+        // Store that it was this ExtensionContext that put it in root context (Needed for removal)
+        root.getStore(NAMESPACE).put(Extension_Mats.class.getName() + ".contextAdder", context);
+        super.beforeAll();
+        log.info(LOG_PREFIX + "-- init done: beforeAll on Jupiter @Extension " + idThis() + ", put it in root context "
+                + id(root) + ".");
     }
 
     /**
@@ -153,17 +166,46 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
      */
     @Override
     public void afterAll(ExtensionContext context) {
-        // Handle the "nesting level'ing" of the beforeAll/afterAll
-        int nestingLevel = _nestinglevel.decrementAndGet();
-        // ?: Are we at the top level?
-        if (nestingLevel != 0) {
-            // -> No not at top, so then we ignore the afterAll
-            log.debug("--- Jupiter --- afterAll(..) invoked, but ignoring since nesting level is > 0: "
-                    + nestingLevel);
+        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "afterAll: Context chain to root: "
+                + getContextsToRoot(context));
+
+        // Get root Extension context
+        ExtensionContext root = context.getRoot();
+
+        // Get which ExtensionContext (i.e. "level") that put the Extension_Mats in the root context
+        ExtensionContext contextThatPutItInRoot = root.getStore(NAMESPACE).get(Extension_Mats.class.getName()
+                + ".contextAdder", ExtensionContext.class);
+
+        // ?: Was it the current ExtensionContext that put the Extension_Mats in the root context?
+        if (contextThatPutItInRoot != context) {
+            // -> No, it was not us, so skip the cleanup.
+            log.info(LOG_PREFIX + "CLEANUP SKIPPED: afterAll on Jupiter @Extension " + idThis() + " for "
+                    + id(context) + " - this level didn't initialize it.");
+            return;
         }
-        else {
-            // -> Yes, we are at the top level, so then we do the afterAll
-            super.afterAll();
+
+        // E-> Yes, we are the root context, so we do the afterAll
+        log.info(LOG_PREFIX + "CLEANUP: afterAll on Jupiter @Extension " + idThis() + " for " + id(context)
+                + ", root is " + id(root) + " - taking down JMS MatsFactory and MQ Broker.");
+        super.afterAll();
+        root.getStore(NAMESPACE).remove(Extension_Mats.class);
+        log.info(LOG_PREFIX + "-- cleanup done: afterAll on Jupiter @Extension " + idThis() + ".");
+    }
+
+    // Contexts to root, but using a StringBuffer for the output, and SimpleName
+    private String getContextsToRoot(ExtensionContext context) {
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        while (context != null) {
+            if (first) {
+                first = false;
+            }
+            else {
+                sb.append(" -> ");
+            }
+            sb.append(id(context));
+            context = context.getParent().orElse(null);
         }
+        return sb.toString();
     }
 }

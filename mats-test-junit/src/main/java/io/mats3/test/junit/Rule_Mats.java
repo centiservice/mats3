@@ -6,6 +6,8 @@ import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.serial.MatsSerializer;
@@ -51,11 +53,11 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
  *     }
  * </pre>
  *
- *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  * @author Kevin Mc Tiernan, 2020-10-18, kmctiernan@gmail.com
  */
 public class Rule_Mats extends AbstractMatsTest implements TestRule {
+    protected static final Logger log = LoggerFactory.getLogger(Rule_Mats.class);
 
     protected Rule_Mats(MatsSerializer<?> matsSerializer) {
         super(matsSerializer);
@@ -107,12 +109,16 @@ public class Rule_Mats extends AbstractMatsTest implements TestRule {
         }
         return new Statement() {
             public void evaluate() throws Throwable {
+                log.info(LOG_PREFIX+"INIT: beforeAll on JUnit @ClassRule " + idThis() + ".");
                 beforeAll();
+                log.info(LOG_PREFIX+"-- init done: beforeAll on JUnit @ClassRule " + idThis() + ".");
                 try {
                     base.evaluate();
                 }
                 finally {
+                    log.info(LOG_PREFIX+"CLEANUP: afterAll on JUnit @ClassRule " + idThis() + ".");
                     afterAll();
+                    log.info(LOG_PREFIX+"-- cleanup done: afterAll on JUnit @ClassRule " + idThis() + ".");
                 }
             }
         };

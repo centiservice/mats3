@@ -81,16 +81,28 @@ public abstract class AbstractMatsAnnotatedClass {
         _applicationContext.refresh();
     }
 
-    private Object _testInstance;
+    private List<Object> _testInstances;
     private final Map<String, BeanDefinition> _beanDefinitionToRegisterAtBeforeEach = new HashMap<>();
     private boolean _beforeEachCalled = false;
 
-    public void beforeEach(Object testInstance) {
-        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "beforeEach: Set up for " + testInstance + " - on this: "
+    /**
+     * This is invoked by the implemntations Rule/Extension_MatsAnnotatedClass before each test method. The list shall
+     * have the test class instance(s) that this Rule/Extension_MatsAnnotatedClass is part of. Jupiter have a concept of
+     * nested tests by using the @Nested annotation, which will result in multiple test class instances in the list,
+     * where the inner test class instance is the first in the list, and the outer test class instance is the last in
+     * the list (leaf-to-parent).
+     *
+     * @param testInstances
+     *            the test class instance(s) - can be multiple for Jupiter nested tests due to the nesting logic
+     *            available in Jupiter (@Nested tests). The inner test class instance shall be the first in the list,
+     *            and the outer test class instance is the last in the list (leaf-to-parent).
+     */
+    public void beforeEach(List<Object> testInstances) {
+        if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "beforeEach: Set up for " + testInstances + " - on this: "
                 + this.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this)));
 
         // Store the test instance for later reading of fields to register as beans.
-        _testInstance = testInstance;
+        _testInstances = testInstances;
 
         // If this Rule was field-inited with 'registerMatsAnnotatedClasses', we need to initialize those beans now.
         _beanDefinitionToRegisterAtBeforeEach.forEach(_applicationContext::registerBeanDefinition);
@@ -175,6 +187,8 @@ public abstract class AbstractMatsAnnotatedClass {
         while (stackTrace[index].getClassName().equals(getClass().getName())) {
             index++;
         }
+        // Register where we found this bean, so that in case we have another registration of the same Bean, we can
+        // provide a nice message to the user about where the previous registration of the same bean was.
         _registrationLocations.put(beanName, stackTrace[index]);
 
         // :: Register the matsAnnotatedClass.
@@ -201,7 +215,7 @@ public abstract class AbstractMatsAnnotatedClass {
         // Note that we might end up doing this multiple times, but it is idempotent, so it is safe.
         // The reason for multiple times, is to do it as late as possible, to handle late initialization of Mockito
         // mocks, which in some setups are initialized after beforeEach is called.
-        addTestFieldsAsBeans(_testInstance);
+        _testInstances.forEach(this::addTestFieldsAsBeans);
 
         // We first need to capture the current set of endpoints, so that we can detect any new endpoints
         // created by forcing the bean initialization.
@@ -254,15 +268,18 @@ public abstract class AbstractMatsAnnotatedClass {
         ReflectionUtils.doWithFields(testInstance.getClass(), field -> {
             field.setAccessible(true);
             String fieldName = field.getName(); // Used as bean name
+            String beanName = fieldName;
             Object fieldInstance = field.get(testInstance);
             if (log.isTraceEnabled()) log.trace(LOG_PREFIX + ".. Evaluating field: " + field + ", instance: "
                     + fieldInstance);
-            // ?: Is this field this Rule itself?
+
+            // :: Skip registering meaningless stuff.
+
             // ?: Do we have a value for the field?
             if (fieldInstance == null) {
                 // -> No, then we cannot register this as a bean
                 if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Skipping field [" + fieldName
-                        + "], as it is null.");
+                        + "], as it is currently null.");
                 return;
             }
             // ?: Is it the [Rule|Extension]_MatsAnnotatedClass?
@@ -282,37 +299,33 @@ public abstract class AbstractMatsAnnotatedClass {
             // ?: Is it a MatsFactory?
             if (fieldInstance instanceof MatsFactory) {
                 // -> Yes, then we should not register this as a bean
-                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Skipping field [" + fieldName
+                if (log.isTraceEnabled()) log.trace(LOG_PREFIX + "   \\- Skipping field [" + fieldName
                         + "], as it is a MatsFactory.");
                 return;
             }
 
-            // :: Should we recurse into the enclosing class?
-
             // ?: Is this a synthetic field created by the compiler for the enclosing class?
             if (field.getType().equals(testInstance.getClass().getEnclosingClass()) && field.isSynthetic()) {
-                // Yes, then add the fields from the enclosing class as well to the Spring context (but not
-                // the test itself). This is to support nested tests in Jupiter.
-                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Recursing into the enclosing class"
+                // -> Yes, so we should not register this as a bean
+                if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Skipping the enclosing class"
                         + " represented by synthetic field [" + fieldName + "]: "
                         + testInstance.getClass().getEnclosingClass());
-                addTestFieldsAsBeans(fieldInstance);
                 return;
             }
 
             // :: Passed checks, register the field as a bean in the Spring context.
 
             // ?: Is there already a bean with this name?
-            if (!_applicationContext.containsBean(fieldName)) {
+            if (!_applicationContext.containsBean(beanName)) {
                 // -> No, no existing bean -> add this to the Spring context as a singleton
                 if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Registering field as Spring bean: "
-                        + fieldName + " -> " + fieldInstance);
-                _applicationContext.getBeanFactory().registerSingleton(fieldName, fieldInstance);
+                        + beanName + " -> " + fieldInstance);
+                _applicationContext.getBeanFactory().registerSingleton(beanName, fieldInstance);
             }
             else {
                 // -> Yes, it is already, so skip it.
                 if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "   \\- Skipping field, as a bean with the same"
-                        + " name already exists: " + fieldName);
+                        + " name already exists: " + beanName);
             }
         });
     }

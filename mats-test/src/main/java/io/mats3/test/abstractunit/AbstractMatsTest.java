@@ -38,8 +38,8 @@ import io.mats3.util.MatsFuturizer;
  * @author Kevin Mc Tiernan, 2020-10-18, kmctiernan@gmail.com
  */
 public abstract class AbstractMatsTest {
-
-    protected static final Logger log = LoggerFactory.getLogger(AbstractMatsTest.class);
+    private static final Logger log = LoggerFactory.getLogger(AbstractMatsTest.class);
+    protected static final String LOG_PREFIX = "#MATSTEST# ";
 
     protected MatsSerializer<?> _matsSerializer;
     protected DataSource _dataSource;
@@ -73,8 +73,6 @@ public abstract class AbstractMatsTest {
      * </ul>
      */
     public void beforeAll() {
-        log.debug("+++ JUnit/Jupiter +++ BEFORE_CLASS on ClassRule/Extension '" + id(getClass()) + "', JMS and MATS:");
-
         // ::: ActiveMQ BrokerService and ConnectionFactory
         // ==================================================
 
@@ -86,8 +84,6 @@ public abstract class AbstractMatsTest {
         log.debug("Setting up JmsMatsFactory.");
         // Allow for override in specialization classes, in particular the one with DB.
         _matsFactory = createMatsFactory();
-        log.debug("--- JUnit/Jupiter --- BEFORE_CLASS done on ClassRule/Extension '" + id(getClass())
-                + "', JMS and MATS.");
     }
 
     /**
@@ -100,8 +96,6 @@ public abstract class AbstractMatsTest {
      * </ul>
      */
     public void afterAll() {
-        log.info("+++ JUnit/Jupiter +++ AFTER_CLASS on ClassRule/Extension '" + id(getClass()) + "':");
-
         // :: Close the MatsFuturizer if we've made it
         if (_matsFuturizer != null) {
             _matsFuturizer.close();
@@ -130,8 +124,6 @@ public abstract class AbstractMatsTest {
         _matsTestLatch = null;
         _matsFuturizer = null;
         _matsTestBrokerInterface = null;
-
-        log.info("--- JUnit/Jupiter --- AFTER_CLASS done on ClassRule/Extension '" + id(getClass()) + "' DONE.");
     }
 
     /**
@@ -269,7 +261,11 @@ public abstract class AbstractMatsTest {
         }
     }
 
-    protected String id(Class<?> clazz) {
-        return clazz.getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this));
+    protected String id(Object instance) {
+        return instance.getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(instance));
+    }
+
+    protected String idThis() {
+        return id(this);
     }
 }

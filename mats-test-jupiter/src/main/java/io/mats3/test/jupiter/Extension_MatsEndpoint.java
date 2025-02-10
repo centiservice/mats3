@@ -139,7 +139,7 @@ public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I>
     @Override
     public void beforeEach(ExtensionContext context) {
         if (_matsFactory == null) {
-            _matsFactory = Extension_Mats.getExtension(context).getMatsFactory();
+            _matsFactory = Extension_Mats.findFromContext(context).getMatsFactory();
         }
         super.before();
     }
