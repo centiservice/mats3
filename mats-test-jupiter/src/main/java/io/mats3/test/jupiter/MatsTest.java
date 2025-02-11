@@ -86,6 +86,11 @@ public @interface MatsTest {
     Class<? extends SerializerFactory> serializerFactory() default SerializerFactoryJson.class;
 
     /**
+     * Add classes here that you wish to be registered as Mats annotated classes.
+     */
+    Class<?>[] matsAnnotatedClasses() default {};
+
+    /**
      * Factory interface for creating a {@link MatsSerializer} instance.
      * <p>
      * Note: This must have a no-args constructor.
@@ -259,6 +264,12 @@ public @interface MatsTest {
                         log.debug(LOG_PREFIX + "Field [" + declaredField + "] in test class [" + testClass + "]"
                                   + " is not annotated with @MatsTest annotations, so it will not be injected.");
                     }
+                }
+            }
+            MatsTest matsTest = context.getRequiredTestClass().getAnnotation(MatsTest.class);
+            if (matsTest != null) {
+                for (Class<?> matsAnnotatedClass : matsTest.matsAnnotatedClasses()) {
+                    _matsAnnotatedClass.withAnnotatedMatsClasses(matsAnnotatedClass);
                 }
             }
             _matsAnnotatedClass.beforeEach(context);
