@@ -1,4 +1,4 @@
-package io.mats3.test.junit;
+package io.mats3.test.junit.matsendpoint;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -11,6 +11,8 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import io.mats3.MatsEndpoint;
+import io.mats3.test.junit.Rule_Mats;
+import io.mats3.test.junit.Rule_MatsEndpoint;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**
@@ -18,7 +20,7 @@ import io.mats3.util.MatsFuturizer.Reply;
  *
  * @author Kevin Mc Tiernan, 2020-11-11, kmctiernan@gmail.com
  */
-public class U_RuleMatsEndpointComplexTest {
+public class U_RuleMatsEndpoint_IllustrateMockingForMultiStage {
 
     /** Imagine this as another micro service in your system which this multistage communicates with. */
     private static final String EXTERNAL_ENDPOINT = "ExternalService.ExternalHello";

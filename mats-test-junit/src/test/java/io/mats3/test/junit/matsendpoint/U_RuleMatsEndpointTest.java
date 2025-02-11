@@ -1,4 +1,4 @@
-package io.mats3.test.junit;
+package io.mats3.test.junit.matsendpoint;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -9,6 +9,8 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
+import io.mats3.test.junit.Rule_Mats;
+import io.mats3.test.junit.Rule_MatsEndpoint;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**

@@ -1,4 +1,4 @@
-package io.mats3.test.junit;
+package io.mats3.test.junit.matsannotatedclass;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -15,6 +15,8 @@ import org.junit.Test;
 
 import io.mats3.spring.Dto;
 import io.mats3.spring.MatsMapping;
+import io.mats3.test.junit.Rule_Mats;
+import io.mats3.test.junit.Rule_MatsAnnotatedClass;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 

@@ -1,4 +1,4 @@
-package io.mats3.test.junit;
+package io.mats3.test.junit.matsendpoint;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -25,6 +25,7 @@ import io.mats3.spring.test.SpringInjectRulesAndExtensions;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.broker.MatsTestBroker;
+import io.mats3.test.junit.Rule_MatsEndpoint;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
@@ -49,11 +50,11 @@ import io.mats3.util.MatsFuturizer.Reply;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringInjectRulesAndExtensions
-public class U_SpringTestMatsEndpoint {
+public class U_RuleMatsEndpoint_SpringWiringTest {
 
     /**
      * NOTICE: This entire <code>{@literal @Configuration}</code> class can be replaced by annotating either the test
-     * class (the outer class here, {@link U_SpringTestMatsEndpoint}), or an inner
+     * class (the outer class here, {@link U_RuleMatsEndpoint_SpringWiringTest}), or an inner
      * <code>{@literal @Configuration}</code>-class (i.e. {@link SetupTerminatorMatsEndpoint}) with the
      * <code>{@literal @MatsSimpleTestContext}</code> annotation from the mats-spring-test project.
      */

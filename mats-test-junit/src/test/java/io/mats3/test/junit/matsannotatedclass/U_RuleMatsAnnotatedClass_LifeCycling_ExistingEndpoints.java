@@ -1,4 +1,4 @@
-package io.mats3.test.junit;
+package io.mats3.test.junit.matsannotatedclass;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -15,8 +15,11 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.mats3.test.junit.U_RuleMatsAnnotatedClassBasicsTest.AnnotatedMats3Endpoint;
-import io.mats3.test.junit.U_RuleMatsAnnotatedClassBasicsTest.ServiceDependency;
+import io.mats3.test.junit.Rule_Mats;
+import io.mats3.test.junit.Rule_MatsAnnotatedClass;
+import io.mats3.test.junit.Rule_MatsEndpoint;
+import io.mats3.test.junit.matsannotatedclass.U_RuleMatsAnnotatedClassBasicsTest.AnnotatedMats3Endpoint;
+import io.mats3.test.junit.matsannotatedclass.U_RuleMatsAnnotatedClassBasicsTest.ServiceDependency;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**

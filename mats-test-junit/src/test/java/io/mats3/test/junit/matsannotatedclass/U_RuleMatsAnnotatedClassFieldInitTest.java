@@ -1,6 +1,6 @@
-package io.mats3.test.junit;
+package io.mats3.test.junit.matsannotatedclass;
 
-import static io.mats3.test.junit.U_RuleMatsAnnotatedClassBasicsTest.callMatsAnnotatedEndpoint;
+import static io.mats3.test.junit.matsannotatedclass.U_RuleMatsAnnotatedClassBasicsTest.callMatsAnnotatedEndpoint;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -10,8 +10,10 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
-import io.mats3.test.junit.U_RuleMatsAnnotatedClassBasicsTest.AnnotatedMats3Endpoint;
-import io.mats3.test.junit.U_RuleMatsAnnotatedClassBasicsTest.ServiceDependency;
+import io.mats3.test.junit.Rule_Mats;
+import io.mats3.test.junit.Rule_MatsAnnotatedClass;
+import io.mats3.test.junit.matsannotatedclass.U_RuleMatsAnnotatedClassBasicsTest.AnnotatedMats3Endpoint;
+import io.mats3.test.junit.matsannotatedclass.U_RuleMatsAnnotatedClassBasicsTest.ServiceDependency;
 
 /**
  * Scaled down version of the test of {@link Rule_MatsAnnotatedClass} which tests that pointing to the annotated class

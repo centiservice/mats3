@@ -1,4 +1,4 @@
-package io.mats3.test.junit;
+package io.mats3.test.junit.matsannotatedclass;
 
 
 import java.lang.annotation.ElementType;
@@ -21,7 +21,9 @@ import io.mats3.spring.Dto;
 import io.mats3.spring.MatsClassMapping;
 import io.mats3.spring.MatsClassMapping.Stage;
 import io.mats3.spring.MatsMapping;
-import io.mats3.test.junit.U_RuleMatsAnnotatedClassBasicsTest.ServiceDependency;
+import io.mats3.test.junit.Rule_Mats;
+import io.mats3.test.junit.Rule_MatsAnnotatedClass;
+import io.mats3.test.junit.matsannotatedclass.U_RuleMatsAnnotatedClassBasicsTest.ServiceDependency;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**

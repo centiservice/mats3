@@ -1,11 +1,13 @@
-package io.mats3.test.junit;
+package io.mats3.test.junit.matsannotatedclass;
 
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
-import io.mats3.test.junit.U_RuleMatsAnnotatedClassBasicsTest.AnnotatedMats3Endpoint;
-import io.mats3.test.junit.U_RuleMatsAnnotatedClassBasicsTest.ServiceDependency;
+import io.mats3.test.junit.Rule_Mats;
+import io.mats3.test.junit.Rule_MatsAnnotatedClass;
+import io.mats3.test.junit.matsannotatedclass.U_RuleMatsAnnotatedClassBasicsTest.AnnotatedMats3Endpoint;
+import io.mats3.test.junit.matsannotatedclass.U_RuleMatsAnnotatedClassBasicsTest.ServiceDependency;
 
 /**
  * Scaled down version of the test of {@link Rule_MatsAnnotatedClass} which tests that a missing field will crash.
