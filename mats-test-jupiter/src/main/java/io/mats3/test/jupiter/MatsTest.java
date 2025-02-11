@@ -1,4 +1,4 @@
-package io.mats3.test.jupiter.annotation;
+package io.mats3.test.jupiter;
 
 
 import java.lang.annotation.ElementType;
@@ -30,9 +30,6 @@ import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.MatsTestLatch;
-import io.mats3.test.jupiter.Extension_Mats;
-import io.mats3.test.jupiter.Extension_MatsAnnotatedClass;
-import io.mats3.test.jupiter.Extension_MatsEndpoint;
 import io.mats3.util.MatsFuturizer;
 
 /**

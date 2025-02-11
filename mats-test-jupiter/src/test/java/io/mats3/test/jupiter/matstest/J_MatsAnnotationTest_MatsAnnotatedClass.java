@@ -1,4 +1,4 @@
-package io.mats3.test.jupiter.annotation;
+package io.mats3.test.jupiter.matstest;
 
 
 import java.util.concurrent.ExecutionException;
@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import io.mats3.spring.Dto;
 import io.mats3.spring.MatsMapping;
+import io.mats3.test.jupiter.MatsTest;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 

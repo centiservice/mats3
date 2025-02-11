@@ -1,10 +1,11 @@
-package io.mats3.test.jupiter.annotation;
+package io.mats3.test.jupiter.matstest;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import io.mats3.MatsFactory;
+import io.mats3.test.jupiter.MatsTest;
 import io.mats3.util.MatsFuturizer;
 
 /**

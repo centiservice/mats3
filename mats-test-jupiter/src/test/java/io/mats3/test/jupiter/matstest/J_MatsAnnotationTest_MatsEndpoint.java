@@ -1,6 +1,6 @@
-package io.mats3.test.jupiter.annotation;
+package io.mats3.test.jupiter.matstest;
 
-import static io.mats3.test.jupiter.annotation.J_MatsAnnotationTest_MatsAnnotatedClass.callMatsAnnotatedEndpoint;
+import static io.mats3.test.jupiter.matstest.J_MatsAnnotationTest_MatsAnnotatedClass.callMatsAnnotatedEndpoint;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import io.mats3.test.jupiter.Extension_MatsEndpoint;
+import io.mats3.test.jupiter.MatsTest;
 import io.mats3.util.MatsFuturizer;
 
 /**
