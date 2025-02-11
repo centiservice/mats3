@@ -216,9 +216,10 @@ public abstract class AbstractMatsTest {
     }
 
     /**
-     * Loops through all the {@link MatsFactory}s contained in this Rule (default + any specifically created), and
-     * removes all Endpoints and unknown Plugins from each of them, this ensures that all factories are "clean".
-     * <p />
+     * Loops through all the {@link MatsFactory}s contained in this Rule (default MatsFactory + any specifically
+     * created), and removes all Endpoints and unknown Plugins from each of them, thus ensuring that all factories are
+     * as if just started.
+     * <p>
      * You may want to utilize this if you have multiple tests in a class, and set up the Endpoints using a @Before type
      * annotation in the test, as opposed to @BeforeClass. This because otherwise you will on the second test try to
      * create the endpoints one more time, and they will already exist, thus you'll get an Exception from the
@@ -227,6 +228,10 @@ public abstract class AbstractMatsTest {
      * the @Test method itself), you will get "duplicate endpoint" (which is good, as your test would probably randomly
      * fail anyhow). Thus, in such a scenario, as the first statement of each test, before creating the endpoint(s),
      * invoke this method.
+     * <p>
+     * Note: It will clean <b>all</b> endpoints and unknown plugins from all created MatsFactories, so if you have a
+     * situation where you set up "global" endpoints meant for all tests, e.g. in a @BeforeClass method, these will also
+     * be removed, which most probably is not what you want.
      */
     public void cleanMatsFactories() {
         // :: Since removing all endpoints will destroy the MatsFuturizer if it is made, we'll first close that
