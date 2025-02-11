@@ -1,4 +1,4 @@
-package io.mats3.test.jupiter;
+package io.mats3.test.jupiter.matsannotatedclass;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
@@ -26,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import io.mats3.MatsEndpoint;
 import io.mats3.spring.Dto;
 import io.mats3.spring.MatsMapping;
+import io.mats3.test.jupiter.Extension_Mats;
+import io.mats3.test.jupiter.Extension_MatsAnnotatedClass;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
@@ -35,7 +37,7 @@ import io.mats3.util.MatsFuturizer.Reply;
  *
  * @author Ståle Undheim <stale.undheim@storebrand.no> 2025-01-09
  */
-class J_ExtensionMatsAnnotatedClassBasicsTest {
+class J_ExtensionMatsAnnotatedClass_BasicsAndNestingTest {
 
     @RegisterExtension
     private static final Extension_Mats MATS = Extension_Mats.create();
@@ -261,7 +263,7 @@ class J_ExtensionMatsAnnotatedClassBasicsTest {
         // This will of course change if this file changes. But just look at the line number in your editor for
         // the first call to withAnnotatedMatsInstances (the 2nd call will be present in the stacktrace)
         boolean exceptionAsExpected = assertionError.getMessage()
-                .contains("J_ExtensionMatsAnnotatedClassBasicsTest.java:253");
+                .contains(this.getClass().getSimpleName()+".java:255");
         if (!exceptionAsExpected) {
             throw new AssertionError("The exception message did not contain the expected content!"
                     + " (including line number of expected double registration! Did you change the test class?"

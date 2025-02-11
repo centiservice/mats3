@@ -1,6 +1,6 @@
 package io.mats3.test.jupiter.matstest;
 
-import static io.mats3.test.jupiter.matstest.J_MatsAnnotationTest_MatsAnnotatedClass.callMatsAnnotatedEndpoint;
+import static io.mats3.test.jupiter.matstest.J_MatsTest_MatsAnnotatedClass.callMatsAnnotatedEndpoint;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -19,7 +19,7 @@ import io.mats3.util.MatsFuturizer;
  * @author Ståle Undheim <stale.undheim@storebrand.no> 2025-02-06
  */
 @MatsTest
-class J_MatsAnnotationTest_MatsEndpoint {
+class J_MatsTest_MatsEndpoint {
 
     private static final String ENDPOINT_ID = "TestEndpoint";
     private static final String NESTED_ENDPOINT_ID = "NestedTestEndpoint";

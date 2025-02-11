@@ -1,6 +1,6 @@
-package io.mats3.test.jupiter;
+package io.mats3.test.jupiter.matsannotatedclass;
 
-import static io.mats3.test.jupiter.J_ExtensionMatsAnnotatedClassBasicsTest.callMatsAnnotatedEndpoint;
+import static io.mats3.test.jupiter.matsannotatedclass.J_ExtensionMatsAnnotatedClass_BasicsAndNestingTest.callMatsAnnotatedEndpoint;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -9,8 +9,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-import io.mats3.test.jupiter.J_ExtensionMatsAnnotatedClassBasicsTest.AnnotatedMats3Endpoint;
-import io.mats3.test.jupiter.J_ExtensionMatsAnnotatedClassBasicsTest.ServiceDependency;
+import io.mats3.test.jupiter.Extension_Mats;
+import io.mats3.test.jupiter.Extension_MatsAnnotatedClass;
+import io.mats3.test.jupiter.matsannotatedclass.J_ExtensionMatsAnnotatedClass_BasicsAndNestingTest.AnnotatedMats3Endpoint;
+import io.mats3.test.jupiter.matsannotatedclass.J_ExtensionMatsAnnotatedClass_BasicsAndNestingTest.ServiceDependency;
 
 /**
  * Scaled down version of the test of {@link Extension_MatsAnnotatedClass} which tests that it works with the factory
@@ -18,7 +20,7 @@ import io.mats3.test.jupiter.J_ExtensionMatsAnnotatedClassBasicsTest.ServiceDepe
  *
  * @author Endre Stølsvik 2025-01-26 23:24 - http://stolsvik.com/, endre@stolsvik.com
  */
-class J_ExtensionMatsAnnotatedClassMatsFactoryTest {
+class J_ExtensionMatsAnnotatedClass_ProvideMatsFactoryTest {
 
     @RegisterExtension
     private static final Extension_Mats MATS = Extension_Mats.create();
@@ -31,9 +33,6 @@ class J_ExtensionMatsAnnotatedClassMatsFactoryTest {
     private final ServiceDependency _serviceDependency = new ServiceDependency();
 
 
-    /**
-     * Same test as in U_RuleMatsAnnotatedClassTest.
-     */
     @Test
     public void testAnnotatedMatsClass() throws ExecutionException, InterruptedException, TimeoutException {
         // :: Setup
@@ -47,9 +46,6 @@ class J_ExtensionMatsAnnotatedClassMatsFactoryTest {
         Assertions.assertEquals(expectedReturn, reply);
     }
 
-    /**
-     * Same test as in U_RuleMatsAnnotatedClassTest.
-     */
     @Test
     public void testAnnotatedMatsInstance() throws ExecutionException, InterruptedException, TimeoutException {
         // :: Setup

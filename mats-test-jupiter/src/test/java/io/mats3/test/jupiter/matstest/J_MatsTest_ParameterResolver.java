@@ -15,7 +15,7 @@ import io.mats3.util.MatsFuturizer;
  * @author Ståle Undheim <stale.undheim@storebrand.no> 2025-02-06
  */
 @MatsTest
-class J_MatsAnnotationTest_ParameterResolver {
+class J_MatsTest_ParameterResolver {
 
     @Nested
     class ParameterInjection {

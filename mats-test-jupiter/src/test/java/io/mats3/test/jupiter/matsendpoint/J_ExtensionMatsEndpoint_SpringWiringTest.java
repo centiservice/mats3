@@ -1,4 +1,4 @@
-package io.mats3.test.jupiter;
+package io.mats3.test.jupiter.matsendpoint;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -25,6 +25,7 @@ import io.mats3.spring.test.SpringInjectRulesAndExtensions;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.broker.MatsTestBroker;
+import io.mats3.test.jupiter.Extension_MatsEndpoint;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
@@ -51,13 +52,13 @@ import io.mats3.util.MatsFuturizer.Reply;
  */
 @ExtendWith(SpringExtension.class)
 @SpringInjectRulesAndExtensions
-public class J_SpringTestMatsEndpoint {
+public class J_ExtensionMatsEndpoint_SpringWiringTest {
 
     /**
      * Spring Configuration pulling up the Mats infrastructure.
      * <p>
      * MAKE NOTICE!! This entire <code>{@literal @Configuration}</code> class can be replaced by annotating either the
-     * test class (the outer class here, {@link J_SpringTestMatsEndpoint}), or an inner
+     * test class (the outer class here, {@link J_ExtensionMatsEndpoint_SpringWiringTest}), or an inner
      * <code>{@literal @Configuration}</code>-class (i.e. {@link SetupTerminatorMatsEndpoint}), with the
      * <code>{@literal @MatsSimpleTestContext}</code> annotation from the mats-spring-test project. The Beans defined in
      * this Configuration are exactly the ones which that convenient annotation sets up (and more, read its JavaDoc)!

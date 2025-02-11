@@ -1,4 +1,4 @@
-package io.mats3.test.jupiter;
+package io.mats3.test.jupiter.matsendpoint;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 import io.mats3.MatsEndpoint;
+import io.mats3.test.jupiter.Extension_Mats;
+import io.mats3.test.jupiter.Extension_MatsEndpoint;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**
@@ -17,7 +19,7 @@ import io.mats3.util.MatsFuturizer.Reply;
  *
  * @author Kevin Mc Tiernan, 2020-11-11, kmctiernan@gmail.com
  */
-public class J_ExtensionMatsEndpointComplexTest {
+public class J_ExtensionMatsEndpoint_IllustrateMockingForMultiStage {
     /** Imagine this as another micro service in your system which this multistage communicates with. */
     private static final String EXTERNAL_ENDPOINT = "ExternalService.ExternalHello";
     /** Imagine this as an internal endpoint, but we don't want to bring up the class which contains it. */

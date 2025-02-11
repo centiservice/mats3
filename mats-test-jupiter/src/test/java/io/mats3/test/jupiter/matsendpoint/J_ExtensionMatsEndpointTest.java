@@ -1,4 +1,4 @@
-package io.mats3.test.jupiter;
+package io.mats3.test.jupiter.matsendpoint;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.mats3.test.jupiter.Extension_Mats;
+import io.mats3.test.jupiter.Extension_MatsEndpoint;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**

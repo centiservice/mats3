@@ -1,7 +1,7 @@
 package io.mats3.test.jupiter.matstest;
 
 
-import static io.mats3.test.jupiter.matstest.J_MatsAnnotationTest_MatsAnnotatedClass.callMatsAnnotatedEndpoint;
+import static io.mats3.test.jupiter.matstest.J_MatsTest_MatsAnnotatedClass.callMatsAnnotatedEndpoint;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,7 +29,7 @@ import io.mats3.util.MatsFuturizer;
  */
 @ExtendWith(MockitoExtension.class)
 @MatsTest
-public class J_MatsAnnotationTest_MatsAnnotatedClass_Mockito {
+public class J_MatsTest_MatsAnnotatedClass_Mockito {
 
     @Mock
     private ServiceDependency _serviceDependency;

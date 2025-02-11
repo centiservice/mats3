@@ -1,4 +1,4 @@
-package io.mats3.test.jupiter;
+package io.mats3.test.jupiter.matsannotatedclass;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -14,8 +14,11 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.mats3.test.jupiter.J_ExtensionMatsAnnotatedClassBasicsTest.AnnotatedMats3Endpoint;
-import io.mats3.test.jupiter.J_ExtensionMatsAnnotatedClassBasicsTest.ServiceDependency;
+import io.mats3.test.jupiter.Extension_Mats;
+import io.mats3.test.jupiter.Extension_MatsAnnotatedClass;
+import io.mats3.test.jupiter.Extension_MatsEndpoint;
+import io.mats3.test.jupiter.matsannotatedclass.J_ExtensionMatsAnnotatedClass_BasicsAndNestingTest.AnnotatedMats3Endpoint;
+import io.mats3.test.jupiter.matsannotatedclass.J_ExtensionMatsAnnotatedClass_BasicsAndNestingTest.ServiceDependency;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**

@@ -6,6 +6,9 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Doesn't really <i>test</i> anything, just a driver to follow the logging output.
+ */
 public class J_ExtensionMatsNested {
     private static final Logger log = LoggerFactory.getLogger(J_ExtensionMatsNested.class);
 
@@ -20,7 +23,7 @@ public class J_ExtensionMatsNested {
     @Nested
     class NestedClass1 {
         @Test
-        void nestedMethos1() {
+        void nestedMethod1() {
             log.info("TEST nestedMethod1()");
         }
 
