@@ -56,6 +56,10 @@ dependencies {
 
     // Mockito
     testImplementation "org.mockito:mockito-junit-jupiter:$mockitoVersion"
+
+    // H2 database for testing DataSource parameter providing in @MatsTest
+    testRuntimeOnly "com.h2database:h2:$h2Version"
+
 }
 
 test {

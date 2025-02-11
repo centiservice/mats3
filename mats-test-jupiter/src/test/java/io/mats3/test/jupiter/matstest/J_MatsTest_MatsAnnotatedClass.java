@@ -1,6 +1,5 @@
 package io.mats3.test.jupiter.matstest;
 
-
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -13,12 +12,14 @@ import org.junit.jupiter.api.Test;
 
 import io.mats3.spring.Dto;
 import io.mats3.spring.MatsMapping;
+import io.mats3.test.MatsTestHelp;
 import io.mats3.test.jupiter.MatsTest;
+import io.mats3.test.jupiter.MatsTest.MatsTestAnnotatedClass;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**
- * Tests the {@link MatsTest.AnnotatedClass} annotation for a field that is either instantiated by the extension, or
+ * Tests the {@link MatsTestAnnotatedClass} annotation for a field that is either instantiated by the extension, or
  * already instantiated by the test class.
  *
  * @author Ståle Undheim <stale.undheim@storebrand.no> 2025-02-06
@@ -26,8 +27,7 @@ import io.mats3.util.MatsFuturizer.Reply;
 @MatsTest
 public class J_MatsTest_MatsAnnotatedClass {
 
-    private final ServiceDependency
-            _serviceDependency = new ServiceDependency();
+    private final ServiceDependency _serviceDependency = new ServiceDependency();
 
     /**
      * Dummy example of a service dependency - taking a String, and prepend "Hello " to it.
@@ -41,7 +41,7 @@ public class J_MatsTest_MatsAnnotatedClass {
     public static final String ENDPOINT_ID = "AnnotatedEndpoint";
 
     /**
-     * Example of a class with annotated MatsEndpoints.
+     * Example of a class with annotated MatsEndpoints - would normally reside in the actual application code.
      */
     public static class AnnotatedMats3Endpoint {
         private ServiceDependency _serviceDependency;
@@ -59,63 +59,54 @@ public class J_MatsTest_MatsAnnotatedClass {
         public String matsEndpoint(@Dto String msg) {
             return _serviceDependency.formatMessage(msg);
         }
-
-    }
-
-    @Nested
-    class AnnotatedInstance {
-
-        @MatsTest.AnnotatedClass
-        private final AnnotatedMats3Endpoint _annotatedMats3Endpoint = new AnnotatedMats3Endpoint(_serviceDependency);
-
-
-        @Test
-        void testAnnotatedMatsClass(MatsFuturizer futurizer) throws ExecutionException, InterruptedException, TimeoutException {
-            // :: Setup
-            String expectedReturn = "Hello World!";
-
-            // :: Act
-            String reply = callMatsAnnotatedEndpoint(futurizer, "World!");
-
-            // :: Verify
-            Assertions.assertEquals(expectedReturn, reply);
-        }
     }
 
     @Nested
     class AnnotatedClass {
-
-        @MatsTest.AnnotatedClass
+        // :: Arrange
+        @MatsTestAnnotatedClass
         private AnnotatedMats3Endpoint _annotatedMats3Endpoint;
 
         @Test
-        void testAnnotatedMatsClass(MatsFuturizer futurizer) throws ExecutionException, InterruptedException, TimeoutException {
-            // :: Setup
-            String expectedReturn = "Hello World!";
-
+        void testAnnotatedMatsClass(MatsFuturizer futurizer) throws ExecutionException, InterruptedException,
+                TimeoutException {
             // :: Act
-            String reply = callMatsAnnotatedEndpoint(futurizer, "World!");
+            String reply = callMatsEndpoint(futurizer, ENDPOINT_ID, "Instance!");
 
-            // :: Verify
-            Assertions.assertEquals(expectedReturn, reply);
+            // :: Assert
+            Assertions.assertEquals("Hello Instance!", reply);
         }
     }
 
+    @Nested
+    class AnnotatedInstance {
+        // :: Arrange
+        @MatsTestAnnotatedClass
+        private final AnnotatedMats3Endpoint _annotatedMats3Endpoint = new AnnotatedMats3Endpoint(_serviceDependency);
 
-    static String callMatsAnnotatedEndpoint(MatsFuturizer futurizer, String request)
-            throws InterruptedException, ExecutionException, TimeoutException {
-        return callMatsAnnotatedEndpoint(futurizer, ENDPOINT_ID, request);
+        @Test
+        void testAnnotatedMatsInstance(MatsFuturizer futurizer) {
+            // :: Act
+            String reply = callMatsEndpoint(futurizer, ENDPOINT_ID, "Class!");
+
+            // :: Assert
+            Assertions.assertEquals("Hello Class!", reply);
+        }
     }
 
-    static String callMatsAnnotatedEndpoint(MatsFuturizer futurizer, String endpointId, String request)
-            throws InterruptedException, ExecutionException, TimeoutException {
-        return futurizer.futurizeNonessential(
-                        "invokeAnnotatedEndpoint",
-                        "UnitTest",
-                        endpointId,
-                        String.class,
-                        request)
-                .thenApply(Reply::get)
-                .get(10, TimeUnit.SECONDS);
+    static String callMatsEndpoint(MatsFuturizer futurizer, String endpointId, String request) {
+        try {
+            return futurizer.futurizeNonessential(
+                    MatsTestHelp.traceId(),
+                    MatsTestHelp.from("@MatsTest-tests"),
+                    endpointId,
+                    String.class,
+                    request)
+                    .thenApply(Reply::get)
+                    .get(10, TimeUnit.SECONDS);
+        }
+        catch (InterruptedException | ExecutionException | TimeoutException e) {
+            throw new AssertionError("Got exception when calling Mats endpoint", e);
+        }
     }
 }

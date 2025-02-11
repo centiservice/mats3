@@ -63,7 +63,7 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
 public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallback, AfterAllCallback {
     private static final Logger log = LoggerFactory.getLogger(Extension_Mats.class);
 
-    private static final Namespace NAMESPACE = Namespace.create(Extension_Mats.class.getSimpleName());
+    private static final Namespace NAMESPACE = Namespace.create(Extension_Mats.class.getName());
 
     protected Extension_Mats(MatsSerializer<?> matsSerializer) {
         super(matsSerializer);
