@@ -294,9 +294,9 @@ public class MatsMicrometerInterceptor
      * be dynamic, but there is nothing hindering a user from creating a new initiatorId per initiation. Thus, if we go
      * above a certain number of such entries, we stop adding.
      * <p/>
-     * Value is 200.
+     * Value is 500 (increased on 2025-02-19, after being 200 since 2021-10-21).
      */
-    public static final int MAX_NUMBER_OF_METRICS = 200;
+    public static final int MAX_NUMBER_OF_METRICS = 500;
 
     private final boolean _includeAllTags;
 
