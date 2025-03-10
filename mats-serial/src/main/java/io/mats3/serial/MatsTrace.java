@@ -83,8 +83,6 @@ public interface MatsTrace {
      */
     String getFlowId();
 
-    long getInitiatingTimestamp();
-
     /**
      * @return to which extent the Call history (with State) should be kept. The default is
      *         {@link KeepMatsTrace#COMPACT}.
@@ -142,6 +140,8 @@ public interface MatsTrace {
      */
     boolean isNoAudit();
 
+    long getInitiatingTimestamp();
+
     // --- Stuff set with the 'withDebugInfo(...)' method.
 
     String getInitiatingAppName();
@@ -149,23 +149,6 @@ public interface MatsTrace {
     String getInitiatingAppVersion();
 
     String getInitiatingHost();
-
-    // TODO: Delete ASAP, latest 2025
-
-    @Deprecated
-    default String getInitializingAppName() {
-        return getInitiatingAppName();
-    }
-
-    @Deprecated
-    default String getInitializingAppVersion() {
-        return getInitiatingAppVersion();
-    }
-
-    @Deprecated
-    default String getInitializingHost() {
-        return getInitiatingHost();
-    }
 
     /**
      * @return a fictive "endpointId" of the initiator, see <code>MatsInitiator.MatsInitiate.from(String)</code>.
@@ -227,7 +210,7 @@ public interface MatsTrace {
      *
      * @param propertyName
      *            the name of the property to retrieve.
-     * @return the value of the property.
+     * @return the <b>serialized</b> value of the property.
      *
      * @see #setTraceProperty(String, Object)
      * @see #getTracePropertyKeys()

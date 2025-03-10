@@ -213,7 +213,7 @@ public interface MatsSerializer {
     /**
      * Used for deserializing the value (typically {@link String}) to STOs and DTOs.
      * <p>
-     * If <code>null</code> is provided as the 'Z serialized' parameter, then <code>null</code> shall be returned.
+     * If <code>null</code> is provided as the 'serialized' parameter, then <code>null</code> shall be returned.
      *
      * @param serialized
      *            the value of type T that should be deserialized into an object of Class T. If <code>null</code> is
