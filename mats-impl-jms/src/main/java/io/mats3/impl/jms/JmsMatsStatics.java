@@ -265,7 +265,7 @@ public interface JmsMatsStatics {
     }
 
     static <S, Z> S handleIncomingState(MatsSerializer matsSerializer, Class<S> stateClass,
-            StackState stackState) {
+            StackState stackState, String meta) {
         // ?: Is the desired class Void.TYPE/void.class (or Void.class for legacy reasons).
         if ((stateClass == Void.TYPE) || (stateClass == Void.class)) {
             // -> Yes, so return null (Void can only be null).
@@ -286,11 +286,11 @@ public interface JmsMatsStatics {
             return matsSerializer.newInstance(stateClass);
         }
         // E-> We have data, and it is not Void - so then deserialize the State
-        return matsSerializer.deserializeObject(stackState.getState(), stateClass);
+        return matsSerializer.deserializeObject(stackState.getState(), stateClass, meta);
     }
 
     static <I, Z> I handleIncomingMessageMatsObject(MatsSerializer matsSerializer, Class<I> incomingMessageClass,
-            Z data) {
+            Z data, String meta) {
         // ?: Is the desired class Void.TYPE/void.class (or Void.class for legacy reasons).
         if (incomingMessageClass == Void.TYPE || incomingMessageClass == Void.class) {
             // -> Yes, so return null (Void can only be null).
@@ -312,7 +312,7 @@ public interface JmsMatsStatics {
                     }
                     // E-> No, not VOID, so deserialize.
                     try {
-                        return matsSerializer.deserializeObject(data, type);
+                        return matsSerializer.deserializeObject(data, type, meta);
                     }
                     catch (Throwable t) {
                         throw new IllegalArgumentException("Could not deserialize the data"
@@ -323,7 +323,7 @@ public interface JmsMatsStatics {
             return ret;
         }
         // E-> it is not special MatsObject
-        return matsSerializer.deserializeObject(data, incomingMessageClass);
+        return matsSerializer.deserializeObject(data, incomingMessageClass, meta);
     }
 
     static void makeMessagePropertiesEditable(Message message) throws JMSException {

@@ -110,7 +110,7 @@ public class JmsMatsProcessContext<R, S> implements ProcessContext<R>, JmsMatsSt
     }
 
     void override_FromProps_ForNextDirect(String nd_fromAppName, String nd_fromAppVersion,
-                                          String nd_fromStageId, Instant nd_fromTimestamp) {
+            String nd_fromStageId, Instant nd_fromTimestamp) {
         _isNextDirect = true;
         _nd_fromAppName = nd_fromAppName;
         _nd_fromAppVersion = nd_fromAppVersion;
@@ -129,7 +129,6 @@ public class JmsMatsProcessContext<R, S> implements ProcessContext<R>, JmsMatsSt
                 stageOrigin, incomingMatsTrace, incomingAndOutgoingState, incomingBinaries,
                 incomingStrings, out_messagesToSend, jmsMatsInternalExecutionContext, doAfterCommitRunnableHolder);
     }
-
 
     // :: Need access to the outgoing props, binaries and strings for nextDirect
 
@@ -584,7 +583,8 @@ public class JmsMatsProcessContext<R, S> implements ProcessContext<R>, JmsMatsSt
         if (value == null) {
             return null;
         }
-        return _parentFactory.getMatsSerializer().deserializeObject(value, clazz);
+        return _parentFactory.getMatsSerializer()
+                .deserializeObject(value, clazz, _incomingMatsTrace.getMatsSerializerMeta());
     }
 
     private static final String REPLY_TO_VOID = "REPLY_TO_VOID_NO_MESSAGE_SENT";
@@ -682,7 +682,8 @@ public class JmsMatsProcessContext<R, S> implements ProcessContext<R>, JmsMatsSt
         MatsTrace requestMatsTrace = _incomingMatsTrace.addRequestCall(_stageId,
                 endpointId, MessagingModel.QUEUE, _nextStageId, MessagingModel.QUEUE, requestZ, stateZ, null);
 
-        String matsMessageId = produceMessage(requestDto, _incomingAndOutgoingState, null, nanosStart, requestMatsTrace);
+        String matsMessageId = produceMessage(requestDto, _incomingAndOutgoingState, null, nanosStart,
+                requestMatsTrace);
 
         return new MessageReferenceImpl(matsMessageId);
     }
@@ -826,7 +827,7 @@ public class JmsMatsProcessContext<R, S> implements ProcessContext<R>, JmsMatsSt
     }
 
     private String produceMessage(Object incomingDto, Object sameStackHeightState, Object initialTargetSto,
-                                  long nanosStart, MatsTrace outgoingMatsTrace) {
+            long nanosStart, MatsTrace outgoingMatsTrace) {
         String debugInfo;
         // ?: Is this MINIMAL MatsTrace
         if (outgoingMatsTrace.getKeepTrace() == KeepMatsTrace.MINIMAL) {

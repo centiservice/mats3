@@ -5,9 +5,9 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
 
 /**
  * Defines the operations needed serialize and deserialize {@link MatsTrace}s to and from byte arrays (e.g. UTF-8
- * encoded JSON or XML, or some binary serialization protocol), and STOs and DTOs to and from some type, e.g. byte
- * arrays or Strings. This is separated out from the Mats communication implementation (i.e. JMS or RabbitMQ), as it is
- * a separate aspect, i.e. both the JMS and RabbitMQ implementation can utilize the same serializer.
+ * encoded JSON or XML, or some binary serialization protocol), <b>and</b> STOs and DTOs to and from some type, e.g.
+ * byte arrays or Strings. This is separated out from the Mats communication implementation (i.e. JMS or RabbitMQ), as
+ * it is a separate aspect, i.e. both the JMS and RabbitMQ implementation can utilize the same serializer.
  * <p />
  * There are two levels of serialization needed: For the DTOs and STOs that the Mats API expose to the "end user", and
  * then the serialization of the MatsTrace itself. There is an implementation of MatsTrace in the impl package called
@@ -22,6 +22,31 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
  * construct}: Along with the serialized bytes, a metadata String must be provided. It is thus possible to construct a
  * MatsSerializer that holds multiple underlying MatsSerializers, choosing based on the "meta" String. This can then be
  * used to upgrade from a format to another.
+ * <p>
+ * Serialization and deserialization of the MatsTrace is quote obviously a performance critical part of the Mats
+ * implementation.
+ * <p>
+ * <b>Two serialization mechanisms:</b> The MatsSerializer actually defines two separate serialization mechanisms: One
+ * for the DTOs and STOs, and one for the MatsTrace which contains the serialized versions of the DTOs and STOs. These
+ * two mechanisms are in principle separate, and one could imagine that one would want to use different serialization
+ * mechanisms for these two - but the MatsTrace/MatsSerializer mechanism have the implementation of both in the same
+ * construct - and the combination is identified by the "meta" described in the next paragraph. The default
+ * implementation uses the same serialization mechanism for both (Jackson).
+ * <p>
+ * <b>Meta:</b> There's a concept of "meta", and the method {@link #handlesMeta(String)}. The "meta" is a String that is
+ * provided along with the serialized bytes, and which is needed back when deserializing. It has two functions: Identify
+ * the MatsSerializer, and provide meta information to that serializer - currently whether compression was employed, and
+ * the size of the uncompressed data. One can make a "super-MatsSerializer" that wraps multiple MatsSerializers, and
+ * which chooses the correct for deserialization one based on providing the meta to each of the contained
+ * MatsSerializers <code>handlesMeta(..)</code> and see which returns true. For serialization, this super-MatsSerializer
+ * will be coded or configured to use one specific of the contained MatsSerializers. This can be used to upgrade the
+ * serialization format in a two-step fashion: First make a revision-change that includes the new serializer version,
+ * but still employs the old for serialization. Then, when all parties are upgraded to the new config, you make a new
+ * revision or minor change that changes the config to employ the new serializer for serialization. Then, when all
+ * parties are up on this version, you can optionally make a third version that removes the old serializer. The "meta"
+ * is also needed to deserialize the DTOs and STOs - it can then be gotten from
+ * {@link MatsTrace#getMatsSerializerMeta()}, since the MatsSerializer sets this transient field upon construction of a
+ * new MatsTrace, and when deserializing a MatsTrace.
  *
  * @author Endre Stølsvik - 2015-07-22 - http://endre.stolsvik.com
  */
@@ -83,7 +108,9 @@ public interface MatsSerializer {
     String META_KEY_POSTFIX = ":meta";
 
     /**
-     * Used for serializing the {@link MatsTrace} to a byte array.
+     * Used for serializing the {@link MatsTrace} to a byte array (contained within a {@link SerializedMatsTrace}),
+     * providing some timing and size information, as well as the important "meta" information - which must be provided
+     * back upon {@link #deserializeMatsTrace(byte[], String) deserialization}.
      *
      * @param matsTrace
      *            the {@link MatsTrace} instance to serialize.
@@ -208,7 +235,7 @@ public interface MatsSerializer {
      *         is meant for metrics, NOT for determining an absolute byte size for a storage array or anything to this
      *         effect.
      */
-    int sizeOfSerialized(Object serialized);
+    int sizeOfSerialized(Object serialized, String meta);
 
     /**
      * Used for deserializing the value (typically {@link String}) to STOs and DTOs.
@@ -222,7 +249,7 @@ public interface MatsSerializer {
      *            the Class that the supplied value of type Z is thought to represent (i.e. the STO or DTO class).
      * @return the reconstituted Object (STO or DTO), or <code>null</code> if null was provided as 'serialized'.
      */
-    <T> T deserializeObject(Object serialized, Class<T> type);
+    <T> T deserializeObject(Object serialized, Class<T> type, String meta);
 
     /**
      * Will return a new instance of the requested type. This is used to instantiate "empty objects" for Endpoint State

@@ -1,38 +1,41 @@
 package io.mats3.serial.json;
 
+import java.util.Objects;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.Objects;
+import io.mats3.serial.MatsSerializer;
+import io.mats3.serial.MatsTrace.KeepMatsTrace;
 
 /**
  * Test object serialization and deserialization for {@link MatsSerializerJson}. It also handles Java Records, but
  * cannot test this in this project since it is Java 8.
  */
 public class TestMatsSerializerJson {
-
     @Test
     public void deserializePrimitivesAndPrimitiveWrappersAndString() {
         MatsSerializerJson serializer = MatsSerializerJson.create();
+        String meta = getMeta(serializer);
 
-        Assert.assertEquals(Byte.valueOf((byte) 1), serializer.deserializeObject("1", Byte.class));
-        Assert.assertEquals(Byte.valueOf((byte) 1), serializer.deserializeObject("1", byte.class));
-        Assert.assertEquals(Short.valueOf((short) 1), serializer.deserializeObject("1", Short.class));
-        Assert.assertEquals(Short.valueOf((short) 1), serializer.deserializeObject("1", short.class));
-        Assert.assertEquals(Integer.valueOf(1), serializer.deserializeObject("1", Integer.class));
-        Assert.assertEquals(Integer.valueOf(1), serializer.deserializeObject("1", int.class));
-        Assert.assertEquals(Long.valueOf(1L), serializer.deserializeObject("1", Long.class));
-        Assert.assertEquals(Long.valueOf(1L), serializer.deserializeObject("1", long.class));
-        Assert.assertEquals(Float.valueOf(1f), serializer.deserializeObject("1", Float.class));
-        Assert.assertEquals(Float.valueOf(1f), serializer.deserializeObject("1", float.class));
-        Assert.assertEquals(Double.valueOf(1d), serializer.deserializeObject("1", Double.class));
-        Assert.assertEquals(Double.valueOf(1d), serializer.deserializeObject("1", double.class));
-        Assert.assertEquals(Character.valueOf((char) 1), serializer.deserializeObject("1", Character.class));
-        Assert.assertEquals(Character.valueOf((char) 1), serializer.deserializeObject("1", char.class));
-        Assert.assertEquals(Boolean.TRUE, serializer.deserializeObject("true", Boolean.class));
-        Assert.assertEquals(Boolean.TRUE, serializer.deserializeObject("true", boolean.class));
+        Assert.assertEquals(Byte.valueOf((byte) 1), serializer.deserializeObject("1", Byte.class, meta));
+        Assert.assertEquals(Byte.valueOf((byte) 1), serializer.deserializeObject("1", byte.class, meta));
+        Assert.assertEquals(Short.valueOf((short) 1), serializer.deserializeObject("1", Short.class, meta));
+        Assert.assertEquals(Short.valueOf((short) 1), serializer.deserializeObject("1", short.class, meta));
+        Assert.assertEquals(Integer.valueOf(1), serializer.deserializeObject("1", Integer.class, meta));
+        Assert.assertEquals(Integer.valueOf(1), serializer.deserializeObject("1", int.class, meta));
+        Assert.assertEquals(Long.valueOf(1L), serializer.deserializeObject("1", Long.class, meta));
+        Assert.assertEquals(Long.valueOf(1L), serializer.deserializeObject("1", long.class, meta));
+        Assert.assertEquals(Float.valueOf(1f), serializer.deserializeObject("1", Float.class, meta));
+        Assert.assertEquals(Float.valueOf(1f), serializer.deserializeObject("1", float.class, meta));
+        Assert.assertEquals(Double.valueOf(1d), serializer.deserializeObject("1", Double.class, meta));
+        Assert.assertEquals(Double.valueOf(1d), serializer.deserializeObject("1", double.class, meta));
+        Assert.assertEquals(Character.valueOf((char) 1), serializer.deserializeObject("1", Character.class, meta));
+        Assert.assertEquals(Character.valueOf((char) 1), serializer.deserializeObject("1", char.class, meta));
+        Assert.assertEquals(Boolean.TRUE, serializer.deserializeObject("true", Boolean.class, meta));
+        Assert.assertEquals(Boolean.TRUE, serializer.deserializeObject("true", boolean.class, meta));
 
-        Assert.assertEquals("string", serializer.deserializeObject("\"string\"", String.class));
+        Assert.assertEquals("string", serializer.deserializeObject("\"string\"", String.class, meta));
     }
 
     @Test
@@ -44,7 +47,7 @@ public class TestMatsSerializerJson {
         Assert.assertEquals(Short.valueOf((short) 0), serializer.newInstance(Short.class));
         Assert.assertEquals(Short.valueOf((short) 0), serializer.newInstance(short.class));
         Assert.assertEquals(Integer.valueOf(0), serializer.newInstance(Integer.class));
-        Assert.assertEquals(Integer.valueOf(0), serializer.newInstance( int.class));
+        Assert.assertEquals(Integer.valueOf(0), serializer.newInstance(int.class));
         Assert.assertEquals(Long.valueOf(0L), serializer.newInstance(Long.class));
         Assert.assertEquals(Long.valueOf(0L), serializer.newInstance(long.class));
         Assert.assertEquals(Float.valueOf(0f), serializer.newInstance(Float.class));
@@ -59,7 +62,6 @@ public class TestMatsSerializerJson {
         Assert.assertEquals("", serializer.newInstance(String.class));
     }
 
-
     @Test
     public void straight_back_and_forth() {
         MatsSerializerJson serializer = MatsSerializerJson.create();
@@ -71,7 +73,8 @@ public class TestMatsSerializerJson {
         System.out.println("JSON serialized:         " + json);
         Assert.assertEquals("{\"string\":\"endre\",\"integer\":1}", json);
 
-        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class);
+        String meta = getMeta(serializer);
+        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
         System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
         Assert.assertEquals(ClassTest, ClassTest_deserialized);
     }
@@ -79,18 +82,19 @@ public class TestMatsSerializerJson {
     @Test
     public void missingJsonField() {
         MatsSerializerJson serializer = MatsSerializerJson.create();
+        String meta = getMeta(serializer);
 
         // Missing the string
         String json = "{\"integer\":1}";
 
-        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class);
+        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
         System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
         Assert.assertEquals(new ClassTest(null, 1), ClassTest_deserialized);
 
         // Missing the integer
         json = "{\"string\":\"endre\"}";
 
-        ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class);
+        ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
         System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
         Assert.assertEquals(new ClassTest("endre", 0), ClassTest_deserialized);
     }
@@ -98,18 +102,19 @@ public class TestMatsSerializerJson {
     @Test
     public void extraJsonField() {
         MatsSerializerJson serializer = MatsSerializerJson.create();
+        String meta = getMeta(serializer);
 
         // Extra fields
         String json = "{\"string\":\"endre\", \"integer\":1, \"string2\":\"kamel\", \"integer2\":1, \"bool\":true}";
 
-        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class);
+        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
         System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
         Assert.assertEquals(new ClassTest("endre", 1), ClassTest_deserialized);
 
         // Missing the string, but also extra fields
         json = "{\"integer\":1, \"string2\":\"kamel\", \"integer2\":1, \"bool\":true}";
 
-        ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class);
+        ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
         System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
         Assert.assertEquals(new ClassTest(null, 1), ClassTest_deserialized);
     }
@@ -117,15 +122,15 @@ public class TestMatsSerializerJson {
     @Test
     public void emptyJsonToClass() {
         MatsSerializerJson serializer = MatsSerializerJson.create();
+        String meta = getMeta(serializer);
 
         // Empty JSON
         String json = "{}";
 
-        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class);
+        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
         System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
         Assert.assertEquals(new ClassTest(null, 0), ClassTest_deserialized);
     }
-
 
     @SuppressWarnings("overrides")
     static class ClassTest {
@@ -157,5 +162,10 @@ public class TestMatsSerializerJson {
                     ", integer=" + integer +
                     '}';
         }
+    }
+
+    private static String getMeta(MatsSerializer serializer) {
+        return serializer.createNewMatsTrace("", "", KeepMatsTrace.FULL, false, false, 0, false)
+                .getMatsSerializerMeta();
     }
 }

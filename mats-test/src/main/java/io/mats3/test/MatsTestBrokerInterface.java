@@ -408,14 +408,15 @@ public interface MatsTestBrokerInterface {
             @Override
             public <I> I getIncomingMessage(Class<I> type) {
                 Call currentCall = _matsTrace.getCurrentCall();
-                return _matsSerializer.deserializeObject(currentCall.getData(), type);
+                return _matsSerializer
+                        .deserializeObject(currentCall.getData(), type, _matsTrace.getMatsSerializerMeta());
             }
 
             @Override
             public <S> S getIncomingState(Class<S> type) {
                 return _matsTrace.getCurrentState()
                         .map(StackState::getState)
-                        .map(z -> _matsSerializer.deserializeObject(z, type))
+                        .map(z -> _matsSerializer.deserializeObject(z, type, _matsTrace.getMatsSerializerMeta()))
                         .orElse(null);
             }
 

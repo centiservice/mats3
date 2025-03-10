@@ -237,7 +237,7 @@ public class JmsMatsMessage implements MatsEditableOutgoingMessage, MatsSentOutg
     @Override
     public <T> T getTraceProperty(String propertyName, Class<T> type) {
         Object serializedTraceProperty = _matsTrace.getTraceProperty(propertyName);
-        return _matsSerializer.deserializeObject(serializedTraceProperty, type);
+        return _matsSerializer.deserializeObject(serializedTraceProperty, type, _matsTrace.getMatsSerializerMeta());
     }
 
     @Override
@@ -355,8 +355,8 @@ public class JmsMatsMessage implements MatsEditableOutgoingMessage, MatsSentOutg
         else if ((messageType == MessageType.NEXT) || (messageType == MessageType.GOTO)) {
             // :: This is a NEXT or GOTO: We want to add extra-state to the same level, as receiver is immediate next.
             /*
-             * Note: Check the implementation for MatsTraceFieldImpl.addNextCall(..). The StackState we need is
-             * the very last added.
+             * Note: Check the implementation for MatsTraceFieldImpl.addNextCall(..). The StackState we need is the very
+             * last added.
              */
             // :: Get the StackState to modify
             // Fetch the StateFlow
@@ -444,7 +444,8 @@ public class JmsMatsMessage implements MatsEditableOutgoingMessage, MatsSentOutg
 
     @Override
     public int getDataSerializedSize() {
-        return _matsSerializer.sizeOfSerialized(_matsTrace.getCurrentCall().getData());
+        return _matsSerializer
+                .sizeOfSerialized(_matsTrace.getCurrentCall().getData(), _matsTrace.getMatsSerializerMeta());
     }
 
     @Override

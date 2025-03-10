@@ -72,6 +72,21 @@ public interface MatsTrace {
     MatsTrace withChildFlow(String parentMatsMessageId, int totalCallNumber);
 
     /**
+     * (Transient, set by MatsSerializer upon creation or deserialization) What "meta" will be used to serialize this
+     * MatsTrace (only enough "meta" to identify the serializer, e.g. not size info which might be added when it has
+     * been serialized), or what "meta" was used to deserialize it. This is a transient field, and is not serialized.
+     */
+    void setMatsSerializerMeta(String matsSerializerMeta);
+
+    /**
+     * (Transient, set by MatsSerializer upon creation or deserialization) What "meta" will be used to serialize this
+     * MatsTrace (only enough "meta" to identify the serializer, e.g. not size info which might be added when it has
+     * been serialized), or what "meta" was used to deserialize it (the actual meta that was used when it was
+     * serialized). This is a transient field, and is not serialized.
+     */
+    String getMatsSerializerMeta();
+
+    /**
      * @return the TraceId that this {@link MatsTrace} was initiated with - this is set once, at initiation time, and
      *         follows the processing till it terminates. (All log lines will have the traceId set on the MDC.)
      */

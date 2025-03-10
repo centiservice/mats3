@@ -1227,7 +1227,7 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
         S currentSto;
         try {
             currentSto = JmsMatsStatics.handleIncomingState(matsSerializer, jmsMatsStage.getStateClass(),
-                    matsTrace.getCurrentState().orElse(null));
+                    matsTrace.getCurrentState().orElse(null), matsTraceMeta);
         }
         catch (Throwable t) {
             String reason = "Could not deserialize the current state (STO) from the MatsTrace from the JMS Message.";
@@ -1242,7 +1242,7 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
         Object incomingDto;
         try {
             incomingDto = JmsMatsStatics.handleIncomingMessageMatsObject(matsSerializer,
-                    jmsMatsStage.getMessageClass(), currentCall.getData());
+                    jmsMatsStage.getMessageClass(), currentCall.getData(), matsTraceMeta);
         }
         catch (Throwable t) {
             String reason = "Could not deserialize the current state (STO) from the MatsTrace from the JMS Message.";
@@ -1368,7 +1368,7 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
         return currentLambda;
     }
 
-    private static  void invokeStageMessageInterceptors(List<MatsStageInterceptor> interceptorsForStage,
+    private static void invokeStageMessageInterceptors(List<MatsStageInterceptor> interceptorsForStage,
             StageCommonContextImpl stageCommonContext, List<JmsMatsMessage> messagesToSend) {
         // :: Find the Message interceptors. Goddamn why is there no stream.filter[InstanceOf](Clazz.class)?
         List<MatsStageInterceptOutgoingMessages> messageInterceptors = interceptorsForStage.stream()
@@ -1549,7 +1549,7 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
         }
     }
 
-    private static  void concatAllTraceIds(String incomingTraceId, List<JmsMatsMessage> messagesToSend) {
+    private static void concatAllTraceIds(String incomingTraceId, List<JmsMatsMessage> messagesToSend) {
         // ?: Are there any outgoing messages? (There are none for e.g. Terminator)
         if (!messagesToSend.isEmpty()) {
             // -> Yes, there are outgoing messages.
@@ -1728,7 +1728,7 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
             _isNextDirect = isNextDirect;
         }
 
-        static  StageCommonContextImpl ordinary(ProcessContext<Object> processContext,
+        static StageCommonContextImpl ordinary(ProcessContext<Object> processContext,
                 JmsMatsStage<?, ?, ?> stage,
                 int deliveryCount,
                 long startedNanos, Instant startedInstant, long endpointEnteredTimestampMillis,
@@ -1750,7 +1750,7 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
                     preUserLambdaNanos, false);
         }
 
-        static  StageCommonContextImpl forNextDirect(ProcessContext<Object> processContext,
+        static StageCommonContextImpl forNextDirect(ProcessContext<Object> processContext,
                 JmsMatsStage<?, ?, ?> stage, int deliveryCount,
                 long startedNanos, Instant startedInstant, long endpointEnteredTimestampMillis,
                 long precedingSameStackHeightOutgoingTimestamp, MatsTrace matsTrace, Object incomingMessage,
@@ -1802,7 +1802,8 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
         @Override
         public int getDataSerializedSize() {
             Object currentData = _matsTrace.getCurrentCall().getData();
-            return _stage.getParentFactory().getMatsSerializer().sizeOfSerialized(currentData);
+            return _stage.getParentFactory().getMatsSerializer()
+                    .sizeOfSerialized(currentData, _matsTrace.getMatsSerializerMeta());
         }
 
         @Override
@@ -1850,13 +1851,16 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
                 return 0;
             }
             Object currentState = currentStackStateO.get().getState();
-            return _stage.getParentFactory().getMatsSerializer().sizeOfSerialized(currentState);
+            return _stage.getParentFactory().getMatsSerializer()
+                    .sizeOfSerialized(currentState, _matsTrace.getMatsSerializerMeta());
         }
 
         @Override
         public <T> Optional<T> getIncomingSameStackHeightExtraState(String key, Class<T> type) {
             MatsSerializer matsSerializer = _stage.getParentFactory().getMatsSerializer();
-            return _matsTrace.getCurrentState().map(s -> matsSerializer.deserializeObject(s.getExtraState(key), type));
+            return _matsTrace.getCurrentState()
+                    .map(s -> matsSerializer
+                            .deserializeObject(s.getExtraState(key), type, _matsTrace.getMatsSerializerMeta()));
         }
 
         @Override

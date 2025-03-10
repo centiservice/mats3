@@ -56,7 +56,7 @@ class JmsMatsInitiate implements MatsInitiate, JmsMatsStatics {
     private final MatsTrace _existingMatsTrace;
     private final String _fromId;
 
-    static  JmsMatsInitiate createForTrueInitiation(JmsMatsFactory parentFactory,
+    static JmsMatsInitiate createForTrueInitiation(JmsMatsFactory parentFactory,
             List<JmsMatsMessage> messagesToSend, JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder, String existingMdcTraceId) {
 
@@ -64,7 +64,7 @@ class JmsMatsInitiate implements MatsInitiate, JmsMatsStatics {
                 doAfterCommitRunnableHolder, null, existingMdcTraceId, null);
     }
 
-    static  JmsMatsInitiate createForChildFlow(JmsMatsFactory parentFactory,
+    static JmsMatsInitiate createForChildFlow(JmsMatsFactory parentFactory,
             List<JmsMatsMessage> messagesToSend, JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder,
             MatsTrace existingMatsTrace, String fromId) {
@@ -550,12 +550,12 @@ class JmsMatsInitiate implements MatsInitiate, JmsMatsStatics {
 
         // :: Current State: If null, make an empty object instead, unless Void, which is null.
         S currentSto = JmsMatsStatics.handleIncomingState(matsSerializer, stateClass,
-                matsTrace.getCurrentState().orElse(null));
+                matsTrace.getCurrentState().orElse(null), matsTraceMeta);
 
         // :: Current Call, incoming Message DTO
         Call currentCall = matsTrace.getCurrentCall();
         I incomingDto = JmsMatsStatics.handleIncomingMessageMatsObject(matsSerializer, incomingClass,
-                currentCall.getData());
+                currentCall.getData(), matsTraceMeta);
 
         double millisDeserializing = (System.nanoTime() - nanosStart) / 1_000_000d;
 

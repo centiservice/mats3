@@ -76,6 +76,10 @@ public class MatsTraceFieldImpl implements MatsTrace, Cloneable {
     private long[] ots; // Outgoing timestamp ("same height"): "compressed" against the initiation time
     private long[] eets; // Endpoint Entered timestamp: "compressed" against the initiation time
 
+    // ---
+
+    private transient String _matsSerializerMeta; // Set by MatsSerializer upon creation or deserialization.
+
     /**
      * Creates a new MatsTrace of MatsTraceFieldImpl type.
      */
@@ -100,6 +104,16 @@ public class MatsTraceFieldImpl implements MatsTrace, Cloneable {
         pmid = parentMatsMessageId;
         tcn = totalCallNumber;
         return this;
+    }
+
+    @Override
+    public void setMatsSerializerMeta(String matsSerializerMeta) {
+        _matsSerializerMeta = matsSerializerMeta;
+    }
+
+    @Override
+    public String getMatsSerializerMeta() {
+        return _matsSerializerMeta;
     }
 
     // TODO: POTENTIAL withOpenTracingTraceId() and withOpenTracingSpanId()..

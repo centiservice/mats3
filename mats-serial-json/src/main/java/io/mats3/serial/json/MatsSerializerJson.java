@@ -127,8 +127,10 @@ public class MatsSerializerJson implements MatsSerializer {
     @Override
     public MatsTrace createNewMatsTrace(String traceId, String flowId,
             KeepMatsTrace keepMatsTrace, boolean nonPersistent, boolean interactive, long ttlMillis, boolean noAudit) {
-        return MatsTraceFieldImpl.createNew(traceId, flowId, keepMatsTrace, nonPersistent, interactive, ttlMillis,
+        var ret = MatsTraceFieldImpl.createNew(traceId, flowId, keepMatsTrace, nonPersistent, interactive, ttlMillis,
                 noAudit);
+        ret.setMatsSerializerMeta(IDENTIFICATION);
+        return ret;
     }
 
     private static final String COMPRESS_DEFLATE = "deflate";
@@ -164,6 +166,9 @@ public class MatsSerializerJson implements MatsSerializer {
             long serializedBytesLength = resultBytes.length;
             // Create the meta string, which is the identification, the compression method, and the decompressed size.
             String meta = IDENTIFICATION + ':' + COMPRESS_DEFLATE + DECOMPRESSED_SIZE_ATTRIBUTE + serializedBytesLength;
+
+            // Set actual meta on the MatsTrace, just since we now have it.
+            matsTrace.setMatsSerializerMeta(meta);
 
             return new SerializedMatsTraceImpl(resultBytes, meta, (int) serializedBytesLength, nanosTaken_Serialization,
                     nanosTaken_Compression);
@@ -270,6 +275,9 @@ public class MatsSerializerJson implements MatsSerializer {
                 throw new AssertionError("Can only deserialize 'plain' and 'deflate'.");
             }
 
+            // Set the meta on the MatsTrace
+            matsTrace.setMatsSerializerMeta(meta);
+
             return new DeserializedMatsTraceImpl(matsTrace, matsTraceBytes.length, decompressedBytesLength,
                     nanosTaken_Deserialization, nanosTaken_Decompression);
         }
@@ -335,7 +343,7 @@ public class MatsSerializerJson implements MatsSerializer {
     }
 
     @Override
-    public int sizeOfSerialized(Object s) {
+    public int sizeOfSerialized(Object s, String meta) {
         if (s == null) {
             return 0;
         }
@@ -343,7 +351,7 @@ public class MatsSerializerJson implements MatsSerializer {
     }
 
     @Override
-    public <T> T deserializeObject(Object serialized, Class<T> type) {
+    public <T> T deserializeObject(Object serialized, Class<T> type, String meta) {
         if (serialized == null) {
             return null;
         }
@@ -362,7 +370,7 @@ public class MatsSerializerJson implements MatsSerializer {
         if ((Boolean.class == clazz) || (boolean.class == clazz)) {
             // -> Yes, boolean - deserialize from "false".
             // Note: Jackson also handles "0" and "1", but this is more general (GSON does not)
-            return deserializeObject("0", clazz);
+            return deserializeObject("0", clazz, IDENTIFICATION);
         }
 
         // ?: Is it otherwise a primitive or primitive wrapper class?
@@ -370,7 +378,7 @@ public class MatsSerializerJson implements MatsSerializer {
                 || Number.class.isAssignableFrom(clazz)
                 || (Character.class == clazz)) {
             // -> Yes number or char, so then "0" and "1" works for all.
-            return deserializeObject("0", clazz);
+            return deserializeObject("0", clazz, IDENTIFICATION);
         }
 
         if (String.class == clazz) {
@@ -384,7 +392,7 @@ public class MatsSerializerJson implements MatsSerializer {
         // :: Deserialize from JSON empty object "{}"
         // Note: Newer Jackson and GSON also handles deserializing any Java Record from "{}".
         try {
-            return deserializeObject("{}", clazz);
+            return deserializeObject("{}", clazz, IDENTIFICATION);
         }
         catch (SerializationException e) {
             throw new CannotCreateEmptyInstanceException("Could not create an empty object of type [" + clazz + "] by"
