@@ -58,7 +58,7 @@ public class Test_VeryBad {
     @Test
     public void testInfrastructure() throws MatsBackendException, MatsMessageSendException {
         AtomicInteger commitCounter = new AtomicInteger();
-        JmsMatsFactory<String> matsFactory = getJmsMatsFactory(commitCounter, 100);
+        JmsMatsFactory matsFactory = getJmsMatsFactory(commitCounter, 100);
 
         // Create a single-stage endpoint
         matsFactory.single("Endpoint", String.class, String.class, (ctx, msg) -> msg + "!");
@@ -95,7 +95,7 @@ public class Test_VeryBad {
     @Test
     public void jmsExceptionWhenInitiate() throws MatsBackendException {
         AtomicInteger commitCounter = new AtomicInteger();
-        JmsMatsFactory<String> matsFactory = getJmsMatsFactory(commitCounter, 1);
+        JmsMatsFactory matsFactory = getJmsMatsFactory(commitCounter, 1);
 
         // Send a message to the endpoint
         try {
@@ -121,7 +121,7 @@ public class Test_VeryBad {
     @Test
     public void jmsExceptionInStage() throws MatsBackendException, MatsMessageSendException {
         AtomicInteger commitCounter = new AtomicInteger();
-        JmsMatsFactory<String> matsFactory = getJmsMatsFactory(commitCounter, 2);
+        JmsMatsFactory matsFactory = getJmsMatsFactory(commitCounter, 2);
 
         // Create a single-stage endpoint
         matsFactory.single("Endpoint", String.class, String.class, (ctx, msg) -> msg + "!");
@@ -155,7 +155,7 @@ public class Test_VeryBad {
         matsFactory.close();
     }
 
-    private static JmsMatsFactory<String> getJmsMatsFactory(AtomicInteger commitCounter, int latchCount) {
+    private static JmsMatsFactory getJmsMatsFactory(AtomicInteger commitCounter, int latchCount) {
         MatsTestBroker matsTestBroker = MatsTestBroker.create();
         ConnectionFactory connFactory = matsTestBroker.getConnectionFactory();
         AtomicInteger latch = new AtomicInteger(latchCount);
@@ -163,7 +163,7 @@ public class Test_VeryBad {
 
         // JmsMatsJmsSessionHandler_Simple sessionHandler = JmsMatsJmsSessionHandler_Simple.create(connFactoryWrapped);
         JmsMatsJmsSessionHandler_Pooling sessionHandler = JmsMatsJmsSessionHandler_Pooling.create(connFactoryWrapped);
-        JmsMatsFactory<String> matsFactory = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(
+        JmsMatsFactory matsFactory = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(
                 "VeryBadApp", "*testing*", sessionHandler, MatsSerializerJson.create());
         matsFactory.getFactoryConfig().setConcurrency(1); // Only need one (we do also get the "priority" one)
         return matsFactory;

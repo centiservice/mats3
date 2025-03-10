@@ -29,7 +29,7 @@ import io.mats3.util.MatsFuturizer;
 @ContextConfiguration(classes = { TestConfiguration.class, MatsTestInfrastructureDbConfiguration.class })
 public class Test_D_MatsTestInfrastructureDbConfiguration_And_MatsSerializer {
 
-    private static MatsSerializer<String> _matsSerializer_Configuration;
+    private static MatsSerializer _matsSerializer_Configuration;
 
     /**
      * Create a {@link MatsSerializer}, which shall be picked up by {@link MatsTestInfrastructureConfiguration}.
@@ -37,7 +37,7 @@ public class Test_D_MatsTestInfrastructureDbConfiguration_And_MatsSerializer {
     @Configuration
     protected static class TestConfiguration {
         @Bean
-        public MatsSerializer<String> matsSerializer() {
+        public MatsSerializer matsSerializer() {
             // Make specific MatsSerializer (in Spring Context, which should be picked up).
             _matsSerializer_Configuration = MatsSerializerJson.create();
             return _matsSerializer_Configuration;
@@ -64,7 +64,7 @@ public class Test_D_MatsTestInfrastructureDbConfiguration_And_MatsSerializer {
     // From @Configuration
 
     @Inject
-    private MatsSerializer<String> _matsSerializer;
+    private MatsSerializer _matsSerializer;
 
     @Test
     public void assertMatsInfrastructureInjected() {

@@ -60,7 +60,7 @@ public class ActiveMq_AMQ_8617_LotsOfDlqs {
 
         // To trig the ActiveMQ-specific AMQ-8617 bug, we need multiple redeliveries.
         // The total attempts must be >=3 for the bug to manifest.
-        ((JmsMatsFactory<?>) MATS.getMatsFactory().unwrapFully())
+        ((JmsMatsFactory) MATS.getMatsFactory().unwrapFully())
                 .setMatsManagedDlqDivert(TEST_SPECIFIC_TOTAL_REDELIVERY_ATTEMPTS);
 
         // ?: Is this ActiveMQ?

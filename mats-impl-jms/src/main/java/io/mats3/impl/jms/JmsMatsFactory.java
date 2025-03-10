@@ -46,7 +46,7 @@ import io.mats3.impl.jms.JmsMatsProcessContext.DoAfterCommitRunnableHolder;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
 
-public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable, MatsFactory {
+public class JmsMatsFactory implements JmsMatsStatics, JmsMatsStartStoppable, MatsFactory {
 
     private static final String MATS_IMPLEMENTATION_NAME = "JMS Mats3";
     private static final String MATS_IMPLEMENTATION_VERSION = "0.19.25-2025-02-19";
@@ -58,25 +58,25 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
 
     static final String DEFAULT_INITIATOR_NAME = "default";
 
-    public static <Z> JmsMatsFactory<Z> createMatsFactory_JmsOnlyTransactions(String appName, String appVersion,
+    public static  JmsMatsFactory createMatsFactory_JmsOnlyTransactions(String appName, String appVersion,
             JmsMatsJmsSessionHandler jmsMatsJmsSessionHandler,
-            MatsSerializer<Z> matsSerializer) {
+            MatsSerializer matsSerializer) {
         return createMatsFactory(appName, appVersion, jmsMatsJmsSessionHandler,
                 JmsMatsTransactionManager_Jms.create(), matsSerializer);
     }
 
-    public static <Z> JmsMatsFactory<Z> createMatsFactory_JmsAndJdbcTransactions(String appName, String appVersion,
+    public static  JmsMatsFactory createMatsFactory_JmsAndJdbcTransactions(String appName, String appVersion,
             JmsMatsJmsSessionHandler jmsMatsJmsSessionHandler, DataSource dataSource,
-            MatsSerializer<Z> matsSerializer) {
+            MatsSerializer matsSerializer) {
         return createMatsFactory(appName, appVersion, jmsMatsJmsSessionHandler,
                 JmsMatsTransactionManager_JmsAndJdbc.create(dataSource), matsSerializer);
     }
 
-    public static <Z> JmsMatsFactory<Z> createMatsFactory(String appName, String appVersion,
+    public static  JmsMatsFactory createMatsFactory(String appName, String appVersion,
             JmsMatsJmsSessionHandler jmsMatsJmsSessionHandler,
             JmsMatsTransactionManager jmsMatsTransactionManager,
-            MatsSerializer<Z> matsSerializer) {
-        return new JmsMatsFactory<>(appName, appVersion, jmsMatsJmsSessionHandler, jmsMatsTransactionManager,
+            MatsSerializer matsSerializer) {
+        return new JmsMatsFactory(appName, appVersion, jmsMatsJmsSessionHandler, jmsMatsTransactionManager,
                 matsSerializer);
     }
 
@@ -109,13 +109,13 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     private final String _appVersion;
     private final JmsMatsJmsSessionHandler _jmsMatsJmsSessionHandler;
     private final JmsMatsTransactionManager _jmsMatsTransactionManager;
-    private final MatsSerializer<Z> _matsSerializer;
+    private final MatsSerializer _matsSerializer;
     private final JmsMatsFactoryConfig _factoryConfig;
 
     private JmsMatsFactory(String appName, String appVersion,
             JmsMatsJmsSessionHandler jmsMatsJmsSessionHandler,
             JmsMatsTransactionManager jmsMatsTransactionManager,
-            MatsSerializer<Z> matsSerializer) {
+            MatsSerializer matsSerializer) {
         try {
             Field callback = ContextLocal.class.getDeclaredField("callback");
             callback.setAccessible(true);
@@ -222,7 +222,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     private final CopyOnWriteArrayList<MatsInitiateInterceptor> _initiationInterceptors = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<MatsStageInterceptor> _stageInterceptors = new CopyOnWriteArrayList<>();
 
-    private final CopyOnWriteArrayList<JmsMatsEndpoint<?, ?, Z>> _createdEndpoints = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<JmsMatsEndpoint<?, ?>> _createdEndpoints = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<MatsInitiator> _createdInitiators = new CopyOnWriteArrayList<>();
 
     // =========== End of fields
@@ -373,7 +373,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         return _jmsMatsTransactionManager;
     }
 
-    public MatsSerializer<Z> getMatsSerializer() {
+    public MatsSerializer getMatsSerializer() {
         return _matsSerializer;
     }
 
@@ -516,14 +516,14 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     }
 
     @Override
-    public <R, S> JmsMatsEndpoint<R, S, Z> staged(String endpointId, Class<R> replyClass, Class<S> stateClass) {
+    public <R, S> JmsMatsEndpoint<R, S> staged(String endpointId, Class<R> replyClass, Class<S> stateClass) {
         return staged(endpointId, replyClass, stateClass, NO_CONFIG);
     }
 
     @Override
-    public <R, S> JmsMatsEndpoint<R, S, Z> staged(String endpointId, Class<R> replyClass, Class<S> stateClass,
+    public <R, S> JmsMatsEndpoint<R, S> staged(String endpointId, Class<R> replyClass, Class<S> stateClass,
             Consumer<? super EndpointConfig<R, S>> endpointConfigLambda) {
-        JmsMatsEndpoint<R, S, Z> endpoint = new JmsMatsEndpoint<>(this, endpointId, true, stateClass, replyClass);
+        JmsMatsEndpoint<R, S> endpoint = new JmsMatsEndpoint<>(this, endpointId, true, stateClass, replyClass);
         endpoint.getEndpointConfig().setOrigin(getInvocationPoint());
         validateNewEndpointAtCreation(endpoint);
         endpointConfigLambda.accept(endpoint.getEndpointConfig());
@@ -538,13 +538,13 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     }
 
     @Override
-    public <R, I> JmsMatsEndpoint<R, Void, Z> single(String endpointId,
+    public <R, I> JmsMatsEndpoint<R, Void> single(String endpointId,
             Class<R> replyClass, Class<I> incomingClass,
             Consumer<? super EndpointConfig<R, Void>> endpointConfigLambda,
             Consumer<? super StageConfig<R, Void, I>> stageConfigLambda,
             ProcessSingleLambda<R, I> processor) {
         // Get a normal Staged Endpoint
-        JmsMatsEndpoint<R, Void, Z> endpoint = staged(endpointId, replyClass, Void.TYPE, endpointConfigLambda);
+        JmsMatsEndpoint<R, Void> endpoint = staged(endpointId, replyClass, Void.TYPE, endpointConfigLambda);
         // :: Wrap the ProcessSingleLambda in a single lastStage-ProcessReturnLambda
         endpoint.lastStage(incomingClass, stageConfigLambda,
                 (processContext, state, incomingDto) -> {
@@ -555,14 +555,14 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     }
 
     @Override
-    public <S, I> JmsMatsEndpoint<Void, S, Z> terminator(String endpointId,
+    public <S, I> JmsMatsEndpoint<Void, S> terminator(String endpointId,
             Class<S> stateClass, Class<I> incomingClass,
             ProcessTerminatorLambda<S, I> processor) {
         return terminator(true, endpointId, incomingClass, stateClass, NO_CONFIG, NO_CONFIG, processor);
     }
 
     @Override
-    public <S, I> JmsMatsEndpoint<Void, S, Z> terminator(String endpointId,
+    public <S, I> JmsMatsEndpoint<Void, S> terminator(String endpointId,
             Class<S> stateClass, Class<I> incomingClass,
             Consumer<? super EndpointConfig<Void, S>> endpointConfigLambda,
             Consumer<? super StageConfig<Void, S, I>> stageConfigLambda,
@@ -572,14 +572,14 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     }
 
     @Override
-    public <S, I> JmsMatsEndpoint<Void, S, Z> subscriptionTerminator(String endpointId, Class<S> stateClass,
+    public <S, I> JmsMatsEndpoint<Void, S> subscriptionTerminator(String endpointId, Class<S> stateClass,
             Class<I> incomingClass,
             ProcessTerminatorLambda<S, I> processor) {
         return terminator(false, endpointId, incomingClass, stateClass, NO_CONFIG, NO_CONFIG, processor);
     }
 
     @Override
-    public <S, I> JmsMatsEndpoint<Void, S, Z> subscriptionTerminator(String endpointId, Class<S> stateClass,
+    public <S, I> JmsMatsEndpoint<Void, S> subscriptionTerminator(String endpointId, Class<S> stateClass,
             Class<I> incomingClass,
             Consumer<? super EndpointConfig<Void, S>> endpointConfigLambda,
             Consumer<? super StageConfig<Void, S, I>> stageConfigLambda,
@@ -591,14 +591,14 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     /**
      * INTERNAL method, since terminator(...) and subscriptionTerminator(...) are near identical.
      */
-    private <S, I> JmsMatsEndpoint<Void, S, Z> terminator(boolean queue, String endpointId,
+    private <S, I> JmsMatsEndpoint<Void, S> terminator(boolean queue, String endpointId,
             Class<I> incomingClass,
             Class<S> stateClass,
             Consumer<? super EndpointConfig<Void, S>> endpointConfigLambda,
             Consumer<? super StageConfig<Void, S, I>> stageConfigLambda,
             ProcessTerminatorLambda<S, I> processor) {
         // Need to create the JmsMatsEndpoint ourselves, since we need to set the queue-parameter.
-        JmsMatsEndpoint<Void, S, Z> endpoint = new JmsMatsEndpoint<>(this, endpointId, queue, stateClass,
+        JmsMatsEndpoint<Void, S> endpoint = new JmsMatsEndpoint<>(this, endpointId, queue, stateClass,
                 Void.TYPE);
         endpoint.getEndpointConfig().setOrigin(getInvocationPoint());
         validateNewEndpointAtCreation(endpoint);
@@ -611,21 +611,21 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     }
 
     private final ThreadLocal<Supplier<MatsInitiate>> __existingMatsInitiate = new ThreadLocal<>();
-    private final ThreadLocal<NestingWithinStageProcessing<Z>> __nestingWithinStageProcessing = new ThreadLocal<>();
+    private final ThreadLocal<NestingWithinStageProcessing> __nestingWithinStageProcessing = new ThreadLocal<>();
 
-    static class NestingWithinStageProcessing<Z> {
-        private final MatsTrace<Z> _matsTrace;
-        private final JmsMatsStage<?, ?, ?, Z> _currentStage;
+    static class NestingWithinStageProcessing {
+        private final MatsTrace _matsTrace;
+        private final JmsMatsStage<?, ?, ?> _currentStage;
         private final MessageConsumer _messageConsumer;
 
-        public NestingWithinStageProcessing(MatsTrace<Z> matsTrace, JmsMatsStage<?, ?, ?, Z> currentStage,
+        public NestingWithinStageProcessing(MatsTrace matsTrace, JmsMatsStage<?, ?, ?> currentStage,
                 MessageConsumer messageConsumer) {
             _matsTrace = matsTrace;
             _currentStage = currentStage;
             _messageConsumer = messageConsumer;
         }
 
-        public MatsTrace<Z> getMatsTrace() {
+        public MatsTrace getMatsTrace() {
             return _matsTrace;
         }
 
@@ -633,7 +633,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
             return _messageConsumer;
         }
 
-        public JmsMatsStage<?, ?, ?, Z> getCurrentStage() {
+        public JmsMatsStage<?, ?, ?> getCurrentStage() {
             return _currentStage;
         }
     }
@@ -682,17 +682,17 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
      * "hoisting" of an initiation transactions into an existing transaction is orthogonal to whether the processing is
      * within a stage or "outside".
      */
-    void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(MatsTrace<Z> matsTrace,
-            JmsMatsStage<?, ?, ?, Z> currentStage,
+    void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(MatsTrace matsTrace,
+            JmsMatsStage<?, ?, ?> currentStage,
             MessageConsumer messageConsumer) {
-        __nestingWithinStageProcessing.set(new NestingWithinStageProcessing<>(matsTrace, currentStage,
+        __nestingWithinStageProcessing.set(new NestingWithinStageProcessing(matsTrace, currentStage,
                 messageConsumer));
     }
 
     /**
      * Used to move a {@link NestingWithinStageProcessing} from an existing thread to a "context fork out" thread.
      */
-    void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(NestingWithinStageProcessing<Z> existing) {
+    void setCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing(NestingWithinStageProcessing existing) {
         __nestingWithinStageProcessing.set(existing);
     }
 
@@ -707,7 +707,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         return Optional.ofNullable(__existingMatsInitiate.get());
     }
 
-    Optional<NestingWithinStageProcessing<Z>> getCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing() {
+    Optional<NestingWithinStageProcessing> getCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing() {
         return Optional.ofNullable(__nestingWithinStageProcessing.get());
     }
 
@@ -722,13 +722,13 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
             _defaultMatsInitiator = getOrCreateInitiator_internal(DEFAULT_INITIATOR_NAME);
         }
         // Wrap it in a MatsInitiator that either joins existing transaction, or starts new.
-        return new MatsInitiator_DefaultInitiator_TxRequired<Z>(this, _defaultMatsInitiator);
+        return new MatsInitiator_DefaultInitiator_TxRequired(this, _defaultMatsInitiator);
     }
 
     @Override
     public MatsInitiator getOrCreateInitiator(String name) {
         // Wrap it in a MatsInitiator that always starts new transaction.
-        return new MatsInitiator_NamedInitiator_TxRequiresNew<Z>(this, getOrCreateInitiator_internal(name));
+        return new MatsInitiator_NamedInitiator_TxRequiresNew(this, getOrCreateInitiator_internal(name));
     }
 
     public MatsInitiator getOrCreateInitiator_internal(String name) {
@@ -748,7 +748,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
                 }
             }
             // E-> Not found, make new
-            MatsInitiator initiator = new JmsMatsInitiator<>(name, this,
+            MatsInitiator initiator = new JmsMatsInitiator(name, this,
                     _jmsMatsJmsSessionHandler, _jmsMatsTransactionManager);
 
             // First notify all plugins that we're about to add a new Initiator.
@@ -768,7 +768,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         }
     }
 
-    private void validateNewEndpointAtCreation(JmsMatsEndpoint<?, ?, Z> newEndpoint) {
+    private void validateNewEndpointAtCreation(JmsMatsEndpoint<?, ?> newEndpoint) {
         // :: Assert that it is possible to instantiate the State and Reply classes.
         assertOkToInstantiateClass(newEndpoint.getEndpointConfig().getStateClass(), "State 'STO' Class",
                 "Endpoint " + newEndpoint.getEndpointId());
@@ -790,7 +790,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
     /**
      * Invoked by the endpoint upon {@link MatsEndpoint#finishSetup()}.
      */
-    void addNewEndpointToFactory(JmsMatsEndpoint<?, ?, Z> newEndpoint) {
+    void addNewEndpointToFactory(JmsMatsEndpoint<?, ?> newEndpoint) {
         // :: We've already checked that we didn't have the endpoint when it was created.
         // Now we'll go into sync for the actual insertion, to handle concurrent creation.
         synchronized (_stateLockObject) {
@@ -818,7 +818,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         }
     }
 
-    void removeEndpoint(JmsMatsEndpoint<?, ?, Z> endpointToRemove) {
+    void removeEndpoint(JmsMatsEndpoint<?, ?> endpointToRemove) {
         synchronized (_stateLockObject) {
             Optional<MatsEndpoint<?, ?>> existingEndpoint = getEndpoint(endpointToRemove.getEndpointConfig()
                     .getEndpointId());
@@ -1224,7 +1224,7 @@ public class JmsMatsFactory<Z> implements JmsMatsStatics, JmsMatsStartStoppable,
         public String getSystemInformation() {
             int totalNumStages = 0;
             int totalStageProcessors = 0;
-            for (JmsMatsEndpoint<?, ?, ?> createdEndpoint : _createdEndpoints) {
+            for (JmsMatsEndpoint<?, ?> createdEndpoint : _createdEndpoints) {
                 totalNumStages += createdEndpoint.getStages().size();
                 // loop stages
                 for (MatsStage<?, ?, ?> stage : createdEndpoint.getStages()) {

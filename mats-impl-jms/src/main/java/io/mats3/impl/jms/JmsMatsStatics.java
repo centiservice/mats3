@@ -144,8 +144,8 @@ public interface JmsMatsStatics {
     /**
      * Send a bunch of {@link JmsMatsMessage}s.
      */
-    default <Z> void produceAndSendMsgSysMessages(Logger log, JmsSessionHolder jmsSessionHolder,
-            JmsMatsFactory<Z> jmsMatsFactory, List<JmsMatsMessage<Z>> messagesToSend)
+    default  void produceAndSendMsgSysMessages(Logger log, JmsSessionHolder jmsSessionHolder,
+            JmsMatsFactory jmsMatsFactory, List<JmsMatsMessage> messagesToSend)
             throws JmsMatsJmsException {
         Session jmsSession = jmsSessionHolder.getSession();
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "Sending [" + messagesToSend.size() + "] messages.");
@@ -153,8 +153,8 @@ public interface JmsMatsStatics {
         MessageProducer messageProducer = jmsSessionHolder.getDefaultNoDestinationMessageProducer();
 
         // :: Send each message
-        for (JmsMatsMessage<Z> jmsMatsMessage : messagesToSend) {
-            MatsTrace<Z> outgoingMatsTrace = jmsMatsMessage.getMatsTrace();
+        for (JmsMatsMessage jmsMatsMessage : messagesToSend) {
+            MatsTrace outgoingMatsTrace = jmsMatsMessage.getMatsTrace();
             SerializedMatsTrace serializedOutgoingMatsTrace = jmsMatsMessage.getCachedSerializedMatsTrace();
 
             long nanosStart_ProduceAndSendSingleJmsMessage = System.nanoTime();
@@ -264,8 +264,8 @@ public interface JmsMatsStatics {
         }
     }
 
-    static <S, Z> S handleIncomingState(MatsSerializer<Z> matsSerializer, Class<S> stateClass,
-            StackState<Z> stackState) {
+    static <S, Z> S handleIncomingState(MatsSerializer matsSerializer, Class<S> stateClass,
+            StackState stackState) {
         // ?: Is the desired class Void.TYPE/void.class (or Void.class for legacy reasons).
         if ((stateClass == Void.TYPE) || (stateClass == Void.class)) {
             // -> Yes, so return null (Void can only be null).
@@ -289,7 +289,7 @@ public interface JmsMatsStatics {
         return matsSerializer.deserializeObject(stackState.getState(), stateClass);
     }
 
-    static <I, Z> I handleIncomingMessageMatsObject(MatsSerializer<Z> matsSerializer, Class<I> incomingMessageClass,
+    static <I, Z> I handleIncomingMessageMatsObject(MatsSerializer matsSerializer, Class<I> incomingMessageClass,
             Z data) {
         // ?: Is the desired class Void.TYPE/void.class (or Void.class for legacy reasons).
         if (incomingMessageClass == Void.TYPE || incomingMessageClass == Void.class) {
@@ -401,7 +401,7 @@ public interface JmsMatsStatics {
         }
         else if (txContextKey instanceof JmsMatsInitiator) {
             // -> Initiator
-            JmsMatsInitiator<?> initiator = (JmsMatsInitiator<?>) txContextKey;
+            JmsMatsInitiator initiator = (JmsMatsInitiator) txContextKey;
             return "Initiator[" + initiator.getName() + "]";
         }
         else {
@@ -483,8 +483,8 @@ public interface JmsMatsStatics {
         log.info(LOG_PREFIX + msg);
     }
 
-    static String convertToDlqName(Logger log, JmsMatsFactory<?> jmsMatsFactory,
-            JmsMatsStage<?, ?, ?, ?> jmsMatsStage) {
+    static String convertToDlqName(Logger log, JmsMatsFactory jmsMatsFactory,
+            JmsMatsStage<?, ?, ?> jmsMatsStage) {
         String dlqName;
         try {
             dlqName = jmsMatsFactory.getDestinationNameModifierForDlqs().apply(jmsMatsStage);

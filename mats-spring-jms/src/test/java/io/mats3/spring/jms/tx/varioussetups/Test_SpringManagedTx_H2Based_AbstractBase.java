@@ -80,7 +80,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
         }
 
         @Bean
-        MatsSerializer<String> createMatsSerializer() {
+        MatsSerializer createMatsSerializer() {
             return MatsSerializerJson.create();
         }
 
@@ -123,7 +123,7 @@ public abstract class Test_SpringManagedTx_H2Based_AbstractBase {
 
         @Bean
         public MatsTestBrokerInterface getMatsTestBrokerInterface(ConnectionFactory connectionFactory,
-                JmsMatsFactory<?> jmsMatsFactory) {
+                JmsMatsFactory jmsMatsFactory) {
             return MatsTestBrokerInterface.create(connectionFactory, jmsMatsFactory);
         }
 

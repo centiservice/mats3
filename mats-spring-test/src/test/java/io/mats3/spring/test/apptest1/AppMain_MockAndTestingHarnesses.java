@@ -124,13 +124,13 @@ public class AppMain_MockAndTestingHarnesses {
     }
 
     @Bean
-    public MatsSerializer<String> matsSerializer() {
+    public MatsSerializer matsSerializer() {
         return MatsSerializerJson.create();
     }
 
     @Bean
     protected MatsFactory matsFactory(ConnectionFactory connectionFactory,
-            MatsSerializer<String> matsSerializer) {
+            MatsSerializer matsSerializer) {
         log.info("Creating MatsFactory");
         SpringJmsMatsFactoryWrapper matsFactory = SpringJmsMatsFactoryProducer.createJmsTxOnlyMatsFactory(
                 AppMain_MockAndTestingHarnesses.class.getSimpleName(), "#testing#", matsSerializer, connectionFactory);

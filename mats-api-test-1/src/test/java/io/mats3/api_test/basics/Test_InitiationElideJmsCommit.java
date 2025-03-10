@@ -98,7 +98,7 @@ public class Test_InitiationElideJmsCommit {
         ConnectionFactory connectionFactory = inVmActiveMq.getConnectionFactory();
         ConnectionFactoryWithCommitCounter wrapper = new ConnectionFactoryWithCommitCounter(connectionFactory);
         JmsMatsJmsSessionHandler sessionPool = JmsMatsJmsSessionHandler_Pooling.create(wrapper);
-        JmsMatsFactory<String> matsFactory = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions("test", "testversion",
+        JmsMatsFactory matsFactory = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions("test", "testversion",
                 sessionPool, MatsSerializerJson.create());
         matsFactory.getFactoryConfig().setConcurrency(5);
 

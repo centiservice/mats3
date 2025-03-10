@@ -26,14 +26,9 @@ import io.mats3.serial.MatsTrace.Call.MessagingModel;
  * some cycles for the serialization and deserialization, but more importantly potentially quite a bit of bandwidth and
  * message processing compared to transfer of the full trace.
  *
- * @param <Z>
- *            The type which STOs and DTOs are serialized into. When employing JSON for the "outer" serialization of
- *            MatsTrace, it does not make that much sense to use a binary (Z=byte[]) "inner" representation of the DTOs
- *            and STOs, because JSON is terrible at serializing byte arrays.
- *
  * @author Endre Stølsvik - 2018-03-17 23:37, factored out from original from 2015 - http://endre.stolsvik.com
  */
-public interface MatsTrace<Z> {
+public interface MatsTrace {
 
     /**
      * String employed as return value for "debug only" fields which may as well be null - by setting them to null, we
@@ -50,7 +45,7 @@ public interface MatsTrace<Z> {
      * @return <code>this</code>, for chaining. Note that this is opposed to the add[Request|Send|Next|Reply]Call(..)
      *         methods, which return a new, independent instance.
      */
-    MatsTrace<Z> withDebugInfo(String initiatingAppName, String initiatingAppVersion, String initiatingHost,
+    MatsTrace withDebugInfo(String initiatingAppName, String initiatingAppVersion, String initiatingHost,
             String initiatorId, String debugInfo);
 
     /**
@@ -74,7 +69,7 @@ public interface MatsTrace<Z> {
      * @return <code>this</code>, for chaining. Note that this is opposed to the add[Request|Send|Next|Reply]Call(..)
      *         methods, which return a new, independent instance.
      */
-    MatsTrace<Z> withChildFlow(String parentMatsMessageId, int totalCallNumber);
+    MatsTrace withChildFlow(String parentMatsMessageId, int totalCallNumber);
 
     /**
      * @return the TraceId that this {@link MatsTrace} was initiated with - this is set once, at initiation time, and
@@ -88,14 +83,7 @@ public interface MatsTrace<Z> {
      */
     String getFlowId();
 
-    // TODO: Delete ASAP, latest 2025
     long getInitiatingTimestamp();
-
-    @Deprecated
-    default long getInitializedTimestamp() {
-        return getInitiatingTimestamp();
-    }
-
 
     /**
      * @return to which extent the Call history (with State) should be kept. The default is
@@ -179,7 +167,6 @@ public interface MatsTrace<Z> {
         return getInitiatingHost();
     }
 
-
     /**
      * @return a fictive "endpointId" of the initiator, see <code>MatsInitiator.MatsInitiate.from(String)</code>.
      */
@@ -220,23 +207,23 @@ public interface MatsTrace<Z> {
     String getParentMatsMessageId();
 
     /**
-     * Sets a trace property, refer to <code>ProcessContext.setTraceProperty(String, Object)</code>. Notice that on the
-     * MatsTrace-side, the value must be of type {@code Z}.
+     * Sets a trace property, refer to <code>ProcessContext.setTraceProperty(String, Object)</code>. The value is the
+     * <b>serialized</b> value of the property.
      *
      * @param propertyName
      *            the name of the property.
      * @param propertyValue
-     *            the value of the property.
+     *            the <b>serialized</b> value of the property
      *
      * @see #getTracePropertyKeys()
      * @see #getTraceProperty(String)
      */
-    void setTraceProperty(String propertyName, Z propertyValue);
+    void setTraceProperty(String propertyName, Object propertyValue);
 
     /**
      * Retrieves a property value set by {@link #setTraceProperty(String, Object)}, refer to
-     * <code>ProcessContext.getTraceProperty(String, Class)</code>. Notice that on the MatsTrace-side, the value is of
-     * type {@code Z}.
+     * <code>ProcessContext.getTraceProperty(String, Class)</code>. The value is the <b>serialized</b> value of the
+     * property.
      *
      * @param propertyName
      *            the name of the property to retrieve.
@@ -245,7 +232,7 @@ public interface MatsTrace<Z> {
      * @see #setTraceProperty(String, Object)
      * @see #getTracePropertyKeys()
      */
-    Z getTraceProperty(String propertyName);
+    Object getTraceProperty(String propertyName);
 
     /**
      * @return the set of keys containing {@link #getTraceProperty(String) trace properties}.
@@ -272,20 +259,20 @@ public interface MatsTrace<Z> {
      * @param replyToMessagingModel
      *            the {@link MessagingModel} of 'replyTo'.
      * @param data
-     *            the request data, most often a JSON representing the Request Data Transfer Object that the requested
-     *            service expects to get.
+     *            the <b>serialized></b> request data, most often a JSON representing the Request Data Transfer Object
+     *            that the requested service expects to get.
      * @param replyState
-     *            the state data for the stageId that gets the reply to this request, that is, the state for the stageId
-     *            that is at the first element of the replyStack. Most often a JSON representing the State Transfer
-     *            Object for the multi-stage endpoint.
+     *            the <b>serialized</b> state data for the stageId that gets the reply to this request, that is, the
+     *            state for the stageId that is at the first element of the replyStack. Most often a JSON representing
+     *            the State Transfer Object for the multi-stage endpoint.
      * @param initialState
-     *            an optional feature, whereby the state can be set for the initial stage of the requested endpoint.
-     *            Same stuff as replyState.
+     *            an optional feature, whereby the <b>serialized</b> state can be set for the initial stage of the
+     *            requested endpoint. Same stuff as replyState.
      */
-    MatsTrace<Z> addRequestCall(String from,
+    MatsTrace addRequestCall(String from,
             String to, MessagingModel toMessagingModel,
             String replyTo, MessagingModel replyToMessagingModel,
-            Z data, Z replyState, Z initialState);
+            Object data, Object replyState, Object initialState);
 
     /**
      * Adds a {@link Call.CallType#SEND SEND} Call, meaning a "request" which do not expect a Reply: Envision an
@@ -301,14 +288,15 @@ public interface MatsTrace<Z> {
      * @param toMessagingModel
      *            the {@link MessagingModel} of 'to'.
      * @param data
-     *            the request data, most often a JSON representing the Request Data Transfer Object that the receiving
-     *            service expects to get.
+     *            the <b>serialized</b> request data, most often a JSON representing the Request Data Transfer Object
+     *            that the receiving service expects to get.
      * @param initialState
-     *            an optional feature, whereby the state can be set for the initial stage of the requested endpoint.
+     *            an optional feature, whereby the <b>serialized</b> state can be set for the initial stage of the
+     *            requested endpoint.
      */
-    MatsTrace<Z> addSendCall(String from,
+    MatsTrace addSendCall(String from,
             String to, MessagingModel toMessagingModel,
-            Z data, Z initialState);
+            Object data, Object initialState);
 
     /**
      * Adds a {@link Call.CallType#NEXT NEXT} Call, which is a "skip call" to the next stage in a multistage service, as
@@ -325,12 +313,12 @@ public interface MatsTrace<Z> {
      * @param to
      *            which endpoint that should get the message - the next stage in a multi-stage service.
      * @param data
-     *            the request data, most often a JSON representing the Request Data Transfer Object that the next stage
-     *            expects to get.
+     *            the <b>serialized</b> request data, most often a JSON representing the Request Data Transfer Object
+     *            that the next stage expects to get.
      * @param state
-     *            the state data for the next stage.
+     *            the <b>serialized</b> state data for the next stage.
      */
-    MatsTrace<Z> addNextCall(String from, String to, Z data, Z state);
+    MatsTrace addNextCall(String from, String to, Object data, Object state);
 
     /**
      * Adds a {@link Call.CallType#REPLY REPLY} Call, which happens when a requested service is finished with its
@@ -341,19 +329,20 @@ public interface MatsTrace<Z> {
      *            which stageId this request is for. This is solely meant for monitoring and debugging - the protocol
      *            does not need the from specifier, as this is not where any replies go to.
      * @param data
-     *            the request data, most often a JSON representing the Request Data Transfer Object that the requesting
-     *            service expects to get.
+     *            the <b>serialized</b> request data, most often a JSON representing the Request Data Transfer Object
+     *            that the requesting service expects to get.
      */
-    MatsTrace<Z> addReplyCall(String from, Z data);
+    MatsTrace addReplyCall(String from, Object data);
 
     /**
      * @param data
-     *            the request data, most often a JSON representing the Request Data Transfer Object that the passed-to
-     *            endpoint expects to get.
+     *            the <b>serialized</b> request data, most often a JSON representing the Request Data Transfer Object
+     *            that the passed-to endpoint expects to get.
      * @param initialState
-     *            an optional feature, whereby the state can be set for the initial stage of the requested endpoint.
+     *            an optional feature, whereby the <b>serialized</b> state can be set for the initial stage of the
+     *            requested endpoint.
      */
-    MatsTrace<Z> addGotoCall(String from, String to, Z data, Z initialState);
+    MatsTrace addGotoCall(String from, String to, Object data, Object initialState);
 
     /**
      * Shall be invoked after adding the outgoing call, immediately before serializing the outgoing MatsTrace.
@@ -408,7 +397,7 @@ public interface MatsTrace<Z> {
      *         should be the stageId specified in getCurrentCall().{@link Call#getTo() getTo()}). Returns
      *         <code>null</code> if not call has yet been added to the trace.
      */
-    Call<Z> getCurrentCall();
+    Call getCurrentCall();
 
     /**
      * Returns the {@link StackState} for the {@link #getCurrentCall()}, if present.
@@ -442,20 +431,20 @@ public interface MatsTrace<Z> {
      * @return the {@link StackState} for the {@link #getCurrentCall()} if it exists, <code>null</code> otherwise, as is
      *         typical when entering initial stage of an endpoint.
      */
-    Optional<StackState<Z>> getCurrentState();
+    Optional<StackState> getCurrentState();
 
     /**
      * @return the stack of the states for the current stack: getCurrentCall().getStack().
      * @see #getCurrentState() for more information on how the "State Flow" works.
      */
-    List<StackState<Z>> getStateStack();
+    List<StackState> getStateStack();
 
     /**
      * @return the flow of calls, from the first REQUEST (or SEND), to the {@link #getCurrentCall() current call} -
      *         unless {@link #getKeepTrace() KeepTrace} is MINIMAL, in which case only the current call is present in
      *         the list.
      */
-    List<Call<Z>> getCallFlow();
+    List<Call> getCallFlow();
 
     /**
      * @return the entire list of states as they have changed throughout the call flow. If {@link KeepMatsTrace} is
@@ -464,12 +453,12 @@ public interface MatsTrace<Z> {
      *         with which stack level the state refers to. This must be gotten from {@link StackState#getHeight()}.
      * @see #getCurrentState() for more information on how the "State Flow" works.
      */
-    List<StackState<Z>> getStateFlow();
+    List<StackState> getStateFlow();
 
     /**
      * Represents an entry in the {@link MatsTrace}.
      */
-    interface Call<Z> {
+    interface Call {
         long getCalledTimestamp();
 
         /**
@@ -481,7 +470,7 @@ public interface MatsTrace<Z> {
         /**
          * Can only be set once.
          */
-        Call<Z> setDebugInfo(String callingAppName, String callingAppVersion, String callingHost, String debugInfo);
+        Call setDebugInfo(String callingAppName, String callingAppVersion, String callingHost, String debugInfo);
 
         String getCallingAppName();
 
@@ -549,7 +538,10 @@ public interface MatsTrace<Z> {
             TOPIC
         }
 
-        Z getData();
+        /**
+         * @return the <b>serialized</b> data for this Call.
+         */
+        Object getData();
 
         /**
          * @return the stack height of this Call - which is the number of elements <i>below</i> this call. I.e. for a
@@ -575,25 +567,25 @@ public interface MatsTrace<Z> {
     /**
      * The State instances (of type Z), along with the height of the stack the state relates to.
      */
-    interface StackState<Z> {
+    interface StackState {
         /**
          * @return which stack height this {@link #getState()} belongs to.
          */
         int getHeight();
 
         /**
-         * @return the state at stack height {@link #getHeight()}.
+         * @return the <b>serialized</b> state at stack height {@link #getHeight()}.
          */
-        Z getState();
+        Object getState();
 
         /**
-         * Sets "extra state" on this StackState.
+         * Sets "extra state" (<b>serialized</b>) on this StackState.
          */
-        void setExtraState(String key, Z value);
+        void setExtraState(String key, Object value);
 
         /**
-         * Retrieves "extra state" on this StackState.
+         * Retrieves "extra state" (<b>serialized</b>) on this StackState.
          */
-        Z getExtraState(String key);
+        Object getExtraState(String key);
     }
 }

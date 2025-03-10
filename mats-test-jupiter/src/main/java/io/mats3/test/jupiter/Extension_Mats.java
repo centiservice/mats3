@@ -65,11 +65,11 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
 
     private static final Namespace NAMESPACE = Namespace.create(Extension_Mats.class.getName());
 
-    protected Extension_Mats(MatsSerializer<?> matsSerializer) {
+    protected Extension_Mats(MatsSerializer matsSerializer) {
         super(matsSerializer);
     }
 
-    protected Extension_Mats(MatsSerializer<?> matsSerializer, DataSource dataSource) {
+    protected Extension_Mats(MatsSerializer matsSerializer, DataSource dataSource) {
         super(matsSerializer, dataSource);
     }
 
@@ -84,7 +84,7 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
      * Creates an {@link Extension_Mats} utilizing the user provided {@link MatsSerializer} which serializes to the type
      * of String.
      */
-    public static Extension_Mats create(MatsSerializer<?> matsSerializer) {
+    public static Extension_Mats create(MatsSerializer matsSerializer) {
         return new Extension_Mats(matsSerializer);
     }
 
@@ -92,7 +92,7 @@ public class Extension_Mats extends AbstractMatsTest implements BeforeAllCallbac
         return createWithDb(MatsSerializerJson.create());
     }
 
-    public static Extension_Mats createWithDb(MatsSerializer<?> matsSerializer) {
+    public static Extension_Mats createWithDb(MatsSerializer matsSerializer) {
         TestH2DataSource testH2DataSource = TestH2DataSource.createStandard();
         return new Extension_Mats(matsSerializer, testH2DataSource);
     }

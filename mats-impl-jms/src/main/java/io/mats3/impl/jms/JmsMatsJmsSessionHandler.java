@@ -40,7 +40,7 @@ public interface JmsMatsJmsSessionHandler {
      *             determined that the problem getting a Session is of a fundamental nature (i.e. the credentials can
      *             get a Connection, but cannot get a Session - which would be pretty absurd, but hey).
      */
-    JmsSessionHolder getSessionHolder(JmsMatsInitiator<?> initiator) throws JmsMatsJmsException;
+    JmsSessionHolder getSessionHolder(JmsMatsInitiator initiator) throws JmsMatsJmsException;
 
     /**
      * Will be invoked before the StageProcessor goes into its consumer loop - it will be closed once the Stage is
@@ -55,7 +55,7 @@ public interface JmsMatsJmsSessionHandler {
      *             determined that the problem getting a Session is of a fundamental nature (i.e. the credentials can
      *             get a Connection, but cannot get a Session - which would be pretty absurd, but hey).
      */
-    JmsSessionHolder getSessionHolder(JmsMatsStageProcessor<?, ?, ?, ?> processor) throws JmsMatsJmsException;
+    JmsSessionHolder getSessionHolder(JmsMatsStageProcessor<?, ?, ?> processor) throws JmsMatsJmsException;
 
     /**
      * Closes all <i>Available</i> Sessions, does not touch <i>Employed</i>. Net result is that Connections that do not

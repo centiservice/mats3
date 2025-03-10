@@ -31,12 +31,12 @@ public interface JmsMatsTransactionManager {
         /**
          * @return "this" if this is a StageProcessor, <code>null</code> if an Initiator.
          */
-        JmsMatsStage<?, ?, ?, ?> getStage();
+        JmsMatsStage<?, ?, ?> getStage();
 
         /**
          * @return the {@link JmsMatsFactory} of the StageProcessor or Initiator (never <code>null</code>).
          */
-        JmsMatsFactory<?> getFactory();
+        JmsMatsFactory getFactory();
     }
 
     /**

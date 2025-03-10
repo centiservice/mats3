@@ -150,7 +150,7 @@ public interface MatsTestBrokerInterface {
         private static final Logger log = LoggerFactory.getLogger(MatsTestBrokerInterface.class);
 
         private ConnectionFactory _connectionFactory;
-        private MatsSerializer<?> _matsSerializer;
+        private MatsSerializer _matsSerializer;
         private String _matsDestinationPrefix;
         private String _matsTraceKey;
 
@@ -159,7 +159,7 @@ public interface MatsTestBrokerInterface {
         }
 
         private MatsTestBrokerInterface_JmsMatsFactory(ConnectionFactory connectionFactory,
-                MatsSerializer<?> matsSerializer,
+                MatsSerializer matsSerializer,
                 String matsDestinationPrefix, String matsTraceKey) {
             _connectionFactory = connectionFactory;
             _matsSerializer = matsSerializer;
@@ -179,7 +179,7 @@ public interface MatsTestBrokerInterface {
                 throw new IllegalArgumentException("The _latePopuplate method was invoked with a MatsFactory, which"
                         + " when 'unwrapFully()' did not give a JmsMatsFactory. Sorry, no can do.");
             }
-            JmsMatsFactory<?> jmsMatsFactory = (JmsMatsFactory<?>) unwrappedMatsFactory;
+            JmsMatsFactory jmsMatsFactory = (JmsMatsFactory) unwrappedMatsFactory;
             _matsSerializer = jmsMatsFactory.getMatsSerializer();
 
             return this;
@@ -297,7 +297,7 @@ public interface MatsTestBrokerInterface {
                         }
                     }, this.getClass().getSimpleName() + "-DlqConsumerThread:ActiveMqCommonDlq:"
                             + activeMqStandardDlqName)
-                                    .start();
+                            .start();
 
                     // Artemis's standard common DLQ, i.e. "DLQ".
                     new Thread(() -> {
@@ -327,7 +327,7 @@ public interface MatsTestBrokerInterface {
                         }
                     }, this.getClass().getSimpleName() + "-DlqConsumerThread:ArtemisCommonDlq:"
                             + artemisMqStandardDlqName)
-                                    .start();
+                            .start();
 
                     try {
                         threadsReceiving.await(1000, TimeUnit.MILLISECONDS);
@@ -384,19 +384,18 @@ public interface MatsTestBrokerInterface {
          * expose it for consumers of the tool.
          */
         @SuppressWarnings("unchecked")
-        private <Z> MatsMessageRepresentation genericsHack(byte[] matsTraceBytes, String matsTraceMeta)
+        private MatsMessageRepresentation genericsHack(byte[] matsTraceBytes, String matsTraceMeta)
                 throws JMSException {
-            MatsSerializer<Z> matsSerializer = (MatsSerializer<Z>) _matsSerializer;
-            MatsTrace<Z> matsTrace = matsSerializer.deserializeMatsTrace(matsTraceBytes, matsTraceMeta).getMatsTrace();
-            return new MatsMessageRepresentationImpl<Z>(matsSerializer, matsTrace);
+            MatsTrace matsTrace = _matsSerializer.deserializeMatsTrace(matsTraceBytes, matsTraceMeta).getMatsTrace();
+            return new MatsMessageRepresentationImpl(_matsSerializer, matsTrace);
         }
 
-        private static class MatsMessageRepresentationImpl<Z> implements MatsMessageRepresentation {
-            private final MatsSerializer<Z> _matsSerializer;
+        private static class MatsMessageRepresentationImpl implements MatsMessageRepresentation {
+            private final MatsSerializer _matsSerializer;
 
-            private final MatsTrace<Z> _matsTrace;
+            private final MatsTrace _matsTrace;
 
-            public MatsMessageRepresentationImpl(MatsSerializer<Z> matsSerializer, MatsTrace<Z> matsTrace) {
+            public MatsMessageRepresentationImpl(MatsSerializer matsSerializer, MatsTrace matsTrace) {
                 _matsSerializer = matsSerializer;
                 _matsTrace = matsTrace;
             }
@@ -408,7 +407,7 @@ public interface MatsTestBrokerInterface {
 
             @Override
             public <I> I getIncomingMessage(Class<I> type) {
-                Call<Z> currentCall = _matsTrace.getCurrentCall();
+                Call currentCall = _matsTrace.getCurrentCall();
                 return _matsSerializer.deserializeObject(currentCall.getData(), type);
             }
 

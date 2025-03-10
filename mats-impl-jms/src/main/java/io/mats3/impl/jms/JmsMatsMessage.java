@@ -23,12 +23,12 @@ import io.mats3.serial.MatsTrace.StackState;
  *
  * @author Endre Stølsvik 2018-09-30 - http://stolsvik.com/, endre@stolsvik.com
  */
-public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentOutgoingMessage {
+public class JmsMatsMessage implements MatsEditableOutgoingMessage, MatsSentOutgoingMessage {
     private final DispatchType _dispatchType;
 
-    private final MatsSerializer<Z> _matsSerializer;
+    private final MatsSerializer _matsSerializer;
 
-    private final MatsTrace<Z> _matsTrace;
+    private final MatsTrace _matsTrace;
 
     private final Object _outgoingMessage;
     private final Object _initialTargetState;
@@ -42,10 +42,10 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
     /**
      * NOTE: The Maps are copied/cloned out, so invoker can do whatever he feels like with them afterwards.
      */
-    public static <Z> JmsMatsMessage<Z> produceMessage(DispatchType dispatchType,
+    public static <Z> JmsMatsMessage produceMessage(DispatchType dispatchType,
             long nanosAtStart_ProducingOutgoingMessage,
-            MatsSerializer<Z> matsSerializer,
-            MatsTrace<Z> outgoingMatsTrace,
+            MatsSerializer matsSerializer,
+            MatsTrace outgoingMatsTrace,
             Object outgoingMessage, Object initialTargetState, Object sameStackHeightState,
             HashMap<String, Object> props,
             HashMap<String, byte[]> bytes,
@@ -81,12 +81,12 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
         }
 
         // Produce and return the JmsMatsMessage
-        return new JmsMatsMessage<>(dispatchType, matsSerializer, outgoingMatsTrace,
+        return new JmsMatsMessage(dispatchType, matsSerializer, outgoingMatsTrace,
                 outgoingMessage, initialTargetState, sameStackHeightState,
                 bytesCopied, stringsCopied, nanosAtStart_ProducingOutgoingMessage);
     }
 
-    private JmsMatsMessage(DispatchType dispatchType, MatsSerializer<Z> matsSerializer, MatsTrace<Z> matsTrace,
+    private <Z> JmsMatsMessage(DispatchType dispatchType, MatsSerializer matsSerializer, MatsTrace matsTrace,
             Object outgoingMessage, Object initialTargetState, Object sameStackHeightState,
             Map<String, byte[]> bytes, Map<String, String> strings, long nanosAtStart_ProducingOutgoingMessage) {
         _dispatchType = dispatchType;
@@ -105,6 +105,11 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
 
     private SerializedMatsTrace _serialized;
 
+    @SuppressWarnings("unchecked")
+    public MatsTrace getMatsTrace() {
+        return _matsTrace;
+    }
+
     void serializeAndCacheMatsTrace() {
         // Update the timestamp we sent this message to closest to actual serialization and sending.
         getMatsTrace().setOutgoingTimestamp(System.currentTimeMillis());
@@ -118,10 +123,6 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
 
     public String getWhat() {
         return getDispatchType() + ":" + getMessageType();
-    }
-
-    public MatsTrace<Z> getMatsTrace() {
-        return _matsTrace;
     }
 
     SerializedMatsTrace getCachedSerializedMatsTrace() {
@@ -235,7 +236,7 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
 
     @Override
     public <T> T getTraceProperty(String propertyName, Class<T> type) {
-        Z serializedTraceProperty = _matsTrace.getTraceProperty(propertyName);
+        Object serializedTraceProperty = _matsTrace.getTraceProperty(propertyName);
         return _matsSerializer.deserializeObject(serializedTraceProperty, type);
     }
 
@@ -310,8 +311,9 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
     // :: MatsEditableOutgoingMessage
 
     @Override
+    @SuppressWarnings("unchecked")
     public void setTraceProperty(String propertyName, Object object) {
-        Z serializeObject = _matsSerializer.serializeObject(object);
+        Object serializeObject = _matsSerializer.serializeObject(object);
         _matsTrace.setTraceProperty(propertyName, serializeObject);
     }
 
@@ -341,9 +343,9 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
             // :: Get the StackState to modify
             // Fetch the StateFlow (really need the StateStack, but for our use, there is no difference, and the state
             // flow is the pure representation, while the StateStack might need processing to produce.)
-            List<StackState<Z>> stateFlow = _matsTrace.getStateFlow();
+            List<StackState> stateFlow = _matsTrace.getStateFlow();
             // So, either very last, or the next-to-last
-            StackState<Z> stateToModify = stateFlow.get(stateFlow.size() - 1).getHeight() == stackHeightForReply
+            StackState stateToModify = stateFlow.get(stateFlow.size() - 1).getHeight() == stackHeightForReply
                     ? stateFlow.get(stateFlow.size() - 1)
                     : stateFlow.get(stateFlow.size() - 2);
 
@@ -358,9 +360,9 @@ public class JmsMatsMessage<Z> implements MatsEditableOutgoingMessage, MatsSentO
              */
             // :: Get the StackState to modify
             // Fetch the StateFlow
-            List<StackState<Z>> stateFlow = _matsTrace.getStateFlow();
+            List<StackState> stateFlow = getMatsTrace().getStateFlow();
             // Get the very last.
-            StackState<Z> stateToModify = stateFlow.get(stateFlow.size() - 1);
+            StackState stateToModify = stateFlow.get(stateFlow.size() - 1);
 
             // :: Add the extra-state
             stateToModify.setExtraState(key, _matsSerializer.serializeObject(object));

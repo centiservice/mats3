@@ -27,7 +27,7 @@ import io.mats3.util.MatsFuturizer;
 @RunWith(SpringRunner.class)
 public class Test_C_MatsTestInfrastructureConfiguration_And_MS_plus_DS_Using_Import {
 
-    private static MatsSerializer<String> _matsSerializer_Configuration;
+    private static MatsSerializer _matsSerializer_Configuration;
     private static TestH2DataSource _h2DataSource_Configuration;
 
     /**
@@ -38,7 +38,7 @@ public class Test_C_MatsTestInfrastructureConfiguration_And_MS_plus_DS_Using_Imp
     @Import(MatsTestInfrastructureConfiguration.class)
     protected static class TestConfiguration {
         @Bean
-        public MatsSerializer<String> matsSerializer() {
+        public MatsSerializer matsSerializer() {
             // Make specific MatsSerializer (in Spring Context, which should be picked up).
             _matsSerializer_Configuration = MatsSerializerJson.create();
             return _matsSerializer_Configuration;
@@ -68,7 +68,7 @@ public class Test_C_MatsTestInfrastructureConfiguration_And_MS_plus_DS_Using_Imp
     // From @Configuration
 
     @Inject
-    private MatsSerializer<String> _matsSerializer;
+    private MatsSerializer _matsSerializer;
 
     @Inject
     private DataSource _dataSource;

@@ -20,17 +20,17 @@ import io.mats3.MatsStage.StageConfig;
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
-public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStatics, JmsMatsStartStoppable {
+public class JmsMatsEndpoint<R, S> implements MatsEndpoint<R, S>, JmsMatsStatics, JmsMatsStartStoppable {
 
     private static final Logger log = LoggerFactory.getLogger(JmsMatsEndpoint.class);
 
-    private final JmsMatsFactory<Z> _parentFactory;
+    private final JmsMatsFactory _parentFactory;
     private final String _endpointId;
     private final boolean _queue;
     private final Class<S> _stateClass;
     private final Class<R> _replyClass;
 
-    JmsMatsEndpoint(JmsMatsFactory<Z> parentFactory, String endpointId, boolean queue, Class<S> stateClass,
+    JmsMatsEndpoint(JmsMatsFactory parentFactory, String endpointId, boolean queue, Class<S> stateClass,
             Class<R> replyClass) {
         _parentFactory = parentFactory;
         _endpointId = endpointId.startsWith(".")
@@ -46,7 +46,7 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
     private final JmsEndpointConfig _endpointConfig = new JmsEndpointConfig();
 
     @Override
-    public JmsMatsFactory<Z> getParentFactory() {
+    public JmsMatsFactory getParentFactory() {
         return _parentFactory;
     }
 
@@ -54,7 +54,7 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
         return _endpointId;
     }
 
-    private List<JmsMatsStage<R, S, ?, Z>> _stages = new CopyOnWriteArrayList<>();
+    private List<JmsMatsStage<R, S, ?>> _stages = new CopyOnWriteArrayList<>();
 
     @Override
     public EndpointConfig<R, S> getEndpointConfig() {
@@ -87,7 +87,7 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
             _parentFactory.assertOkToInstantiateClass(incomingClass, "Incoming DTO Class", "Stage " + stageId);
         }
 
-        JmsMatsStage<R, S, I, Z> stage = new JmsMatsStage<>(this, stageIndex, stageId, _queue,
+        JmsMatsStage<R, S, I> stage = new JmsMatsStage<>(this, stageIndex, stageId, _queue,
                 incomingClass, _stateClass, processor);
         // :: Set this next stage's Id on the previous stage, unless we're first, in which case there is no previous.
         if (_stages.size() > 0) {
@@ -197,7 +197,7 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        JmsMatsEndpoint<?, ?, ?> that = (JmsMatsEndpoint<?, ?, ?>) o;
+        JmsMatsEndpoint<?, ?> that = (JmsMatsEndpoint<?, ?>) o;
         return _parentFactory.equals(that._parentFactory) && _endpointId.equals(that._endpointId);
     }
 
@@ -288,7 +288,7 @@ public class JmsMatsEndpoint<R, S, Z> implements MatsEndpoint<R, S>, JmsMatsStat
 
         @Override
         public boolean isRunning() {
-            for (JmsMatsStage<R, S, ?, Z> stage : _stages) {
+            for (JmsMatsStage<R, S, ?> stage : _stages) {
                 if (stage.getStageConfig().isRunning()) {
                     return true;
                 }

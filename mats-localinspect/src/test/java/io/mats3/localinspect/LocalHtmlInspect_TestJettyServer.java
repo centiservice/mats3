@@ -86,7 +86,7 @@ public class LocalHtmlInspect_TestJettyServer {
             ConnectionFactory connFactory = (ConnectionFactory) sc.getAttribute(ConnectionFactory.class.getName());
 
             // MatsSerializer
-            MatsSerializer<String> matsSerializer = MatsSerializerJson.create();
+            MatsSerializer matsSerializer = MatsSerializerJson.create();
 
             // .. Use port number of current server as postfix for nodename
             Integer port = (Integer) sce.getServletContext().getAttribute(CONTEXT_ATTRIBUTE_PORTNUMBER);

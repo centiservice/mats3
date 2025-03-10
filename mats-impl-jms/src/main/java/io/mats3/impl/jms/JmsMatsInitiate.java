@@ -41,11 +41,11 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  * @author Endre Stølsvik - 2020-01-17, extracted from {@link JmsMatsInitiator} - http://endre.stolsvik.com
  */
-class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
+class JmsMatsInitiate implements MatsInitiate, JmsMatsStatics {
     private static final Logger log = LoggerFactory.getLogger(JmsMatsInitiate.class);
 
-    private final JmsMatsFactory<Z> _parentFactory;
-    private final List<JmsMatsMessage<Z>> _messagesToSend;
+    private final JmsMatsFactory _parentFactory;
+    private final List<JmsMatsMessage> _messagesToSend;
     private final JmsMatsInternalExecutionContext _jmsMatsInternalExecutionContext;
     private final DoAfterCommitRunnableHolder _doAfterCommitRunnableHolder;
 
@@ -53,30 +53,30 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
     private final String _fromOutsideMdcTraceId;
 
     // :: Only for "within Stage"
-    private final MatsTrace<Z> _existingMatsTrace;
+    private final MatsTrace _existingMatsTrace;
     private final String _fromId;
 
-    static <Z> JmsMatsInitiate<Z> createForTrueInitiation(JmsMatsFactory<Z> parentFactory,
-            List<JmsMatsMessage<Z>> messagesToSend, JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
+    static  JmsMatsInitiate createForTrueInitiation(JmsMatsFactory parentFactory,
+            List<JmsMatsMessage> messagesToSend, JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder, String existingMdcTraceId) {
 
-        return new JmsMatsInitiate<>(parentFactory, messagesToSend, jmsMatsInternalExecutionContext,
+        return new JmsMatsInitiate(parentFactory, messagesToSend, jmsMatsInternalExecutionContext,
                 doAfterCommitRunnableHolder, null, existingMdcTraceId, null);
     }
 
-    static <Z> JmsMatsInitiate<Z> createForChildFlow(JmsMatsFactory<Z> parentFactory,
-            List<JmsMatsMessage<Z>> messagesToSend, JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
+    static  JmsMatsInitiate createForChildFlow(JmsMatsFactory parentFactory,
+            List<JmsMatsMessage> messagesToSend, JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder,
-            MatsTrace<Z> existingMatsTrace, String fromId) {
+            MatsTrace existingMatsTrace, String fromId) {
 
-        return new JmsMatsInitiate<>(parentFactory, messagesToSend, jmsMatsInternalExecutionContext,
+        return new JmsMatsInitiate(parentFactory, messagesToSend, jmsMatsInternalExecutionContext,
                 doAfterCommitRunnableHolder, existingMatsTrace, null, fromId);
     }
 
-    private JmsMatsInitiate(JmsMatsFactory<Z> parentFactory, List<JmsMatsMessage<Z>> messagesToSend,
+    private JmsMatsInitiate(JmsMatsFactory parentFactory, List<JmsMatsMessage> messagesToSend,
             JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder,
-            MatsTrace<Z> existingMatsTrace, String fromOutsideMdcTraceId, String fromId) {
+            MatsTrace existingMatsTrace, String fromOutsideMdcTraceId, String fromId) {
         _parentFactory = parentFactory;
         _messagesToSend = messagesToSend;
         _jmsMatsInternalExecutionContext = jmsMatsInternalExecutionContext;
@@ -367,9 +367,9 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         if (_replyTo == null) {
             throw new NullPointerException(msg + ": Missing 'replyTo'.");
         }
-        MatsSerializer<Z> ser = _parentFactory.getMatsSerializer();
+        MatsSerializer ser = _parentFactory.getMatsSerializer();
         long now = System.currentTimeMillis();
-        MatsTrace<Z> requestMatsTrace = createMatsTrace(ser, now)
+        MatsTrace requestMatsTrace = createMatsTrace(ser, now)
                 .addRequestCall(_from, _to, MessagingModel.QUEUE,
                         _replyTo, (_replyToSubscription ? MessagingModel.TOPIC : MessagingModel.QUEUE),
                         ser.serializeObject(requestDto),
@@ -394,9 +394,9 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
             throw new IllegalArgumentException(msg + ": 'replyTo' is set.");
         }
 
-        MatsSerializer<Z> ser = _parentFactory.getMatsSerializer();
+        MatsSerializer ser = _parentFactory.getMatsSerializer();
         long now = System.currentTimeMillis();
-        MatsTrace<Z> sendMatsTrace = createMatsTrace(ser, now)
+        MatsTrace sendMatsTrace = createMatsTrace(ser, now)
                 .addSendCall(_from, _to, MessagingModel.QUEUE,
                         ser.serializeObject(messageDto), ser.serializeObject(initialTargetSto));
         produceMessage(messageDto, initialTargetSto, nanosStart, sendMatsTrace);
@@ -417,9 +417,9 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         if (_replyTo != null) {
             throw new IllegalArgumentException(msg + ": 'replyTo' is set.");
         }
-        MatsSerializer<Z> ser = _parentFactory.getMatsSerializer();
+        MatsSerializer ser = _parentFactory.getMatsSerializer();
         long now = System.currentTimeMillis();
-        MatsTrace<Z> publishMatsTrace = createMatsTrace(ser, now)
+        MatsTrace publishMatsTrace = createMatsTrace(ser, now)
                 .addSendCall(_from, _to, MessagingModel.TOPIC,
                         ser.serializeObject(messageDto), ser.serializeObject(initialTargetSto));
         produceMessage(messageDto, initialTargetSto, nanosStart, publishMatsTrace);
@@ -428,7 +428,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
     }
 
     private void produceMessage(Object messageDto, Object initialTargetSto, long nanosStartProducingOutgoingMessage,
-            MatsTrace<Z> outgoingMatsTrace) {
+            MatsTrace outgoingMatsTrace) {
         // NOTE: We do not need to set currentCall.setDebugInfo(..), as it is the same as on the initiation.
 
         // ?: Do we have an existing MatsTrace (implying that we are being initiated within a Stage)
@@ -440,7 +440,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         }
 
         // Produce the new JmsMatsMessage to send
-        JmsMatsMessage<Z> jmsMatsMessage = JmsMatsMessage.produceMessage(getProcessType(),
+        JmsMatsMessage jmsMatsMessage = JmsMatsMessage.produceMessage(getProcessType(),
                 nanosStartProducingOutgoingMessage, _parentFactory.getMatsSerializer(), outgoingMatsTrace,
                 messageDto, initialTargetSto, _replySto, _props, _binaries, _strings);
         _messagesToSend.add(jmsMatsMessage);
@@ -455,7 +455,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         return _existingMatsTrace != null ? DispatchType.STAGE_INIT : DispatchType.INIT;
     }
 
-    private MatsTrace<Z> createMatsTrace(MatsSerializer<Z> ser, long now) {
+    private MatsTrace createMatsTrace(MatsSerializer ser, long now) {
         String flowId = createFlowId(now);
         String debugInfo = _keepTrace != KeepMatsTrace.MINIMAL
                 ? getInvocationPoint()
@@ -463,7 +463,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
         // If we got no info, replace with a tad more specific no info!
         debugInfo = (NO_INVOCATION_POINT.equals(debugInfo) ? "-no_info(init)-" : debugInfo);
 
-        MatsTrace<Z> matsTrace = ser.createNewMatsTrace(_traceId, flowId, _keepTrace, _nonPersistent, _interactive,
+        MatsTrace matsTrace = ser.createNewMatsTrace(_traceId, flowId, _keepTrace, _nonPersistent, _interactive,
                 _timeToLive, _noAudit)
                 .withDebugInfo(_parentFactory.getFactoryConfig().getAppName(),
                         _parentFactory.getFactoryConfig().getAppVersion(),
@@ -542,18 +542,18 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
                 zstartMatsTrace - zstartSystemMessageId - 1, StandardCharsets.UTF_8);
 
         // :Actual MatsTrace:
-        MatsSerializer<Z> matsSerializer = _parentFactory.getMatsSerializer();
-        DeserializedMatsTrace<Z> deserializedMatsTrace = matsSerializer
+        MatsSerializer matsSerializer = _parentFactory.getMatsSerializer();
+        DeserializedMatsTrace deserializedMatsTrace = matsSerializer
                 .deserializeMatsTrace(stash, zstartMatsTrace + 1,
                         stash.length - zstartMatsTrace - 1, matsTraceMeta);
-        MatsTrace<Z> matsTrace = deserializedMatsTrace.getMatsTrace();
+        MatsTrace matsTrace = deserializedMatsTrace.getMatsTrace();
 
         // :: Current State: If null, make an empty object instead, unless Void, which is null.
         S currentSto = JmsMatsStatics.handleIncomingState(matsSerializer, stateClass,
                 matsTrace.getCurrentState().orElse(null));
 
         // :: Current Call, incoming Message DTO
-        Call<Z> currentCall = matsTrace.getCurrentCall();
+        Call currentCall = matsTrace.getCurrentCall();
         I incomingDto = JmsMatsStatics.handleIncomingMessageMatsObject(matsSerializer, incomingClass,
                 currentCall.getData());
 
@@ -573,7 +573,7 @@ class JmsMatsInitiate<Z> implements MatsInitiate, JmsMatsStatics {
 
         // :: Invoke the process lambda (the actual user code).
         try {
-            JmsMatsProcessContext<R, S, Z> processContext = JmsMatsProcessContext.create(
+            JmsMatsProcessContext<R, S> processContext = JmsMatsProcessContext.create(
                     _parentFactory,
                     endpointId,
                     stageId,

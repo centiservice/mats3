@@ -5,9 +5,9 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
 
 /**
  * Defines the operations needed serialize and deserialize {@link MatsTrace}s to and from byte arrays (e.g. UTF-8
- * encoded JSON or XML, or some binary serialization protocol), and STOs and DTOs to and from type Z, where Z can e.g.
- * be byte arrays or Strings. This is separated out from the Mats communication implementation (i.e. JMS or RabbitMQ),
- * as it is a separate aspect, i.e. both the JMS and RabbitMQ implementation can utilize the same serializer.
+ * encoded JSON or XML, or some binary serialization protocol), and STOs and DTOs to and from some type, e.g. byte
+ * arrays or Strings. This is separated out from the Mats communication implementation (i.e. JMS or RabbitMQ), as it is
+ * a separate aspect, i.e. both the JMS and RabbitMQ implementation can utilize the same serializer.
  * <p />
  * There are two levels of serialization needed: For the DTOs and STOs that the Mats API expose to the "end user", and
  * then the serialization of the MatsTrace itself. There is an implementation of MatsTrace in the impl package called
@@ -23,14 +23,9 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
  * MatsSerializer that holds multiple underlying MatsSerializers, choosing based on the "meta" String. This can then be
  * used to upgrade from a format to another.
  *
- * @param <Z>
- *            The type which STOs and DTOs are serialized into. When employing JSON for the "outer" serialization of
- *            MatsTrace, it does not make that much sense to use a binary (Z=byte[]) "inner" representation of the DTOs
- *            and STOs, because JSON is terrible at serializing byte arrays.
- *
  * @author Endre Stølsvik - 2015-07-22 - http://endre.stolsvik.com
  */
-public interface MatsSerializer<Z> {
+public interface MatsSerializer {
     /**
      * Whether this implementation of MatsSerializer handles the specified {@link SerializedMatsTrace#getMeta() "meta"}.
      * <p>
@@ -77,7 +72,7 @@ public interface MatsSerializer<Z> {
      *            answers in a timely fashion.
      * @return a new instance of the underlying {@link MatsTrace} implementation.
      */
-    MatsTrace<Z> createNewMatsTrace(String traceId, String flowId,
+    MatsTrace createNewMatsTrace(String traceId, String flowId,
             KeepMatsTrace keepMatsTrace, boolean nonPersistent, boolean interactive, long ttlMillis, boolean noAudit);
 
     /**
@@ -95,7 +90,7 @@ public interface MatsSerializer<Z> {
      * @return a byte array representation of the provided {@link MatsTrace}.
      * @see #META_KEY_POSTFIX
      */
-    SerializedMatsTrace serializeMatsTrace(MatsTrace<Z> matsTrace);
+    SerializedMatsTrace serializeMatsTrace(MatsTrace matsTrace);
 
     interface SerializedMatsTrace {
         /**
@@ -153,7 +148,7 @@ public interface MatsSerializer<Z> {
      * @return the reconstituted {@link MatsTrace}.
      * @see #META_KEY_POSTFIX
      */
-    DeserializedMatsTrace<Z> deserializeMatsTrace(byte[] serialized, int offset, int len, String meta);
+    DeserializedMatsTrace deserializeMatsTrace(byte[] serialized, int offset, int len, String meta);
 
     /**
      * Used for deserializing a byte array into a {@link MatsTrace} - this uses the entire byte array.
@@ -166,13 +161,13 @@ public interface MatsSerializer<Z> {
      * @return the reconstituted {@link MatsTrace}.
      * @see #META_KEY_POSTFIX
      */
-    DeserializedMatsTrace<Z> deserializeMatsTrace(byte[] serialized, String meta);
+    DeserializedMatsTrace deserializeMatsTrace(byte[] serialized, String meta);
 
-    interface DeserializedMatsTrace<Z> {
+    interface DeserializedMatsTrace {
         /**
          * @return the deserialized {@link MatsTrace}.
          */
-        MatsTrace<Z> getMatsTrace();
+        MatsTrace getMatsTrace();
 
         /**
          * @return the number of bytes the (potentically compressed) trace was, i.e. the length of the 'serialized' byte
@@ -198,7 +193,7 @@ public interface MatsSerializer<Z> {
     }
 
     /**
-     * Used for serializing STOs and DTOs into type Z, typically {@link String}.
+     * Used for serializing STOs and DTOs into the serialized type, typically {@link String}.
      * <p>
      * If <code>null</code> is provided as the Object parameter, then <code>null</code> shall be returned.
      *
@@ -206,17 +201,17 @@ public interface MatsSerializer<Z> {
      *            the object to serialize. If <code>null</code> is provided, then <code>null</code> shall be returned.
      * @return a String representation of the provided object, or <code>null</code> if null was provided as 'object'.
      */
-    Z serializeObject(Object object);
+    Object serializeObject(Object object);
 
     /**
      * @return the size in bytes or characters of the serialized DTO or STO, shall return 0 for <code>null</code>. This
      *         is meant for metrics, NOT for determining an absolute byte size for a storage array or anything to this
      *         effect.
      */
-    int sizeOfSerialized(Z z);
+    int sizeOfSerialized(Object serialized);
 
     /**
-     * Used for deserializing type Z (typically {@link String}) to STOs and DTOs.
+     * Used for deserializing the value (typically {@link String}) to STOs and DTOs.
      * <p>
      * If <code>null</code> is provided as the 'Z serialized' parameter, then <code>null</code> shall be returned.
      *
@@ -227,7 +222,7 @@ public interface MatsSerializer<Z> {
      *            the Class that the supplied value of type Z is thought to represent (i.e. the STO or DTO class).
      * @return the reconstituted Object (STO or DTO), or <code>null</code> if null was provided as 'serialized'.
      */
-    <T> T deserializeObject(Z serialized, Class<T> type);
+    <T> T deserializeObject(Object serialized, Class<T> type);
 
     /**
      * Will return a new instance of the requested type. This is used to instantiate "empty objects" for Endpoint State

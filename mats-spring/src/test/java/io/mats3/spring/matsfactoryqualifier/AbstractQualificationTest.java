@@ -62,7 +62,7 @@ public class AbstractQualificationTest {
 
     protected MatsFactory getMatsFactory(
             @Qualifier("connectionFactory1") ConnectionFactory connectionFactory) {
-        JmsMatsFactory<String> mf = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(
+        JmsMatsFactory mf = JmsMatsFactory.createMatsFactory_JmsOnlyTransactions(
                 this.getClass().getSimpleName(), "#testing#",
                 JmsMatsJmsSessionHandler_Pooling.create(connectionFactory),
                 MatsSerializerJson.create());

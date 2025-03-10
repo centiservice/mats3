@@ -274,7 +274,7 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
     static void rollbackOrMatsHandledDlqDivert(JmsMatsInternalExecutionContext internalExecutionContext,
             Session jmsSession, boolean refused, Throwable t) throws JmsMatsJmsException {
 
-        JmsMatsFactory<?> jmsMatsFactory = internalExecutionContext.getJmsMatsFactory();
+        JmsMatsFactory jmsMatsFactory = internalExecutionContext.getJmsMatsFactory();
 
         // :: Two reasons for MatsManagedDlqDivert: InstaDLQ or too many attempts.
 
@@ -298,12 +298,12 @@ public class JmsMatsTransactionManager_Jms implements JmsMatsTransactionManager,
         // E-> Yes, perform manual DLQ
 
         // Fetch the JmsMatsStage in play (it shall be here)
-        Optional<JmsMatsStage<?, ?, ?, ?>> jmsMatsStageO = internalExecutionContext.getJmsMatsStage();
+        Optional<JmsMatsStage<?, ?, ?>> jmsMatsStageO = internalExecutionContext.getJmsMatsStage();
         if (jmsMatsStageO.isEmpty()) {
             throw new AssertionError("Got a MatsRefuseMessageException in a wrong context where no"
                     + " JmsMatsStage is present (i.e. initiation). This shall very much not be possible.");
         }
-        JmsMatsStage<?, ?, ?, ?> jmsMatsStage = jmsMatsStageO.get();
+        JmsMatsStage<?, ?, ?> jmsMatsStage = jmsMatsStageO.get();
 
         // Fetch original incoming message (it shall be here)
         Optional<Message> incomingJmsMessageO = internalExecutionContext.getIncomingJmsMessage();

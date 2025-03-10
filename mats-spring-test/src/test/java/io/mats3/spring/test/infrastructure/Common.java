@@ -22,7 +22,7 @@ public class Common {
         }
 
         // Cast it to JmsMatsFactory
-        JmsMatsFactory<?> jmsMatsFactory = (JmsMatsFactory<?>) unWrappedMatsFactory;
+        JmsMatsFactory jmsMatsFactory = (JmsMatsFactory) unWrappedMatsFactory;
 
         // Fetch the transaction manager
         JmsMatsTransactionManager jmsMatsTransactionManager;
@@ -49,7 +49,7 @@ public class Common {
     }
 
     static void assertSameMatsSerializerInMatsFactory(MatsFactory matsFactory,
-            MatsSerializer<String> matsSerializer) {
+            MatsSerializer matsSerializer) {
         // NOTE: The injected MatsFactory will be wrapped by TestSpringMatsFactoryProvider.
 
         // Unwrap fully
@@ -60,10 +60,10 @@ public class Common {
         }
 
         // Cast it to JmsMatsFactory
-        JmsMatsFactory<?> jmsMatsFactory = (JmsMatsFactory<?>) unWrappedMatsFactory;
+        JmsMatsFactory jmsMatsFactory = (JmsMatsFactory) unWrappedMatsFactory;
 
         // Fetch the MatsSerializer
-        MatsSerializer<?> matsSerializerFromMatsFactory = jmsMatsFactory.getMatsSerializer();
+        MatsSerializer matsSerializerFromMatsFactory = jmsMatsFactory.getMatsSerializer();
 
         // Assert that the MatsSerializer in the MatsFactory is the same that we made in the Spring Context.
         Assert.assertSame(matsSerializer, matsSerializerFromMatsFactory);

@@ -1,5 +1,10 @@
 package io.mats3.serial.json;
 
+import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsSerializer.SerializedMatsTrace;
 import io.mats3.serial.MatsTrace;
@@ -7,10 +12,6 @@ import io.mats3.serial.MatsTrace.Call.CallType;
 import io.mats3.serial.MatsTrace.Call.MessagingModel;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
 import io.mats3.serial.impl.MatsTraceFieldImpl;
-import org.junit.Assert;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * @author Endre Stølsvik 2022-02-11 00:32 - http://stolsvik.com/, endre@stolsvik.com
@@ -31,15 +32,15 @@ public class TestMatsTraceTimestamps {
         MatsSerializerJson ser = MatsSerializerJson.create();
 
         // :: Perform a REQUEST
-        MatsTrace<String> mt = ser.createNewMatsTrace("traceId", "flowId", KeepMatsTrace.FULL, false, false, 0, false);
+        MatsTrace mt = ser.createNewMatsTrace("traceId", "flowId", KeepMatsTrace.FULL, false, false, 0, false);
         // @10 Initialized
-        ((MatsTraceFieldImpl<String>) mt).overrideInitiatingTimestamp_ForTests(10);
+        ((MatsTraceFieldImpl) mt).overrideInitiatingTimestamp_ForTests(10);
         mt = mt.addRequestCall("from", "Leaf", MessagingModel.QUEUE, "Terminator", MessagingModel.QUEUE, "dataRequest", "replyState", null);
         // @100 Send from initiator
         mt.setOutgoingTimestamp(100);
 
         // :: "Send and Receive"
-        MatsTrace<String> mt2 = reserialize(mt, ser);
+        MatsTrace mt2 = reserialize(mt, ser);
 
         // RECEIVE: "Leaf"
         // @200 Receive on Leaf
@@ -58,7 +59,7 @@ public class TestMatsTraceTimestamps {
         mt2.setOutgoingTimestamp(300);
 
         // :: "Send and Receive"
-        MatsTrace<String> mt3 = reserialize(mt2, ser);
+        MatsTrace mt3 = reserialize(mt2, ser);
 
         // RECEIVE: "Terminator"
         // @400 Receive on terminator
@@ -86,15 +87,15 @@ public class TestMatsTraceTimestamps {
         MatsSerializerJson ser = MatsSerializerJson.create();
 
         // :: Perform a SEND
-        MatsTrace<String> mt = ser.createNewMatsTrace("traceId", "flowId", KeepMatsTrace.FULL, false, false, 0, false);
+        MatsTrace mt = ser.createNewMatsTrace("traceId", "flowId", KeepMatsTrace.FULL, false, false, 0, false);
         // @10 Initialized
-        ((MatsTraceFieldImpl<String>) mt).overrideInitiatingTimestamp_ForTests(10);
+        ((MatsTraceFieldImpl) mt).overrideInitiatingTimestamp_ForTests(10);
         mt = mt.addSendCall("from", "2Stage", MessagingModel.QUEUE, "dataSend", null);
         // @100 Send from initiator
         mt.setOutgoingTimestamp(100);
 
         // :: "Send and Receive"
-        MatsTrace<String> mt2 = reserialize(mt, ser);
+        MatsTrace mt2 = reserialize(mt, ser);
 
         // RECEIVE: "2Stage" initial
         // @200 Receive on initial stage
@@ -115,7 +116,7 @@ public class TestMatsTraceTimestamps {
         mt2.setOutgoingTimestamp(300);
 
         // :: "Send and Receive"
-        MatsTrace<String> mt3 = reserialize(mt2, ser);
+        MatsTrace mt3 = reserialize(mt2, ser);
 
         // RECEIVE: "Leaf" single stage
         // @400 Receive on Leaf
@@ -136,7 +137,7 @@ public class TestMatsTraceTimestamps {
         mt3.setOutgoingTimestamp(500);
 
         // :: "Send and Receive"
-        MatsTrace<String> mt4 = reserialize(mt3, ser);
+        MatsTrace mt4 = reserialize(mt3, ser);
 
         // RECEIVE: "2Stage.stage1"
         // @600 Receive on 2Stage.stage1
@@ -166,15 +167,15 @@ public class TestMatsTraceTimestamps {
         MatsSerializerJson ser = MatsSerializerJson.create();
 
         // :: Perform a REQUEST
-        MatsTrace<String> mt = ser.createNewMatsTrace("traceId", "flowId", KeepMatsTrace.FULL, false, false, 0, false);
+        MatsTrace mt = ser.createNewMatsTrace("traceId", "flowId", KeepMatsTrace.FULL, false, false, 0, false);
         // @10 Initialized
-        ((MatsTraceFieldImpl<String>) mt).overrideInitiatingTimestamp_ForTests(10);
+        ((MatsTraceFieldImpl) mt).overrideInitiatingTimestamp_ForTests(10);
         mt = mt.addRequestCall("from", "2Stage", MessagingModel.QUEUE, "Terminator", MessagingModel.QUEUE, "dataRequest", "replyState", null);
         // @100 Send from initiator
         mt.setOutgoingTimestamp(100);
 
         // :: "Send and Receive"
-        MatsTrace<String> mt2 = reserialize(mt, ser);
+        MatsTrace mt2 = reserialize(mt, ser);
 
         // RECEIVE: "Leaf"
         // @200 Receive on Leaf
@@ -193,7 +194,7 @@ public class TestMatsTraceTimestamps {
         mt2.setOutgoingTimestamp(300);
 
         // :: "Send and Receive"
-        MatsTrace<String> mt3 = reserialize(mt2, ser);
+        MatsTrace mt3 = reserialize(mt2, ser);
 
         // RECEIVE: "Leaf"
         // @400 Receive on Leaf
@@ -212,7 +213,7 @@ public class TestMatsTraceTimestamps {
         mt3.setOutgoingTimestamp(500);
 
         // :: "Send and Receive"
-        MatsTrace<String> mt4 = reserialize(mt3, ser);
+        MatsTrace mt4 = reserialize(mt3, ser);
 
         // RECEIVE: "Terminator"
         // @400 Receive on terminator
@@ -226,7 +227,7 @@ public class TestMatsTraceTimestamps {
         Assert.assertEquals(10, mt4.getSameHeightEndpointEnteredTimestamp());
     }
 
-    private MatsTrace<String> reserialize(MatsTrace<String> mt, MatsSerializer<String> ser) {
+    private MatsTrace reserialize(MatsTrace mt, MatsSerializer ser) {
         SerializedMatsTrace serialized = ser.serializeMatsTrace(mt);
         return ser.deserializeMatsTrace(serialized.getMatsTraceBytes(), serialized.getMeta()).getMatsTrace();
     }

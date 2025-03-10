@@ -77,7 +77,7 @@ public class MatsMetrics_TestJettyServer {
             // Get JMS ConnectionFactory from ServletContext
             ConnectionFactory connFactory = (ConnectionFactory) sc.getAttribute(ConnectionFactory.class.getName());
             // MatsSerializer
-            MatsSerializer<String> matsSerializer = MatsSerializerJson.create();
+            MatsSerializer matsSerializer = MatsSerializerJson.create();
             // Create the MatsFactory
             _matsFactory = JmsMatsFactory.createMatsFactory_JmsAndJdbcTransactions(
                     MatsMetrics_TestJettyServer.class.getSimpleName(), "*testing*",

@@ -58,15 +58,13 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
      * the MatsTestBroker is also closed. (Note that the stop(graceful) method does <b>not</b> close the
      * MatsTestBroker.)
      *
-     * @param <Z>
-     *            the type of the object that the MatsSerializer serializes to/from.
      * @param matsSerializer
      *            the MatsSerializer to use
      *
      * @return a simple, {@link AutoCloseable}, JMS-tx only MatsFactory, using the provided MatsSerializer, backed by an
      *         in-vm broker from the supplied MatsTestBroker.
      */
-    static <Z> MatsTestFactory create(MatsSerializer<Z> matsSerializer) {
+    static MatsTestFactory create(MatsSerializer matsSerializer) {
         return create(matsSerializer, null);
     }
 
@@ -76,8 +74,6 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
      * When the returned MatsFactory's close() method is invoked, the MatsTestBroker is also closed. (Note that the
      * stop(graceful) method does <b>not</b> close the MatsTestBroker.)
      *
-     * @param <Z>
-     *            the type of the object that the MatsSerializer serializes to/from.
      * @param matsSerializer
      *            the MatsSerializer to use
      * @param dataSource
@@ -85,7 +81,7 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
      * @return a simple, {@link AutoCloseable}, JMS-only or JMS-plus-JDBC transacted MatsFactory, using the provided
      *         MatsSerializer, backed by an in-vm broker from the supplied MatsTestBroker.
      */
-    static <Z> MatsTestFactory create(MatsSerializer<Z> matsSerializer, DataSource dataSource) {
+    static MatsTestFactory create(MatsSerializer matsSerializer, DataSource dataSource) {
         MatsTestBroker matsTestBroker = MatsTestBroker.create();
         MatsFactory matsFactory = createWithBroker(matsTestBroker, matsSerializer, dataSource);
 
@@ -97,7 +93,7 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
      * methods, but without the AutoCloseable wrapping - which then also do not take down the MatsTestBroker when
      * closed.
      */
-    static <Z> MatsFactory createWithBroker(MatsTestBroker matsTestBroker) {
+    static MatsFactory createWithBroker(MatsTestBroker matsTestBroker) {
         return createWithBroker(matsTestBroker, MatsSerializerJson.create(), null);
     }
 
@@ -107,7 +103,7 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
      * closed. Argument 'dataSource' can be {@code null}, and is used to determine if this MatsFactory should be
      * JMS-only or JMS+JDBC tx managed.
      */
-    static <Z> MatsFactory createWithBroker(MatsTestBroker matsTestBroker, MatsSerializer<Z> matsSerializer,
+    static MatsFactory createWithBroker(MatsTestBroker matsTestBroker, MatsSerializer matsSerializer,
             DataSource dataSource) {
         if (matsSerializer == null) {
             throw new NullPointerException("matsSerializer");
@@ -115,7 +111,7 @@ public interface MatsTestFactory extends AutoCloseable, MatsFactory {
         JmsMatsJmsSessionHandler sessionHandler = JmsMatsJmsSessionHandler_Pooling
                 .create(matsTestBroker.getConnectionFactory());
 
-        JmsMatsFactory<Z> matsFactory;
+        JmsMatsFactory matsFactory;
         if (dataSource == null) {
             // -> No DataSource
             // Create the JMS-only TransactionManager-backed JMS MatsFactory.

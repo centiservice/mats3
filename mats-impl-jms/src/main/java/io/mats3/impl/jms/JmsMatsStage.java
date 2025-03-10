@@ -20,10 +20,10 @@ import io.mats3.impl.jms.JmsMatsStageProcessor.PriorityFilter;
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
-public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStatics, JmsMatsStartStoppable {
+public class JmsMatsStage<R, S, I> implements MatsStage<R, S, I>, JmsMatsStatics, JmsMatsStartStoppable {
     private static final Logger log = LoggerFactory.getLogger(JmsMatsStage.class);
 
-    private final JmsMatsEndpoint<R, S, Z> _parentEndpoint;
+    private final JmsMatsEndpoint<R, S> _parentEndpoint;
     private final int _stageIndex;
     private final String _stageId;
     private final boolean _queue;
@@ -31,11 +31,11 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
     private final Class<I> _incomingClass;
     private final ProcessLambda<R, S, I> _processLambda;
 
-    private final JmsMatsFactory<Z> _parentFactory;
+    private final JmsMatsFactory _parentFactory;
 
     private final JmsStageConfig _stageConfig = new JmsStageConfig();
 
-    public JmsMatsStage(JmsMatsEndpoint<R, S, Z> parentEndpoint, int stageIndex, String stageId, boolean queue,
+    public JmsMatsStage(JmsMatsEndpoint<R, S> parentEndpoint, int stageIndex, String stageId, boolean queue,
             Class<I> incomingClass, Class<S> stateClass, ProcessLambda<R, S, I> processLambda) {
         _parentEndpoint = parentEndpoint;
         _stageIndex = stageIndex;
@@ -56,7 +56,7 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
     }
 
     @Override
-    public JmsMatsEndpoint<R, S, Z> getParentEndpoint() {
+    public JmsMatsEndpoint<R, S> getParentEndpoint() {
         return _parentEndpoint;
     }
 
@@ -76,7 +76,7 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         return _processLambda;
     }
 
-    JmsMatsFactory<Z> getParentFactory() {
+    JmsMatsFactory getParentFactory() {
         return _parentFactory;
     }
 
@@ -102,22 +102,22 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         return _nextStageId;
     }
 
-    private JmsMatsStage<R, S, ?, Z> _nextStage;
+    private JmsMatsStage<R, S, ?> _nextStage;
 
-    void setNextStage(JmsMatsStage<R, S, ?, Z> nextStage) {
+    void setNextStage(JmsMatsStage<R, S, ?> nextStage) {
         _nextStage = nextStage;
     }
 
-    public JmsMatsStage<R, S, ?, Z> getNextStage() {
+    public JmsMatsStage<R, S, ?> getNextStage() {
         return _nextStage;
     }
 
-    private final CopyOnWriteArrayList<JmsMatsStageProcessor<R, S, I, Z>> _stageProcessors = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<JmsMatsStageProcessor<R, S, I>> _stageProcessors = new CopyOnWriteArrayList<>();
 
     /**
      * Called by the {@link JmsMatsStageProcessor} when its thread exists.
      */
-    void removeStageProcessorFromList(JmsMatsStageProcessor<R, S, I, Z> stageProcessor) {
+    void removeStageProcessorFromList(JmsMatsStageProcessor<R, S, I> stageProcessor) {
         _stageProcessors.remove(stageProcessor);
     }
 
@@ -164,7 +164,7 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
         }
 
         // Start all stage processors
-        for (JmsMatsStageProcessor<R, S, I, Z> stageProcessor : _stageProcessors) {
+        for (JmsMatsStageProcessor<R, S, I> stageProcessor : _stageProcessors) {
             stageProcessor.start();
         }
     }
@@ -189,7 +189,7 @@ public class JmsMatsStage<R, S, I, Z> implements MatsStage<R, S, I>, JmsMatsStat
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        JmsMatsStage<?, ?, ?, ?> that = (JmsMatsStage<?, ?, ?, ?>) o;
+        JmsMatsStage<?, ?, ?> that = (JmsMatsStage<?, ?, ?>) o;
         return _parentFactory.equals(that._parentFactory) && _stageId.equals(that._stageId);
     }
 

@@ -71,7 +71,7 @@ public class SpringJmsMatsFactoryProducer {
      * @return the produced {@link SpringJmsMatsFactoryWrapper}
      */
     public static SpringJmsMatsFactoryWrapper createSpringDataSourceTxMatsFactory(String appName, String appVersion,
-            MatsSerializer<?> matsSerializer, ConnectionFactory jmsConnectionFactory, DataSource sqlDataSource) {
+            MatsSerializer matsSerializer, ConnectionFactory jmsConnectionFactory, DataSource sqlDataSource) {
         // :: Create the JMS and Spring DataSourceTransactionManager-backed JMS MatsFactory.
         log.info(LOG_PREFIX + "createSpringDataSourceTxMatsFactory(" + appName + ", " + appVersion + ", "
                 + matsSerializer + ", " + jmsConnectionFactory + ", " + sqlDataSource + ")");
@@ -108,7 +108,7 @@ public class SpringJmsMatsFactoryProducer {
      * @return the produced {@link SpringJmsMatsFactoryWrapper}
      */
     public static SpringJmsMatsFactoryWrapper createSpringPlatformTransactionManagerTxMatsFactory(
-            String appName, String appVersion, MatsSerializer<?> matsSerializer, ConnectionFactory jmsConnectionFactory,
+            String appName, String appVersion, MatsSerializer matsSerializer, ConnectionFactory jmsConnectionFactory,
             PlatformTransactionManager platformTransactionManager) {
         // :: Create the JMS and Spring PlatformTransactionManager-backed JMS MatsFactory.
         log.info(LOG_PREFIX + "createSpringPlatformTransactionManagerTxMatsFactory(" + appName + ", " + appVersion
@@ -146,7 +146,7 @@ public class SpringJmsMatsFactoryProducer {
      * @return the produced {@link SpringJmsMatsFactoryWrapper}
      */
     public static SpringJmsMatsFactoryWrapper createJmsTxOnlyMatsFactory(String appName, String appVersion,
-            MatsSerializer<?> matsSerializer, ConnectionFactory jmsConnectionFactory) {
+            MatsSerializer matsSerializer, ConnectionFactory jmsConnectionFactory) {
         // :: Create the JMS and Spring DataSourceTransactionManager-backed JMS MatsFactory.
         log.info(LOG_PREFIX + "createJmsTxOnlyMatsFactory(" + appName + ", " + appVersion + ", " + matsSerializer + ", "
                 + jmsConnectionFactory + ")");
@@ -158,12 +158,12 @@ public class SpringJmsMatsFactoryProducer {
     }
 
     private static SpringJmsMatsFactoryWrapper createJmsMatsFactory(String appName, String appVersion,
-            MatsSerializer<?> matsSerializer, ConnectionFactory jmsConnectionFactory, JmsMatsTransactionManager txMgr) {
+            MatsSerializer matsSerializer, ConnectionFactory jmsConnectionFactory, JmsMatsTransactionManager txMgr) {
         // JmsSessionHandler (pooler)
         JmsMatsJmsSessionHandler jmsSessionHandler = JmsMatsJmsSessionHandler_Pooling.create(
                 jmsConnectionFactory);
         // The MatsFactory itself, supplying the JmsSessionHandler and MatsTransactionManager.
-        JmsMatsFactory<?> matsFactory = JmsMatsFactory
+        JmsMatsFactory matsFactory = JmsMatsFactory
                 .createMatsFactory(appName, appVersion, jmsSessionHandler, txMgr, matsSerializer);
 
         return new SpringJmsMatsFactoryWrapper(jmsConnectionFactory, matsFactory);

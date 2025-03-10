@@ -181,12 +181,12 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
     }
 
     @Override
-    public JmsSessionHolder getSessionHolder(JmsMatsInitiator<?> initiator) throws JmsMatsJmsException {
+    public JmsSessionHolder getSessionHolder(JmsMatsInitiator initiator) throws JmsMatsJmsException {
         return getSessionHolder_internal(initiator);
     }
 
     @Override
-    public JmsSessionHolder getSessionHolder(JmsMatsStageProcessor<?, ?, ?, ?> stageProcessor)
+    public JmsSessionHolder getSessionHolder(JmsMatsStageProcessor<?, ?, ?> stageProcessor)
             throws JmsMatsJmsException {
         return getSessionHolder_internal(stageProcessor);
     }

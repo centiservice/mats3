@@ -36,7 +36,7 @@ public class JmsMatsJmsSessionHandler_Simple implements JmsMatsJmsSessionHandler
     }
 
     @Override
-    public JmsSessionHolder getSessionHolder(JmsMatsInitiator<?> initiator) throws JmsMatsJmsException {
+    public JmsSessionHolder getSessionHolder(JmsMatsInitiator initiator) throws JmsMatsJmsException {
         JmsSessionHolder jmsSessionHolder = getSessionHolder_internal(initiator);
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "getSessionHolder(...) for Initiator [" + initiator
                 + "], returning [" + jmsSessionHolder + "].");
@@ -44,7 +44,7 @@ public class JmsMatsJmsSessionHandler_Simple implements JmsMatsJmsSessionHandler
     }
 
     @Override
-    public JmsSessionHolder getSessionHolder(JmsMatsStageProcessor<?, ?, ?, ?> stageProcessor)
+    public JmsSessionHolder getSessionHolder(JmsMatsStageProcessor<?, ?, ?> stageProcessor)
             throws JmsMatsJmsException {
         JmsSessionHolder jmsSessionHolder = getSessionHolder_internal(stageProcessor);
         if (log.isDebugEnabled()) log.debug(LOG_PREFIX + "getSessionHolder(...) for StageProcessor [" + stageProcessor

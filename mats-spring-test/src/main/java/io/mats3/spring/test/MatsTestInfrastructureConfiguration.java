@@ -45,7 +45,7 @@ public class MatsTestInfrastructureConfiguration  {
 
     // Optionally depend on MatsSerializer.
     @Autowired
-    protected ObjectProvider<MatsSerializer<?>> _matsSerializer;
+    protected ObjectProvider<MatsSerializer> _matsSerializer;
 
     // Optionally depend on DataSource
     @Autowired
@@ -58,7 +58,7 @@ public class MatsTestInfrastructureConfiguration  {
     @Bean
     protected MatsFactory testMatsFactory() {
         // ?: Is there a MatsSerializer in the Spring context?
-        MatsSerializer<?> matsSerializer = _matsSerializer.getIfAvailable();
+        MatsSerializer matsSerializer = _matsSerializer.getIfAvailable();
         if (matsSerializer == null) {
             // -> No, there was no MatsSerializer in the Spring context, so we make a standard from MatsSerializerJson.
             matsSerializer = MatsSerializerJson.create();

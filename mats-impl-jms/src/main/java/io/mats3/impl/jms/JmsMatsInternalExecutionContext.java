@@ -18,28 +18,28 @@ import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
  */
 public class JmsMatsInternalExecutionContext {
 
-    private final JmsMatsFactory<?> _jmsMatsFactory;
+    private final JmsMatsFactory _jmsMatsFactory;
 
     private final JmsSessionHolder _jmsSessionHolder;
 
     // For initiation, the two below are null.
 
-    private final JmsMatsStage<?, ?, ?, ?> _jmsMatsStage;
+    private final JmsMatsStage<?, ?, ?> _jmsMatsStage;
 
     private final MessageConsumer _messageConsumer;
 
-    static JmsMatsInternalExecutionContext forStage(JmsMatsFactory<?> jmsMatsFactory,
-            JmsSessionHolder jmsSessionHolder, JmsMatsStage<?, ?, ?, ?> jmsMatsStage, MessageConsumer messageConsumer) {
+    static JmsMatsInternalExecutionContext forStage(JmsMatsFactory jmsMatsFactory,
+            JmsSessionHolder jmsSessionHolder, JmsMatsStage<?, ?, ?> jmsMatsStage, MessageConsumer messageConsumer) {
         return new JmsMatsInternalExecutionContext(jmsMatsFactory, jmsSessionHolder, jmsMatsStage, messageConsumer);
     }
 
-    static JmsMatsInternalExecutionContext forInitiation(JmsMatsFactory<?> jmsMatsFactory,
+    static JmsMatsInternalExecutionContext forInitiation(JmsMatsFactory jmsMatsFactory,
             JmsSessionHolder jmsSessionHolder) {
         return new JmsMatsInternalExecutionContext(jmsMatsFactory, jmsSessionHolder, null, null);
     }
 
-    private JmsMatsInternalExecutionContext(JmsMatsFactory<?> jmsMatsFactory,
-            JmsSessionHolder jmsSessionHolder, JmsMatsStage<?, ?, ?, ?> jmsMatsStage, MessageConsumer messageConsumer) {
+    private JmsMatsInternalExecutionContext(JmsMatsFactory jmsMatsFactory,
+            JmsSessionHolder jmsSessionHolder, JmsMatsStage<?, ?, ?> jmsMatsStage, MessageConsumer messageConsumer) {
         _jmsMatsFactory = jmsMatsFactory;
         _jmsSessionHolder = jmsSessionHolder;
         _jmsMatsStage = jmsMatsStage;
@@ -60,7 +60,7 @@ public class JmsMatsInternalExecutionContext {
     private long _dbCommitNanos;
     private long _messageSystemCommitNanos;
 
-    public JmsMatsFactory<?> getJmsMatsFactory() {
+    public JmsMatsFactory getJmsMatsFactory() {
         return _jmsMatsFactory;
     }
 
@@ -72,7 +72,7 @@ public class JmsMatsInternalExecutionContext {
      * @return the {@link JmsMatsStage} in effect if this is within a {@link JmsMatsStageProcessor}, returns
      *         Optional.empty() if this is within a {@link JmsMatsInitiator}.
      */
-    public Optional<JmsMatsStage<?, ?, ?, ?>> getJmsMatsStage() {
+    public Optional<JmsMatsStage<?, ?, ?>> getJmsMatsStage() {
         return Optional.ofNullable(_jmsMatsStage);
     }
 

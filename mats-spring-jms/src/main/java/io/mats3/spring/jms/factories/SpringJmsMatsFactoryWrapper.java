@@ -209,7 +209,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
                 // Set test concurrency
                 getFactoryConfig().setConcurrency(MatsTestFactory.TEST_CONCURRENCY);
                 // Also set test max delivery attempts
-                ((JmsMatsFactory<?>) unwrapFully()).setMatsManagedDlqDivert(
+                ((JmsMatsFactory) unwrapFully()).setMatsManagedDlqDivert(
                         MatsTestFactory.TEST_MAX_DELIVERY_ATTEMPTS);
             }
             else {
@@ -242,7 +242,7 @@ public class SpringJmsMatsFactoryWrapper extends MatsFactoryWrapper {
                         // Set test concurrency
                         getFactoryConfig().setConcurrency(MatsTestFactory.TEST_CONCURRENCY);
                         // Also set test max delivery attempts
-                        ((JmsMatsFactory<?>) unwrapFully()).setMatsManagedDlqDivert(
+                        ((JmsMatsFactory) unwrapFully()).setMatsManagedDlqDivert(
                                 MatsTestFactory.TEST_MAX_DELIVERY_ATTEMPTS);
                     }
                     else {

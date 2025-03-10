@@ -35,13 +35,13 @@ public class Test_SpringManagedTx_H2Based_OnlyDataSource extends Test_SpringMana
     static class SpringConfiguration_DataSource extends SpringConfiguration_AbstractBase {
         @Bean
         protected MatsFactory createMatsFactory(DataSource dataSource,
-                ConnectionFactory connectionFactory, MatsSerializer<String> matsSerializer) {
+                ConnectionFactory connectionFactory, MatsSerializer matsSerializer) {
             // Create the JMS and Spring DataSourceTransactionManager-backed JMS MatsFactory.
             JmsMatsJmsSessionHandler sessionPooler = JmsMatsJmsSessionHandler_Pooling.create(connectionFactory);
             JmsMatsTransactionManager txMgrSpring = JmsMatsTransactionManager_JmsAndSpringManagedSqlTx.create(
                     dataSource);
 
-            JmsMatsFactory<String> matsFactory = JmsMatsFactory.createMatsFactory(this.getClass().getSimpleName(),
+            JmsMatsFactory matsFactory = JmsMatsFactory.createMatsFactory(this.getClass().getSimpleName(),
                     "*testing*", sessionPooler, txMgrSpring, matsSerializer);
             // For the MULTIPLE test scenario, it makes sense to test concurrency, so we go for 5.
             matsFactory.getFactoryConfig().setConcurrency(5);

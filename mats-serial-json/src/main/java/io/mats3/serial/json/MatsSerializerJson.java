@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
+import io.mats3.serial.impl.MatsTraceFieldImpl;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
 import io.mats3.util.compression.InflaterInputStreamWithStats;
@@ -48,7 +49,7 @@ import io.mats3.util.compression.InflaterInputStreamWithStats;
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
-public class MatsSerializerJson implements MatsSerializer<String> {
+public class MatsSerializerJson implements MatsSerializer {
 
     public static String IDENTIFICATION = "MatsTrace_JSON_v1";
 
@@ -103,8 +104,8 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         _objectMapper = mapper;
 
         // Make specific Reader and Writer for MatsTraceStringImpl
-        _matsTraceJson_Reader = mapper.readerFor(MatsTraceStringImpl.class);
-        _matsTraceJson_Writer = mapper.writerFor(MatsTraceStringImpl.class);
+        _matsTraceJson_Reader = mapper.readerFor(MatsTraceFieldImpl.class);
+        _matsTraceJson_Writer = mapper.writerFor(MatsTraceFieldImpl.class);
     }
 
     /**
@@ -124,9 +125,9 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     }
 
     @Override
-    public MatsTrace<String> createNewMatsTrace(String traceId, String flowId,
+    public MatsTrace createNewMatsTrace(String traceId, String flowId,
             KeepMatsTrace keepMatsTrace, boolean nonPersistent, boolean interactive, long ttlMillis, boolean noAudit) {
-        return MatsTraceStringImpl.createNew(traceId, flowId, keepMatsTrace, nonPersistent, interactive, ttlMillis,
+        return MatsTraceFieldImpl.createNew(traceId, flowId, keepMatsTrace, nonPersistent, interactive, ttlMillis,
                 noAudit);
     }
 
@@ -135,7 +136,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     private static final String DECOMPRESSED_SIZE_ATTRIBUTE = ";decompSize=";
 
     @Override
-    public SerializedMatsTrace serializeMatsTrace(MatsTrace<String> matsTrace) {
+    public SerializedMatsTrace serializeMatsTrace(MatsTrace matsTrace) {
         try {
             long nanosAtStart_SerializationAndCompression = System.nanoTime();
             // :: We now always compress since we don't know whether the result will be small.
@@ -215,12 +216,12 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     }
 
     @Override
-    public DeserializedMatsTrace<String> deserializeMatsTrace(byte[] matsTraceBytes, String meta) {
+    public DeserializedMatsTrace deserializeMatsTrace(byte[] matsTraceBytes, String meta) {
         return deserializeMatsTrace(matsTraceBytes, 0, matsTraceBytes.length, meta);
     }
 
     @Override
-    public DeserializedMatsTrace<String> deserializeMatsTrace(byte[] matsTraceBytes, int offset, int length,
+    public DeserializedMatsTrace deserializeMatsTrace(byte[] matsTraceBytes, int offset, int length,
             String meta) {
         try {
             long nanosTaken_Decompression;
@@ -237,7 +238,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
             // to handle both "deflate" and "plain" for incoming - the latter for when we earlier didn't compress small
             // payloads.
 
-            MatsTrace<String> matsTrace;
+            MatsTrace matsTrace;
             if (meta.startsWith(COMPRESS_DEFLATE)) {
                 // -> Compressed, so decompress the incoming bytes
                 long nanosStart_DecompressionAndDeserialization = System.nanoTime();
@@ -278,14 +279,14 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         }
     }
 
-    private static final class DeserializedMatsTraceImpl implements DeserializedMatsTrace<String> {
-        private final MatsTrace<String> _matsTrace;
+    private static final class DeserializedMatsTraceImpl implements DeserializedMatsTrace {
+        private final MatsTrace _matsTrace;
         private final int _sizeIncoming;
         private final int _sizeDecompressed;
         private final long _nanosDeserialization;
         private final long _nanosDecompression;
 
-        public DeserializedMatsTraceImpl(MatsTrace<String> matsTrace, int sizeIncoming, int sizeDecompressed,
+        public DeserializedMatsTraceImpl(MatsTrace matsTrace, int sizeIncoming, int sizeDecompressed,
                 long nanosDeserialization, long nanosDecompression) {
             _matsTrace = matsTrace;
             _sizeIncoming = sizeIncoming;
@@ -295,7 +296,7 @@ public class MatsSerializerJson implements MatsSerializer<String> {
         }
 
         @Override
-        public MatsTrace<String> getMatsTrace() {
+        public MatsTrace getMatsTrace() {
             return _matsTrace;
         }
 
@@ -334,20 +335,20 @@ public class MatsSerializerJson implements MatsSerializer<String> {
     }
 
     @Override
-    public int sizeOfSerialized(String s) {
+    public int sizeOfSerialized(Object s) {
         if (s == null) {
             return 0;
         }
-        return s.length();
+        return ((String) s).length();
     }
 
     @Override
-    public <T> T deserializeObject(String serialized, Class<T> type) {
+    public <T> T deserializeObject(Object serialized, Class<T> type) {
         if (serialized == null) {
             return null;
         }
         try {
-            return _objectMapper.readValue(serialized, type);
+            return _objectMapper.readValue((String) serialized, type);
         }
         catch (IOException e) {
             throw new SerializationException("Couldn't deserialize JSON into object of type [" + type + "].\n"

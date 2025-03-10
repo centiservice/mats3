@@ -59,11 +59,11 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
 public class Rule_Mats extends AbstractMatsTest implements TestRule {
     protected static final Logger log = LoggerFactory.getLogger(Rule_Mats.class);
 
-    protected Rule_Mats(MatsSerializer<?> matsSerializer) {
+    protected Rule_Mats(MatsSerializer matsSerializer) {
         super(matsSerializer);
     }
 
-    protected Rule_Mats(MatsSerializer<?> matsSerializer, DataSource dataSource) {
+    protected Rule_Mats(MatsSerializer matsSerializer, DataSource dataSource) {
         super(matsSerializer, dataSource);
     }
 
@@ -78,7 +78,7 @@ public class Rule_Mats extends AbstractMatsTest implements TestRule {
      * Creates a {@link Rule_Mats} utilizing the user provided {@link MatsSerializer} which serializes to the type of
      * String.
      */
-    public static Rule_Mats create(MatsSerializer<?> matsSerializer) {
+    public static Rule_Mats create(MatsSerializer matsSerializer) {
         return new Rule_Mats(matsSerializer);
     }
 
@@ -86,7 +86,7 @@ public class Rule_Mats extends AbstractMatsTest implements TestRule {
         return createWithDb(MatsSerializerJson.create());
     }
 
-    public static Rule_Mats createWithDb(MatsSerializer<?> matsSerializer) {
+    public static Rule_Mats createWithDb(MatsSerializer matsSerializer) {
         TestH2DataSource testH2DataSource = TestH2DataSource.createStandard();
         return new Rule_Mats(matsSerializer, testH2DataSource);
     }

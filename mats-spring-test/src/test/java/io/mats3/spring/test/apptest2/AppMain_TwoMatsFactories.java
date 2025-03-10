@@ -102,7 +102,7 @@ public class AppMain_TwoMatsFactories {
     }
 
     @Bean
-    public MatsSerializer<String> matsSerializer() {
+    public MatsSerializer matsSerializer() {
         return MatsSerializerJson.create();
     }
 
@@ -207,7 +207,7 @@ public class AppMain_TwoMatsFactories {
     @TestCustomQualifier(region = "SouthWest")
     @Qualifier("matsFactoryX")
     protected MatsFactory matsFactory1(@Qualifier("connectionFactoryA") ConnectionFactory connectionFactory,
-            MatsSerializer<String> matsSerializer) {
+            MatsSerializer matsSerializer) {
         log.info("Creating MatsFactory1");
         SpringJmsMatsFactoryWrapper matsFactory = SpringJmsMatsFactoryProducer.createJmsTxOnlyMatsFactory(
                 AppMain_TwoMatsFactories.class.getSimpleName(), "#testing#", matsSerializer, connectionFactory);
@@ -219,7 +219,7 @@ public class AppMain_TwoMatsFactories {
     @Bean
     @Qualifier("matsFactoryY")
     protected MatsFactory matsFactory2(@Qualifier("connectionFactoryB") ConnectionFactory connectionFactory,
-            MatsSerializer<String> matsSerializer) {
+            MatsSerializer matsSerializer) {
         log.info("Creating MatsFactory2");
         SpringJmsMatsFactoryWrapper matsFactory = SpringJmsMatsFactoryProducer.createJmsTxOnlyMatsFactory(
                 AppMain_TwoMatsFactories.class.getSimpleName(), "#testing#", matsSerializer, connectionFactory);

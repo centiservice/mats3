@@ -73,7 +73,7 @@ public class TestSpringMatsFactoryProvider {
      * @return the produced {@link MatsFactory}
      */
     public static MatsFactory createSpringDataSourceTxTestMatsFactory(int concurrency, DataSource sqlDataSource,
-            MatsSerializer<?> matsSerializer) {
+            MatsSerializer matsSerializer) {
         // JMS + Spring's DataSourceTransactionManager-based MatsTransactionManager
         JmsMatsTransactionManager springSqlTxMgr = JmsMatsTransactionManager_JmsAndSpringManagedSqlTx.create(
                 sqlDataSource);
@@ -94,7 +94,7 @@ public class TestSpringMatsFactoryProvider {
      * @return the produced {@link MatsFactory}
      */
     public static MatsFactory createSpringDataSourceTxTestMatsFactory(DataSource sqlDataSource,
-            MatsSerializer<?> matsSerializer) {
+            MatsSerializer matsSerializer) {
         return createSpringDataSourceTxTestMatsFactory(MatsTestFactory.TEST_CONCURRENCY, sqlDataSource, matsSerializer);
     }
 
@@ -121,7 +121,7 @@ public class TestSpringMatsFactoryProvider {
      * @return the produced {@link MatsFactory}
      */
     public static MatsFactory createSpringDataSourceTxTestMatsFactory(int concurrency,
-            PlatformTransactionManager platformTransactionManager, MatsSerializer<?> matsSerializer) {
+            PlatformTransactionManager platformTransactionManager, MatsSerializer matsSerializer) {
         // JMS + Spring's DataSourceTransactionManager-based MatsTransactionManager
         JmsMatsTransactionManager springSqlTxMgr = JmsMatsTransactionManager_JmsAndSpringManagedSqlTx.create(
                 platformTransactionManager);
@@ -145,7 +145,7 @@ public class TestSpringMatsFactoryProvider {
      * @return the produced {@link MatsFactory}
      */
     public static MatsFactory createSpringDataSourceTxTestMatsFactory(
-            PlatformTransactionManager platformTransactionManager, MatsSerializer<?> matsSerializer) {
+            PlatformTransactionManager platformTransactionManager, MatsSerializer matsSerializer) {
         return createSpringDataSourceTxTestMatsFactory(MatsTestFactory.TEST_CONCURRENCY, platformTransactionManager,
                 matsSerializer);
     }
@@ -168,7 +168,7 @@ public class TestSpringMatsFactoryProvider {
      * @return the produced {@link MatsFactory}
      */
     public static MatsFactory createJmsTxOnlyTestMatsFactory(int concurrency,
-            MatsSerializer<?> matsSerializer) {
+            MatsSerializer matsSerializer) {
         // JMS only MatsTransactionManager
         JmsMatsTransactionManager jmsOnlyTxMgr = JmsMatsTransactionManager_Jms.create();
 
@@ -184,12 +184,12 @@ public class TestSpringMatsFactoryProvider {
      *
      * @return the produced {@link MatsFactory}
      */
-    public static MatsFactory createJmsTxOnlyTestMatsFactory(MatsSerializer<?> matsSerializer) {
+    public static MatsFactory createJmsTxOnlyTestMatsFactory(MatsSerializer matsSerializer) {
         return createJmsTxOnlyTestMatsFactory(MatsTestFactory.TEST_CONCURRENCY, matsSerializer);
     }
 
     private static SpringJmsMatsFactoryWrapper getMatsFactoryStopLocalVmBrokerWrapper(int concurrency,
-            MatsSerializer<?> matsSerializer, JmsMatsTransactionManager springSqlTxMgr) {
+            MatsSerializer matsSerializer, JmsMatsTransactionManager springSqlTxMgr) {
         // Naming broker as calling class, performing replacement of illegal chars according to ActiveMQ rules.
         String appName = getAppNamePrefix().replaceAll("[^a-zA-Z0-9._\\-:]", ".")
                 + "_" + _sequence.getAndIncrement();
@@ -199,7 +199,7 @@ public class TestSpringMatsFactoryProvider {
         JmsMatsJmsSessionHandler sessionPooler = JmsMatsJmsSessionHandler_Pooling.create(
                 inVmActiveMq.getConnectionFactory());
         // The MatsFactory itself, supplying the JmsSessionHandler and MatsTransactionManager.
-        JmsMatsFactory<?> matsFactory = JmsMatsFactory
+        JmsMatsFactory matsFactory = JmsMatsFactory
                 .createMatsFactory(appName, "#testing#", sessionPooler, springSqlTxMgr, matsSerializer);
 
         // Reduce number of redeliveries
@@ -222,7 +222,7 @@ public class TestSpringMatsFactoryProvider {
     private static class MatsFactoryStopLocalVmBrokerWrapper extends MatsFactoryWrapper {
         private final MatsTestBroker _matsTestBroker;
 
-        public MatsFactoryStopLocalVmBrokerWrapper(JmsMatsFactory<?> targetMatsFactory,
+        public MatsFactoryStopLocalVmBrokerWrapper(JmsMatsFactory targetMatsFactory,
                 MatsTestBroker matsTestBroker) {
             super(targetMatsFactory);
             _matsTestBroker = matsTestBroker;

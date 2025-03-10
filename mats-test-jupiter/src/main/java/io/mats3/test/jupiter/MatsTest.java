@@ -138,7 +138,7 @@ public @interface MatsTest {
      * Note: This must have a no-args constructor.
      */
     interface SerializerFactory {
-        MatsSerializer<?> createSerializer();
+        MatsSerializer createSerializer();
     }
 
     /**
@@ -146,7 +146,7 @@ public @interface MatsTest {
      */
     class SerializerFactoryJson implements SerializerFactory {
         @Override
-        public MatsSerializer<?> createSerializer() {
+        public MatsSerializer createSerializer() {
             return MatsSerializerJson.create();
         }
     }
@@ -203,7 +203,7 @@ public @interface MatsTest {
             }
 
             SerializerFactory serializerFactory = matsTest.serializerFactory().getDeclaredConstructor().newInstance();
-            MatsSerializer<?> matsSerializer = serializerFactory.createSerializer();
+            MatsSerializer matsSerializer = serializerFactory.createSerializer();
 
             Extension_Mats extensionMats = matsTest.db()
                     ? Extension_Mats.createWithDb(matsSerializer)

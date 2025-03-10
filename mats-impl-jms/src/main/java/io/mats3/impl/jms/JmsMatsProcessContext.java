@@ -38,11 +38,11 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
-public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMatsStatics {
+public class JmsMatsProcessContext<R, S> implements ProcessContext<R>, JmsMatsStatics {
 
     private static final Logger log = LoggerFactory.getLogger(JmsMatsProcessContext.class);
 
-    private final JmsMatsFactory<Z> _parentFactory;
+    private final JmsMatsFactory _parentFactory;
 
     private final String _endpointId;
     private final String _stageId;
@@ -51,11 +51,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     private final String _stageOrigin;
 
-    private final MatsTrace<Z> _incomingMatsTrace;
+    private final MatsTrace _incomingMatsTrace;
     private final LinkedHashMap<String, byte[]> _incomingBinaries;
     private final LinkedHashMap<String, String> _incomingStrings;
     private final S _incomingAndOutgoingState;
-    private final List<JmsMatsMessage<Z>> _messagesToSend;
+    private final List<JmsMatsMessage> _messagesToSend;
     private final JmsMatsInternalExecutionContext _jmsMatsInternalExecutionContext;
     private final DoAfterCommitRunnableHolder _doAfterCommitRunnableHolder;
 
@@ -81,15 +81,15 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     private boolean _nextDirectInvoked; // Set 'true' of nextDirect is invoked
     private Object _nextDirectDto; // Value of nextDirect incoming message
 
-    private JmsMatsProcessContext(JmsMatsFactory<Z> parentFactory,
+    private JmsMatsProcessContext(JmsMatsFactory parentFactory,
             String endpointId,
             String stageId,
             String systemMessageId,
             String nextStageId,
             String stageOrigin,
-            MatsTrace<Z> incomingMatsTrace, S incomingAndOutgoingState,
+            MatsTrace incomingMatsTrace, S incomingAndOutgoingState,
             LinkedHashMap<String, byte[]> incomingBinaries, LinkedHashMap<String, String> incomingStrings,
-            List<JmsMatsMessage<Z>> out_messagesToSend,
+            List<JmsMatsMessage> out_messagesToSend,
             JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder) {
         _parentFactory = parentFactory;
@@ -118,11 +118,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _nd_fromTimestamp = nd_fromTimestamp;
     }
 
-    static <R, S, Z> JmsMatsProcessContext<R, S, Z> create(JmsMatsFactory<Z> parentFactory,
+    static <R, S> JmsMatsProcessContext<R, S> create(JmsMatsFactory parentFactory,
             String endpointId, String stageId, String systemMessageId, String nextStageId, String stageOrigin,
-            MatsTrace<Z> incomingMatsTrace, S incomingAndOutgoingState,
+            MatsTrace incomingMatsTrace, S incomingAndOutgoingState,
             LinkedHashMap<String, byte[]> incomingBinaries, LinkedHashMap<String, String> incomingStrings,
-            List<JmsMatsMessage<Z>> out_messagesToSend,
+            List<JmsMatsMessage> out_messagesToSend,
             JmsMatsInternalExecutionContext jmsMatsInternalExecutionContext,
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder) {
         return new JmsMatsProcessContext<>(parentFactory, endpointId, stageId, systemMessageId, nextStageId,
@@ -580,7 +580,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
 
     @Override
     public <T> T getTraceProperty(String propertyName, Class<T> clazz) {
-        Z value = _incomingMatsTrace.getTraceProperty(propertyName);
+        Object value = _incomingMatsTrace.getTraceProperty(propertyName);
         if (value == null) {
             return null;
         }
@@ -640,10 +640,10 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         }
 
         // :: Create next MatsTrace
-        MatsSerializer<Z> matsSerializer = _parentFactory.getMatsSerializer();
+        MatsSerializer matsSerializer = _parentFactory.getMatsSerializer();
         // Note that serialization must be performed at invocation time, to preserve contract with API.
-        Z replyZ = matsSerializer.serializeObject(replyDto);
-        MatsTrace<Z> replyMatsTrace = _incomingMatsTrace.addReplyCall(_stageId, replyZ);
+        Object replyZ = matsSerializer.serializeObject(replyDto);
+        MatsTrace replyMatsTrace = _incomingMatsTrace.addReplyCall(_stageId, replyZ);
 
         String matsMessageId = produceMessage(replyDto, null, null, nanosStart, replyMatsTrace);
 
@@ -675,11 +675,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _requestsSent = new DebugStackTraceException("PREVIOUS REQUEST STACKTRACE");
 
         // :: Create next MatsTrace
-        MatsSerializer<Z> matsSerializer = _parentFactory.getMatsSerializer();
+        MatsSerializer matsSerializer = _parentFactory.getMatsSerializer();
         // Note that serialization must be performed at invocation time, to preserve contract with API.
-        Z requestZ = matsSerializer.serializeObject(requestDto);
-        Z stateZ = matsSerializer.serializeObject(_incomingAndOutgoingState);
-        MatsTrace<Z> requestMatsTrace = _incomingMatsTrace.addRequestCall(_stageId,
+        Object requestZ = matsSerializer.serializeObject(requestDto);
+        Object stateZ = matsSerializer.serializeObject(_incomingAndOutgoingState);
+        MatsTrace requestMatsTrace = _incomingMatsTrace.addRequestCall(_stageId,
                 endpointId, MessagingModel.QUEUE, _nextStageId, MessagingModel.QUEUE, requestZ, stateZ, null);
 
         String matsMessageId = produceMessage(requestDto, _incomingAndOutgoingState, null, nanosStart, requestMatsTrace);
@@ -720,11 +720,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _replyOrNextOrGotoSent = new DebugStackTraceException("PREVIOUS NEXT STACKTRACE");
 
         // :: Create next (heh!) MatsTrace
-        MatsSerializer<Z> matsSerializer = _parentFactory.getMatsSerializer();
+        MatsSerializer matsSerializer = _parentFactory.getMatsSerializer();
         // Note that serialization must be performed at invocation time, to preserve contract with API.
-        Z nextZ = matsSerializer.serializeObject(nextDto);
-        Z stateZ = matsSerializer.serializeObject(_incomingAndOutgoingState);
-        MatsTrace<Z> nextMatsTrace = _incomingMatsTrace.addNextCall(_stageId, _nextStageId, nextZ, stateZ);
+        Object nextZ = matsSerializer.serializeObject(nextDto);
+        Object stateZ = matsSerializer.serializeObject(_incomingAndOutgoingState);
+        MatsTrace nextMatsTrace = _incomingMatsTrace.addNextCall(_stageId, _nextStageId, nextZ, stateZ);
 
         String matsMessageId = produceMessage(nextDto, _incomingAndOutgoingState, null, nanosStart, nextMatsTrace);
 
@@ -814,11 +814,11 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
         _replyOrNextOrGotoSent = new DebugStackTraceException("PREVIOUS GOTO STACKTRACE");
 
         // :: Create next MatsTrace
-        MatsSerializer<Z> matsSerializer = _parentFactory.getMatsSerializer();
+        MatsSerializer matsSerializer = _parentFactory.getMatsSerializer();
         // Note that serialization must be performed at invocation time, to preserve contract with API.
-        Z passZ = matsSerializer.serializeObject(gotoDto);
-        Z initialTargetStateZ = matsSerializer.serializeObject(initialTargetSto);
-        MatsTrace<Z> passMatsTrace = _incomingMatsTrace.addGotoCall(_stageId, endpointId, passZ, initialTargetStateZ);
+        Object passZ = matsSerializer.serializeObject(gotoDto);
+        Object initialTargetStateZ = matsSerializer.serializeObject(initialTargetSto);
+        MatsTrace passMatsTrace = _incomingMatsTrace.addGotoCall(_stageId, endpointId, passZ, initialTargetStateZ);
 
         String matsMessageId = produceMessage(gotoDto, initialTargetSto, initialTargetSto, nanosStart, passMatsTrace);
 
@@ -826,7 +826,7 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
     }
 
     private String produceMessage(Object incomingDto, Object sameStackHeightState, Object initialTargetSto,
-                                  long nanosStart, MatsTrace<Z> outgoingMatsTrace) {
+                                  long nanosStart, MatsTrace outgoingMatsTrace) {
         String debugInfo;
         // ?: Is this MINIMAL MatsTrace
         if (outgoingMatsTrace.getKeepTrace() == KeepMatsTrace.MINIMAL) {
@@ -842,13 +842,13 @@ public class JmsMatsProcessContext<R, S, Z> implements ProcessContext<R>, JmsMat
                     : "invoked@" + invocationPoint);
         }
 
-        Call<Z> currentCall = outgoingMatsTrace.getCurrentCall();
+        Call currentCall = outgoingMatsTrace.getCurrentCall();
         currentCall.setDebugInfo(_parentFactory.getFactoryConfig().getAppName(),
                 _parentFactory.getFactoryConfig().getAppVersion(),
                 _parentFactory.getFactoryConfig().getNodename(), debugInfo);
 
         // Produce the JmsMatsMessage to send
-        JmsMatsMessage<Z> msg = JmsMatsMessage.produceMessage(DispatchType.STAGE, nanosStart,
+        JmsMatsMessage msg = JmsMatsMessage.produceMessage(DispatchType.STAGE, nanosStart,
                 _parentFactory.getMatsSerializer(), outgoingMatsTrace,
                 incomingDto, initialTargetSto, sameStackHeightState,
                 _outgoingProps, _outgoingBinaries, _outgoingStrings);

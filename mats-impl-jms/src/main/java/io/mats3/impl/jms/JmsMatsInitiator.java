@@ -44,15 +44,15 @@ import io.mats3.impl.jms.JmsMatsTransactionManager.TransactionContext;
  *
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
  */
-class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMatsStatics {
+class JmsMatsInitiator implements MatsInitiator, JmsMatsTxContextKey, JmsMatsStatics {
     private static final Logger log = LoggerFactory.getLogger(JmsMatsInitiator.class);
 
     private final String _name;
-    private final JmsMatsFactory<Z> _parentFactory;
+    private final JmsMatsFactory _parentFactory;
     private final JmsMatsJmsSessionHandler _jmsMatsJmsSessionHandler;
     private final TransactionContext _transactionContext;
 
-    public JmsMatsInitiator(String name, JmsMatsFactory<Z> parentFactory,
+    public JmsMatsInitiator(String name, JmsMatsFactory parentFactory,
             JmsMatsJmsSessionHandler jmsMatsJmsSessionHandler,
             JmsMatsTransactionManager jmsMatsTransactionManager) {
         // NOTICE! Due to multi-threading, whereby one Initiator might be used "globally" for e.g. a Servlet Container
@@ -72,7 +72,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     }
 
     @Override
-    public JmsMatsFactory<Z> getParentFactory() {
+    public JmsMatsFactory getParentFactory() {
         return _parentFactory;
     }
 
@@ -103,7 +103,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             MDC.put(MDC_MATS_INIT, "true");
             MDC.put(MDC_MATS_CALL_NUMBER, "0");
 
-            List<JmsMatsMessage<Z>> messagesToSend = new ArrayList<>();
+            List<JmsMatsMessage> messagesToSend = new ArrayList<>();
 
             long[] nanosTaken_UserLambda = { 0L };
             long[] nanosTaken_totalEnvelopeSerialization = { 0L };
@@ -123,7 +123,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             }
             DoAfterCommitRunnableHolder doAfterCommitRunnableHolder = new DoAfterCommitRunnableHolder();
 
-            Optional<NestingWithinStageProcessing<Z>> withinStageContext = _parentFactory
+            Optional<NestingWithinStageProcessing> withinStageContext = _parentFactory
                     .getCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing();
 
             JmsMatsInternalExecutionContext internalExecutionContext = withinStageContext
@@ -131,7 +131,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                             jmsSessionHolder, within.getCurrentStage(), within.getMessageConsumer()))
                     .orElseGet(() -> JmsMatsInternalExecutionContext.forInitiation(_parentFactory, jmsSessionHolder));
 
-            JmsMatsInitiate<Z> init = withinStageContext
+            JmsMatsInitiate init = withinStageContext
                     .map(within -> JmsMatsInitiate.createForChildFlow(_parentFactory, messagesToSend,
                             internalExecutionContext, doAfterCommitRunnableHolder,
                             within.getMatsTrace(), within.getCurrentStage().getStageId()))
@@ -216,7 +216,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                         // (commit is performed when it exits the transaction lambda)
                         // :: Serialize
                         long nanosAtStart_totalEnvelopeSerialization = System.nanoTime();
-                        for (JmsMatsMessage<Z> matsMessage : messagesToSend) {
+                        for (JmsMatsMessage matsMessage : messagesToSend) {
                             matsMessage.serializeAndCacheMatsTrace();
                         }
                         long nowNanos = System.nanoTime();
@@ -451,7 +451,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
         }
     }
 
-    private void concatAllTraceIds(List<JmsMatsMessage<Z>> messagesToSend) {
+    private void concatAllTraceIds(List<JmsMatsMessage> messagesToSend) {
         // :: Fast-path if 0 or 1
         String collectedTraceIds;
         if (messagesToSend.isEmpty()) {
@@ -489,7 +489,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
 
     private void invokeInitiateMessageInterceptors(List<MatsInitiateInterceptor> interceptorsForInitiation,
             InitiateInterceptContextImpl interceptContext,
-            JmsMatsInitiate<Z> initiate, List<JmsMatsMessage<Z>> messagesToSend) {
+            JmsMatsInitiate initiate, List<JmsMatsMessage> messagesToSend) {
         // :: Find the Message interceptors. Goddamn why is there no stream.filter[InstanceOf](Clazz.class)?
         List<MatsInitiateInterceptOutgoingMessages> messageInterceptors = interceptorsForInitiation.stream()
                 .filter(MatsInitiateInterceptOutgoingMessages.class::isInstance)
@@ -499,7 +499,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
             Consumer<String> cancelOutgoingMessage = matsMsgId -> messagesToSend
                     .removeIf(next -> next.getMatsMessageId().equals(matsMsgId));
             // Making a copy for the 'messagesToSend', as it can be modified (add/remove) by the interceptor.
-            ArrayList<JmsMatsMessage<Z>> copiedMessages = new ArrayList<>();
+            ArrayList<JmsMatsMessage> copiedMessages = new ArrayList<>();
             List<MatsEditableOutgoingMessage> unmodifiableMessages = Collections.unmodifiableList(copiedMessages);
             InitiateInterceptOutgoingMessagesContextImpl context = new InitiateInterceptOutgoingMessagesContextImpl(
                     interceptContext, initiate, unmodifiableMessages, cancelOutgoingMessage);
@@ -542,13 +542,13 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
      * Implementation of {@link JmsMatsTxContextKey}.
      */
     @Override
-    public JmsMatsStage<?, ?, ?, ?> getStage() {
+    public JmsMatsStage<?, ?, ?> getStage() {
         // There is no stage, and contract is to return null.
         return null;
     }
 
     @Override
-    public JmsMatsFactory<Z> getFactory() {
+    public JmsMatsFactory getFactory() {
         return _parentFactory;
     }
 
@@ -556,7 +556,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        JmsMatsInitiator<?> that = (JmsMatsInitiator<?>) o;
+        JmsMatsInitiator that = (JmsMatsInitiator) o;
         return _parentFactory.equals(that._parentFactory) && _name.equals(that._name);
     }
 
@@ -858,11 +858,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
      * ongoing stage or initiation, any initiation done with it is "hoisted" up to the ongoing process. Otherwise, it
      * acts as normal - which is to create a transaction.
      */
-    static class MatsInitiator_DefaultInitiator_TxRequired<Z> implements MatsInitiator {
-        private final JmsMatsFactory<Z> _matsFactory;
+    static class MatsInitiator_DefaultInitiator_TxRequired implements MatsInitiator {
+        private final JmsMatsFactory _matsFactory;
         private final MatsInitiator _matsInitiator;
 
-        public MatsInitiator_DefaultInitiator_TxRequired(JmsMatsFactory<Z> matsFactory,
+        public MatsInitiator_DefaultInitiator_TxRequired(JmsMatsFactory matsFactory,
                 MatsInitiator matsInitiator) {
             _matsFactory = matsFactory;
             _matsInitiator = matsInitiator;
@@ -946,11 +946,11 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
      * ongoing stage or initiation, any initiation done with it is given a new transactional context (currently by brute
      * force: create a new Thread and run it there!). Otherwise, it acts as normal - which is to create a transaction.
      */
-    static class MatsInitiator_NamedInitiator_TxRequiresNew<Z> implements MatsInitiator {
-        private final JmsMatsFactory<Z> _matsFactory;
+    static class MatsInitiator_NamedInitiator_TxRequiresNew implements MatsInitiator {
+        private final JmsMatsFactory _matsFactory;
         private final MatsInitiator _matsInitiator;
 
-        public MatsInitiator_NamedInitiator_TxRequiresNew(JmsMatsFactory<Z> matsFactory,
+        public MatsInitiator_NamedInitiator_TxRequiresNew(JmsMatsFactory matsFactory,
                 MatsInitiator matsInitiator) {
             _matsFactory = matsFactory;
             _matsInitiator = matsInitiator;
@@ -978,7 +978,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                 String threadName = Thread.currentThread().getName() + " StageNested {"
                         + _matsFactory.randomString(5) + '}';
                 Map<String, String> copyOfContextMap = MDC.getCopyOfContextMap();
-                Optional<NestingWithinStageProcessing<Z>> existingMatsTrace = _matsFactory
+                Optional<NestingWithinStageProcessing> existingMatsTrace = _matsFactory
                         .getCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing();
                 Thread subInitiateThread = new Thread(() -> {
                     MDC.setContextMap(copyOfContextMap);
@@ -1048,7 +1048,7 @@ class JmsMatsInitiator<Z> implements MatsInitiator, JmsMatsTxContextKey, JmsMats
                 String threadName = Thread.currentThread().getName() + " StageNested {"
                         + _matsFactory.randomString(5) + '}';
                 Map<String, String> copyOfContextMap = MDC.getCopyOfContextMap();
-                Optional<NestingWithinStageProcessing<Z>> existingMatsTrace = _matsFactory
+                Optional<NestingWithinStageProcessing> existingMatsTrace = _matsFactory
                         .getCurrentMatsFactoryThreadLocal_NestingWithinStageProcessing();
                 Thread subInitiateThread = new Thread(() -> {
                     MDC.setContextMap(copyOfContextMap);
