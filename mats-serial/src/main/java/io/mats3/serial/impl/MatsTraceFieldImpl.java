@@ -51,7 +51,7 @@ public class MatsTraceFieldImpl implements MatsTrace, Cloneable {
     private Byte f; // For future OpenTracing support: Flags
     private long[] sids; // Open tracing SpanId stack. Not currently used, might be a better implementation.
 
-    private int d; // For future Debug options, issue #79
+    private Integer d; // For future Debug options, issue #24
 
     private String an; // Initiating AppName
     private String av; // Initiating AppVersion
