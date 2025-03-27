@@ -1,8 +1,8 @@
 package io.mats3.impl.jms;
 
-import io.mats3.MatsConfig.StartStoppable;
-
 import java.util.List;
+
+import io.mats3.MatsConfig.StartStoppable;
 
 /**
  * @author Endre Stølsvik 2019-08-23 23:30 - http://stolsvik.com/, endre@stolsvik.com
@@ -33,28 +33,32 @@ public interface JmsMatsStartStoppable extends JmsMatsStatics, StartStoppable {
         getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase0_SetRunFlagFalse);
     }
 
-    default void stopPhase1_CloseSessionIfInReceive() {
-        getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase1_CloseSessionIfInReceive);
+    default void stopPhase1_QuickCloseSessionIfInReceive() {
+        getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase1_QuickCloseSessionIfInReceive);
     }
 
-    default void stopPhase2_GracefulWaitAfterRunflagFalse(int gracefulShutdownMillis) {
+    default void stopPhase2_GracefulCloseSessionIfInReceive() {
+        getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase2_GracefulCloseSessionIfInReceive);
+    }
+
+    default void stopPhase3_GracefulWaitAfterRunflagFalseAndSessionClosed(int gracefulShutdownMillis) {
         int millisLeft = gracefulShutdownMillis;
         for (JmsMatsStartStoppable child : getChildrenStartStoppable()) {
             long millisBefore = System.currentTimeMillis();
-            child.stopPhase2_GracefulWaitAfterRunflagFalse(millisLeft);
+            child.stopPhase3_GracefulWaitAfterRunflagFalseAndSessionClosed(millisLeft);
             millisLeft -= (int) (System.currentTimeMillis() - millisBefore);
             millisLeft = Math.max(millisLeft, EXTRA_GRACE_MILLIS);
         }
     }
 
-    default void stopPhase3_InterruptIfStillAlive() {
-        getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase3_InterruptIfStillAlive);
+    default void stopPhase4_InterruptIfStillAlive() {
+        getChildrenStartStoppable().forEach(JmsMatsStartStoppable::stopPhase4_InterruptIfStillAlive);
     }
 
-    default boolean stopPhase4_GracefulWaitAfterInterrupt() {
+    default boolean stopPhase5_GracefulWaitAfterInterrupt() {
         boolean stopped = true;
         for (JmsMatsStartStoppable child : getChildrenStartStoppable()) {
-            stopped &= child.stopPhase4_GracefulWaitAfterInterrupt();
+            stopped &= child.stopPhase5_GracefulWaitAfterInterrupt();
         }
         return stopped;
     }
@@ -62,9 +66,10 @@ public interface JmsMatsStartStoppable extends JmsMatsStatics, StartStoppable {
     @Override
     default boolean stop(int gracefulShutdownMillis) {
         stopPhase0_SetRunFlagFalse();
-        stopPhase1_CloseSessionIfInReceive();
-        stopPhase2_GracefulWaitAfterRunflagFalse(gracefulShutdownMillis);
-        stopPhase3_InterruptIfStillAlive();
-        return stopPhase4_GracefulWaitAfterInterrupt();
+        stopPhase1_QuickCloseSessionIfInReceive();
+        stopPhase2_GracefulCloseSessionIfInReceive();
+        stopPhase3_GracefulWaitAfterRunflagFalseAndSessionClosed(gracefulShutdownMillis);
+        stopPhase4_InterruptIfStillAlive();
+        return stopPhase5_GracefulWaitAfterInterrupt();
     }
 }

@@ -995,7 +995,7 @@ public class JmsMatsFactory implements JmsMatsStatics, JmsMatsStartStoppable, Ma
 
     @Override
     public boolean stop(int gracefulShutdownMillis) {
-        log.info(LOG_PREFIX + "Stopping [" + idThis()
+        log.info(LOG_PREFIX + "Stopping MatsFactory [" + idThis()
                 + "], thus stopping/closing all plugins, and created endpoints and initiators."
                 + " Graceful shutdown millis: [" + gracefulShutdownMillis + "].");
 

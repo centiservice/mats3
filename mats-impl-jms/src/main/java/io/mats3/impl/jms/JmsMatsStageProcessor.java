@@ -155,27 +155,58 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
     }
 
     @Override
-    public void stopPhase1_CloseSessionIfInReceive() {
+    public void stopPhase1_QuickCloseSessionIfInReceive() {
         /*
          * Trying to make very graceful: If we're in consumer.receive(), then close the Session, which makes the
          * receive()-call return null, causing the thread to loop and check run-flag. If not, then assume that the
          * thread is out doing work, and it will see that the run-flag is false upon next loop.
          *
-         * We won't put too much effort in making this race-proof, as if it fails, which should be seldom, the only
-         * problems are a couple of ugly stack traces in the log: Transactionality will keep integrity.
+         * This is not perfectly race-proof, but that doesn't matter all that much, as if it fails, which should be
+         * seldom, the only problems are a couple of ugly stack traces in the log: Transactionality will keep integrity.
          */
 
-        // ?: Has processorThread already exited?
+        /*
+         * This first round of checking for whether the StageProcessor thread is in consumer.receive() is for when the
+         * system has been running for a while, and several of the threads may be waiting for new message. This is the
+         * default "production situation", where the system is currently running - compared to testing, where the
+         * MatsFactory is shut down very quickly after starting, and thus might not have come to .receive() yet. That
+         * case is handled in the next step with a busy wait.
+         */
+
+        // ?: Is the thread currently in consumer.receive()?
+        if (_processorInReceive) {
+            // -> Yes, waiting in receive(), so close session, thus making receive() return null.
+            log.info(LOG_PREFIX + ident() + " [Shutdown phase 1] is waiting in consumer.receive(), so we'll close the"
+                    + " current JmsSessionHolder thereby making the receive() call return null, and the thread will"
+                    + " exit.");
+            closeCurrentSessionHolder();
+        }
+    }
+
+    @Override
+    public void stopPhase2_GracefulCloseSessionIfInReceive() {
+
+        /*
+         * This second round of checking for whether the StageProcessor thread is in consumer.receive() is primarily for
+         * very quick start/shutdown situations, like in tests, where the system is started and then shut down very
+         * quickly. In this case, the thread might not have gotten to consumer.receive() yet, and thus we busy-wait a
+         * tad to see if it gets there, or if it shuts down while we wait (after the close of session above, or it
+         * never enters the run-loop).
+         */
+
+        // ?: Has processorThread already exited? (possibly never entered the run-loop in the first place).
         if (!_processorThread.isAlive()) {
             // -> Yes, thread already exited, and it should thus have closed the JMS Session.
             // 1. JavaDoc isAlive(): "A thread is alive if it has been started and has not yet died."
             // 2. The Thread is started in the constructor.
             // 3. Thus, if it is not alive, there is NO possibility that it is starting, or about to be started.
-            log.info(LOG_PREFIX + ident() + " has already exited, it should have closed JMS Session.");
+            log.info(LOG_PREFIX + "[Shutdown phase 2] StageProcessor for " + ident() + " has already exited, either"
+                    + " it or we closed JMS Session.");
             return;
         }
 
         // E-> ?: Is thread currently waiting in consumer.receive()?
+
         // First we do a repeated "pre-check", and wait a tad if it isn't in receive yet (this happens too often in
         // tests, where the system is being closed down before the run-loop has gotten back to consumer.receive())
         for (int i = 0; i < 50; i++) {
@@ -188,66 +219,71 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
             // ?: Is the thread dead?
             if (!_processorThread.isAlive()) {
                 // -> Yes, thread is dead, so it has already exited.
-                log.info(LOG_PREFIX + ident() + " has now exited, it should have closed JMS Session.");
+                log.info(LOG_PREFIX + "[Shutdown phase 2] StageProcessor for " + ident() + " has now exited, either"
+                        + " it or we closed JMS Session.");
                 return;
             }
         }
+
         // ?: Is the thread in consumer.receive() now?
         if (_processorInReceive) {
             // -> Yes, waiting in receive(), so close session, thus making receive() return null.
-            log.info(LOG_PREFIX + ident() + " is waiting in consumer.receive(), so we'll close the current"
-                    + " JmsSessionHolder thereby making the receive() call return null, and the thread will exit.");
+            log.info(LOG_PREFIX + "[Shutdown phase 2] StageProcessor for " + ident() + " is waiting in"
+                    + " consumer.receive(), so we'll close the current JmsSessionHolder thereby making the receive()"
+                    + " call return null, and the thread will exit.");
             closeCurrentSessionHolder();
         }
         else {
-            // -> No, not in receive()
-            log.info(LOG_PREFIX + ident() + " is NOT waiting in consumer.receive(), so we assume it is out"
-                    + " doing work, and will come back and see the run-flag being false, thus exit.");
+            // -> No, not in receive() - assume it is out doing work, graceful wait in next phase.
+            log.info(LOG_PREFIX + "[Shutdown phase 2] StageProcessor for " + ident() + " is NOT waiting in"
+                    + " consumer.receive(), so we assume it is out doing work, and will come back and see the"
+                    + " run-flag being false, thus closing JMS Session and exit.");
         }
     }
 
     @Override
-    public void stopPhase2_GracefulWaitAfterRunflagFalse(int gracefulShutdownMillis) {
+    public void stopPhase3_GracefulWaitAfterRunflagFalseAndSessionClosed(int gracefulShutdownMillis) {
         if (_processorThread.isAlive()) {
-            log.info(LOG_PREFIX + "Thread " + ident() + " is running, waiting for it to exit gracefully for ["
-                    + gracefulShutdownMillis + " ms].");
+            log.info(LOG_PREFIX + "[Shutdown phase 3] StageProcessor for " + ident() + " is running, waiting for it"
+                    + " to exit gracefully for [" + gracefulShutdownMillis + " ms].");
             joinProcessorThread(gracefulShutdownMillis);
             // ?: Did the thread exit?
             if (!_processorThread.isAlive()) {
                 // -> Yes, thread exited.
-                log.info(LOG_PREFIX + ident() + " exited nicely, and either we closed the JMS session above, or"
-                        + " the thread did it on its way out.");
+                log.info(LOG_PREFIX + "[Shutdown phase 3] StageProcessor for " + ident() + " exited nicely, either"
+                        + " it or we closed JMS Session.");
             }
         }
     }
 
     @Override
-    public void stopPhase3_InterruptIfStillAlive() {
+    public void stopPhase4_InterruptIfStillAlive() {
         if (_processorThread.isAlive()) {
             // -> No, thread did not exit within graceful wait period.
-            log.warn(LOG_PREFIX + ident() + " DID NOT exit after grace period, so interrupt it and wait some more.");
+            log.warn(LOG_PREFIX + "[Shutdown phase 4] StageProcessor for " + ident() + " DID NOT exit after grace"
+                    + " period, so interrupt it and wait some more.");
             // Interrupt the processor thread from whatever it is doing.
             _processorThread.interrupt();
         }
     }
 
     @Override
-    public boolean stopPhase4_GracefulWaitAfterInterrupt() {
+    public boolean stopPhase5_GracefulWaitAfterInterrupt() {
         if (_processorThread.isAlive()) {
             // Wait a small time more after the interrupt.
             joinProcessorThread(EXTRA_GRACE_MILLIS);
             // ?: Did the thread exit now?
             if (_processorThread.isAlive()) {
                 // -> No, thread still not exited. Close the JMS session "in his face" to clean this up.
-                log.warn(LOG_PREFIX + ident() + " DID NOT exit even after being interrupted."
-                        + " Giving up, closing JMS Session to clean up. This isn't all that good, should be looked"
-                        + " into why the thread is so stuck.");
+                log.warn(LOG_PREFIX + "[Shutdown phase 5] StageProcessor for " + ident() + " DID NOT exit even after"
+                        + " being interrupted. Giving up, closing JMS Session to clean up. This isn't all that good,"
+                        + " should be looked into why the thread is so stuck.");
                 closeCurrentSessionHolder();
             }
             else {
                 // -> Yes, thread exited.
-                log.info(LOG_PREFIX + ident()
-                        + " exited after being interrupted, it should have closed the JMS Session on its way out.");
+                log.info(LOG_PREFIX + "[Shutdown phase 5] StageProcessor for " + ident() + " exited after being"
+                        + " interrupted, it should have closed the JMS Session on its way out.");
             }
         }
         return !_processorThread.isAlive();
@@ -321,7 +357,8 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
                         _jmsSessionHolder = newJmsSessionHolder;
                     }
                 }
-            }
+            } // END Local-scope the 'newJmsSessionHolder' variable, the JMS Session is now in _jmsSessionHolder.
+
             try { // catch-all-Throwable, as we do not ever want the thread to die - and handles jmsSession.crashed()
                 Session jmsSession = _jmsSessionHolder.getSession();
                 Destination destination = createJmsDestination(jmsSession);
@@ -338,7 +375,7 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
                         jmsConsumer = jmsSession.createConsumer(destination, "JMSPriority = 9");
                         break;
                     default:
-                        // All else: Consume everything.
+                        // All else (for topics, single consumer): Consume everything.
                         jmsConsumer = jmsSession.createConsumer(destination);
                 }
 
@@ -406,6 +443,20 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
                             // (Since the shutdown is async, we can potentially be on the way out from
                             // consumer.receive() with a new message in hand, but not yet set 'processInReceive=false',
                             // and then the runFlag is set to false "from the outside", and the JMS Session is closed.)
+
+                            // Pick out some props for logging
+                            // :: Fetch JMSMessageId, MatsMessageId and TraceId for MDC logging when logging next line
+                            try {
+                                MDC.put(MDC_MATS_IN_MESSAGE_SYSTEM_ID, message.getJMSMessageID());
+                                MDC.put(MDC_MATS_IN_MATS_MESSAGE_ID, message.getStringProperty(
+                                        JMS_MSG_PROP_MATS_MESSAGE_ID));
+                                MDC.put(MDC_TRACE_ID, message.getStringProperty(JMS_MSG_PROP_TRACE_ID));
+                            }
+                            catch (JMSException e) {
+                                /* Just ignore this - not much to do... */
+                                log.warn("Got JMSException when doing msg.getJMSMessageID() or"
+                                                + " msg.getStringProperty('traceId').", e);
+                            }
                             log.info(LOG_PREFIX + "Run-flag is false, but we had just gotten a message from"
                                     + " consumer.receive(). Breaking out of run-loop to exit, and also close"
                                     + " current JmsSessionHolder to be sure about clean up. The message reception"

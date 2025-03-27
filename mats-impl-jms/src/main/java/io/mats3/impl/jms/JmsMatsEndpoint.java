@@ -180,6 +180,7 @@ public class JmsMatsEndpoint<R, S> implements MatsEndpoint<R, S>, JmsMatsStatics
 
     @Override
     public boolean stop(int gracefulShutdownMillis) {
+        log.info(LOG_PREFIX + "Stopping Endpoint [" + _endpointId + "]: Stopping all Stages.");
         return JmsMatsStartStoppable.super.stop(gracefulShutdownMillis);
     }
 

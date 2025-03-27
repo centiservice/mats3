@@ -181,7 +181,7 @@ public class JmsMatsStage<R, S, I> implements MatsStage<R, S, I>, JmsMatsStatics
 
     @Override
     public boolean stop(int gracefulShutdownMillis) {
-        log.info(LOG_PREFIX + "Stopping [" + _stageId + "]: Stopping all StageProcessors.");
+        log.info(LOG_PREFIX + "Stopping Stage [" + _stageId + "]: Stopping all StageProcessors.");
         return JmsMatsStartStoppable.super.stop(gracefulShutdownMillis);
     }
 
