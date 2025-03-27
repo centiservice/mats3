@@ -21,9 +21,9 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
  * however a mechanism to handle different serializations, by means of a {@link #handlesMeta(String) metadata
  * construct}: Along with the serialized bytes, a metadata String must be provided. It is thus possible to construct a
  * MatsSerializer that holds multiple underlying MatsSerializers, choosing based on the "meta" String. This can then be
- * used to upgrade from a format to another.
+ * used to upgrade from a format to another, see later chapter.
  * <p>
- * Serialization and deserialization of the MatsTrace is quote obviously a performance critical part of the Mats
+ * Serialization and deserialization of the MatsTrace is quite obviously a performance critical part of the Mats
  * implementation.
  * <p>
  * <b>Two serialization mechanisms:</b> The MatsSerializer actually defines two separate serialization mechanisms: One
@@ -226,11 +226,19 @@ public interface MatsSerializer {
      *
      * @param object
      *            the object to serialize. If <code>null</code> is provided, then <code>null</code> shall be returned.
-     * @return a String representation of the provided object, or <code>null</code> if null was provided as 'object'.
+     * @return the serialized representation of the provided object, or <code>null</code> if null was provided as
+     *         'object'.
      */
     Object serializeObject(Object object);
 
     /**
+     * @param serialized
+     *            the serialized representation of the object, if <code>null</code> is provided, then 0 shall be
+     *            returned.
+     * @param meta
+     *            meta information that the deserializer might need back to choose between sub-MatsSerializers,
+     *            originally at {@link SerializedMatsTrace#getMeta() from the serialization process}, but which also is
+     *            present at {@link MatsTrace#getMatsSerializerMeta()}.
      * @return the size in bytes or characters of the serialized DTO or STO, shall return 0 for <code>null</code>. This
      *         is meant for metrics, NOT for determining an absolute byte size for a storage array or anything to this
      *         effect.
@@ -247,6 +255,10 @@ public interface MatsSerializer {
      *            provided, then <code>null</code> shall be returned.
      * @param type
      *            the Class that the supplied value of type Z is thought to represent (i.e. the STO or DTO class).
+     * @param meta
+     *            meta information that the deserializer might need back to choose between sub-MatsSerializers,
+     *            originally at {@link SerializedMatsTrace#getMeta() from the serialization process}, but which also is
+     *            present at {@link MatsTrace#getMatsSerializerMeta()}.
      * @return the reconstituted Object (STO or DTO), or <code>null</code> if null was provided as 'serialized'.
      */
     <T> T deserializeObject(Object serialized, Class<T> type, String meta);
