@@ -78,7 +78,9 @@ public class MatsTraceFieldImpl implements MatsTrace, Cloneable {
 
     // ---
 
-    private transient String _matsSerializerMeta; // Set by MatsSerializer upon creation or deserialization.
+    // TRANSIENT: Set on this MatsTrace by MatsSerializer upon creation or deserialization for local use.
+    // It is not part of the serialized state.
+    private transient String _matsSerializerMeta;
 
     /**
      * Creates a new MatsTrace of MatsTraceFieldImpl type.
