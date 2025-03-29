@@ -7,6 +7,7 @@ import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -389,23 +390,37 @@ public class JmsMatsFactory implements JmsMatsStatics, JmsMatsStartStoppable, Ma
                 }
             }
 
+            // :: FIRST start the plugin, THEN add it to the MatsFactory.
+
+            // :: Start the plugin (done within sync block to keep MatsFactory's state consistent)
+            // NOTE: We let any Exceptions propagate out, both so that we do not add this plugin, and so that the
+            // application can fail to start if a plugin fails to start.
+            plugin.start(this);
+
+            // ----- It started OK, so we can add it to the list of plugins.
+
+            // :: Special cases: MatsLoggingInterceptor and MatsMetricsInterceptor: Remove existing if adding new.
+
             // ?: Is this a MatsLoggingInterceptor?
             if (plugin instanceof MatsLoggingInterceptor) {
-                // -> Yes, MatsLoggingInterceptor - so clear out any existing to add this new.
+                // -> Yes, MatsLoggingInterceptor: Remove any existing before adding this new.
                 removeInterceptorType(_plugins, MatsLoggingInterceptor.class, true);
+                removeInterceptorType(_pluginsStarted.keySet(), MatsLoggingInterceptor.class, false);
                 removeInterceptorType(_initiationInterceptors, MatsLoggingInterceptor.class, false);
                 removeInterceptorType(_stageInterceptors, MatsLoggingInterceptor.class, false);
             }
 
             // ?: Is this a MatsMetricsInterceptor?
             if (plugin instanceof MatsMetricsInterceptor) {
-                // -> Yes, MatsMetricsInterceptor - so clear out any existing to add this new.
+                // -> Yes, MatsMetricsInterceptor: Remove any existing before adding this new.
                 removeInterceptorType(_plugins, MatsMetricsInterceptor.class, true);
+                removeInterceptorType(_pluginsStarted.keySet(), MatsMetricsInterceptor.class, false);
                 removeInterceptorType(_initiationInterceptors, MatsMetricsInterceptor.class, false);
                 removeInterceptorType(_stageInterceptors, MatsMetricsInterceptor.class, false);
             }
 
             // :: "Cache" a filtered view of init and stage interceptors, used by init and stage processors.
+
             if (plugin instanceof MatsInitiateInterceptor) {
                 _initiationInterceptors.add((MatsInitiateInterceptor) plugin);
             }
@@ -413,20 +428,11 @@ public class JmsMatsFactory implements JmsMatsStatics, JmsMatsStartStoppable, Ma
                 _stageInterceptors.add((MatsStageInterceptor) plugin);
             }
 
-            // :: FIRST start the plugin, THEN add it to the MatsFactory.
-
-            // :: Start the plugin (done within sync block to keep internal state consistent)
-            // NOTE: We let any Exceptions propagate out, both so that we do not add this plugin, and so that the
-            // application can fail to start if a plugin fails to start.
-            plugin.start(this);
-
-            // ----- It started OK, so we can add it to the list of plugins.
+            // :: Actually add the plugin to the list of plugins.
+            _plugins.add(plugin);
 
             // :: Mark the plugin as started.
             _pluginsStarted.put(plugin, true);
-
-            // :: Actually add the plugin to the list of plugins.
-            _plugins.add(plugin);
         }
     }
 
@@ -471,17 +477,17 @@ public class JmsMatsFactory implements JmsMatsStatics, JmsMatsStartStoppable, Ma
         return wasPresent;
     }
 
-    private <I extends MatsPlugin> void removeInterceptorType(List<I> interceptors, Class<?> typeToRemove,
-            boolean stopPlugin) {
+    private <I extends MatsPlugin> void removeInterceptorType(Collection<I> interceptors, Class<?> typeToRemove,
+                                                              boolean stopPlugin) {
         if (!Thread.holdsLock(_stateLockObject)) {
-            throw new AssertionError("Should have held lock on '_plugins'.");
+            throw new AssertionError("Should have held lock on '_stateLockObject'.");
         }
         Iterator<I> it = interceptors.iterator();
         while (it.hasNext()) {
             I next = it.next();
             // ?: Is this existing interceptor of a type to remove?
             if (typeToRemove.isInstance(next)) {
-                // -> Yes, so remove it, and from the providers.
+                // -> Yes, so remove it, and stop if asked.
                 log.info(LOG_PREFIX + ".. removing existing: [" + next + "], since adding new "
                         + typeToRemove.getSimpleName());
                 it.remove();
@@ -493,6 +499,9 @@ public class JmsMatsFactory implements JmsMatsStatics, JmsMatsStartStoppable, Ma
     }
 
     private void stopSinglePluginAfterRemoved(MatsPlugin plugin) {
+        if (!Thread.holdsLock(_stateLockObject)) {
+            throw new AssertionError("Should have held lock on '_stateLockObject'.");
+        }
         try {
             plugin.preStop();
             plugin.stop();
