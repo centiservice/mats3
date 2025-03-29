@@ -663,9 +663,9 @@ public interface MatsEagerCacheServer {
 
         int getNumberOfPartialUpdatesReceived();
 
-        Optional<Map<String, Set<String>>> getServersAppNamesToNodenames();
+        Map<String, Set<String>> getServersAppNamesToNodenames();
 
-        Optional<Map<String, Set<String>>> getClientsAppNamesToNodenames();
+        Map<String, Set<String>> getClientsAppNamesToNodenames();
 
         List<LogEntry> getLogEntries();
 
@@ -808,6 +808,10 @@ public interface MatsEagerCacheServer {
         private final ObjectWriter _sentDataTypeWriter;
         private final ThreadPoolExecutor _produceAndSendExecutor;
 
+        private final NodeAdvertiser _nodeAdvertiser;
+        private final PeriodicUpdate _periodicUpdate;
+        private final CacheMonitor _cacheMonitor;
+
         @SuppressWarnings({ "unchecked", "rawtypes" })
         private <TRANSPORT> MatsEagerCacheServerImpl(MatsFactory matsFactory, String dataName,
                 Class<TRANSPORT> transferDataType,
@@ -815,12 +819,20 @@ public interface MatsEagerCacheServer {
 
             _matsFactory = matsFactory;
             _dataName = dataName;
-            _cacheMonitor = new CacheMonitor(log, LOG_PREFIX_FOR_SERVER, dataName);
             _fullDataCallbackSupplier = (Supplier<CacheDataCallback<?>>) (Supplier) fullDataCallbackSupplier;
 
             // Cache the AppName and Nodename
             _appName = matsFactory.getFactoryConfig().getAppName();
             _nodename = matsFactory.getFactoryConfig().getNodename();
+
+            _cacheMonitor = new CacheMonitor(log, LOG_PREFIX_FOR_SERVER, dataName);
+            // Create the NodeAdvertiser, but do not start it.
+            _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, true,
+                    BroadcastDto.COMMAND_SERVER_ADVERTISE, _dataName, _appName, _nodename, () -> {
+                _waitForReceiving(30_000);
+            });
+            // Create the PeriodicUpdate, but do not start it.
+            _periodicUpdate = new PeriodicUpdate();
 
             // :: Jackson JSON ObjectMapper
             ObjectMapper mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
@@ -930,11 +942,6 @@ public interface MatsEagerCacheServer {
 
         private int _shortDelay = DEFAULT_SHORT_DELAY_MILLIS;
         private int _longDelay = DEFAULT_LONG_DELAY_MILLIS;
-
-        private volatile PeriodicUpdate _periodicUpdate;
-        private volatile NodeAdvertiser _nodeAdvertiser;
-
-        private final CacheMonitor _cacheMonitor;
 
         private class CacheServerInformationImpl implements CacheServerInformation {
             @Override
@@ -1078,19 +1085,13 @@ public interface MatsEagerCacheServer {
             }
 
             @Override
-            public Optional<Map<String, Set<String>>> getServersAppNamesToNodenames() {
-                if (_nodeAdvertiser == null) {
-                    return Optional.empty();
-                }
-                return Optional.of(_nodeAdvertiser.getServersAppNamesToNodenames());
+            public Map<String, Set<String>> getServersAppNamesToNodenames() {
+                return _nodeAdvertiser.getServersAppNamesToNodenames();
             }
 
             @Override
-            public Optional<Map<String, Set<String>>> getClientsAppNamesToNodenames() {
-                if (_nodeAdvertiser == null) {
-                    return Optional.empty();
-                }
-                return Optional.of(_nodeAdvertiser.getClientsAppNamesToNodenames());
+            public Map<String, Set<String>> getClientsAppNamesToNodenames() {
+                return _nodeAdvertiser.getClientsAppNamesToNodenames();
             }
 
             @Override
@@ -1229,12 +1230,8 @@ public interface MatsEagerCacheServer {
 
             // -> Yes, we are RUNNING, so close down as asked.
             try {
-                if (_periodicUpdate != null) {
-                    _periodicUpdate.stop();
-                }
-                if (_nodeAdvertiser != null) {
-                    _nodeAdvertiser.stop();
-                }
+                _periodicUpdate.stop();
+                _nodeAdvertiser.stop();
                 if (_broadcastTerminator != null) {
                     _broadcastTerminator.remove(30_000);
                 }
@@ -1281,7 +1278,7 @@ public interface MatsEagerCacheServer {
 
             // Create thread that checks if we actually can request the Source Data, and when it manages,
             // starts the endpoints.
-            Thread checkThread = new Thread(() -> {
+            Thread checkThenStartThread = new Thread(() -> {
                 // We'll keep trying until we succeed.
                 long sleepTimeBetweenAttempts = 2000;
                 while (_cacheServerLifeCycle == CacheServerLifeCycle.STARTING_ASSERTING_DATA_AVAILABILITY ||
@@ -1295,20 +1292,18 @@ public interface MatsEagerCacheServer {
                                 "Success: We asserted that we can get Source Data! Data count:["
                                         + result.dataCountFromSourceProvider + "]");
 
-                        // Start the endpoints
+                        // :: ### Start the endpoints ###
                         _createMatsEndpoints();
 
-                        // We're now running.
+                        // :: We're now running.
                         _cacheStartedTimestamp = System.currentTimeMillis();
                         _cacheServerLifeCycle = CacheServerLifeCycle.RUNNING;
                         _waitForRunningLatch.countDown();
                         _waitForRunningLatch = null; // fast-path check, and get rid of the CountDownLatch.
 
-                        // Start periodic update, and the NodeAdvertiser.
-                        _periodicUpdate = new PeriodicUpdate();
-                        _waitForReceiving(30_000);
-                        _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, true,
-                                BroadcastDto.COMMAND_SERVER_ADVERTISE, _dataName, _appName, _nodename);
+                        // :: Start periodic update, and the NodeAdvertiser.
+                        _periodicUpdate.start();
+                        _nodeAdvertiser.start();
 
                         // We're done - it is possible to get source data.
                         break;
@@ -1333,8 +1328,8 @@ public interface MatsEagerCacheServer {
                             sleepTimeBetweenAttempts * 1.5);
                 }
             }, "MatsEagerCacheServer." + _dataName + "-InitialPopulationCheck");
-            checkThread.setDaemon(true);
-            checkThread.start();
+            checkThenStartThread.setDaemon(true);
+            checkThenStartThread.start();
         }
 
         private void _createMatsEndpoints() {
@@ -1372,11 +1367,9 @@ public interface MatsEagerCacheServer {
             // we then actually get the updates on the server, which is good for introspection & monitoring.
             _broadcastTerminator = _matsFactory.subscriptionTerminator(_getBroadcastTopic(_dataName),
                     void.class, BroadcastDto.class, (ctx, state, broadcastDto) -> {
-                        // ?: Is the NodeAdvertiser in place? (Will be after RUNNING)
-                        if (_nodeAdvertiser != null) {
-                            // -> Yes, so snoop on messages for keeping track of whom the clients and servers are.
-                            _nodeAdvertiser.handleAdvertise(broadcastDto);
-                        }
+                        // Snoop on messages for keeping track of whom the clients and servers are.
+                        _nodeAdvertiser.handleAdvertise(broadcastDto);
+
                         // ?: Is this a periodic advertisement?
                         if (BroadcastDto.COMMAND_SERVER_ADVERTISE.equals(broadcastDto.command)
                                 || BroadcastDto.COMMAND_CLIENT_ADVERTISE.equals(broadcastDto.command)) {
@@ -1413,7 +1406,6 @@ public interface MatsEagerCacheServer {
             // Allow log suppression
             _broadcastTerminator.getEndpointConfig().setAttribute(
                     SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY, Boolean.TRUE);
-
         }
 
         /**
@@ -1496,24 +1488,25 @@ public interface MatsEagerCacheServer {
         }
 
         private class PeriodicUpdate {
-            private final Thread _thread;
+            private volatile Thread _thread;
             private volatile boolean _running;
 
-            private PeriodicUpdate() {
+            /**
+             * Starts the periodic update thread - for clean shutdown, call {@link #stop()}. It is a daemon thread, so
+             * it won't hold the JVM back - but you should still call {@link #stop()}.
+             */
+            private void start() {
                 if (_periodicFullUpdateIntervalMinutes == 0) {
                     _cacheMonitor.log(INFO, MonitorCategory.PERIODIC_UPDATE, "Periodic update: NOT starting"
                             + "Thread, as periodic update is set to 0, i.e. never.");
-                    _thread = null;
                     return;
                 }
-                _running = true;
                 long intervalMillis = (long) (_periodicFullUpdateIntervalMinutes * 60_000);
                 // The check interval is 10% of the interval, but at most 5 minutes.
                 long checkIntervalCalcMillis = Math.min(intervalMillis / 10, 5 * 60_000);
                 // Add a random part to the check interval, to avoid all servers checking at the same time.
                 long checkIntervalMillis = checkIntervalCalcMillis
                         + ThreadLocalRandom.current().nextLong(checkIntervalCalcMillis / 4);
-
                 _thread = new Thread(() -> {
                     _cacheMonitor.log(INFO, MonitorCategory.PERIODIC_UPDATE, "Periodic update: Thread started."
                             + " interval: [" + _periodicFullUpdateIntervalMinutes + " min] => ["
@@ -1615,21 +1608,25 @@ public interface MatsEagerCacheServer {
                         + ".PeriodicUpdate[" + _periodicFullUpdateIntervalMinutes + "min]");
                 _thread.setDaemon(true);
                 _thread.start();
+                _running = true;
             }
 
+            /**
+             * Stops the Periodic Update thread, and nulls the thread.
+             */
             private void stop() {
                 if (_thread == null) {
                     return;
                 }
                 _running = false;
                 _thread.interrupt();
+                _thread = null;
             }
         }
 
         static class NodeAdvertiser {
-            private static final int ADVERTISE_INTERVAL_TICKS = ADVERTISEMENT_INTERVAL_MINUTES * 2;
             private static final int ADVERTISE_INTERVAL_TICK_MILLIS = 30_000; // 30 seconds * 2 = 1 minute.
-            private final Thread _thread;
+            private static final int ADVERTISE_INTERVAL_TICKS = ADVERTISEMENT_INTERVAL_MINUTES * 2;
 
             private final MatsFactory _matsFactory;
             private final CacheMonitor _cacheMonitor;
@@ -1642,18 +1639,15 @@ public interface MatsEagerCacheServer {
 
             // SYNC on the Maps when reading or writing!
             // Should ONLY contain one server AppName!! If it contains more, HealthChecks should fail.
-            final Map<String, Set<String>> _serversAppNamesToNodenames = new HashMap<>();
+            private final Map<String, Set<String>> _serversAppNamesToNodenames = new HashMap<>();
             // We might have multiple client Apps, each of them having multiple nodenames.
-            final Map<String, Set<String>> _clientsAppNamesToNodenames = new HashMap<>();
+            private final Map<String, Set<String>> _clientsAppNamesToNodenames = new HashMap<>();
 
             private final AtomicInteger _advertiseCounter = new AtomicInteger(getNextTicks());
-
-            volatile long _lastServerSeenTimestamp;
-
-            private volatile boolean _running = true;
+            private final Runnable _waitBeforeStart;
 
             NodeAdvertiser(MatsFactory matsFactory, CacheMonitor cacheMonitor, boolean server, String command,
-                           String dataName, String appName, String nodename) {
+                    String dataName, String appName, String nodename, Runnable waitBeforeStart) {
                 _matsFactory = matsFactory;
                 _cacheMonitor = cacheMonitor;
                 _server = server;
@@ -1663,15 +1657,28 @@ public interface MatsEagerCacheServer {
                 _dataName = dataName;
                 _appName = appName;
                 _nodename = nodename;
+                _waitBeforeStart = waitBeforeStart;
+            }
 
+            private volatile Thread _thread;
+            private volatile boolean _running;
+            private volatile long _lastServerSeenTimestamp;
+
+            /**
+             * Starts the advertising thread - for clean shutdown, call {@link #stop()}. It is a daemon thread, so it
+             * won't hold the JVM back - but you should still call {@link #stop()}.
+             */
+            void start() {
                 _thread = new Thread(() -> {
-                    cacheMonitor.log(INFO, MonitorCategory.ADVERTISE_APP_AND_NODE, "NodeAdvertiser: "
-                            + "Thread started. We are '" + appName + "' @ '" + nodename + "'.");
+                    _cacheMonitor.log(INFO, MonitorCategory.ADVERTISE_APP_AND_NODE, "NodeAdvertiser: "
+                            + "Thread started. We are '" + _appName + "' @ '" + _nodename + "'.");
 
                     boolean clearAppsNodes = true;
 
                     while (_running) {
                         try {
+                            // Wait for endpoints to start
+                            if (_waitBeforeStart != null) _waitBeforeStart.run();
                             // Advertise that we just booted (will clear AppsAndNodes map on clients and servers)
                             boolean clear = _server && clearAppsNodes;
                             doAdvertise(clear, "Initial advertisement" + (_server ? "; clearAppsNodes=" + clear : ""));
@@ -1687,7 +1694,7 @@ public interface MatsEagerCacheServer {
                                     // -> Yes, it is 04:00, so clear the maps.
                                     _serversAppNamesToNodenames.clear();
                                     _clientsAppNamesToNodenames.clear();
-                                    cacheMonitor.log(INFO, MonitorCategory.ADVERTISE_APP_AND_NODE,
+                                    _cacheMonitor.log(INFO, MonitorCategory.ADVERTISE_APP_AND_NODE,
                                             "04:00: Clearing AppsAndNodes maps.");
                                     // Sleep 90 seconds to not hit 04:00 again.
                                     Thread.sleep(90_000);
@@ -1721,24 +1728,41 @@ public interface MatsEagerCacheServer {
                             }
                         }
                         catch (InterruptedException e) {
-                            cacheMonitor.log(INFO, MonitorCategory.ADVERTISE_APP_AND_NODE,
+                            _cacheMonitor.log(INFO, MonitorCategory.ADVERTISE_APP_AND_NODE,
                                     "AdvertiseAppAndNode: Thread interrupted, probably shutting down.");
                         }
                         catch (Throwable t) {
-                            cacheMonitor.exception(MonitorCategory.ADVERTISE_APP_AND_NODE,
+                            _cacheMonitor.exception(MonitorCategory.ADVERTISE_APP_AND_NODE,
                                     "AdvertiseAppAndNode: Got exception while trying to advertise app and"
-                                            + " node. Ignoring. Sleep 10 min and loop.", t);
+                                            + " node. Ignoring. Sleep 2 min and loop.", t);
                             try {
-                                Thread.sleep(10_000);
+                                Thread.sleep(2 * 60 * 1_000);
                             }
                             catch (InterruptedException e) {
                                 /* no-op, will check runflag */
                             }
                         }
                     }
-                }, _serverOrClassName + "." + dataName + ".AdvertiseAppAndNodeName");
+                }, _serverOrClassName + "." + _dataName + ".AdvertiseAppAndNodeName");
                 _thread.setDaemon(true);
                 _thread.start();
+                _running = true;
+            }
+
+            /**
+             * Stops the NodeAdvertiser, and nulls out the thread.
+             */
+            void stop() {
+                if (_thread == null) {
+                    return;
+                }
+                _running = false;
+                _thread.interrupt();
+                _thread = null;
+            }
+
+            boolean isRunning() {
+                return _running;
             }
 
             Map<String, Set<String>> getServersAppNamesToNodenames() {
@@ -1755,6 +1779,10 @@ public interface MatsEagerCacheServer {
                     return _clientsAppNamesToNodenames.entrySet().stream()
                             .collect(Collectors.toMap(Map.Entry::getKey, e -> new TreeSet<>(e.getValue())));
                 }
+            }
+
+            long getLastServerSeenTimestamp() {
+                return _lastServerSeenTimestamp;
             }
 
             private static int getNextTicks() {
@@ -1826,14 +1854,6 @@ public interface MatsEagerCacheServer {
                         .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
                         .publish(new AdvertiseBroadcastDto(_command, _appName, _nodename, clearAppsNodes)));
             }
-
-            void stop() {
-                if (_thread == null) {
-                    return;
-                }
-                _running = false;
-                _thread.interrupt();
-            }
         }
 
         // ====== Initiating full update from various sources
@@ -1876,9 +1896,9 @@ public interface MatsEagerCacheServer {
                 return;
             }
 
-            var cat = boot ? MonitorCategory.REQUEST_UPDATE_CLIENT_BOOT : MonitorCategory.REQUEST_UPDATE_CLIENT_MANUAL;
+            var catg = boot ? MonitorCategory.REQUEST_UPDATE_CLIENT_BOOT : MonitorCategory.REQUEST_UPDATE_CLIENT_MANUAL;
             String nodename = incomingClientCacheRequest.nodename;
-            _cacheMonitor.log(INFO, cat, "Phase 0: Initiating full update by request from client: "
+            _cacheMonitor.log(INFO, catg, "Phase 0: Initiating full update by request from client: "
                     + nodename + ", broadcasting to Phase 1."
                     + " Client command: " + incomingClientCacheRequest.command
                     + " - current Outstanding: [" + _updateRequest_OutstandingCount + "]");

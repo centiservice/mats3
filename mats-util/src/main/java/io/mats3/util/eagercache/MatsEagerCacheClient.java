@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -33,7 +32,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
@@ -461,7 +459,7 @@ public interface MatsEagerCacheClient<DATA> {
         long getNumberOfAccesses();
 
         /**
-         * @return timestamp of the last time the server was seen: Update, or advertisement.
+         * @return timestamp of the last time the server was seen: Update, or advertisement - zero if never seen yet.
          */
         long getLastServerSeenTimestamp();
 
@@ -604,8 +602,13 @@ public interface MatsEagerCacheClient<DATA> {
                 Class<TRANSPORT> transferDataType, Function<CacheReceivedData<TRANSPORT>, DATA> fullUpdateMapper) {
             _matsFactory = matsFactory;
             _dataName = dataName;
-            _cacheMonitor = new CacheMonitor(log, LOG_PREFIX_FOR_CLIENT, dataName);
             _fullUpdateMapper = (Function<CacheReceivedData<?>, DATA>) (Function) fullUpdateMapper;
+
+            _cacheMonitor = new CacheMonitor(log, LOG_PREFIX_FOR_CLIENT, dataName);
+            _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, false,
+                    BroadcastDto.COMMAND_CLIENT_ADVERTISE, _dataName,
+                    _matsFactory.getFactoryConfig().getAppName(),
+                    _matsFactory.getFactoryConfig().getNodename(), null);
 
             // :: Jackson JSON ObjectMapper
             ObjectMapper mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
@@ -703,7 +706,7 @@ public interface MatsEagerCacheClient<DATA> {
         private volatile String _latestUsedCorrelationId;
 
         private final CacheMonitor _cacheMonitor;
-        private volatile NodeAdvertiser _nodeAdvertiser;
+        private final NodeAdvertiser _nodeAdvertiser;
 
         private class CacheClientInformationImpl implements CacheClientInformation {
             @Override
@@ -843,16 +846,12 @@ public interface MatsEagerCacheClient<DATA> {
 
             @Override
             public long getLastServerSeenTimestamp() {
-                return _nodeAdvertiser._lastServerSeenTimestamp;
+                return _nodeAdvertiser.getLastServerSeenTimestamp();
             }
 
             @Override
             public Map<String, Set<String>> getServerAppNamesToNodenames() {
-                synchronized (_nodeAdvertiser._serversAppNamesToNodenames) {
-                    // Return copy, with copy of sets.
-                    return _nodeAdvertiser._serversAppNamesToNodenames.entrySet().stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey, e -> new TreeSet<>(e.getValue())));
-                }
+                return _nodeAdvertiser.getServersAppNamesToNodenames();
             }
 
             @Override
@@ -999,11 +998,7 @@ public interface MatsEagerCacheClient<DATA> {
                     _sendUpdateRequest(CacheRequestDto.COMMAND_REQUEST_BOOT);
 
                     // Start the AppName and Nodename advertiser.
-                    _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, false,
-                            BroadcastDto.COMMAND_CLIENT_ADVERTISE, _dataName,
-                            _matsFactory.getFactoryConfig().getAppName(), _matsFactory.getFactoryConfig()
-                                    .getNodename());
-
+                    _nodeAdvertiser.start();
                 }
                 finally {
                     // ?: Did it start?
@@ -1090,9 +1085,7 @@ public interface MatsEagerCacheClient<DATA> {
                 _cacheClientLifecycle = CacheClientLifecycle.STOPPING;
             }
             // -> Yes, we're started, so close down.
-            if (_nodeAdvertiser != null) {
-                _nodeAdvertiser.stop();
-            }
+            _nodeAdvertiser.stop();
             if (_broadcastTerminator != null) {
                 _broadcastTerminator.remove(30_000);
             }
@@ -1186,11 +1179,8 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         void _processLambdaForSubscriptionTerminator(ProcessContext<?> ctx, Void state, BroadcastDto msg) {
-            // ?: Is the NodeAdvertiser in place? (Will be after RUNNING)
-            if (_nodeAdvertiser != null) {
-                // -> Yes, so snoop on messages for keeping track of whom the clients and servers are.
-                _nodeAdvertiser.handleAdvertise(msg);
-            }
+            // Snoop on messages for keeping track of whom the clients and servers are.
+            _nodeAdvertiser.handleAdvertise(msg);
 
             // ?: Check if we're interested in this message - we only care about updates.
             if (!(BroadcastDto.COMMAND_UPDATE_FULL.equals(msg.command)

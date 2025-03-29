@@ -6,7 +6,6 @@ import static io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServer
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -97,16 +96,7 @@ public class MatsEagerCacheStorebrandHealthCheck {
                     Axis.of(Axis.NOT_READY, Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
                         CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
-                        Optional<Map<String, Set<String>>> mapO = info.getServersAppNamesToNodenames();
-                        // ?: Optional is empty: NodeAdvertiser has not yet started.
-                        if (mapO.isEmpty()) {
-                            CheckResult ret = checkContext.fault("Not yet info about applications serving"
-                                    + " DataName '" + info.getDataName() + "'!");
-                            ret.text(" -> \"NodeAdvertiser\" has not yet started, which might mean we can't get data.");
-                            ret.turnOffAxes(Axis.EXTERNAL, Axis.DEGRADED_PARTIAL, Axis.MANUAL_INTERVENTION_REQUIRED);
-                            return ret;
-                        }
-                        Map<String, Set<String>> serversAppNamesToNodenames = mapO.get();
+                        Map<String, Set<String>> serversAppNamesToNodenames = info.getServersAppNamesToNodenames();
                         // ?: No applications serving this DataName?
                         if (serversAppNamesToNodenames.isEmpty()) {
                             // -> Yes, no applications - let's hope it is "not yet"! (We should be serving it!)
@@ -157,18 +147,7 @@ public class MatsEagerCacheStorebrandHealthCheck {
             checkSpec.check(responsibleF, Axis.of(Axis.NOT_READY, Axis.MANUAL_INTERVENTION_REQUIRED),
                     checkContext -> {
                         CacheServerInformation info = checkContext.get("info", CacheServerInformation.class);
-                        Optional<Map<String, Set<String>>> mapO = info.getClientsAppNamesToNodenames();
-                        // ?: Optional is empty: NodeAdvertiser has not yet started.
-                        if (mapO.isEmpty()) {
-                            CheckResult ret = checkContext.fault("Not yet info about clients listening to"
-                                    + " DataName '" + info.getDataName() + "'!");
-                            ret.text(" -> \"NodeAdvertiser\" has not yet started, which might mean we can't get data.");
-                            // We're NOT_READY, but we're not MANUAL_INTERVENTION_REQUIRED, as this is expected.
-                            // Remove the MANUAL_INTERVENTION_REQUIRED axis, leaving NOT_READY.
-                            ret.turnOffAxes(Axis.MANUAL_INTERVENTION_REQUIRED);
-                            return ret;
-                        }
-                        Map<String, Set<String>> clientAppNamesToNodenames = mapO.get();
+                        Map<String, Set<String>> clientAppNamesToNodenames = info.getClientsAppNamesToNodenames();
                         // ?: Are there any clients?
                         if (clientAppNamesToNodenames.isEmpty()) {
                             // -> No, no clients - this isn't good! (No need having this CacheServer if no-one listens!)
@@ -368,6 +347,10 @@ public class MatsEagerCacheStorebrandHealthCheck {
                         CacheClientInformation info = checkContext.get("info", CacheClientInformation.class);
 
                         long lastServerSeenTimestamp = info.getLastServerSeenTimestamp();
+                        if (lastServerSeenTimestamp == 0) {
+                            return checkContext.fault("Server has not been seen yet!");
+                        }
+
                         // 45 min + 1/3 more, as per JavaDoc ..
                         long maxAdvertisementMinutes = (MatsEagerCacheServer.ADVERTISEMENT_INTERVAL_MINUTES * 4 / 3);
                         // .. then + 10 minutes for leniency

@@ -314,7 +314,7 @@ public interface MatsEagerCacheHtmlGui {
 
                 out.append("&nbsp;&nbsp;<span style='font-size:80%'><i>NOTE: If LARGE update, intentional lag is"
                         + " added between nulling existing dataset and producing new to aid GC:"
-                        + " 100ms for Full, 25ms for Small.</i></span><br>\n");
+                        + " 100ms for Full, 25ms for Partial.</i></span><br>\n");
             }
             out.append("<br>\n");
             out.append("Cache Servers: ");
@@ -651,12 +651,11 @@ public interface MatsEagerCacheHtmlGui {
             out.append("<div class='matsec-column-container'>\n");
             out.append("<div class='matsec-column'>\n");
             out.append("Cache Servers: ");
-            Optional<Map<String, Set<String>>> appsNodesO = info.getServersAppNamesToNodenames();
-            if (appsNodesO.isEmpty()) {
-                out.append("<i>The \"NodeAdvertiser\" have evidently not started yet.</i><br>\n");
+            Map<String, Set<String>> appsNodes = info.getServersAppNamesToNodenames();
+            if (appsNodes.isEmpty()) {
+                out.append("<i>We're not yet seeing any servers.</i><br>\n");
             }
             else {
-                Map<String, Set<String>> appsNodes = appsNodesO.get();
                 boolean first = true;
                 for (Map.Entry<String, Set<String>> entry : appsNodes.entrySet()) {
                     if (!first) {
@@ -671,15 +670,14 @@ public interface MatsEagerCacheHtmlGui {
             }
 
             out.append("<br>\n");
-            appsNodesO = info.getClientsAppNamesToNodenames();
-            if (appsNodesO.isEmpty()) {
-                out.append("Cache Clients: ");
-                out.append("<i>The \"NodeAdvertiser\" have evidently not started yet.</i><br>\n");
+            out.append("Cache Clients: ");
+            appsNodes = info.getClientsAppNamesToNodenames();
+            if (appsNodes.isEmpty()) {
+                out.append("<i>We're not (yet?) seeing any clients.</i><br>\n");
             }
             else {
-                Map<String, Set<String>> appsNodes = appsNodesO.get();
                 int totalNodes = appsNodes.values().stream().mapToInt(Set::size).sum();
-                out.append("Cache Clients: <b>").append(Integer.toString(appsNodes.size())).append(" apps, "
+                out.append("<b>").append(Integer.toString(appsNodes.size())).append(" apps, "
                         + totalNodes + " total nodes</b>:<br>\n");
 
                 for (Map.Entry<String, Set<String>> entry : appsNodes.entrySet()) {
