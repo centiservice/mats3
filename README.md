@@ -22,10 +22,14 @@ from [Maven Central](https://mvnrepository.com/artifact/io.mats3).
 
 Runs on Java 11+. _(Developed on Java 11, runs in prod on 11, 17 and 21)_
 
-License: [Polyform Perimeter 1.0.0 with examples](LICENSE.md)
+License: [Apache License, Version 2.0](LICENSE)
 
-If you find Mats interesting, you might want to check out the "companion
-project" [MatsSocket](https://github.com/centiservice/matssocket).
+If you find Mats<sup>3</sup> interesting, you might want to check out the companion
+project [MatsSocket](https://github.com/centiservice/matssocket), which provides WebSocket based bidirectional
+communication between a JavaScript/Web or Dart/Flutter client, and a backend using Mats<sup>3</sup>.<br/>
+There's also the
+[MatsBrokerMonitor](https://github.com/centiservice/matsbrokermonitor) project, which provides a
+Mats<sup>3</sup>-specific HTML-based monitor and control surface of the queues and DLQs on the message broker.
 
 # Documentation
 

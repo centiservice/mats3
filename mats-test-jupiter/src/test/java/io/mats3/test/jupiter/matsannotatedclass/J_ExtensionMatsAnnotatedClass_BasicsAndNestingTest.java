@@ -1,3 +1,19 @@
+/*
+ * Copyright 2015-2025 Endre Stølsvik
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.mats3.test.jupiter.matsannotatedclass;
 
 import static org.mockito.ArgumentMatchers.anyString;
@@ -263,7 +279,7 @@ class J_ExtensionMatsAnnotatedClass_BasicsAndNestingTest {
         // This will of course change if this file changes. But just look at the line number in your editor for
         // the first call to withAnnotatedMatsInstances (the 2nd call will be present in the stacktrace)
         boolean exceptionAsExpected = assertionError.getMessage()
-                .contains(this.getClass().getSimpleName()+".java:255");
+                .contains(this.getClass().getSimpleName()+".java:271");
         if (!exceptionAsExpected) {
             throw new AssertionError("The exception message did not contain the expected content!"
                     + " (including line number of expected double registration! Did you change the test class?"
