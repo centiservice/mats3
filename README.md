@@ -53,7 +53,7 @@ boxes) of the Endpoints, but which are passed along with the message envelopes. 
 Terminator is called a _Mats Flow_.
 
 Unit test code for this setup can be
-found [here](mats-api-test/src/test/java/io/mats3/api_test/stdexampleflow/Test_StandardExampleMatsFlow.java).
+found [here](mats-api-test-2/src/test/java/io/mats3/api_test/stdexampleflow/Test_StandardExampleMatsFlow.java).
 
 ### Better Inter Service Communication with Messaging
 
@@ -164,7 +164,7 @@ multiple customer frontends, both web and apps, and several backend UIs for back
 messages are produced and consumed each day. The Message Broker in use in this production setup is Apache ActiveMQ Classic, but
 all unit and integration tests also run on Apache ActiveMQ Artemis (formerly JBoss HornetQ, and what Red Hat AMQ 7+ is built on).
 
-For more, read [this](docs/WhatIsMats.md), then [this](docs/RationaleForMats.md).
+For more, read [this](docs/WhatIsMats.md), then [this](docs/RationaleForMats.md) - and the documentation at [mats3.io](https://mats3.io/docs/).
 
 ## What Mats is not
 
@@ -183,8 +183,9 @@ and finish in the same order they were started.
 
 # Examples
 
-Some examples taken from the [unit tests](mats-api-test/src/test/java/io/mats3/api_test). Notice the use of the JUnit
-Rule `Rule_Mats`, which sets up an ActiveMQ Classic in-memory server and creates a JMS-backed MatsFactory based on that.
+Some examples taken from the API-level unit tests [api-tests-1](mats-api-test-1/src/test/java/io/mats3/api_test),
+[api-tests-2](mats-api-test-2/src/test/java/io/mats3/api_test). Notice the use of the JUnit Rule `Rule_Mats`, which
+sets up an ActiveMQ Classic in-memory server and creates a JMS-backed MatsFactory based on that.
 
 In these examples, all the endpoints and stages are set up in one test class, and when invoked by the JUnit runner,
 obviously runs on the same machine - but in actual usage, you would typically have each endpoint run in a different
@@ -257,6 +258,10 @@ public class Test_SimplestSendReceive {
 Exercises the simplest request functionality: A single-stage service is set up. A Terminator is set up. Then an
 initiator does a request to the service, setting replyTo(Terminator). *(This example demonstrates one stack level
 request/reply, and state keeping between initiator and terminator)*
+
+**Again, remember that having both these endpoints (service and terminator) in the same (micro)service, in the same
+codebase, doesn't make sense in a real-world scenario:** The service endpoint would typically reside in a different
+service, in a different codebase - this is how you would communicate with it.
 
 ASCII-artsy, it looks like this, the line (pipe-char) representing the state that goes between Initiator and Terminator,
 but which is kept "on the wire" along with the message flow, i.e. along with the request out to Service, and then reply
@@ -352,9 +357,15 @@ replies:
 [Terminator]
 </pre>
 
-**Again, it is important to realize that the three stages of the Main service (and the two of the Mid service) are
-actually fully independent messaging endpoints (with their own JMS queue when run on a JMS backend), and if you've
-deployed the service to multiple nodes, each stage in a particular invocation flow might run on a different node.**
+**Again, it is important to realize that the three stages of the Main service (and the two of the Mid service,
+and the single of the Leaf service, and the single of the Terminator!) are actually fully independent messaging
+endpoints (with their own separate JMS queue when run on a JMS backend). If you've deployed the service to multiple
+nodes/instances, each stage in a particular invocation flow might run on a different node.**
+
+**Also, having all of the Main service, Mid service and Leaf service in the same (micro)service, in the same codebase as
+shown here in this test only makes sense for testing purposes**. In a real-world scenario, these services would
+typically reside in different services, in different codebases. The Terminator would typically reside in the same
+code base as the initiating code ("Initiator" in the ASCII diagram).
 
 The Mats API and implementation sets up a call stack that can be of arbitrary depth, along with stack frames whose state
 flows along with the message passing, so that you can code *as if* you were coding a normal service method that invokes
@@ -510,15 +521,19 @@ in the time since the Mats flow was initiated, then so is obviously the Future's
 messages stuck on the MQ.
 
 There are multiple modes of operation of the MatsFuturizer, but all of them share the fact that completion of the future
-cannot be guaranteed - simply because the node might be booted or die while the Mats flow is running. You can however
-decide whether the Mats flow should run using persistent ("guaranteed") or non-persistent messaging.
+cannot be guaranteed - simply because the node holding the future might be booted or die while the Mats flow is running.
+You can however decide whether the Mats flow itself (all other message passings except for the one back to the future
+holder) should run using persistent ("guaranteed") or non-persistent messaging.
 
 **The futurizer should _only_ be employed on the "edges" of the Mats fabric**, where synchronous processes like
-REST-endpoints needs to communicate with the asynchronous Mats fabric. _Never_ use the MatsFuturizer as a part of your
+REST-endpoints needs to communicate with the asynchronous Mats Fabric. _Never_ use the MatsFuturizer as a part of your
 application-internal API - [read this](docs/developing/MatsComposition.md).
 
 > As an alternative to the MatsFuturizer, you should check out [MatsSocket](https://github.com/centiservice/matssocket),
-> which bridges the asynchronous nature of Mats all the way out to the end-user clients by using WebSockets.
+> which bridges the asynchronous nature of Mats all the way out to the end-user clients by using WebSockets, in a
+> bidirectional fashion: In addition to request+reply and send semantics initiated from the client to the server, you
+> can also perform request+reply and send semantics initiated from the server to a specific client, in addition to
+> broadcast to multiple clients using pub/sub (topics) semantics.
 
 ```java
 public class Test_MatsFuturizer_Basics {
