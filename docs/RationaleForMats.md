@@ -11,8 +11,8 @@ the user/client, there is a "synchronous-2-Mats-bridge" called
 the [MatsFuturizer](https://mats3.io/docs/sync-async-bridge/), from which you can perform a Mats Request
 initiation which returns a Future, which will be resolved when the final Reply message comes back to the same node.
 There is also the library [MatsSockets](https://matssocket.io) that is built on top of Mats and
-WebSockets, which pulls the asynchronousness of Mats all the way out to the end-user client, with client libraries
-available for JavaScript and Dart/Flutter)*
+WebSockets, which pulls the asynchronousness of Mats all the way out to the end-user client, in a bidirectional fashion,
+with client libraries available for JavaScript/Web and Dart/Flutter)*
 
 *Asynchronous Message Oriented architectures* are superior to synchronous REST-based systems in a number of ways, for
 example:
