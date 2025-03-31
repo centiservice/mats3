@@ -112,7 +112,10 @@ happened. This makes maintenance, high availability, and deployment of new versi
 The multiple Stages of a Mats Endpoint are connected with a State Object, which are meant to emulate the local variables
 you'd have in the handling method of an ordinary HTTP-endpoint which performs synchronous HTTP calls to other services.
 
-### Asynchronous
+### Truly asynchronous, "message-driven continuations"
+
+Mats3’s asynchronicity isn’t just about non-blocking threads - it’s about preserving entire workflows in messages, 
+distributing them across services, and making them resilient to crashes.
 
 When a Stage _N_ of some Endpoint performs a request to another Endpoint, no thread will explicitly be waiting for the
 Reply. The thread that executed Stage N for this Flow will go back to pick up new messages for Stage N. When the
@@ -120,8 +123,19 @@ requested Endpoint eventually replies, the Reply will be put on the incoming que
 thread of a StageProcessor for Stage _N+1_, possibly on another node, will pick it up and continue the execution for
 this Flow.
 
-However, when coding, the Mats Endpoint _feels like_ synchronously invoking another Endpoint: You "invoke" (Request)
-another Endpoint, and then continue the code with the result of that method below the invocation.
+However, when coding, the Mats Endpoint _feels like_ **synchronously** invoking another Endpoint: You "invoke" (i.e.
+send a request message to) another Endpoint, and then continue the code with the reply of that invoked Endpoint right
+below the invocation.
+
+Contrast this with the traditional meaning of _asynchronous_ (callbacks, async/await, reactive), where the key point is
+to not block the thread while waiting for some external resource. However, even though you alleviate the blocking of
+threads, you will still have state stored in memory on that node in some async context object. If the server crashes,
+all those processes either kept in thread's call stack, or in async contexts, are lost - typically without trace, so
+you'll have to find some way to pinpoint which process instances went down along with the server. In Mats, the entire
+process state is kept in the messages' envelope. After the message has been sent, the thread is free to pick up new
+messages, since the state is kept in the message's envelope which is stored on the message broker. The server that did
+the processing is now free to crash! If the server crashes while executing a Stage, the message will be retried on
+another server, and the state will again be reconstituted from the message's envelope residing on the MQ.
 
 ### Distributed
 
@@ -148,19 +162,29 @@ pretty much as if there was no load.
 
 ### Centralized error handling
 
-If a Mats Flow, while weaving its line through the Mats Fabric, encounters an error, the message broker initiates
-automatic retrying. But if this doesn't pan out either, the current message will "pop out" of the Mats Fabric, ending up
-on the Dead Letter Queue. (The broker should preferably be set up to have individual DLQs per queue). This is monitored
-on the message broker.
+Since Mats3 is built on top of an ordinary message broker system, you get the standard benefits of messaging: If a Mats
+Flow, while weaving its line through the Mats Fabric, encounters an error, the message broker initiates automatic
+retrying. But if this doesn't pan out either, the current message will "pop out" of the Mats Fabric, ending up on the
+broker's Dead Letter Queue. (The broker should preferably be set up to have individual DLQs per queue). This is
+monitored on the message broker.
 
-If the problem was intermittent (e.g. a database was down for a short while), and the error is now cleared, you can now
+If the problem was intermittent (e.g. a database was down for a while), and the error is now cleared, you can now
 reissue the messages by moving them from the DLQ back to the original queue, and the Mats Flow will continue as if
 nothing happened.
 
-This makes the total system exceptionally distributed, but the _error handling_ is centralized.
+There is a separate project providing a Mats3-specific view of the queues, topics and DLQs on the message
+broker: [MatsBrokerMonitor](https://github.com/centiservice/matsbrokermonitor). With this tool, you can browse all queues (and topics), seeing their queue length and
+age of head message. You can drill into a queue (typically DLQ) and get an overview over all messages residing there,
+with some metadata for each message. You can then drill into a specific message, and get all details about it including
+all their metadata, as well as the state objects in the call stack, and current call DTO, and an outline of the path
+through the different Endpoints and Stages the mats flow has passed through up till the DLQ point. You can reissue
+messages from the DLQ back to the original queue, or delete them if they are no longer needed. There are hooks to
+provide links to the service-spanning logging system you employ, where the messageId, flowId and "traceId" of the Mats
+Flow is available, so that you can easily "click into" the system-wide, service-spanning logs for the specific Mats
+Flow in your logging system.
 
-There is a separate project providing a Mats-specific view of the queues and DLQs on the message broker:
-[MatsBrokerMonitor](https://github.com/centiservice/matsbrokermonitor).
+While a Mats3 system is developed and run exceptionally distributed, any _error handling_ that must be done
+by humans is centralized, with very good introspection and tooling.
 
 ### Familiar feel
 
@@ -170,13 +194,16 @@ gain all features of a fully _Asynchronous Message Oriented Architecture_.
 
 ### Production Ready
 
-This code has since 2017 been running in production as the sole inter service communication layer in a quite large
-financial system consisting of >50 services and applications and well over thousand Mats Endpoints. This system has
-multiple customer frontends, both web and apps, and several backend UIs for backoffice functions. Several million
-messages are produced and consumed each day. The Message Broker in use in this production setup is Apache ActiveMQ
-Classic, but all unit and integration tests also run on Apache ActiveMQ Artemis (formerly JBoss HornetQ, and what Red
-Hat AMQ 7+ is built on). For more, read [this](docs/WhatIsMats.md), then [this](docs/RationaleForMats.md) - and the
-documentation at [mats3.io](https://mats3.io/docs/).
+Mats3 has since 2017 been running in production as the sole inter-service communication layer in a large financial
+system consisting of >50 services and applications and well over thousand Mats Endpoints. The system has continuously
+been expanded and altered through this time, being developed by a good set of developers, with very close to 100%
+uptime. It was even moved from on-prem to one of the large cloud providers with no downtime, simply spinning up
+instances in the cloud, and taking down the instances on-prem, without even the developers noticing when their service
+was moved! It has multiple customer frontends, both web and apps, and several backend UIs for backoffice functions. Many
+million messages are produced and consumed each day. The Message Broker in use in this production setup is Apache
+ActiveMQ Classic, but all unit and integration tests also run on Apache ActiveMQ Artemis (formerly JBoss HornetQ, and
+what Red Hat AMQ 7+ is built on). For more, read [this](docs/WhatIsMats.md), then [this](docs/RationaleForMats.md) - and
+the documentation at [mats3.io](https://mats3.io/docs/).
 
 ## What Mats is not
 
@@ -185,7 +212,10 @@ processes and messages, and trades some performance for developer friendliness, 
 Solutions like Kafka might be what you want if you need to receive tens-of-thousands of events per second from your
 massive fleet of IoT devices. Use Mats for the subsequent, more coarse-grained handling of the results of such
 ingestion. _(That said, the throughput of a large Mats fabric with lots of Endpoints scales very well, and is only
-limited by the throughput of your message broker setup as well as external resources as your services' databases)_
+limited by the throughput of your message broker setup, which scales pretty far. You can even use multiple MQs if need
+be. Small "GET-style" request-replies to a single stage fetching some information for e.g. a frontend is typically
+faster than over HTTP due to smaller header overhead, using non-persistent messaging over persistent TCP connections. It
+will be your services' own databases and queries that limits the system you build._)
 
 Also, Mats is not meant for events which require handling in a specific order, e.g. arrival order. The intention with
 Mats is that you run multiple instances/replicas of each service. And on each instance, there are multiple
@@ -194,6 +224,121 @@ and there is no way to guarantee that two flows which are started in some close 
 and finish in the same order they were started. This is exactly the same as with HTTP-based services, where you have
 multiple instances of each service, with multiple threads handling the requests - but it is worth spelling out since
 message-based systems are often associated with "first in, first out".
+
+# Key Points
+
+## No External Orchestration: "Just Code!"
+
+Orchestration tools, in particular the external ones, divorce the overall business process logic from the code that
+implements the actual operations. You then have to maintain the process in the orchestration tool, and the code in the
+services. This is a recipe for complexity and opacity, where you cannot see the full flow in any one place, and you will
+have to maintain two codebases: code and config.
+
+Mats is a library, not a framework. You code your services as ordinary Java classes, and you use the Mats API to define
+your Endpoints and Stages. You don't need to write any YAML, XML, or JSON to define your services, and you don't need to
+write any orchestration code or config, possibly in some external orchestration tool, to direct the process logic. You
+just code your services in a linear, "transaction script"-alike fashion, using sequential reasoning, where state 
+"magically" persists through any request-reply steps. The Mats library takes care of the rest.
+
+## Decoupled, "Black Box" Endpoints
+
+Each Endpoint is an independent entity, residing in a Service. They can be developed, tested, deployed, scaled, and
+monitored independently of the other Endpoints in other services. Each Endpoint is decoupled from any other, only
+defined by their Request DTO and Reply DTO. Any other services may invoke them (from an Endpoint, or via Initiation), as
+long as they adhere to the contract of the DTOs. You can make "verify address" and "send email" Endpoints which multiple
+services and flows may invoke (E.g. "Employee Onboarding", "Customer registration", "Order processing", "Billing").
+
+The other services don't need to care about how the invoked service works, they just need to know the contract of the
+DTOs for the Endpoint they are invoking. This is the same as with ordinary method calls in Java: You don't need to know
+how the method you are calling works, you just need to know the method signature.
+
+Contrast this with how messaging often is employed: Each processing point consumes from a queue, does some of the
+process's total work, and put the intermediate result back on another queue, where the next processing point consumes
+from. This however leads to processing points which are tightly coupled to the total flow, and you need to develop and 
+maintain the overall flow over several codebases. Any such processing point is thus not generic: Even if one of the
+points are "verify address", there is no way to reuse this logic in another flow, as it is tightly coupled to the
+overall process flow it was made for.
+
+## Abstraction - Concentration of Complexity
+
+Mats abstracts away the complexity of a distributed, asynchronous, message-driven, stateful, multi-stage processing
+system. The complexity is hidden and concentrated in the Mats library, letting the developer focus on the business
+logic.
+
+Since it is Mats3 that produces the messages, and Mats3 that consumes the messages - the developer only seeing the
+Request DTO and Reply DTO, as well as the state DTOs - Mats3 can add quite a bit of functionality to the messages and
+the processing of them. For example, transactionality, error handling, metrics, tracing, and monitoring. There's
+a boatload of metadata on the messages, and the processing of the messages is heavily instrumented.
+
+There's a plugin solution, where you can add "interceptors" to the processing, which can do things like logging,
+metrics, error handling, and even modify incoming and outgoing messages. This is a powerful tool for adding
+cross-cutting concerns to the processing layer without having to add this to the actual business logic. The default
+logging and metrics solutions are implemented as such plugins.
+
+The instrumentation and metadata of the messages is utilized in the MatsBrokerMonitor project, which provides a
+Mats3-specific view of the queues, topics, DLQs and the actual messages residing on the message broker.
+
+## Alternatives & Key Comparisons
+
+_Orchestration and Workflow Tools_ (e.g., Camunda, Temporal, AWS Step Functions, Azure Logic Apps/Durable Functions)
+were touched upon above, and is directly what Mats3 aims not to be!
+
+_EIP pattern implementations_ (e.g., Apache Camel, Spring Integration) may be seen like a sub-species of orchestration
+tools, where the process orchestration is defined in code, but still separate from the operation code. Mats3 is more
+like a "transaction script" pattern, where the process is defined in the service code - with the ability to
+asynchronously invoke other services' endpoints.
+
+An alternative to Mats3's state handling is using _Sagas_ (e.g., Libraries like Eventuate Tram Sagas, Axon Framework
+Sagas, NServiceBus Sagas - .NET) to handle the state, with _Correlation Ids_ to get hold of a specific process
+instance's current state. These are more explicit and complex, needs to be implemented on each service, possibly in
+diverging ways, and it may become difficult to see the full flow of the process. Mats3's state handling is more like a
+call stack in a synchronous method where the state is kept in the method's local variables. It is abstracted away from
+the developer, and the complexity is hidden and concentrated in the Mats library, letting the developer focus on the
+actual business logic.
+
+Another alternative is _Event Sourcing_, often in conjunction with Kafka as the event log, with the total state being
+the sum of all events. While the concept on the surface seems extremely beautiful and simple, with many powerful
+effects, and also being simple to develop and test, it is also complex to implement correctly - in particular over time.
+Compared to the more mentally simple "do this, then that" for a process, event sourcing demands a completely different
+way of thinking. Over time the complexity increases: Events can be emitted by anyone, and effectively any service can
+"listen in" if they need that data. Events will over time change many times to accommodate new demands, and you need to
+replay all events to get the current state, so all consumers of the events need to be able to handle all versions of the
+events - or you must update the events in the store. When a system is new and small, the positive aspects of Event
+Sourcing shines, but as you churn through many versions, over many years, with many developers, the complexity of the
+system grows - and the "distributed schema" that the full set of events becomes is hard to manage and reason about.
+
+_Actors_ (often associated with Erlang), in particular the _Akka_ framework for Java/Scala, is another alternative.
+Actors, along with the _SEDA_ (Staged Event-Driven Architecture) pattern, is actually the inspiration for Mats3!
+However, the Actor model is more complex than Mats3, with supervision hierarchies, and the need to handle the state
+explicitly. Mats3 is a simpler abstraction, letting the developer focus on the business logic. Mats3 adds real
+distribution using bog-standard message brokers, compared to the default in-memory distribution of Akka. Akka also has
+ways to communicate over the network, but that is using a proprietary solution. Mats3 also adds transactionality, which
+is not present in Akka.
+
+Bottom line: Mats3 does not demand a new mental model - quite the opposite: It is made to be as close to bog-standard
+synchronous coding as possible, while still being fully message-driven and asynchronous. It is pure Java (albeit with an
+optional SpringConfig module for defining Endpoints via annotations), with a deceivingly simple API to ease you into the
+concepts: You'll be writing business code pretty much immediately, and you'll be able to reason about the code in a
+linear fashion, just as you would with synchronous code.
+
+## Philosophical Alignment with How Humans Think
+
+Mats3 is designed to align with how humans think about processes:
+
+* Sequential steps: _“First do X, then Y.”_
+* Local reasoning: _“At this step, I need these inputs.”_
+* Black-box collaborators: _“I don’t care how Service B works, just do the job and give me the answer.”_
+
+You get this with synchronous blocking HTTP calls: They to a high degree resemble ordinary method calls. With Java 21's
+_Virtual Threads_ (Project Loom), you can even forget about the problem of too many native threads and thus forget about
+the pain of asynchronous callback/async-await programming. But you will get all the problems with blocking calls, and
+you don't get the benefits of asynchronous message passing. Mats3 gives you the best of both worlds: You code as if you
+were coding a blocking, synchronous method, but you get the benefits of asynchronous messaging.
+
+Most other distributed architectures trying to alleviate the problems of synchronous HTTP calls, heavily leak the
+underlying distribution principles and architecture, whether it is event sourcing, sagas, messaging, or external
+orchestration. Mats3 abstracts this away in a substantial and meaningful way, letting developers focus on what needs to
+happen - the business logic - not how it’s coordinated.
 
 # Examples
 
