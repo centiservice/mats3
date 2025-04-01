@@ -845,8 +845,8 @@ public interface MatsEagerCacheServer {
             // Create the NodeAdvertiser, but do not start it.
             _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, true,
                     BroadcastDto.COMMAND_SERVER_ADVERTISE, _dataName, _appName, _nodename, () -> {
-                _waitForReceiving(30_000);
-            });
+                        _waitForReceiving(30_000);
+                    });
             // Create the PeriodicUpdate, but do not start it.
             _periodicUpdate = new PeriodicUpdate();
 
@@ -1425,7 +1425,9 @@ public interface MatsEagerCacheServer {
         }
 
         /**
-         * We are only interested in the cache updates insofar as to log and time them - they are meant for the clients.
+         * We are only interested in the cache updates insofar as to log and time them, as well as for the
+         * PeriodicUpdate thundering herd avoidance algorithm - they are meant for the clients. We do not process them,
+         * i.e. we do not expend resources on decompressing, deserializing, and stacking up the data.
          */
         private void _handleCacheUpdateLogging(ProcessContext<Void> ctx, Void state, BroadcastDto broadcastDto) {
             // :: Jot down that the clients were sent an update, used when calculating the delays, and health checks.
@@ -1536,9 +1538,9 @@ public interface MatsEagerCacheServer {
                         try {
                             /*
                              * The main goal here is to avoid the situation where all servers start producing periodic
-                             * updates at the same time, or near the same time, which would result unnecessary load on
-                             * every component, and if the source data is retrieved from a database, the DB will be
-                             * loaded at the same time from all servers.
+                             * updates at the same time, or near the same time, which would result in unnecessary load
+                             * on every component, and if the source data is retrieved from a database, the DB will be
+                             * loaded at the same time from all servers. Aka avoiding "thundering herds".
                              *
                              * We ideally want *one* update per periodic interval, even though we have multiple
                              * instances of the service running (aka. "siblings").
@@ -1546,29 +1548,36 @@ public interface MatsEagerCacheServer {
                              * The idea is to have a check interval, which is a fraction plus a bit of randomness of the
                              * interval between the periodic updates. We repeatedly sleep the check interval, and then
                              * check whether the last full update is longer ago than the periodic update interval. If we
-                             * haven't received a full update within the period update interval, we should do a full
-                             * update. Since there is some randomness in the check interval, we hopefully avoid that all
-                             * servers check at the same time. The one that is first to see that it is time for a full
-                             * update, will send a broadcast message to the siblings to get the process going, which
-                             * will lead to a new full update being produced and broadcast - which the siblings also
-                             * receive, and record the timestamp of. When the other siblings wake up from their check
-                             * interval sleep, and see that a full update has arrived, they'll see that there's nothing
-                             * to, and they'll just continue their check loop.
+                             * haven't received a full update within the periodic update interval, we should initiate a
+                             * full update. Since there is some randomness in the check interval, we hopefully avoid
+                             * that all servers check at the same time. The one that is first to see that it is time for
+                             * a full update, will send a broadcast message to the siblings to get the process going,
+                             * which will lead to a new full update being produced and broadcast - which the siblings
+                             * also receive, and record the timestamp of. (Note: This is a bit counter-intuitive, and
+                             * also a bit wasteful: The server side also get the cache data update. But it does not
+                             * process it, avoiding that resource use - it is only interested in the fact that it has
+                             * happened, and its metadata). When the other siblings wake up from their check interval
+                             * sleep, and see that a full update has arrived, they'll see that there's nothing to do
+                             * (since they're now plenty within the periodic update interval - they just recently got
+                             * it!), and they'll just continue their check loop.
                              *
-                             * The "thundering herd avoidance" solution we have should mitigate the problem if they come
-                             * very close to each other. However, if they come a bit more spaced out, AND it takes a
-                             * long time to produce the update, we might not catch it with this solution. This since the
-                             * max "coalescing and election" sleep is just a few seconds, which if the update takes e.g.
-                             * tens of seconds to produce and send will lead the second guy to wake up also wanting to
-                             * do a full update. Thus, if we see that we haven't gotten an update in the interval, we
-                             * additionally also check whether a full update request have come in within the periodic
-                             * update interval (as this is recorded close to immediately) - assuming then that it was
-                             * started by another of the siblings, and if so, we wait one more interval before checking
-                             * again - hopefully the update will have come in after this.
+                             * However, if these updates come rather close to each other, AND it takes a long time to
+                             * produce the update, we might not catch any double-request for update with this solution
+                             * alone: Since the max "coalescing and election" sleep is just a few seconds, which if the
+                             * update takes e.g. tens of seconds to produce and send will lead the second guy to wake up
+                             * also wanting to do a full update (that is, it will wake up and see "ah, no full update
+                             * has arrived within periodic update interval - better get this going!", even though one is
+                             * just in the process of being created and shipped!). Thus, if we see that we haven't
+                             * gotten an update in the interval, we *additionally* also check whether a full update
+                             * request have come in within the periodic update interval (this is a very small message
+                             * that is received pretty close to immediately after it is sent) - assuming then that the
+                             * full update process was started by another of the siblings. If this is the case, we wait
+                             * one more interval before checking again - hopefully the actual full update will have come
+                             * in during this extra wait. If not, we start the process.
                              *
                              * Finally: It doesn't matter all that much if this doesn't always work out perfectly, and
-                             * we expend a bit more resources than necessary. It is better with an update too many than
-                             * an update too few.
+                             * we expend a bit more resources than necessary by handling duplicate full updates; It is
+                             * better with an update too many than an update too few.
                              */
                             Thread.sleep(checkIntervalMillis);
                             // ?: Have we received a full update within the interval?
@@ -1602,10 +1611,9 @@ public interface MatsEagerCacheServer {
                             }
                             // E-> So, we should request a full update. If this now comes in at the same time as another
                             // server, the "thundering herd avoidance" solution should mitigate double production.
-                            _cacheMonitor.log(INFO, MonitorCategory.PERIODIC_UPDATE,
-                                    "Periodic update interval exceeded:"
-                                            + " Issuing request for full update. We are: [" + _dataName + "] "
-                                            + _nodename);
+                            _cacheMonitor.log(INFO, MonitorCategory.PERIODIC_UPDATE, "Periodic update interval"
+                                    + " exceeded: Issuing request for full update."
+                                    + " We are: [" + _dataName + "] " + _nodename);
                             _fullUpdateCoord_phase0_InitiateFromServer_Periodic();
                         }
                         catch (InterruptedException e) {
@@ -1614,10 +1622,9 @@ public interface MatsEagerCacheServer {
                                     + " probably shutting down. We are: [" + _dataName + "] " + _nodename);
                         }
                         catch (Throwable t) {
-                            _cacheMonitor.exception(MonitorCategory.PERIODIC_UPDATE,
-                                    "Periodic update: Got exception while trying to schedule periodic update."
-                                            + " Ignoring. We are: [" + _dataName + "] "
-                                            + _nodename, t);
+                            _cacheMonitor.exception(MonitorCategory.PERIODIC_UPDATE, "Periodic update: Got"
+                                    + " exception while trying to schedule periodic update. Ignoring."
+                                    + " We are: [" + _dataName + "] " + _nodename, t);
                         }
                     }
                 }, "MatsEagerCacheServer." + _dataName
