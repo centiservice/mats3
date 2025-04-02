@@ -147,7 +147,7 @@ public class Test_EagerCache_MockClient {
         // Set the CacheUpdate mock
         MatsTestBarrier cacheUpdatedMockedBarrier = new MatsTestBarrier();
         mockClient.setMockCacheUpdatedSupplier(() -> {
-            var ret = new CacheUpdatedImpl(false, 10, 20, 30, "MetaMock", OptionalDouble.empty());
+            var ret = new CacheUpdatedImpl(true, false, 10, 20, 30, "MetaMock", OptionalDouble.empty());
             cacheUpdatedMockedBarrier.resolve(ret);
             return ret;
         });

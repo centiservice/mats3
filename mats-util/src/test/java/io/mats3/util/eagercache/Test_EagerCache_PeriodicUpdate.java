@@ -56,6 +56,9 @@ public class Test_EagerCache_PeriodicUpdate {
         // Assert that we've only gotten two updates for each cache, one initial, and one periodic.
         Assert.assertEquals(2, serversClients.cacheClient1_updateCount.get());
         Assert.assertEquals(2, serversClients.cacheClient2_updateCount.get());
+        // Assert that the last were NOT initial populations
+        Assert.assertFalse(serversClients.cacheClient1_updated[0].isInitialPopulation());
+        Assert.assertFalse(serversClients.cacheClient2_updated[0].isInitialPopulation());
 
         // Shutdown
         serversClients.close();

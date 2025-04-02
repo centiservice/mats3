@@ -234,6 +234,9 @@ public class CommonSetup_TwoServers_TwoClients {
         // Assert that we've only gotten one update for each cache (even though both of them requested full update)
         Assert.assertEquals(1, cacheClient1_updateCount.get());
         Assert.assertEquals(1, cacheClient2_updateCount.get());
+        // Assert that these were initial updates.
+        Assert.assertTrue(cacheClient1_updated[0].isInitialPopulation());
+        Assert.assertTrue(cacheClient2_updated[0].isInitialPopulation());
     }
 
     static void adjustDelaysForTest(MatsEagerCacheServer cacheServer) {

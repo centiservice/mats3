@@ -215,6 +215,16 @@ public interface MatsEagerCacheClient<DATA> {
      * Add a listener for cache updates. The listener will be invoked with the metadata about the cache update. The
      * listener is invoked after the cache content has been updated and the cache content lock has been released - i.e.
      * the {@link #get()} method will already return the new data when the listener is invoked.
+     * <p>
+     * Note wrt. "Daisy chaining" of caches, i.e. you have a cache server on this service, but this cache server needs
+     * both data that it holds itself, and data from another service - which it gets via a cache client on this service.
+     * You will then probably want to add a listener to the cache client (using this method), which will then force an
+     * update on this service's cache server using {@link MatsEagerCacheServer#initiateFullUpdate(int)}. However, if you
+     * naively forward the cache update to the cache server, you will also force an unnecessary update at startup due to
+     * the initial population of the cache client (restarting this service does not mean that the clients need new data
+     * - if they are restarted, and need initial load, they will ask for it themselves). To avoid this, you should check
+     * the {@link CacheUpdated#isInitialPopulation()} flag in the listener, and only forward the update to the cache
+     * server if it is false.
      *
      * @param listener
      *            the listener to add.
@@ -515,6 +525,18 @@ public interface MatsEagerCacheClient<DATA> {
      * Metadata about the cache update.
      */
     interface CacheReceived {
+        /**
+         * Returns <code>true</code> if this is the initial population - implying that the cache client was just
+         * started, and this is the initial population. Read the JavaDoc of
+         * {@link MatsEagerCacheClient#addCacheUpdatedListener(Consumer)} wrt. "daisy chaining" of caches, pointing out
+         * that you should check this flag before forwarding the update to another cache server.
+         * 
+         * @return whether this is the initial population - implying that the cache client was just started.
+         * @see MatsEagerCacheClient#addCacheUpdatedListener(Consumer)
+         * @see MatsEagerCacheClient#addAfterInitialPopulationTask(Runnable)
+         */
+        boolean isInitialPopulation();
+
         /**
          * @return whether this was a full update.
          */
@@ -1249,6 +1271,9 @@ public interface MatsEagerCacheClient<DATA> {
 
             boolean fullUpdate = msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL);
             boolean largeUpdate = msg.uncompressedSize > _sizeCutover;
+            // NOTE: There is only one thread running this method, and it is only us that will write null to the
+            // _initialPopulationLatch fields.
+            boolean initialPopulation = _initialPopulationLatch != null;
 
             // ## FIRST: Process and update the cache data.
 
@@ -1307,8 +1332,8 @@ public interface MatsEagerCacheClient<DATA> {
                         TimedIterator timedIterator = new TimedIterator(mappingIterator);
                         Stream<?> stream = Stream.iterate(timedIterator, Iterator::hasNext, UnaryOperator.identity())
                                 .map(Iterator::next);
-                        newData = _fullUpdateMapper.apply(new CacheReceivedDataImpl<>(true, msg.compressedSize,
-                                msg.uncompressedSize, dataSize, metadata, stream));
+                        newData = _fullUpdateMapper.apply(new CacheReceivedDataImpl<>(initialPopulation,
+                                true, msg.compressedSize, msg.uncompressedSize, dataSize, metadata, stream));
                         nanosTaken_decompress = iis.getReadAndInflateTimeNanos();
                         nanosTaken_deserialize = timedIterator.getIterateNanos() - nanosTaken_decompress;
                     }
@@ -1333,16 +1358,19 @@ public interface MatsEagerCacheClient<DATA> {
                 else {
                     // -> :: PARTIAL UPDATE, so then we update the data "in place".
 
+                    // ?: Check if we already have data - partial cannot be applied as first update!
                     if (_data == null) {
+                        // -> No, we don't have any data, so we can't apply a partial update.
                         _cacheMonitor.log(WARN, MonitorCategory.RECEIVED_UPDATE, "We got a partial update without"
                                 + " having any data. This is probably due to the initial population not being done yet,"
                                 + " or the data being nulled out due to some error. Ignoring the partial update.");
                         return;
                     }
 
+                    // ?: Do we have a partial update mapper?
                     if (_partialUpdateMapper == null) {
-                        // This is a severe error, as the user has not provided a partial update mapper, and we got a
-                        // partial update.
+                        // -> No partial update mapper: This is a severe error, as the user has not provided a partial
+                        // update mapper, and we got a partial update.
                         var logMsg = "We got a partial update, but we don't have a partial update mapper. Ignoring the"
                                 + " partial update.";
                         _cacheMonitor.exception(MonitorCategory.RECEIVED_UPDATE, logMsg, new IllegalStateException(
@@ -1382,8 +1410,9 @@ public interface MatsEagerCacheClient<DATA> {
                         TimedIterator timedIterator = new TimedIterator(mappingIterator);
                         Stream<?> stream = Stream.iterate(timedIterator, Iterator::hasNext, UnaryOperator.identity())
                                 .map(Iterator::next);
-                        newData = _partialUpdateMapper.apply(new CacheReceivedPartialDataImpl<>(false, _data,
-                                msg.compressedSize, msg.uncompressedSize, dataSize, metadata, stream));
+                        // It cannot be a initial population, since partials can only come after full.
+                        newData = _partialUpdateMapper.apply(new CacheReceivedPartialDataImpl<>(false,
+                                false, _data, msg.compressedSize, msg.uncompressedSize, dataSize, metadata, stream));
                         nanosTaken_decompress = iis.getReadAndInflateTimeNanos();
                         nanosTaken_deserialize = timedIterator.getIterateNanos() - nanosTaken_decompress;
                     }
@@ -1458,9 +1487,9 @@ public interface MatsEagerCacheClient<DATA> {
             }
 
             // :: Handle initial population obligations
-            // NOTE: There is only one thread running a SubscriptionTerminator, and it is only us that
-            // will write null to the _initialPopulationLatch and _onInitialPopulationTasks fields.
-            // ?: Fast check if we've already done initial population obligations.
+            // NOTE: There is only one thread running this method, and it is only us that will write null to the
+            // _initialPopulationLatch and _onInitialPopulationTasks fields.
+            // ?: Check if we've already done initial population obligations.
             if (_initialPopulationLatch != null) {
                 // -> No, we haven't done initial population obligations yet.
 
@@ -1517,7 +1546,8 @@ public interface MatsEagerCacheClient<DATA> {
             // ## FOURTH, and final: Notify CacheUpdatedListeners
 
             // :: Notify listeners
-            CacheUpdated cacheUpdated = new CacheUpdatedImpl(msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL),
+            CacheUpdated cacheUpdated = new CacheUpdatedImpl(initialPopulation,
+                    msg.command.equals(BroadcastDto.COMMAND_UPDATE_FULL),
                     msg.compressedSize, msg.uncompressedSize, msg.dataCount, msg.metadata,
                     roundTripTimeMillis != 0 ? OptionalDouble.of(roundTripTimeMillis) : OptionalDouble.empty());
             for (Consumer<CacheUpdated> listener : _cacheUpdatedListeners) {
@@ -1638,6 +1668,7 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         private static class CacheReceivedDataImpl<TRANSPORT> implements CacheReceivedData<TRANSPORT> {
+            protected final boolean _initialPopulation;
             protected final boolean _fullUpdate;
             protected final int _dataCount;
             protected final String _metadata;
@@ -1646,8 +1677,9 @@ public interface MatsEagerCacheClient<DATA> {
 
             private final Stream<TRANSPORT> _rStream;
 
-            public CacheReceivedDataImpl(boolean fullUpdate, long compressedSize, long decompressedSize, int dataCount,
-                    String metadata, Stream<TRANSPORT> recvStream) {
+            public CacheReceivedDataImpl(boolean initialPopulation, boolean fullUpdate, long compressedSize,
+                    long decompressedSize, int dataCount, String metadata, Stream<TRANSPORT> recvStream) {
+                _initialPopulation = initialPopulation;
                 _fullUpdate = fullUpdate;
                 _dataCount = dataCount;
                 _metadata = metadata;
@@ -1655,6 +1687,11 @@ public interface MatsEagerCacheClient<DATA> {
                 _compressedSize = compressedSize;
 
                 _rStream = recvStream;
+            }
+
+            @Override
+            public boolean isInitialPopulation() {
+                return _initialPopulation;
             }
 
             @Override
@@ -1701,9 +1738,9 @@ public interface MatsEagerCacheClient<DATA> {
         static class CacheUpdatedImpl extends CacheReceivedDataImpl<Void> implements CacheUpdated {
             private final OptionalDouble _roundTripTimeMillis;
 
-            public CacheUpdatedImpl(boolean fullUpdate, long compressedSize, long decompressedSize, int dataCount,
-                    String metadata, OptionalDouble roundTripTimeMillis) {
-                super(fullUpdate, compressedSize, decompressedSize, dataCount, metadata, null);
+            public CacheUpdatedImpl(boolean initialPopulation, boolean fullUpdate, long compressedSize,
+                    long decompressedSize, int dataCount, String metadata, OptionalDouble roundTripTimeMillis) {
+                super(initialPopulation, fullUpdate, compressedSize, decompressedSize, dataCount, metadata, null);
                 _roundTripTimeMillis = roundTripTimeMillis;
             }
 
@@ -1730,10 +1767,11 @@ public interface MatsEagerCacheClient<DATA> {
                 implements CacheReceivedPartialData<TRANSPORT, DATA> {
             private final DATA _previousData;
 
-            public CacheReceivedPartialDataImpl(boolean fullUpdate, DATA previousData,
+            public CacheReceivedPartialDataImpl(boolean initialPopulation, boolean fullUpdate, DATA previousData,
                     long receivedCompressedSize, long receivedUncompressedSize, int dataSize,
                     String metadata, Stream<TRANSPORT> rStream) {
-                super(fullUpdate, receivedCompressedSize, receivedUncompressedSize, dataSize, metadata, rStream);
+                super(initialPopulation, fullUpdate, receivedCompressedSize, receivedUncompressedSize, dataSize,
+                        metadata, rStream);
                 _previousData = previousData;
             }
 
@@ -1972,11 +2010,11 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         private CacheUpdated _createMockCacheUpdated() {
-            CacheUpdated cacheUpdated;
-            cacheUpdated = _mockCacheUpdatedSupplier != null
+            boolean initialPopulation = _initialPopulationLatch.getCount() == 0;
+            CacheUpdated cacheUpdated = _mockCacheUpdatedSupplier != null
                     ? _mockCacheUpdatedSupplier.get()
-                    : new CacheUpdatedImpl(true, 42, 1337, 42, null,
-                            OptionalDouble.of(Math.E));
+                    : new CacheUpdatedImpl(initialPopulation, true, 42, 1337,
+                            42, null, OptionalDouble.of(Math.E));
             return cacheUpdated;
         }
 

@@ -109,6 +109,9 @@ public class Test_EagerCache_RequestFullUpdate {
         // Assert that we've only gotten one extra update total for each cache (initial + requested full update)
         Assert.assertEquals(2, serversClients.cacheClient1_updateCount.get());
         Assert.assertEquals(2, serversClients.cacheClient2_updateCount.get());
+        // Assert that the last were NOT initial populations
+        Assert.assertFalse(serversClients.cacheClient1_updated[0].isInitialPopulation());
+        Assert.assertFalse(serversClients.cacheClient2_updated[0].isInitialPopulation());
 
         // Shutdown
         serversClients.close();
@@ -150,6 +153,9 @@ public class Test_EagerCache_RequestFullUpdate {
         // Assert that we've only gotten one extra update total for each cache (initial + requested full update)
         Assert.assertEquals(2, serversClients.cacheClient1_updateCount.get());
         Assert.assertEquals(2, serversClients.cacheClient2_updateCount.get());
+        // Assert that the last were NOT initial populations
+        Assert.assertFalse(serversClients.cacheClient1_updated[0].isInitialPopulation());
+        Assert.assertFalse(serversClients.cacheClient2_updated[0].isInitialPopulation());
 
         // ---------------------------
         // ## ARRANGE 2:
@@ -172,6 +178,7 @@ public class Test_EagerCache_RequestFullUpdate {
         Assert.assertEquals(15, cacheUpdated.getDataCount());
         Assert.assertTrue(cacheUpdated.getCompressedSize() > 8_000);
         Assert.assertTrue(cacheUpdated.getDecompressedSize() > 25_000);
+        Assert.assertFalse(cacheUpdated.isInitialPopulation());
 
         // NOTE: This check failed once on GHA for Mac OS..? (Run #3544, 2024-11-09 14:56)
         // .. and once more on GHA for Mac OS (Run #3987, 2025-02-12 23:55, of a commit).
