@@ -644,7 +644,7 @@ public interface MatsEagerCacheClient<DATA> {
 
             _cacheMonitor = new CacheMonitor(log, LOG_PREFIX_FOR_CLIENT, dataName);
             _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, false,
-                    BroadcastDto.COMMAND_CLIENT_ADVERTISE, _dataName,
+                    _dataName,
                     _matsFactory.getFactoryConfig().getAppName(),
                     _matsFactory.getFactoryConfig().getNodename(), null);
 
@@ -1216,13 +1216,13 @@ public interface MatsEagerCacheClient<DATA> {
             }
         }
 
-        void _processLambdaForSubscriptionTerminator(ProcessContext<?> ctx, Void state, BroadcastDto msg) {
+        void _processLambdaForSubscriptionTerminator(ProcessContext<?> ctx, Void state, BroadcastDto broadcastDto) {
             // Snoop on messages for keeping track of whom the clients and servers are.
-            _nodeAdvertiser.handleAdvertise(msg);
+            _nodeAdvertiser.handleAdvertise(broadcastDto);
 
             // ?: Check if we're interested in this message - we only care about updates.
-            if (!(BroadcastDto.COMMAND_UPDATE_FULL.equals(msg.command)
-                    || BroadcastDto.COMMAND_UPDATE_PARTIAL.equals(msg.command))) {
+            if (!(BroadcastDto.COMMAND_UPDATE_FULL.equals(broadcastDto.command)
+                    || BroadcastDto.COMMAND_UPDATE_PARTIAL.equals(broadcastDto.command))) {
                 // -> None of my concern
                 return;
             }
@@ -1231,7 +1231,7 @@ public interface MatsEagerCacheClient<DATA> {
             if ((_cacheClientLifecycle != CacheClientLifecycle.RUNNING)
                     && (_cacheClientLifecycle != CacheClientLifecycle.STARTING_AWAITING_INITIAL)) {
                 // -> We're not running or waiting for initial population, so we don't process the update.
-                _cacheMonitor.log(INFO, MonitorCategory.RECEIVED_UPDATE, "Got update [" + msg.command
+                _cacheMonitor.log(INFO, MonitorCategory.RECEIVED_UPDATE, "Got update [" + broadcastDto.command
                         + "] from server, but we're not RUNNING or STARTING_AWAITING_INITIAL, so we don't process it.");
                 return;
             }
@@ -1246,7 +1246,7 @@ public interface MatsEagerCacheClient<DATA> {
              * MatsTrace and byte arrays) in the Runnable, as that would prevent the JMS Message from being GC'ed. We
              * only capture the message DTO and the payload.
              */
-            _sendUpdateToExecutor_EnsureWhatIsCaptured(msg, payload);
+            _sendUpdateToExecutor_EnsureWhatIsCaptured(broadcastDto, payload);
         }
 
         private void _sendUpdateToExecutor_EnsureWhatIsCaptured(BroadcastDto msg, byte[] payload) {

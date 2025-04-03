@@ -844,7 +844,7 @@ public interface MatsEagerCacheServer {
             _cacheMonitor = new CacheMonitor(log, LOG_PREFIX_FOR_SERVER, dataName);
             // Create the NodeAdvertiser, but do not start it.
             _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, true,
-                    BroadcastDto.COMMAND_SERVER_ADVERTISE, _dataName, _appName, _nodename, () -> {
+                    _dataName, _appName, _nodename, () -> {
                         _waitForReceiving(30_000);
                     });
             // Create the PeriodicUpdate, but do not start it.
@@ -1655,7 +1655,6 @@ public interface MatsEagerCacheServer {
             private final CacheMonitor _cacheMonitor;
             private final boolean _server;
             private final String _serverOrClassName;
-            private final String _command;
             private final String _dataName;
             private final String _appName;
             private final String _nodename;
@@ -1669,14 +1668,13 @@ public interface MatsEagerCacheServer {
             private final AtomicInteger _advertiseCounter = new AtomicInteger(getNextTicks());
             private final Runnable _waitBeforeStart;
 
-            NodeAdvertiser(MatsFactory matsFactory, CacheMonitor cacheMonitor, boolean server, String command,
+            NodeAdvertiser(MatsFactory matsFactory, CacheMonitor cacheMonitor, boolean server,
                     String dataName, String appName, String nodename, Runnable waitBeforeStart) {
                 _matsFactory = matsFactory;
                 _cacheMonitor = cacheMonitor;
                 _server = server;
                 _serverOrClassName = server ? MatsEagerCacheServer.class.getSimpleName()
                         : MatsEagerCacheClient.class.getSimpleName();
-                _command = command;
                 _dataName = dataName;
                 _appName = appName;
                 _nodename = nodename;
@@ -1704,7 +1702,8 @@ public interface MatsEagerCacheServer {
                             if (_waitBeforeStart != null) _waitBeforeStart.run();
                             // Advertise that we just booted (will clear AppsAndNodes map on clients and servers)
                             boolean clear = _server && clearAppsNodes;
-                            doAdvertise(clear, "Initial advertisement" + (_server ? "; clearAppsNodes=" + clear : ""));
+                            doAdvertise(clear, false,
+                                    "Initial advertisement" + (_server ? "; clearAppsNodes=" + clear : ""));
                             clearAppsNodes = false;
 
                             // Going into periodic advertisement loop
@@ -1728,7 +1727,7 @@ public interface MatsEagerCacheServer {
                                 else if (hour == 4 && minute == 5) {
                                     // -> Yes, it is 04:05, so send an update.
                                     // (The other nodes should have cleared their maps at 04:00 too).
-                                    doAdvertise(false, "04:05: Sending update after clear.");
+                                    doAdvertise(false, false, "04:05: Sending update after clear.");
                                     // Sleep 90 seconds to not hit 04:05 again.
                                     Thread.sleep(90_000);
                                     // Reset countdown
@@ -1741,7 +1740,7 @@ public interface MatsEagerCacheServer {
                                     if (ticks <= 0) {
                                         // -> Yes, it is time to advertise.
                                         // Send the advertisement
-                                        doAdvertise(false, "Periodic AppAndNode advertisement.");
+                                        doAdvertise(false, false, "Periodic AppAndNode advertisement.");
                                         // Reset countdown
                                         _advertiseCounter.set(getNextTicks());
                                     }
@@ -1782,6 +1781,8 @@ public interface MatsEagerCacheServer {
                 _running = false;
                 _thread.interrupt();
                 _thread = null;
+                doAdvertise(false, true, "Stopping NodeAdvertiser,"
+                        + " Sending 'Going Away' Advertisement.");
             }
 
             boolean isRunning() {
@@ -1813,18 +1814,37 @@ public interface MatsEagerCacheServer {
             }
 
             void handleAdvertise(BroadcastDto broadcastDto) {
-                // ?: Is this a periodic advertisement from clients?
+                // ?: Is this a Node Advertisement from clients?
                 // (This is the ONLY type of Broadcast message sent by clients!)
                 if (BroadcastDto.COMMAND_CLIENT_ADVERTISE.equals(broadcastDto.command)) {
-                    // -> Yes, so then it is a client app and nodename.
-                    _addAppAndNodename(_clientsAppNamesToNodenames,
-                            broadcastDto.sentAppName, broadcastDto.sentNodename);
+                    // -> Yes, it is a (periodic) advertisement from client, so then it is a Client app and nodename.
+                    // ?: "Going away" advertisement?
+                    if (broadcastDto.goingAway) {
+                        // -> Yes, it is a "we're going down" message, so delete client node.
+                        _removeAppAndNodename(_clientsAppNamesToNodenames,
+                                broadcastDto.sentAppName, broadcastDto.sentNodename);
+                    }
+                    else {
+                        // -> No, it is a "here we are" message, so add client node.
+                        _addAppAndNodename(_clientsAppNamesToNodenames,
+                                broadcastDto.sentAppName, broadcastDto.sentNodename);
+                    }
                 }
                 else {
-                    // -> No, not client - so then it is a server app and nodename, for any type of message.
+                    // -> No, not from client - so then it is a broadcast from a Server, with Server app and nodename.
+                    // (for any type of message).
                     // Update the timestamp
                     _lastServerSeenTimestamp = System.currentTimeMillis();
-                    // ?: Should we clear the maps? (Happens when servers start)
+
+                    // ?: Is this an Advertisement from server node that it is 'going away'?
+                    if (broadcastDto.goingAway) {
+                        // -> Yes, that server node is going away, so delete it from the maps.
+                        _removeAppAndNodename(_serversAppNamesToNodenames,
+                                broadcastDto.sentAppName, broadcastDto.sentNodename);
+                        return;
+                    }
+
+                    // ?: Should we clear the maps? (Happens when servers boot)
                     if (broadcastDto.clearAppsNodes) {
                         // -> Yes, clear the maps (all nodes will do this)
                         _serversAppNamesToNodenames.clear();
@@ -1835,19 +1855,23 @@ public interface MatsEagerCacheServer {
                         // (servers, on different apps) with the same dataname as soon as possible. The idea is that
                         // all of them will honor this contract, and immediately send their advertisement, and then
                         // we all will see each other ASAP, and the healthcheck can screech.
+                        // ?: Are WE a server? (The other question is from where the broadcast came from!)
                         if (_server) {
-                            doAdvertise(false, "Server advertisement after clearAppsNodes=true from"
-                                    + " sibling '" + broadcastDto.sentAppName + "' @ '" + broadcastDto.sentNodename
-                                    + "'.");
+                            // -> Yes, we're a server!
+                            // Immediately send an advertisement to let the other servers know that we are here.
+                            doAdvertise(false, false, "Server advertisement after"
+                                    + " 'clearAppsNodes=true' from sibling '" + broadcastDto.sentAppName
+                                    + "' @ '" + broadcastDto.sentNodename + "'.");
+
                             // Hack to ensure that we won't be caught with the problem where there is no guarantee of
                             // ordering between messages sent from different producers, and thus one server might get
                             // the clearAppsNodes=true message, that I react to here, after my advertisement!
                             Thread extraAdvertise = new Thread(() -> {
                                 try {
                                     Thread.sleep(25);
-                                    doAdvertise(false, "");
+                                    doAdvertise(false, false, "");
                                     Thread.sleep(200);
-                                    doAdvertise(false, "");
+                                    doAdvertise(false, false, "");
                                 }
                                 catch (Throwable e) {
                                     /* no-op */
@@ -1856,14 +1880,13 @@ public interface MatsEagerCacheServer {
                             extraAdvertise.setDaemon(true);
                             extraAdvertise.start();
                         }
-
                     }
                     _addAppAndNodename(_serversAppNamesToNodenames,
                             broadcastDto.sentAppName, broadcastDto.sentNodename);
                 }
             }
 
-            private void doAdvertise(boolean clearAppsNodes, String logText) {
+            private void doAdvertise(boolean clearAppsNodes, boolean goingAway, String logText) {
                 if (!"".equals(logText)) {
                     _cacheMonitor.log(DEBUG, MonitorCategory.ADVERTISE_APP_AND_NODE, "Advertise: " + logText
                             + "  I am: '" + _dataName + "' @ '" + _appName + "' @ '" + _nodename + "'.");
@@ -1875,7 +1898,10 @@ public interface MatsEagerCacheServer {
                         .from(_serverOrClassName + "." + _dataName + ".AdvertiseAppAndNode")
                         .to(_getBroadcastTopic(_dataName))
                         .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
-                        .publish(new AdvertiseBroadcastDto(_command, _appName, _nodename, clearAppsNodes)));
+                        .publish(new AdvertiseBroadcastDto(_server
+                                ? BroadcastDto.COMMAND_SERVER_ADVERTISE
+                                : BroadcastDto.COMMAND_CLIENT_ADVERTISE,
+                                _appName, _nodename, clearAppsNodes, goingAway)));
             }
         }
 
@@ -1950,9 +1976,9 @@ public interface MatsEagerCacheServer {
                     manual ? "Manual" : "Boot");
         }
 
-        static void _addAppAndNodename(Map<String, Set<String>> mapToAdd, String appName, String nodename) {
-            synchronized (mapToAdd) {
-                Set<String> nodes = mapToAdd.get(appName);
+        static void _addAppAndNodename(Map<String, Set<String>> mapToAddTo, String appName, String nodename) {
+            synchronized (mapToAddTo) {
+                Set<String> nodes = mapToAddTo.get(appName);
                 // ?: Is the nodename already in the set?
                 if (nodes != null && nodes.contains(nodename)) {
                     // -> Yes, it is already in the set, so we're done.
@@ -1961,9 +1987,25 @@ public interface MatsEagerCacheServer {
                 // E-> No, it is not in the set, so we add it.
                 if (nodes == null) {
                     nodes = new TreeSet<>();
-                    mapToAdd.put(appName, nodes);
+                    mapToAddTo.put(appName, nodes);
                 }
                 nodes.add(nodename);
+            }
+        }
+
+        static void _removeAppAndNodename(Map<String, Set<String>> mapToRemoveFrom, String appName, String nodename) {
+            synchronized (mapToRemoveFrom) {
+                Set<String> nodes = mapToRemoveFrom.get(appName);
+                // ?: Do we have a Set for this appName? (Should have!)
+                if (nodes != null) {
+                    // -> Yes, so remove it from this set
+                    nodes.remove(nodename);
+                    // ?: Is the Set now empty?
+                    if (nodes.isEmpty()) {
+                        // -> Yes, set empty, remove it from the map.
+                        mapToRemoveFrom.remove(appName);
+                    }
+                }
             }
         }
 
@@ -2611,17 +2653,19 @@ public interface MatsEagerCacheServer {
             String sentAppName;
             String sentNodename;
             boolean clearAppsNodes;
+            boolean goingAway;
 
             public AdvertiseBroadcastDto() {
                 // No-args constructor for Jackson
             }
 
             public AdvertiseBroadcastDto(String command, String sendingAppName, String sendingNodename,
-                    boolean clearAppsNodes) {
+                    boolean clearAppsNodes, boolean goingAway) {
                 this.command = command;
                 this.sentAppName = sendingAppName;
                 this.sentNodename = sendingNodename;
                 this.clearAppsNodes = clearAppsNodes;
+                this.goingAway = goingAway;
             }
         }
 
@@ -2657,7 +2701,10 @@ public interface MatsEagerCacheServer {
             String sentNodename;
             long sentTimestamp;
             long sentNanoTime;
-            boolean clearAppsNodes; // Used for the "Advertise" broadcasts
+
+            // ===== For "advertise" broadcasts
+            boolean clearAppsNodes;
+            boolean goingAway;
 
             // ===== For "chained" commands
             String originalCommand;
