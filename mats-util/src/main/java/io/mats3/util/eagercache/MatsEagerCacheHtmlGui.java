@@ -703,8 +703,8 @@ public interface MatsEagerCacheHtmlGui {
                     out.append("<span style='font-size:80%'>").append(entry.getValue().toString())
                             .append("</span><br>\n");
                 }
-                out.append("<span style='font-size:80%'>(Reset when Cache Server nodes start, and at 04:00 - updated within 5 minutes after,"
-                        + " and every hour)</span><br>\n");
+                out.append("<span style='font-size:80%'><i>(Reset when Cache Server nodes start. Nodes advertise every"
+                        + " ~1 hour, scavenge ~1.2 hrs.)</i></span><br>\n");
             }
             out.append("</div>\n");
             out.append("</div>\n");

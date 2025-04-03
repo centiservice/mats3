@@ -31,13 +31,14 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -71,6 +72,7 @@ import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.TraceId;
 import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
+import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.NodeAdvertiser.NodeAndTimestamp;
 
 /**
  * The server side of the Mats Eager Cache system - sitting on the "data owner" side. <b>All caches within a Mats3
@@ -1661,9 +1663,9 @@ public interface MatsEagerCacheServer {
 
             // SYNC on the Maps when reading or writing!
             // Should ONLY contain one server AppName!! If it contains more, HealthChecks should fail.
-            private final Map<String, Set<String>> _serversAppNamesToNodenames = new HashMap<>();
+            private final Map<String, Set<NodeAndTimestamp>> _serversAppNamesToNodenames = new HashMap<>();
             // We might have multiple client Apps, each of them having multiple nodenames.
-            private final Map<String, Set<String>> _clientsAppNamesToNodenames = new HashMap<>();
+            private final Map<String, Set<NodeAndTimestamp>> _clientsAppNamesToNodenames = new HashMap<>();
 
             private final AtomicInteger _advertiseCounter = new AtomicInteger(getNextTicks());
             private final Runnable _waitBeforeStart;
@@ -1681,6 +1683,31 @@ public interface MatsEagerCacheServer {
                 _waitBeforeStart = waitBeforeStart;
             }
 
+            /**
+             * Equals/HashCode is only on nodename
+             */
+            static class NodeAndTimestamp {
+                final String nodename;
+                final long timestamp;
+
+                NodeAndTimestamp(String nodename) {
+                    this.nodename = nodename;
+                    this.timestamp = System.currentTimeMillis();
+                }
+
+                @Override
+                public boolean equals(Object o) {
+                    if (o == null || getClass() != o.getClass()) return false;
+                    NodeAndTimestamp that = (NodeAndTimestamp) o;
+                    return Objects.equals(nodename, that.nodename);
+                }
+
+                @Override
+                public int hashCode() {
+                    return Objects.hashCode(nodename);
+                }
+            }
+
             private volatile Thread _thread;
             private volatile boolean _running;
             private volatile long _lastServerSeenTimestamp;
@@ -1696,57 +1723,32 @@ public interface MatsEagerCacheServer {
 
                     boolean clearAppsNodes = true;
 
+                    // :: Outer, try-catch-all loop, to catch all exceptions and errors.
                     while (_running) {
                         try {
                             // Wait for endpoints to start
                             if (_waitBeforeStart != null) _waitBeforeStart.run();
                             // Advertise that we just booted (will clear AppsAndNodes map on clients and servers)
                             boolean clear = _server && clearAppsNodes;
-                            doAdvertise(clear, false,
-                                    "Initial advertisement" + (_server ? "; clearAppsNodes=" + clear : ""));
+                            doAdvertise(clear, false, "Initial advertisement"
+                                    + (_server ? "; clearAppsNodes=" + clear : "") + ".");
                             clearAppsNodes = false;
 
                             // Going into periodic advertisement loop
                             while (_running) {
-                                Calendar cal = Calendar.getInstance();
-                                int hour = cal.get(Calendar.HOUR_OF_DAY);
-                                int minute = cal.get(Calendar.MINUTE);
-                                // ?: Is it 04:00?
-                                if (hour == 4 && minute == 0) {
-                                    // -> Yes, it is 04:00, so clear the maps.
-                                    _serversAppNamesToNodenames.clear();
-                                    _clientsAppNamesToNodenames.clear();
-                                    _cacheMonitor.log(INFO, MonitorCategory.ADVERTISE_APP_AND_NODE,
-                                            "04:00: Clearing AppsAndNodes maps.");
-                                    // Sleep 90 seconds to not hit 04:00 again.
-                                    Thread.sleep(90_000);
+                                int ticks = _advertiseCounter.decrementAndGet();
+                                // ?: Is it time to advertise?
+                                if (ticks <= 0) {
+                                    // -> Yes, it is time to advertise.
+                                    // Send the advertisement
+                                    doAdvertise(false, false, "Periodic AppAndNode advertisement.");
                                     // Reset countdown
                                     _advertiseCounter.set(getNextTicks());
-                                }
-                                // ?: Is it 04:05?
-                                else if (hour == 4 && minute == 5) {
-                                    // -> Yes, it is 04:05, so send an update.
-                                    // (The other nodes should have cleared their maps at 04:00 too).
-                                    doAdvertise(false, false, "04:05: Sending update after clear.");
-                                    // Sleep 90 seconds to not hit 04:05 again.
-                                    Thread.sleep(90_000);
-                                    // Reset countdown
-                                    _advertiseCounter.set(getNextTicks());
-                                }
-                                else {
-                                    // -> No, it is not 04:00 or 04:05, so count down the advertise tick.
-                                    int ticks = _advertiseCounter.decrementAndGet();
-                                    // ?: Is it time to advertise?
-                                    if (ticks <= 0) {
-                                        // -> Yes, it is time to advertise.
-                                        // Send the advertisement
-                                        doAdvertise(false, false, "Periodic AppAndNode advertisement.");
-                                        // Reset countdown
-                                        _advertiseCounter.set(getNextTicks());
-                                    }
                                 }
                                 // Sleep the tick time.
                                 Thread.sleep(ADVERTISE_INTERVAL_TICK_MILLIS);
+                                _scavengeAppAndNodenames(_clientsAppNamesToNodenames);
+                                _scavengeAppAndNodenames(_serversAppNamesToNodenames);
                             }
                         }
                         catch (InterruptedException e) {
@@ -1793,7 +1795,9 @@ public interface MatsEagerCacheServer {
                 synchronized (_serversAppNamesToNodenames) {
                     // Return copy, with copy of sets.
                     return _serversAppNamesToNodenames.entrySet().stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey, e -> new TreeSet<>(e.getValue())));
+                            .collect(Collectors.toMap(e -> e.getKey(),
+                                    e -> new TreeSet<>(e.getValue().stream()
+                                            .map(nt -> nt.nodename).collect(Collectors.toSet()))));
                 }
             }
 
@@ -1801,7 +1805,9 @@ public interface MatsEagerCacheServer {
                 synchronized (_clientsAppNamesToNodenames) {
                     // Return copy, with copy of sets.
                     return _clientsAppNamesToNodenames.entrySet().stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey, e -> new TreeSet<>(e.getValue())));
+                            .collect(Collectors.toMap(e -> e.getKey(),
+                                    e -> new TreeSet<>(e.getValue().stream()
+                                            .map(nt -> nt.nodename).collect(Collectors.toSet()))));
                 }
             }
 
@@ -1820,19 +1826,19 @@ public interface MatsEagerCacheServer {
                     // -> Yes, it is a (periodic) advertisement from client, so then it is a Client app and nodename.
                     // ?: "Going away" advertisement?
                     if (broadcastDto.goingAway) {
-                        // -> Yes, it is a "we're going down" message, so delete client node.
+                        // -> Yes, this is a "we're going down now!" message, so remove the client node.
                         _removeAppAndNodename(_clientsAppNamesToNodenames,
                                 broadcastDto.sentAppName, broadcastDto.sentNodename);
                     }
                     else {
-                        // -> No, it is a "here we are" message, so add client node.
+                        // -> No, this is a "here we are!" message, so add the client node.
                         _addAppAndNodename(_clientsAppNamesToNodenames,
                                 broadcastDto.sentAppName, broadcastDto.sentNodename);
                     }
                 }
                 else {
-                    // -> No, not from client - so then it is a broadcast from a Server, with Server app and nodename.
-                    // (for any type of message).
+                    // -> No, this is a broadcast from a Server, with Server app and nodename - for any type of message.
+
                     // Update the timestamp
                     _lastServerSeenTimestamp = System.currentTimeMillis();
 
@@ -1851,10 +1857,20 @@ public interface MatsEagerCacheServer {
                         _clientsAppNamesToNodenames.clear();
                         // Now ensure that we will advertise soon (a bit of coalescing logic here!)
                         _advertiseCounter.set(8 + ThreadLocalRandom.current().nextInt(4));
-                        // But if we're server, also immediately advertise - this is to try to catch multiple caches
-                        // (servers, on different apps) with the same dataname as soon as possible. The idea is that
-                        // all of them will honor this contract, and immediately send their advertisement, and then
-                        // we all will see each other ASAP, and the healthcheck can screech.
+
+                        /*
+                         * But if we're server, also immediately advertise - this is to try to catch multiple cache
+                         * servers, on different apps using the same DataName as soon as possible (It makes zero sense
+                         * that two different apps should be serving the same cache data). The idea is that all of them
+                         * using the same DataName will honor this contract, and immediately send their advertisement,
+                         * and then we all will see each other ASAP, and the healthcheck can screech when it sees
+                         * multiple appNames using the same DataName. (The rationale for not including AppName in the
+                         * DataName is that it is conceivable that one might want to refactor the system, so that a
+                         * specific DataName now would be served by a different app/service. It would then be annoying
+                         * to have to change the combined AppName+DataName on all services with a cache client
+                         * connecting to this cache service, just because the app name changed.)
+                         */
+
                         // ?: Are WE a server? (The other question is from where the broadcast came from!)
                         if (_server) {
                             // -> Yes, we're a server!
@@ -1902,6 +1918,44 @@ public interface MatsEagerCacheServer {
                                 ? BroadcastDto.COMMAND_SERVER_ADVERTISE
                                 : BroadcastDto.COMMAND_CLIENT_ADVERTISE,
                                 _appName, _nodename, clearAppsNodes, goingAway)));
+            }
+        }
+
+        static void _addAppAndNodename(Map<String, Set<NodeAndTimestamp>> mapToAddTo, String appName, String nodename) {
+            synchronized (mapToAddTo) {
+                Set<NodeAndTimestamp> nodes = mapToAddTo.computeIfAbsent(appName, k -> new HashSet<>());
+                // NodeAndTimestamp has equals/hashcode nodename only.
+                NodeAndTimestamp newNT = new NodeAndTimestamp(nodename);
+                nodes.remove(newNT); // Ensure no duplicates based on nodename
+                nodes.add(newNT); // Add fresh timestamped entry
+            }
+        }
+
+        static void _removeAppAndNodename(Map<String, Set<NodeAndTimestamp>> mapToRemoveFrom, String appName,
+                String nodename) {
+            synchronized (mapToRemoveFrom) {
+                Set<NodeAndTimestamp> nodes = mapToRemoveFrom.get(appName);
+                // ?: Do we have a Set for this appName? (Should have!)
+                if (nodes != null) {
+                    // -> Yes, so remove the nodename from the set.
+                    nodes.remove(new NodeAndTimestamp(nodename)); // NodeAndTimestamp has equals/hashcode nodename only.
+                    // ?: Is the Set now empty?
+                    if (nodes.isEmpty()) {
+                        // -> Yes, set empty, remove it from the map.
+                        mapToRemoveFrom.remove(appName);
+                    }
+                }
+            }
+        }
+
+        static void _scavengeAppAndNodenames(Map<String, Set<NodeAndTimestamp>> mapToScavenge) {
+            synchronized (mapToScavenge) {
+                // Remove nodes from sets that are older than 1.5 * ADVERTISEMENT_INTERVAL_MINUTES
+                long threshold = System.currentTimeMillis()
+                        - (long) (ADVERTISEMENT_INTERVAL_MINUTES * 1.5 * 60 * 1_000);
+                mapToScavenge.values().forEach(nodes -> nodes.removeIf(nt -> nt.timestamp < threshold));
+                // Remove empty sets from map.
+                mapToScavenge.entrySet().removeIf(e -> e.getValue().isEmpty());
             }
         }
 
@@ -1974,39 +2028,6 @@ public interface MatsEagerCacheServer {
             _broadcastInitiateFullUpdate(broadcast, "Client",
                     nodename,
                     manual ? "Manual" : "Boot");
-        }
-
-        static void _addAppAndNodename(Map<String, Set<String>> mapToAddTo, String appName, String nodename) {
-            synchronized (mapToAddTo) {
-                Set<String> nodes = mapToAddTo.get(appName);
-                // ?: Is the nodename already in the set?
-                if (nodes != null && nodes.contains(nodename)) {
-                    // -> Yes, it is already in the set, so we're done.
-                    return;
-                }
-                // E-> No, it is not in the set, so we add it.
-                if (nodes == null) {
-                    nodes = new TreeSet<>();
-                    mapToAddTo.put(appName, nodes);
-                }
-                nodes.add(nodename);
-            }
-        }
-
-        static void _removeAppAndNodename(Map<String, Set<String>> mapToRemoveFrom, String appName, String nodename) {
-            synchronized (mapToRemoveFrom) {
-                Set<String> nodes = mapToRemoveFrom.get(appName);
-                // ?: Do we have a Set for this appName? (Should have!)
-                if (nodes != null) {
-                    // -> Yes, so remove it from this set
-                    nodes.remove(nodename);
-                    // ?: Is the Set now empty?
-                    if (nodes.isEmpty()) {
-                        // -> Yes, set empty, remove it from the map.
-                        mapToRemoveFrom.remove(appName);
-                    }
-                }
-            }
         }
 
         private void _broadcastInitiateFullUpdate(BroadcastDto broadcast, String initiateSide,
