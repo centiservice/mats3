@@ -1,4 +1,4 @@
-#MATS^3 and JUnit4
+# MATS^3 and JUnit4
 
 To simplify testing of MATS related code one can utilize the following tools which provides a simple test harness to
 execute unit tests as well as test where one would have a spring context available. 
@@ -21,7 +21,7 @@ a Spring environment where you typically set up the MatsFactory in the Spring co
 features from {@link Rule_MatsGeneric}. This enables testing of combined JMS and JDBC scenarios - in particularly
 used for testing of the Mats library itself (check that commits and rollbacks work as expected).
 
-###With spring
+### With spring
 Rule_MatsEndpoint can also be utilized for tests utilizing a spring context where there is a MatsFactory created and put
 into the context. This can be useful when testing the application integration internally and mocking the external 
 endpoint dependencies.
@@ -56,11 +56,11 @@ each test scenario (i.e. set their ProcessLambdas at the start of the @Test meth
 tests scenarios in different @Test methods. When the test class is finished, the Rule_Mats will clean up everything,
 and the next test class will start afresh.
 
-#Examples
+# Examples
 
 Following is a few simple examples of how one could utilize the aforementioned tools.
 
-####Rule_Mats
+#### Rule_Mats
 
 ```java
 public class U_RuleMatsTest {
@@ -95,7 +95,7 @@ public class U_RuleMatsTest {
 }
 ```
 
-####Rule_MatsGeneric
+#### Rule_MatsGeneric
 
 Similarly to the usage of Rule_Mats, Rule_MatsGeneric can be utilized as such:
 ```java
@@ -136,7 +136,7 @@ public class U_RuleMatsGenericTest {
 }
 ```
 
-####Rule_MatsEndpoint
+#### Rule_MatsEndpoint
 
 Rule_MatsEndpoint is a great utility when testing multi staged endpoints, both those which communicate with other
 endpoints internally and those which communicate with external endpoints.

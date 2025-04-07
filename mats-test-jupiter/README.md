@@ -1,4 +1,4 @@
-#MATS^3 and Jupiter(JUnit5)
+# MATS^3 and Jupiter(JUnit5)
 
 Introduction context..
 
@@ -19,10 +19,10 @@ If you've read the documentation of "Mats and JUnit4", then you might have notic
 MatsFactory after each test. For Jupiter, this is **NOT** needed as this clean up is baked into all of
 the extensions provided by this package.
 
-#Examples
+## Examples
 Following is a few simple examples of how one could utilize the aforementioned tools.
 
-####Extension_Mats
+#### Extension_Mats
 
 ```java
 public class J_ExtensionMatsTest {
@@ -58,7 +58,7 @@ public class J_ExtensionMatsTest {
     }
 }
 ```
-####Extension_MatsGeneric
+#### Extension_MatsGeneric
 Similarly to the usage of Extension_Mats, Extension_MatsGeneric can be utilized as such:
 ```java
 public class J_ExtensionMatsGenericTest {
@@ -100,7 +100,7 @@ public class J_ExtensionMatsGenericTest {
 }
 ```
 
-####Extension_MatsEndpoint
+#### Extension_MatsEndpoint
 Extension_MatsEndpoint is a great utility when testing multi staged endpoints, both those which communicate with other
 endpoints internally and those which communicate with external endpoints.
 
@@ -192,7 +192,7 @@ public class J_ExtensionMatsEndpointComplexTest extends J_AbstractTestBase {
 }
 ```
 
-###With Spring
+### With Spring
 Extension_MatsEndpoint can also be utilized for tests utilizing a spring context where there is a MatsFactory created and put
 into the context. This can be useful when testing the application integration internally and mocking the external 
 endpoint dependencies.
