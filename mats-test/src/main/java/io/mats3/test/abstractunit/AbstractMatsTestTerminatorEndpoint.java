@@ -16,37 +16,41 @@
 
 package io.mats3.test.abstractunit;
 
-import io.mats3.MatsEndpoint.ProcessSingleLambda;
+import io.mats3.MatsEndpoint.ProcessTerminatorLambda;
 
 /**
- * Common base class which consolidates the common logic utilized by both Rule_MatsEndpoint and Extension_MatsEndpoint.
+ * Common base class which consolidates the common logic utilized by:
+ * <ul>
+ *     <li>Rule_MatsTerminatorEndpoint</li>
+ *     <li>Rule_MatsTerminatorStateEndpoint</li>
+ *     <li>Extension_MatsTerminatorEndpoint</li>
+ *     <li>Extension_MatsTerminatorStateEndpoint</li>
+ * </ul>
+ * Found in their respective packages <i>Rule_ (junit)</i> and <i>Extension_ (jupiter)</i>.
  * <ul>
  * <li>mats-test-junit</li>
  * <li>mats-test-jupiter</li>
  * </ul>
- * Difference between this and {@link AbstractMatsTestTerminatorEndpoint} is related to the
- * {@link #setProcessLambda} method, which in the case of this class accepts a {@link ProcessSingleLambda}.
+ * Difference between this and {@link AbstractMatsTestEndpoint} is related to the
+ * {@link #setProcessLambda} method, which in the case of this class accepts a {@link ProcessTerminatorLambda}.
  *
  * @author Kevin Mc Tiernan, 2025-04-01, kevin.mc.tiernan@storebrand.no
- * @see AbstractMatsTestTerminatorEndpoint
+ * @see AbstractMatsTestEndpoint
  */
-public abstract class AbstractMatsTestEndpoint<R, S, I> extends AbstractMatsTestEndpointBase<R, S, I> {
+public abstract class AbstractMatsTestTerminatorEndpoint<S, I> extends AbstractMatsTestEndpointBase<Void, S, I> {
 
     /**
      * Base constructor for {@link AbstractMatsTestEndpointBase}, takes all values needed to set up the test endpoint.
      *
      * @param endpointId
      *         Identifier of the endpoint being created.
-     * @param replyMsgClass
-     *         Class of the reply message.
      * @param stateClass
-     *         Class of the state within the endpoint created.
+     *         Class of the state object.
      * @param incomingMsgClass
      *         Class of the incoming message. (Request)
      */
-    protected AbstractMatsTestEndpoint(String endpointId, Class<R> replyMsgClass, Class<S> stateClass,
-            Class<I> incomingMsgClass) {
-        super(endpointId, replyMsgClass, stateClass, incomingMsgClass);
+    protected AbstractMatsTestTerminatorEndpoint(String endpointId, Class<S> stateClass, Class<I> incomingMsgClass) {
+        super(endpointId, Void.class, stateClass, incomingMsgClass);
     }
 
     /**
@@ -57,5 +61,5 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> extends AbstractMatsTest
      * @param processLambda
      *            which the endpoint should execute on an incoming request.
      */
-    public abstract AbstractMatsTestEndpointBase<R, S, I> setProcessLambda(ProcessSingleLambda<R, I> processLambda);
+    public abstract AbstractMatsTestTerminatorEndpoint<S, I> setProcessLambda(ProcessTerminatorLambda<S, I> processLambda);
 }

@@ -25,6 +25,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
+import io.mats3.test.abstractunit.AbstractMatsTestEndpointBase.Result;
 import io.mats3.test.junit.Rule_Mats;
 import io.mats3.test.junit.Rule_MatsEndpoint;
 import io.mats3.util.MatsFuturizer.Reply;
@@ -56,7 +57,7 @@ public class U_RuleMatsEndpointTest {
 
         // NOTE: Each @Test method is invoked in a new instance of the test class, thus the endpoint is reset.
 
-        // :: Send a message to the endpoint - This will timeout, thus wrap it in a try-catch.
+        // :: Send a message to the endpoint - This will time out, thus wrap it in a try-catch.
         try {
             MATS.getMatsFuturizer().futurizeNonessential(getClass().getSimpleName() + "|noProcessorDefined",
                     getClass().getSimpleName(), HELLO_ENDPOINT_ID, String.class, "World")
@@ -73,7 +74,12 @@ public class U_RuleMatsEndpointTest {
 
         // :: Assert that the endpoint actually got the message
         String incomingMsgToTheEndpoint = _helloEndpoint.waitForRequests(1).get(0);
+        Result<Void, String> result = _helloEndpoint.waitForMessages(1).get(0);
+        // Assert that the value of the message is the same as was sent.
         Assert.assertEquals("World", incomingMsgToTheEndpoint);
+        // Assert that using the result via waitForMessage(s) produces the same as waitForRequest(s).
+        Assert.assertSame(incomingMsgToTheEndpoint, result.getData());
+        Assert.assertNull(result.getState());
 
         // :: Assert that we got the TimeoutException we expected
         Assert.assertNotNull(throwExpected);
