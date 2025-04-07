@@ -40,8 +40,10 @@ import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.test.SpringInjectRulesAndExtensions;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
+import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.test.junit.Rule_MatsEndpoint;
+import io.mats3.test.junit.Rule_MatsEndpoints;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
@@ -131,6 +133,13 @@ public class U_RuleMatsEndpoint_SpringWiringTest {
             .create("HelloEndpoint", String.class, String.class)
             .setProcessLambda((ctx, msg) -> "Hello " + msg);
 
+    @Rule
+    public Rule_MatsEndpoints.Terminator<String> _terminator =
+            Rule_MatsEndpoints.createTerminator("MockTerminator", String.class);
+    @Rule
+    public Rule_MatsEndpoints.Endpoint<String, String> _endpoint =
+            Rule_MatsEndpoints.createEndpoint("MockEndpoint", String.class, String.class);
+
     @Inject
     private MatsTestLatch _matsTestLatch;
 
@@ -178,5 +187,43 @@ public class U_RuleMatsEndpoint_SpringWiringTest {
         // :: Assert
         // Assert that the Terminator got the expected reply from "Hello"-endpoint.
         Assert.assertEquals("Hello Beautiful World!", result.getData());
+    }
+
+    /**
+     * Primarily testing that the autowiring/injection of {@link MatsFactory} functions properly.
+     */
+    @Test
+    public void verifyAutowiring_EndpointsTerminator() {
+        // :: Setup
+        String world = "World";
+
+        // :: Act
+        _matsInitiator.initiateUnchecked(init -> init.traceId("Test")
+                .from(getClass().getSimpleName())
+                .to("MockTerminator")
+                .send(world));
+
+        // Verify
+        AbstractMatsTestEndpoint.Result<Void, String> result = _terminator.waitForResult();
+        Assert.assertEquals(world, result.getData());
+    }
+
+    @Test
+    public void verifyAutowiring_EndpointsEndpoint() throws ExecutionException, InterruptedException, TimeoutException {
+        // :: Setup
+        String world = "World";
+        _endpoint.setProcessLambda((ctx, msg) -> "Hello " + world);
+
+        // :: Act
+        String result = _matsFuturizer
+                .futurizeNonessential("Test", getClass().getSimpleName(), "MockEndpoint", String.class, world)
+                .thenApply(Reply::get)
+                .get(1, TimeUnit.SECONDS);
+        // :: Verify
+        Assert.assertEquals("Hello " + world, result);
+
+        AbstractMatsTestEndpoint.Result<Void, String> epResult = _endpoint.waitForResult();
+
+        Assert.assertEquals(world, epResult.getData());
     }
 }
