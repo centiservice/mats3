@@ -40,8 +40,11 @@ import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.test.SpringInjectRulesAndExtensions;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
+import io.mats3.test.abstractunit.AbstractMatsTestEndpointBase;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.test.junit.Rule_MatsEndpoint;
+import io.mats3.test.junit.Rule_MatsTerminatorEndpoint;
+import io.mats3.test.junit.Rule_MatsTerminatorStateEndpoint;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
@@ -131,6 +134,20 @@ public class U_RuleMatsEndpoint_SpringWiringTest {
             .create("HelloEndpoint", String.class, String.class)
             .setProcessLambda((ctx, msg) -> "Hello " + msg);
 
+    /**
+     * Only here to verify Spring autowiring.
+     */
+    @Rule
+    public Rule_MatsTerminatorEndpoint<String> _terminatorSpringWiring = Rule_MatsTerminatorEndpoint
+            .create("TerminatorWiring", String.class);
+
+    /**
+     * Only here to verify Spring autowiring.
+     */
+    @Rule
+    public Rule_MatsTerminatorStateEndpoint<String, String> _terminatorStateSpringWiring =
+            Rule_MatsTerminatorStateEndpoint.create("TerminatorStateWiring", String.class, String.class);
+
     @Inject
     private MatsTestLatch _matsTestLatch;
 
@@ -178,5 +195,38 @@ public class U_RuleMatsEndpoint_SpringWiringTest {
         // :: Assert
         // Assert that the Terminator got the expected reply from "Hello"-endpoint.
         Assert.assertEquals("Hello Beautiful World!", result.getData());
+    }
+
+    @Test
+    public void testAutowiringOfTerminatorEndpoint() {
+        // :: Act
+        _matsInitiator.initiateUnchecked(init -> init
+                .traceId("Test_Terminator")
+                .from(getClass().getSimpleName())
+                .to("TerminatorWiring")
+                .send("Terminal"));
+
+        // var used as result conflicts with MatsLatch.Result
+        var result = _terminatorSpringWiring.waitForMessage();
+
+        // :: Assert
+        Assert.assertEquals("Terminal", result.getData());
+    }
+
+    @Test
+    public void testAutowiringOfTerminatorStateEndpoint() {
+        // :: Act
+        _matsInitiator.initiateUnchecked(init -> init
+                .traceId("Test_Terminator")
+                .from(getClass().getSimpleName())
+                .to("TerminatorStateWiring")
+                .send("Terminal", "TerminalState"));
+
+        // var used as result conflicts with MatsLatch.Result
+        var result = _terminatorStateSpringWiring.waitForMessage();
+
+        // :: Assert
+        Assert.assertEquals("Terminal", result.getData());
+        Assert.assertEquals("TerminalState", result.getState());
     }
 }
