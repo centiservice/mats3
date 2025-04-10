@@ -289,6 +289,11 @@ public interface MatsEagerCacheServer {
     double DEFAULT_PERIODIC_FULL_UPDATE_INTERVAL_MINUTES = 111;
 
     /**
+     * The interval between the checks the Ensurer does.
+     */
+    long ENSURER_CHECK_INTERVAL_MILLIS = 60_000; // 1 minute
+
+    /**
      * Create a Mats Eager Cache Server.
      *
      * @param matsFactory
@@ -358,9 +363,9 @@ public interface MatsEagerCacheServer {
     void sendSiblingCommand(String command, String stringData, byte[] binaryData);
 
     /**
-     * Manually initiates a full update of the cache clients, typically used to programmatically propagate a change in
-     * the source data to the cache clients. This is a full update, where the entire source data is serialized and sent
-     * to the clients.
+     * Programmatically initiates a full update of the cache clients, typically used to programmatically propagate a
+     * change in the source data to the cache clients. This is a full update, where the entire source data is serialized
+     * and sent to the clients.
      * <p>
      * It is scheduled to run after a little while, the delay being a function of how soon since the last time a full
      * update was run. If it is a long time ({@link #FAST_RESPONSE_LAST_RECV_THRESHOLD_SECONDS}) since last update was
@@ -379,6 +384,8 @@ public interface MatsEagerCacheServer {
      * The update is asynchronous. However, this method can be invoked with a timeout, which will make the method block
      * until the update has been produced, sent and received back - which means that the clients shall also have gotten
      * the update). If the timeout is &le;0, the method will return immediately,
+     *
+     * @see #initiateManualFullUpdate(int)
      * 
      * @param timeoutMillis
      *            the timeout in milliseconds for the request to complete. If the full production, send and subsequent
@@ -389,6 +396,19 @@ public interface MatsEagerCacheServer {
      *         always be <code>false</code>.
      */
     boolean initiateFullUpdate(int timeoutMillis);
+
+    /**
+     * Same as {@link #initiateFullUpdate(int)}, but meant for GUIs - just to be able to separate the two in logs.
+     *
+     * @param timeoutMillis
+     *            the timeout in milliseconds for the request to complete. If the full production, send and subsequent
+     *            receive is performed within this time, the method will return <code>true</code>, otherwise
+     *            <code>false</code>. If &le;0 is provided, the method will return <code>false</code> immediately, and
+     *            the request will be performed asynchronously.
+     * @return whether the update was successfully produced, sent and received back. If the timeout was &le;0, this will
+     *         always be <code>false</code>.
+     */
+    boolean initiateManualFullUpdate(int timeoutMillis);
 
     /**
      * (Optional functionality) Immediately sends a partial update to all cache clients. This should be invoked if the
@@ -738,11 +758,15 @@ public interface MatsEagerCacheServer {
 
         REQUEST_UPDATE_SERVER_MANUAL,
 
+        REQUEST_UPDATE_SERVER_PROGRAMMATIC,
+
         REQUEST_COALESCE,
 
         REQUEST_SEND_NOW,
 
         UNKNOWN_COMMAND,
+
+        ENSURER,
 
         ENSURE_UPDATE,
 
@@ -827,7 +851,9 @@ public interface MatsEagerCacheServer {
         private final ThreadPoolExecutor _produceAndSendExecutor;
 
         private final NodeAdvertiser _nodeAdvertiser;
-        private final PeriodicUpdate _periodicUpdate;
+        private final PeriodicUpdater _periodicUpdater;
+        private final Ensurer _ensurer;
+
         private final CacheMonitor _cacheMonitor;
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -846,11 +872,11 @@ public interface MatsEagerCacheServer {
             _cacheMonitor = new CacheMonitor(log, LOG_PREFIX_FOR_SERVER, dataName);
             // Create the NodeAdvertiser, but do not start it.
             _nodeAdvertiser = new NodeAdvertiser(_matsFactory, _cacheMonitor, true,
-                    _dataName, _appName, _nodename, () -> {
-                        _waitForReceiving(30_000);
-                    });
+                    _dataName, _appName, _nodename, () -> _waitForReceiving(30_000));
             // Create the PeriodicUpdate, but do not start it.
-            _periodicUpdate = new PeriodicUpdate();
+            _periodicUpdater = new PeriodicUpdater();
+            // Create the Ensurer, but do not start it.
+            _ensurer = new Ensurer();
 
             // :: Jackson JSON ObjectMapper
             ObjectMapper mapper = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper();
@@ -1171,41 +1197,12 @@ public interface MatsEagerCacheServer {
 
         @Override
         public boolean initiateFullUpdate(int timeoutMillis) {
-            _cacheMonitor.log(INFO, MonitorCategory.REQUEST_UPDATE_SERVER_MANUAL,
-                    "cacheServer.initiateFullUpdate! [timeoutMillis:" + timeoutMillis + "]");
-            CountDownLatch updatedLatch = null;
-            if (timeoutMillis > 0) {
-                synchronized (_updateNotificationSync) {
-                    if (_updateNotificationLatch == null) {
-                        _updateNotificationLatch = new CountDownLatch(1);
-                    }
-                    updatedLatch = _updateNotificationLatch;
-                }
-            }
-            // Initiate the full update.
-            _fullUpdateCoord_phase0_InitiateFromServer_Manual();
+            return _initiateFullUpdate_internal(timeoutMillis, true);
+        }
 
-            // ?: Did we set up a latch for waiting for the update to finish?
-            if (updatedLatch == null) {
-                // -> No, we're done.
-                return false;
-            }
-            // E-> Yes, we should wait.
-            try {
-                boolean finished = updatedLatch.await(timeoutMillis, TimeUnit.MILLISECONDS);
-                if (finished) {
-                    return true;
-                }
-                _cacheMonitor.log(INFO, MonitorCategory.REQUEST_UPDATE_SERVER_MANUAL,
-                        "Timed out waiting for full update to finish! [timeoutMillis:" + timeoutMillis + "]");
-                return false;
-            }
-            catch (InterruptedException e) {
-                _cacheMonitor.exception(MonitorCategory.REQUEST_UPDATE_SERVER_MANUAL,
-                        "Got interrupted while waiting for full update to finish! [timeoutMillis:"
-                                + timeoutMillis + "]", e);
-                return false;
-            }
+        @Override
+        public boolean initiateManualFullUpdate(int timeoutMillis) {
+            return _initiateFullUpdate_internal(timeoutMillis, false);
         }
 
         @Override
@@ -1248,8 +1245,9 @@ public interface MatsEagerCacheServer {
 
             // -> Yes, we are RUNNING, so close down as asked.
             try {
-                _periodicUpdate.stop();
+                _periodicUpdater.stop();
                 _nodeAdvertiser.stop();
+                _ensurer.stop();
                 if (_broadcastTerminator != null) {
                     _broadcastTerminator.remove(30_000);
                 }
@@ -1275,6 +1273,53 @@ public interface MatsEagerCacheServer {
         void _setCoalescingDelays(int shortDelay, int longDelay) {
             _shortDelay = shortDelay;
             _longDelay = longDelay;
+        }
+
+        private boolean _initiateFullUpdate_internal(int timeoutMillis, boolean programmatic) {
+            String type = programmatic
+                    ? "initiateFullUpdate_Programmatic"
+                    : "initiateFullUpdate_Manual";
+            MonitorCategory cat = programmatic
+                    ? MonitorCategory.REQUEST_UPDATE_SERVER_PROGRAMMATIC
+                    : MonitorCategory.REQUEST_UPDATE_SERVER_MANUAL;
+            _cacheMonitor.log(INFO, cat, "cacheServer." + type + "! [timeoutMillis:" + timeoutMillis + "]");
+            CountDownLatch updatedLatch = null;
+            if (timeoutMillis > 0) {
+                synchronized (_updateNotificationSync) {
+                    if (_updateNotificationLatch == null) {
+                        _updateNotificationLatch = new CountDownLatch(1);
+                    }
+                    updatedLatch = _updateNotificationLatch;
+                }
+            }
+            // Initiate the full update.
+            if (programmatic) {
+                _fullUpdateCoord_phase0_InitiateFromServer_Programmatic();
+            }
+            else {
+                _fullUpdateCoord_phase0_InitiateFromServer_Manual();
+            }
+
+            // ?: Did we set up a latch for waiting for the update to finish?
+            if (updatedLatch == null) {
+                // -> No, we're done.
+                return false;
+            }
+            // E-> Yes, we should wait.
+            try {
+                boolean finished = updatedLatch.await(timeoutMillis, TimeUnit.MILLISECONDS);
+                if (finished) {
+                    return true;
+                }
+                _cacheMonitor.log(INFO, cat, "Timed out waiting for full update to finish!"
+                        + " [timeoutMillis:" + timeoutMillis + "]");
+                return false;
+            }
+            catch (InterruptedException e) {
+                _cacheMonitor.exception(cat, "Got interrupted while waiting for full update to finish!"
+                        + " [timeoutMillis:" + timeoutMillis + "]", e);
+                return false;
+            }
         }
 
         private void _start_internal(String whatMethod) {
@@ -1320,8 +1365,9 @@ public interface MatsEagerCacheServer {
                         _waitForRunningLatch = null; // fast-path check, and get rid of the CountDownLatch.
 
                         // :: Start periodic update, and the NodeAdvertiser.
-                        _periodicUpdate.start();
+                        _periodicUpdater.start();
                         _nodeAdvertiser.start();
+                        _ensurer.start();
 
                         // We're done - it is possible to get source data.
                         break;
@@ -1403,7 +1449,8 @@ public interface MatsEagerCacheServer {
                                 || BroadcastDto.COMMAND_REQUEST_CLIENT_MANUAL.equals(broadcastDto.command)
                                 || BroadcastDto.COMMAND_REQUEST_SERVER_MANUAL.equals(broadcastDto.command)
                                 || BroadcastDto.COMMAND_REQUEST_SERVER_PERIODIC.equals(broadcastDto.command)
-                                || BroadcastDto.COMMAND_REQUEST_ENSURER_TRIGGERED.equals(broadcastDto.command)) {
+                                || BroadcastDto.COMMAND_REQUEST_SERVER_PROGRAMMATIC.equals(broadcastDto.command)
+                                || BroadcastDto.COMMAND_REQUEST_SERVER_ENSURER.equals(broadcastDto.command)) {
                             _fullUpdateCoord_phase1_CoalesceAndElect(broadcastDto);
                         }
                         // ?: Is this the internal "sync between siblings" about now sending the update?
@@ -1507,7 +1554,7 @@ public interface MatsEagerCacheServer {
             }
         }
 
-        private class PeriodicUpdate {
+        private class PeriodicUpdater {
             private volatile Thread _thread;
             private volatile boolean _running;
 
@@ -1521,6 +1568,8 @@ public interface MatsEagerCacheServer {
                             + "Thread, as periodic update is set to 0, i.e. never.");
                     return;
                 }
+                _running = true;
+
                 long intervalMillis = (long) (_periodicFullUpdateIntervalMinutes * 60_000);
                 // The check interval is 10% of the interval, but at most 5 minutes.
                 long checkIntervalCalcMillis = Math.min(intervalMillis / 10, 5 * 60_000);
@@ -1633,7 +1682,6 @@ public interface MatsEagerCacheServer {
                         + ".PeriodicUpdate[" + _periodicFullUpdateIntervalMinutes + "min]");
                 _thread.setDaemon(true);
                 _thread.start();
-                _running = true;
             }
 
             /**
@@ -1646,6 +1694,108 @@ public interface MatsEagerCacheServer {
                 _running = false;
                 _thread.interrupt();
                 _thread = null;
+            }
+        }
+
+        private class Ensurer {
+            private Thread _ensurerThread;
+            private volatile boolean _running;
+            private volatile long _lastUpdateInitiatedTimestamp;
+
+            private void start() {
+                _running = true;
+
+                _ensurerThread = new Thread(() -> {
+                    while (_running) {
+                        try {
+                            Thread.sleep(ENSURER_CHECK_INTERVAL_MILLIS);
+
+                            // We copy off the timestamp to check. This is a big point, as we'll use this particular
+                            // timestamp for a "double check". If a new update is initiated, we will still compare
+                            // against the old timestamp. The new update's checking will be done on the next iteration
+                            // of the loop.
+                            long lastUpdateInitiatedTimestamp = _lastUpdateInitiatedTimestamp;
+
+                            // ?: If the last coalescing started timestamp is 0, we've not gotten any requests yet
+                            if (lastUpdateInitiatedTimestamp == 0) {
+                                // -> No update requests yet, so loop.
+                                continue;
+                            }
+
+                            // ?: Have we NOT received a full update AFTER the last coalescing started timestamp?
+                            if (lastUpdateInitiatedTimestamp > _lastFullUpdateReceivedTimestamp) {
+                                // -> No, we have not received a full update after the last coalescing started
+
+                                // Now, go into the "ensurer" mode, where we check if we should trigger a new
+                                // update attempt
+
+                                // :: Sleep for a while, then evaluate if we're still in the same situation.
+
+                                /*
+                                 * Adjust the time to check based on situation: If we're currently making a source data
+                                 * set (indicating that we're effectively always producing updates probably since it is
+                                 * extremely slow), or having problems creating source data (e.g. database problems), or
+                                 * if this request for full update was triggered by a triggered ensurer, we'll wait
+                                 * longer.
+                                 */
+                                int waitTime = _currentlyMakingSourceDataResult
+                                        || _currentlyHavingProblemsCreatingSourceDataResult
+                                                ? ENSURER_WAIT_TIME_LONG_MILLIS
+                                                : ENSURER_WAIT_TIME_SHORT_MILLIS;
+                                Thread.sleep(waitTime);
+
+                                // ?: Check again if we've received a full update after the last coalescing?
+                                if (lastUpdateInitiatedTimestamp > _lastFullUpdateReceivedTimestamp) {
+                                    // -> No, we have not received a full update after the last coalescing started
+                                    // timestamp, so we should trigger a coalescing.
+                                    _cacheMonitor.log(WARN, MonitorCategory.ENSURE_UPDATE,
+                                            "Ensurer triggered: We have NOT seen a full update AFTER this"
+                                                    + "update was started ["
+                                                    + _formatTimestamp(lastUpdateInitiatedTimestamp)
+                                                    + "]: Initiating a new full update. We are: [" + _dataName + "] "
+                                                    + _nodename);
+
+                                    // Fire off a broadcast to the siblings to trigger an update.
+                                    _fullUpdateCoord_phase0_InitiateFromServer_Ensurer();
+                                }
+                                else {
+                                    // -> Yes, we have seen the full update, so we're happy.
+                                    _cacheMonitor.log(DEBUG, MonitorCategory.ENSURE_UPDATE,
+                                            "Ensurer OK: There have been a full update since update started ["
+                                                    + _formatTimestamp(lastUpdateInitiatedTimestamp)
+                                                    + "], thus we're happy: No need to initiate a new full update."
+                                                    + " We are: [" + _dataName + "] " + _nodename);
+                                }
+                            }
+                        }
+                        catch (InterruptedException e) {
+                            // We're probably shutting down.
+                            _cacheMonitor.log(INFO, MonitorCategory.ENSURER, "Thread interrupted,"
+                                    + " probably shutting down. We are: [" + _dataName + "] " + _nodename);
+                        }
+                        catch (Throwable t) {
+                            _cacheMonitor.exception(MonitorCategory.ENSURER, "Ensurer: Got exception while"
+                                    + " trying to schedule periodic update. Ignoring."
+                                    + " We are: [" + _dataName + "] " + _nodename, t);
+                            _takeNap(MonitorCategory.ENSURER, ENSURER_WAIT_TIME_SHORT_MILLIS);
+                        }
+                    }
+                }, "MatsEagerCacheServer." + _dataName + ".Ensurer");
+                _ensurerThread.setDaemon(true);
+                _ensurerThread.start();
+            }
+
+            private void updateInitiated() {
+                _lastUpdateInitiatedTimestamp = System.currentTimeMillis();
+            }
+
+            private void stop() {
+                if (_ensurerThread == null) {
+                    return;
+                }
+                _running = false;
+                _ensurerThread.interrupt();
+                _ensurerThread = null;
             }
         }
 
@@ -1717,6 +1867,7 @@ public interface MatsEagerCacheServer {
              * won't hold the JVM back - but you should still call {@link #stop()}.
              */
             void start() {
+                _running = true;
                 _thread = new Thread(() -> {
                     _cacheMonitor.log(INFO, MonitorCategory.ADVERTISE_APP_AND_NODE, "NodeAdvertiser: "
                             + "Thread started. We are '" + _appName + "' @ '" + _nodename + "'.");
@@ -1770,7 +1921,6 @@ public interface MatsEagerCacheServer {
                 }, _serverOrClassName + "." + _dataName + ".AdvertiseAppAndNodeName");
                 _thread.setDaemon(true);
                 _thread.start();
-                _running = true;
             }
 
             /**
@@ -1983,6 +2133,26 @@ public interface MatsEagerCacheServer {
             _broadcastInitiateFullUpdate(broadcast, "Server", _nodename, "Manual");
         }
 
+        private void _fullUpdateCoord_phase0_InitiateFromServer_Programmatic() {
+            _cacheMonitor.log(INFO, MonitorCategory.REQUEST_UPDATE_SERVER_PROGRAMMATIC, "Phase 0: Initiating full"
+                    + " update from server by programmatic request [" + _nodename + "], broadcasting to Phase 1.");
+            // Ensure that we are running
+            _waitForReceiving(MAX_WAIT_FOR_RECEIVING_SECONDS);
+            // :: Create and send the broadcast message
+            BroadcastDto broadcast = _createBroadcastDto(BroadcastDto.COMMAND_REQUEST_SERVER_PROGRAMMATIC);
+            broadcast.correlationId = Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36);
+            _broadcastInitiateFullUpdate(broadcast, "Server", _nodename, "Programmatic");
+        }
+
+        private void _fullUpdateCoord_phase0_InitiateFromServer_Ensurer() {
+            _cacheMonitor.log(INFO, MonitorCategory.REQUEST_UPDATE_SERVER_PROGRAMMATIC, "Phase 0: Initiating full"
+                    + " update from server due to Ensurer [" + _nodename + "], broadcasting to Phase 1.");
+            // :: Create and send the broadcast message
+            BroadcastDto broadcast = _createBroadcastDto(BroadcastDto.COMMAND_REQUEST_SERVER_PROGRAMMATIC);
+            broadcast.correlationId = Long.toString(Math.abs(ThreadLocalRandom.current().nextLong()), 36);
+            _broadcastInitiateFullUpdate(broadcast, "Server", _nodename, "Ensurer");
+        }
+
         private void _fullUpdateCoord_phase0_InitiateByRequestFromClient(CacheRequestDto incomingClientCacheRequest) {
             boolean boot;
             String command = incomingClientCacheRequest.command;
@@ -2037,7 +2207,7 @@ public interface MatsEagerCacheServer {
                             .add("initiateSide", initiateSide)
                             .add("initiateNode", initatedNode)
                             .add("reason", reason))
-                    .from("MatsEagerCacheServer." + _dataName + ".InitiateFullUpdate")
+                    .from("MatsEagerCacheServer." + _dataName + ".InitiateFullUpdate." + initiateSide + "-" + reason)
                     .to(_getBroadcastTopic(_dataName))
                     .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
                     .publish(broadcast));
@@ -2096,57 +2266,12 @@ public interface MatsEagerCacheServer {
             }
 
             /*
-             * "Ensurer": Brute-force solution at ensuring that if the responsible node somehow does NOT manage to send
-             * the update (e.g. crashes, boots, redeploys), someone else will: Make a thread on ALL nodes that in some
-             * minutes will check if we've received a full update after this point in time, and if not, it will initiate
-             * a new full update to try to remedy the situation.
-             * 
-             * This solution creates a new thread for each message that comes in, even if there are multiple messages in
-             * this coalescing round, as we want to be sure that there is an update sent out AFTER the latest message
-             * came in. They should all be no-ops in the normal case. We could have a more sophisticated solution where
-             * we cancel the existing ensurer thread and create a new, or update the existing ensurer thread, but this
-             * will work just fine.
+             * "Ensurer": Solution for ensuring that if the responsible node somehow does NOT manage to send the update
+             * (e.g. crashes, boots, redeploys), someone else will: There's a thread on ALL nodes that in some minutes
+             * will check if we've received a full update after this point in time, and if not, it will initiate a new
+             * full update to try to remedy the situation.
              */
-
-            // Adjust the time to check based on situation: If we're currently making a source data set (indicating that
-            // we're effectively always producing updates probably since it is extremely slow), or having problems
-            // creating source data (e.g. database problems), or if this request for full update was triggered by a
-            // triggered ensurer, we'll wait longer.
-            int waitTime = _currentlyMakingSourceDataResult || _currentlyHavingProblemsCreatingSourceDataResult
-                    || BroadcastDto.COMMAND_REQUEST_ENSURER_TRIGGERED.equals(inBroadcast.command)
-                            ? ENSURER_WAIT_TIME_LONG_MILLIS
-                            : ENSURER_WAIT_TIME_SHORT_MILLIS;
-            // Record the time when this ensurer started, which is the time we'll check against.
-            long timestampWhenEnsurerStarted = System.currentTimeMillis();
-            Thread ensurerThread = new Thread(() -> {
-                // Do the sleep
-                _takeNap(MonitorCategory.ENSURE_UPDATE, waitTime);
-                // ?: Have we received a full update AFTER we started this ensurer?
-                if (_lastFullUpdateReceivedTimestamp <= timestampWhenEnsurerStarted) {
-                    // -> No, we have not seen a full update AFTER, which is bad. Initiate a new full update.
-                    _cacheMonitor.log(WARN, MonitorCategory.ENSURE_UPDATE, "Ensurer triggered: We have NOT"
-                            + " seen a full update AFTER this ensurer was created ["
-                            + _formatTimestamp(timestampWhenEnsurerStarted) + "]: Initiating a new full update.");
-                    // Note: This is quite directly a message to this very same handling method!
-                    BroadcastDto broadcast = _createBroadcastDto(BroadcastDto.COMMAND_REQUEST_ENSURER_TRIGGERED);
-                    _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
-                        init.traceId(TraceId.create("MatsEagerCacheServer." + _dataName, "FullUpdateEnsurer"))
-                                .from("MatsEagerCacheServer." + _dataName + ".FullUpdateEnsurer")
-                                .to(_getBroadcastTopic(_dataName))
-                                .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
-                                .publish(broadcast);
-                    });
-                }
-                else {
-                    // -> Yes, we have seen the full update, so we're happy.
-                    _cacheMonitor.log(DEBUG, MonitorCategory.ENSURE_UPDATE, "Ensurer OK: There have been a"
-                            + " full update since we started this ensurer ["
-                            + _formatTimestamp(timestampWhenEnsurerStarted) + "], thus we're happy:"
-                            + " No need to initiate a new full update.");
-                }
-            }, "MatsEagerCacheServer." + _dataName + "-EnsureDataIsSentEventually[" + waitTime + "ms]");
-            ensurerThread.setDaemon(true);
-            ensurerThread.start();
+            _ensurer.updateInitiated();
 
             // ?: Should we start the election and coalescing thread?
             if (shouldStartCoalescingThread) {
@@ -2343,9 +2468,12 @@ public interface MatsEagerCacheServer {
                             reason = "Server/Periodic";
                             break;
                         case BroadcastDto.COMMAND_REQUEST_SERVER_MANUAL:
-                            reason = "Server/Manual/Full";
+                            reason = "Server/Manual";
                             break;
-                        case BroadcastDto.COMMAND_REQUEST_ENSURER_TRIGGERED:
+                        case BroadcastDto.COMMAND_REQUEST_SERVER_PROGRAMMATIC:
+                            reason = "Server/Programmatic";
+                            break;
+                        case BroadcastDto.COMMAND_REQUEST_SERVER_ENSURER:
                             reason = "Server/EnsurerTriggered";
                             break;
                         case BroadcastDto.COMMAND_REQUEST_CLIENT_BOOT:
@@ -2738,8 +2866,9 @@ public interface MatsEagerCacheServer {
             static final String COMMAND_REQUEST_CLIENT_BOOT = "REQ_CLIENT_BOOT";
             static final String COMMAND_REQUEST_CLIENT_MANUAL = "REQ_CLIENT_MANUAL";
             static final String COMMAND_REQUEST_SERVER_MANUAL = "REQ_SERVER_MANUAL";
+            static final String COMMAND_REQUEST_SERVER_PROGRAMMATIC = "REQ_SERVER_PROGRAMMATIC";
             static final String COMMAND_REQUEST_SERVER_PERIODIC = "REQ_SERVER_PERIODIC";
-            static final String COMMAND_REQUEST_ENSURER_TRIGGERED = "REQ_ENSURER_TRIGGERED";
+            static final String COMMAND_REQUEST_SERVER_ENSURER = "REQ_SERVER_ENSURER";
             static final String COMMAND_REQUEST_SEND = "REQ_SEND";
             static final String COMMAND_UPDATE_FULL = "UPDATE_FULL";
             static final String COMMAND_UPDATE_PARTIAL = "UPDATE_PARTIAL";

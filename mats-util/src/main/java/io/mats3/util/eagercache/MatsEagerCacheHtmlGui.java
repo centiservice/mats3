@@ -365,7 +365,7 @@ public interface MatsEagerCacheHtmlGui {
                     }
 
                     long nanosAsStart_request = System.nanoTime();
-                    Optional<CacheUpdated> cacheUpdated = _client.requestFullUpdate(MAX_WAIT_FOR_UPDATE_SECONDS * 1000);
+                    Optional<CacheUpdated> cacheUpdated = _client.requestManualFullUpdate(MAX_WAIT_FOR_UPDATE_SECONDS * 1000);
                     if (cacheUpdated.isPresent()) {
                         double millisTaken_request = (System.nanoTime() - nanosAsStart_request) / 1_000_000d;
                         out.append(new ReplyDto(true, "Refresh requested, got update, took "
@@ -726,7 +726,7 @@ public interface MatsEagerCacheHtmlGui {
                     }
 
                     long nanosAsStart_request = System.nanoTime();
-                    boolean finished = _server.initiateFullUpdate(
+                    boolean finished = _server.initiateManualFullUpdate(
                             MAX_WAIT_FOR_UPDATE_SECONDS * 1000);
                     if (finished) {
                         double millisTaken_request = (System.nanoTime() - nanosAsStart_request) / 1_000_000d;
