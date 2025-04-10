@@ -2159,15 +2159,18 @@ public interface MatsEagerCacheServer {
                 // "If it is a long time since last invocation, it will be scheduled to run soon, while if the previous
                 // time was a short time ago, it will be scheduled to run a bit later (~ within 7 seconds)."
 
-                // Note that the following logic is NOT foolproof: There is a chance that different nodes come to
-                // different conclusions about these times, and while one node thinks this is a "fast response", the
-                // other nodes doesn't, and thus waits longer - and then that the first node performs the update, and
-                // resets the coalescing on his side, while the other doesn't - and now they're out of sync for a small
-                // while. This is not a big problem: Firstly, it is an edge case, which really shouldn't happen often.
-                // Secondly, the most probable outcome is that more updates than strictly necessary are produced,
-                // which is not a problem. I believe it is very hard to get to a place where an update is missed, but
-                // in any case, the above "Ensurer" will eventually catch it (albeit with a considerable higher delay
-                // than ideal).
+                // Note: The logic here involves potential asymmetric race conditions due to slight timing differences
+                // (milliseconds) when messages arrive at nodes. A request's classification as a needing "fast" or
+                // "slow" response depends on a threshold, which can lead nodes to independently make different
+                // decisions. Because processing times and message ordering are not identical across nodes, one node
+                // might include a message in its current coalescing batch, while another excludes it, temporarily
+                // desynchronizing their states.
+                //
+                // This situation primarily leads to generating slightly more updates than strictly necessary, which is
+                // generally harmless. However, in an extremely rare case, a node might incorrectly determine it is not
+                // the leader, believing another node (previously coalesced elsewhere) is still leading, thus
+                // potentially missing an update. Even if this improbable scenario occurs, the "Ensurer" mechanism will
+                // eventually correct the oversight, though with a considerably higher delay than ideal.
 
                 // First find the latest time anything wrt. an update happened.
                 long latestActivityTimestamp = Collections.max(Arrays.asList(_cacheStartedTimestamp,
@@ -2188,73 +2191,110 @@ public interface MatsEagerCacheServer {
                         : _longDelay;
 
                 Thread updateRequestsCoalescingDelayThread = new Thread(() -> {
-                    _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_COALESCE,
-                            "Started election and coalescing thread. We will wait for [" + initialDelay
-                                    + "ms, fastResponse:" + fastResponse + "], coalescing incoming requests and elect"
-                                    + " the leader. We are node: [" + _nodename + "], current proposed leader: ["
-                                    + _updateRequest_HandlingNodename + " which is "
-                                    + (_nodename.equals(_updateRequest_HandlingNodename) ? "us!" : "NOT us!")
-                                    + "], currentOutstanding: [" + _updateRequest_OutstandingCount + "].");
+                    try {
+                        _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_COALESCE,
+                                "Started election and coalescing thread. We will wait for [" + initialDelay
+                                        + "ms, fastResponse:" + fastResponse
+                                        + "], coalescing incoming requests and elect"
+                                        + " the leader. We are node: [" + _nodename + "], current proposed leader: ["
+                                        + _updateRequest_HandlingNodename + " which is "
+                                        + (_nodename.equals(_updateRequest_HandlingNodename) ? "us!" : "NOT us!")
+                                        + "], currentOutstanding: [" + _updateRequest_OutstandingCount + "].");
 
-                    // First sleep the initial delay.
-                    _takeNap(MonitorCategory.REQUEST_COALESCE, initialDelay);
+                        // First sleep the initial delay.
+                        _takeNap(MonitorCategory.REQUEST_COALESCE, initialDelay);
 
-                    // ?: Was this a short sleep?
-                    if (fastResponse) {
-                        // -> Yes, short - now evaluate whether there have come in more requests while we slept.
-                        int outstandingCount;
+                        // ?: Was this a short sleep?
+                        if (fastResponse) {
+                            // -> Yes, short - now evaluate whether there have come in more requests while we slept.
+                            int outstandingCount;
+                            synchronized (this) {
+                                outstandingCount = _updateRequest_OutstandingCount;
+                            }
+                            // ?: Have there come in more than the one that started the process?
+                            if (outstandingCount > 1) {
+                                // -> Yes, more requests have come in, so we'll do the long delay anyway, to see if we
+                                // can coalesce even more requests.
+                                _takeNap(MonitorCategory.REQUEST_COALESCE, _longDelay - _shortDelay);
+                            }
+                        }
+
+                        // ----- Okay, we've waited for more requests, now we'll initiate the update.
+
+                        String updateRequest_HandlingNodename;
                         synchronized (this) {
-                            outstandingCount = _updateRequest_OutstandingCount;
+                            updateRequest_HandlingNodename = _updateRequest_HandlingNodename;
+                            // Note: We do the reset of the count and HandlingNodename in "phase 2": The next phase
+                            // occurs when the elected leader (below code) sends the broadcast message to start the
+                            // update. It might be a bit counter-intuitive to not do it here (at least it is for me,
+                            // I've been sitting pondering about this decision for hours now, playing out async
+                            // scenarios!), but it should ensure that all nodes do the resetting at very close to the
+                            // same time, since they all get that message at the same time.
+                            //
+                            // There are plenty of races here based on the millisecond a message comes in. Read the
+                            // comment a bit above for more details; These races are benign, as they eventually will
+                            // resolve, albeit with either an update too many, or that the "Ensurer" catches it.
                         }
-                        // ?: Have there come in more than the one that started the process?
-                        if (outstandingCount > 1) {
-                            // -> Yes, more requests have come in, so we'll do the long delay anyway, to see if we can
-                            // coalesce even more requests.
-                            _takeNap(MonitorCategory.REQUEST_COALESCE, _longDelay - _shortDelay);
+
+                        // ?: Are we the one that should handle the update?
+                        if (_nodename.equals(updateRequest_HandlingNodename)) {
+                            // -> Yes, it is us that should handle the update.
+                            // We also do this over broadcast, so that all siblings can see that we're doing it.
+                            // (And then also reset the count and HandlingNodename, read above).
+
+                            _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_COALESCE, "Coalesced enough!"
+                                    + " WE'RE ELECTED! We waited for more requests, and we ended up as elected leader."
+                                    + " We will now broadcast to Phase 2 that handling nodename is us [" + _nodename
+                                    + "]. (currentOutstanding: [" + _updateRequest_OutstandingCount + "]).");
+
+                            BroadcastDto outBroadcast = _createBroadcastDto(BroadcastDto.COMMAND_REQUEST_SEND);
+                            outBroadcast.originalCommand = inBroadcast.command;
+                            outBroadcast.handlingNodename = _nodename; // It is us that is handling it.
+                            // Transfer the correlationId and requestNodename from the incoming message (they might be
+                            // null)
+                            outBroadcast.correlationId = inBroadcast.correlationId;
+                            outBroadcast.reqNodename = inBroadcast.reqNodename;
+                            outBroadcast.reqTimestamp = inBroadcast.reqTimestamp;
+                            outBroadcast.reqNanoTime = inBroadcast.reqNanoTime;
+
+                            // Note: This can potentially throw. That is caught in the catch-all below.
+                            _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
+                                init.traceId(TraceId.create("MatsEagerCacheServer." + _dataName,
+                                        "UpdateRequestsCoalesced"))
+                                        .from("MatsEagerCacheServer." + _dataName + ".UpdateRequestsCoalesced")
+                                        .to(_getBroadcastTopic(_dataName))
+                                        .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
+                                        .publish(outBroadcast);
+                            });
+                        }
+                        else {
+                            // -> No, it is not us that should handle the update.
+                            _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_COALESCE, "Coalesced enough!"
+                                    + " WE LOST - We waited for more requests, and someone else were elected: ["
+                                    + updateRequest_HandlingNodename + "]. We will thus not broadcast for next phase."
+                                    + " We are " + _nodename + " (currentOutstanding: ["
+                                    + _updateRequest_OutstandingCount
+                                    + "]).");
                         }
                     }
+                    catch (Throwable t) {
+                        // We catch all problems instead of letting it propagate out as uncaught exception from thread.
+                        _cacheMonitor.exception(MonitorCategory.REQUEST_COALESCE, "Got exception while trying"
+                                + " to coalesce requests and elect leader - thus not sending off the actual \"send new"
+                                + " update\" broadcast. Resetting coalesce system, letting the Ensurer-system handle"
+                                + " this.", t);
 
-                    // ----- Okay, we've waited for more requests, now we'll initiate the update.
+                        // We now reset the coalescing system, as we don't want to be in a state where we have a
+                        // coalescing thread that is dead! That would be unresolvable, as the logic above would just
+                        // put more and more messages into "coalescing" state, but the thread is gone, so no-one
+                        // will ever handle them.
 
-                    String updateRequest_HandlingNodename;
-                    synchronized (this) {
-                        updateRequest_HandlingNodename = _updateRequest_HandlingNodename;
-                    }
-
-                    // ?: Are we the one that should handle the update?
-                    if (_nodename.equals(updateRequest_HandlingNodename)) {
-                        // -> Yes, it is us that should handle the update.
-                        // We also do this over broadcast, so that all siblings can see that we're doing it.
-
-                        _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_COALESCE, "Coalesced enough!"
-                                + " WE'RE ELECTED! We waited for more requests, and we ended up as elected leader."
-                                + " We will now broadcast to Phase 2 that handling nodename is us [" + _nodename
-                                + "]. (currentOutstanding: [" + _updateRequest_OutstandingCount + "]).");
-
-                        BroadcastDto outBroadcast = _createBroadcastDto(BroadcastDto.COMMAND_REQUEST_SEND);
-                        outBroadcast.originalCommand = inBroadcast.command;
-                        outBroadcast.handlingNodename = _nodename; // It is us that is handling it.
-                        // Transfer the correlationId and requestNodename from the incoming message (they might be null)
-                        outBroadcast.correlationId = inBroadcast.correlationId;
-                        outBroadcast.reqNodename = inBroadcast.reqNodename;
-                        outBroadcast.reqTimestamp = inBroadcast.reqTimestamp;
-                        outBroadcast.reqNanoTime = inBroadcast.reqNanoTime;
-
-                        _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
-                            init.traceId(TraceId.create("MatsEagerCacheServer." + _dataName, "UpdateRequestsCoalesced"))
-                                    .from("MatsEagerCacheServer." + _dataName + ".UpdateRequestsCoalesced")
-                                    .to(_getBroadcastTopic(_dataName))
-                                    .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
-                                    .publish(outBroadcast);
-                        });
-                    }
-                    else {
-                        // -> No, it is not us that should handle the update.
-                        _cacheMonitor.log(DEBUG, MonitorCategory.REQUEST_COALESCE, "Coalesced enough!"
-                                + " WE LOST - We waited for more requests, and someone else were elected: ["
-                                + updateRequest_HandlingNodename + "]. We will thus not broadcast for next phase."
-                                + " We are " + _nodename + " (currentOutstanding: [" + _updateRequest_OutstandingCount
-                                + "]).");
+                        // Note that this means we're temporarily screwed, but the Ensurer-logics will eventually kick
+                        // in and start a new full update since it haven't seen a full update since this was started.
+                        synchronized (this) {
+                            _updateRequest_OutstandingCount = 0;
+                            _updateRequest_HandlingNodename = null;
+                        }
                     }
                 }, "MatsEagerCacheServer." + _dataName + "-UpdateRequestsCoalescingDelay");
                 updateRequestsCoalescingDelayThread.setDaemon(true);
@@ -2277,6 +2317,10 @@ public interface MatsEagerCacheServer {
             _lastFullUpdateProductionStartedTimestamp = System.currentTimeMillis();
 
             // Reset count - after which a new request for update will start the election and coalescing process anew.
+            // Note that this CAN result in two coalescing threads running at the same time, but that is benign.
+            // (If the system is running in a normal way, outlier scenarios will resolve, typically very quickly. If
+            // you've coded some crazy stuff, e.g. sending requests for updates way too often, or similar, this
+            // coalescing- and ensurer-systems won't make things better. But fix your code then!)
             synchronized (this) {
                 _updateRequest_OutstandingCount = 0;
                 _updateRequest_HandlingNodename = null;
