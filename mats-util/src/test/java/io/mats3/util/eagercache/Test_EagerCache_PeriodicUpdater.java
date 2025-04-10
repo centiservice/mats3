@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
  * cache system should be push-on-changes. The periodic full update is just meant as a safety net, and should preferably
  * not be the main way of updating the cache.
  */
-public class Test_EagerCache_PeriodicUpdate {
+public class Test_EagerCache_PeriodicUpdater {
     private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_PartialUpdate.class);
 
     @Test

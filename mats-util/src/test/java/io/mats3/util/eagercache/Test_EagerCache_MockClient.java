@@ -113,7 +113,7 @@ public class Test_EagerCache_MockClient {
         // :: ACT #2
 
         // "Request full update" to trigger update listeners
-        mockClient.requestFullUpdate(-1);
+        mockClient.requestManualFullUpdate(-1);
 
         // Get the data again, triggering the supplier
         dataCarrier = mockClient.get();
@@ -160,7 +160,7 @@ public class Test_EagerCache_MockClient {
         // :: ACT #3
 
         // "Request full update" to trigger update listeners
-        mockClient.requestFullUpdate(-1);
+        mockClient.requestManualFullUpdate(-1);
 
         // Get the data again, triggering the data supplier from ARRANGE 2
         dataCarrier = mockClient.get();

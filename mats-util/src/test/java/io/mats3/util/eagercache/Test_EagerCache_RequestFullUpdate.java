@@ -94,8 +94,8 @@ public class Test_EagerCache_RequestFullUpdate {
             serversClients.cacheServer2.initiateFullUpdate(-1);
         }
         for (int i = 0; i < clientSideCount; i++) {
-            serversClients.cacheClient1.requestFullUpdate(-1);
-            serversClients.cacheClient2.requestFullUpdate(-1);
+            serversClients.cacheClient1.requestManualFullUpdate(-1);
+            serversClients.cacheClient2.requestManualFullUpdate(-1);
         }
 
         // Wait for the singular update.
@@ -140,7 +140,7 @@ public class Test_EagerCache_RequestFullUpdate {
         // ## ACT 1:
 
         // This should NOT return, as it is too fast
-        Optional<CacheUpdated> cacheUpdatedO = serversClients.cacheClient1.requestFullUpdate(1);
+        Optional<CacheUpdated> cacheUpdatedO = serversClients.cacheClient1.requestManualFullUpdate(1);
 
         // ## ASSERT 1:
 
@@ -165,7 +165,7 @@ public class Test_EagerCache_RequestFullUpdate {
         // ## ACT 2:
 
         // This should return, as 30 seconds is plenty of time.
-        cacheUpdatedO = serversClients.cacheClient1.requestFullUpdate(30_000);
+        cacheUpdatedO = serversClients.cacheClient1.requestManualFullUpdate(30_000);
 
         // ## ASSERT 2:
 
