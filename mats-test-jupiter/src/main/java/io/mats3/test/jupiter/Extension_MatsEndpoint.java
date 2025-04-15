@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import io.mats3.MatsEndpoint.ProcessSingleLambda;
 import io.mats3.MatsFactory;
 import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
+import io.mats3.test.abstractunit.AbstractMatsTestEndpointBase;
 
 /**
  * Extension to create a single staged endpoint whose reply/processor can be changed throughout its life, i.e. per test
@@ -82,16 +83,18 @@ import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
  * @author Johan Herman Hausberg, 2017.04 - jhausber@gmail.com
  * @author Asbjørn Aarrestad, 2017 - asbjorn@aarrestad.com
  * @author Endre Stølsvik, 2017 - http://stolsvik.com/, endre@stolsvik.com
+ * @see Extension_MatsTerminatorEndpoint
+ * @see Extension_MatsTerminatorStateEndpoint
  */
-public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I> implements BeforeEachCallback,
-        AfterEachCallback {
+public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, Void, I>
+        implements BeforeEachCallback, AfterEachCallback {
     private static final Logger log = LoggerFactory.getLogger(Extension_MatsEndpoint.class);
 
     /**
      * Private constructor, utilize {@link #create(String, Class, Class)} to create an instance of this object.
      */
     private Extension_MatsEndpoint(String endpointId, Class<R> replyMsgClass, Class<I> incomingMsgClass) {
-        super(endpointId, replyMsgClass, incomingMsgClass);
+        super(endpointId, replyMsgClass, Void.class,  incomingMsgClass);
     }
 
     /**
@@ -125,7 +128,7 @@ public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I>
      * up on JUnit lifecycle 'before' and tears it down on 'after'. <b>Notice that a {@link MatsFactory} must be set
      * before it is usable!</b> In a Spring environment, you should probably employ the
      * <code>@SpringInjectRulesAndExtensions</code> to make this happen automagically. In a "pure Java" environment,
-     * consider the convenience overload {@link #create(Extension_Mats, String, Class, Class) create(Mats_Rule,
+     * consider the convenience overload {@link #create(Extension_Mats, String, Class, Class) create(extensionMats,
      * endpointId, replyClass, incomingClass)} to easily supply the corresponding
      * <code>{@literal @RegisterExtension}</code> {@link Extension_Mats} for fetching the <code>MatsFactory</code>.
      * <p>
@@ -154,13 +157,13 @@ public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, I>
      * <b>Do notice that you need to invoke {@link #setProcessLambda(ProcessSingleLambda)} - typically inside the
      * &#64;Test method - before sending messages to it, as there is no default.</b>
      */
-    public static <R, I> Extension_MatsEndpoint<R, I> create(Extension_Mats matsRule, String endpointId,
+    public static <R, I> Extension_MatsEndpoint<R, I> create(Extension_Mats extensionMats, String endpointId,
             Class<R> replyMsgClass,
             Class<I> incomingMsgClass) {
         Extension_MatsEndpoint<R, I> extension_matsEndpoint = new Extension_MatsEndpoint<>(endpointId, replyMsgClass,
                 incomingMsgClass);
         // Set MatsFactory from the supplied Rule_Mats
-        extension_matsEndpoint.setMatsFactory(matsRule.getMatsFactory());
+        extension_matsEndpoint.setMatsFactory(extensionMats.getMatsFactory());
         return extension_matsEndpoint;
     }
 
