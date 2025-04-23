@@ -333,7 +333,7 @@ public interface MatsEagerCacheClient<DATA> {
      *            time, the method will return Optional.empty. If &le;0 is provided, the method will return immediately,
      *            and the request will be performed asynchronously, returning Optional.empty.
      */
-    Optional<CacheUpdated> requestFullUpdate(int timeoutMillis);
+    Optional<CacheUpdated> requestManualFullUpdate(int timeoutMillis);
 
     /**
      * Returns a "live view" of the cache client information, that is, you only need to invoke this method once to get
@@ -357,8 +357,8 @@ public interface MatsEagerCacheClient<DATA> {
      * invoked by another thread some 5 ms after {@link #start()} has been invoked - the same thread right before
      * releases the latch that {@link #get()} blocks on.
      * <li>Any listeners added with {@link #addCacheUpdatedListener(Consumer)} will be invoked some 5 ms after
-     * {@link #start()} has been invoked, and then some 5 ms after each time {@link #requestFullUpdate(int)} has been
-     * invoked.
+     * {@link #start()} has been invoked, and then some 5 ms after each time {@link #requestManualFullUpdate(int)} has
+     * been invoked.
      * </ul>
      * <p>
      * The information returned from {@link #getCacheClientInformation()} is rather mocky, but the
@@ -369,8 +369,8 @@ public interface MatsEagerCacheClient<DATA> {
      */
     interface MatsEagerCacheClientMock<DATA> extends MatsEagerCacheClient<DATA> {
         /**
-         * The "simulated lags" introduced by the mock after {@link #start()} and {@link #requestFullUpdate(int)} are
-         * invoked. (5 milliseconds).
+         * The "simulated lags" introduced by the mock after {@link #start()} and {@link #requestManualFullUpdate(int)}
+         * are invoked. (5 milliseconds).
          */
         int MILLIS_LAG = 5;
 
@@ -394,8 +394,8 @@ public interface MatsEagerCacheClient<DATA> {
 
         /**
          * Set the mock cache updated supplier - used when invoking the cache updated listeners, both on
-         * {@link #start()} and on {@link #requestFullUpdate(int)}. If set to null, a dummy CacheUpdated object will be
-         * created.
+         * {@link #start()} and on {@link #requestManualFullUpdate(int)}. If set to null, a dummy CacheUpdated object
+         * will be created.
          * 
          * @param cacheUpdatedSupplier
          *            the cache updated supplier to set - or null to use a dummy.
@@ -1064,7 +1064,7 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         @Override
-        public Optional<CacheUpdated> requestFullUpdate(int timeoutMillis) {
+        public Optional<CacheUpdated> requestManualFullUpdate(int timeoutMillis) {
             CountDownLatch latch = new CountDownLatch(1);
             CacheUpdated[] cacheUpdatedReturn = new CacheUpdated[1];
             // Hijacking our own CacheUpdate listener to get the response.
@@ -1950,7 +1950,7 @@ public interface MatsEagerCacheClient<DATA> {
         }
 
         @Override
-        public Optional<CacheUpdated> requestFullUpdate(int timeoutMillis) {
+        public Optional<CacheUpdated> requestManualFullUpdate(int timeoutMillis) {
             // :: Emulate that we're requesting a full update, and then getting a reply.
 
             // ?: Assert that we have data

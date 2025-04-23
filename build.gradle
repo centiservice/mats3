@@ -7,7 +7,7 @@ wrapper {
 
 allprojects {
     group = 'io.mats3'
-    version = 'RC-1.0.0.RC2+2025-04-03'
+    version = 'RC-1.0.0.RC3+2025-04-10'
 
     layout.getBuildDirectory().set(new File("build-gradle"))
 }
@@ -207,8 +207,8 @@ configure(subprojects.findAll { ! it.name.startsWith('mats-api-test') }) {
                     url = 'https://github.com/centiservice/mats3'
                     licenses {
                         license {
-                            name = 'PolyForm Perimeter License 1.0.0 with examples'
-                            url = 'https://github.com/centiservice/mats3/blob/main/LICENSE.md'
+                            name = 'The Apache License, Version 2.0'
+                            url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
                         }
                     }
                     developers {
