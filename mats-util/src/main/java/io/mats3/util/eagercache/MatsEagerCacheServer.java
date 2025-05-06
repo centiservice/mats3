@@ -244,8 +244,8 @@ public interface MatsEagerCacheServer {
     int ENSURER_WAIT_TIME_SHORT_MILLIS = 5 * 60 * 1000;
     /**
      * See {@link #ENSURER_WAIT_TIME_SHORT_MILLIS} - but if we're currently already creating a source data set, or if we
-     * currently have problems making source data sets, or if the request for full update was itself triggered by an
-     * ensurer, we'll wait longer - to not risk continuously (attempting to) producing updates. (15 minutes)
+     * currently have problems making source data sets, we'll wait longer - to not risk continuously (attempting to)
+     * producing updates. (15 minutes)
      */
     int ENSURER_WAIT_TIME_LONG_MILLIS = 15 * 60 * 1000;
     /**
@@ -1748,12 +1748,11 @@ public interface MatsEagerCacheServer {
                                 if (lastUpdateInitiatedTimestamp > _lastFullUpdateReceivedTimestamp) {
                                     // -> No, we have not received a full update after the last coalescing started
                                     // timestamp, so we should trigger a coalescing.
-                                    _cacheMonitor.log(WARN, MonitorCategory.ENSURE_UPDATE,
-                                            "Ensurer triggered: We have NOT seen a full update AFTER this"
-                                                    + "update was started ["
-                                                    + _formatTimestamp(lastUpdateInitiatedTimestamp)
-                                                    + "]: Initiating a new full update. We are: [" + _dataName + "] "
-                                                    + _nodename);
+                                    _cacheMonitor.log(WARN, MonitorCategory.ENSURE_UPDATE, "Ensurer triggered:"
+                                            + " We have NOT seen a full update AFTER this update was started ["
+                                            + _formatTimestamp(lastUpdateInitiatedTimestamp)
+                                            + "]: Initiating a new full update. We are: [" + _dataName + "] "
+                                            + _nodename);
 
                                     // Fire off a broadcast to the siblings to trigger an update.
                                     _fullUpdateCoord_phase0_InitiateFromServer_Ensurer();
