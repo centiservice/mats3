@@ -2057,17 +2057,22 @@ public interface MatsEagerCacheServer {
                     _cacheMonitor.log(DEBUG, MonitorCategory.ADVERTISE_APP_AND_NODE, "Advertise: " + logText
                             + "  I am: '" + _dataName + "' @ '" + _appName + "' @ '" + _nodename + "'.");
                 }
-                _matsFactory.getDefaultInitiator().initiateUnchecked(init -> init.traceId(
-                        TraceId.create(_serverOrClassName + "." + _dataName, "AdvertiseAppAndNode")
-                                .add("app", _appName)
-                                .add("node", _nodename))
-                        .from(_serverOrClassName + "." + _dataName + ".AdvertiseAppAndNode")
-                        .to(_getBroadcastTopic(_dataName))
-                        .setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE.toString())
-                        .publish(new AdvertiseBroadcastDto(_server
-                                ? BroadcastDto.COMMAND_SERVER_ADVERTISE
-                                : BroadcastDto.COMMAND_CLIENT_ADVERTISE,
-                                _appName, _nodename, clearAppsNodes, goingAway)));
+                _matsFactory.getDefaultInitiator().initiateUnchecked(init -> {
+                    init.traceId(TraceId.create(_serverOrClassName + "." + _dataName, "AdvertiseAppAndNode")
+                            .add("app", _appName)
+                            .add("node", _nodename))
+                            .from(_serverOrClassName + "." + _dataName + ".AdvertiseAppAndNode")
+                            .to(_getBroadcastTopic(_dataName));
+                    // ?: Is this an ordinary advertisement? (not clear or goingAway)
+                    if (!(clearAppsNodes || goingAway)) {
+                        // -> Yes, this is an ordinary advertisement, so we should suppress logging.
+                        init.setTraceProperty(SUPPRESS_LOGGING_TRACE_PROPERTY_KEY, Boolean.TRUE);
+                    }
+                    init.publish(new AdvertiseBroadcastDto(_server
+                            ? BroadcastDto.COMMAND_SERVER_ADVERTISE
+                            : BroadcastDto.COMMAND_CLIENT_ADVERTISE,
+                            _appName, _nodename, clearAppsNodes, goingAway));
+                });
             }
         }
 
@@ -2348,17 +2353,8 @@ public interface MatsEagerCacheServer {
 
                         String updateRequest_HandlingNodename;
                         synchronized (this) {
+                            // Copy off the handling nodename: We need it to not change, and we need to reset it.
                             updateRequest_HandlingNodename = _updateRequest_HandlingNodename;
-                            // Note: We do the reset of the count and HandlingNodename in "phase 2": The next phase
-                            // occurs when the elected leader (below code) sends the broadcast message to start the
-                            // update. It might be a bit counter-intuitive to not do it here (at least it is for me,
-                            // I've been sitting pondering about this decision for hours now, playing out async
-                            // scenarios!), but it should ensure that all nodes do the resetting at very close to the
-                            // same time, since they all get that message at the same time.
-                            //
-                            // There are plenty of races here based on the millisecond a message comes in. Read the
-                            // comment a bit above for more details; These races are benign, as they eventually will
-                            // resolve, albeit with either an update too many, or that the "Ensurer" catches it.
                         }
 
                         // ?: Are we the one that should handle the update?
@@ -2403,22 +2399,39 @@ public interface MatsEagerCacheServer {
                         }
                     }
                     catch (Throwable t) {
-                        // We catch all problems instead of letting it propagate out as uncaught exception from thread.
+                        // We catch all problems - probably from the initiation-attempt - instead of letting it
+                        // propagate out as uncaught exception from thread.
                         _cacheMonitor.exception(MonitorCategory.REQUEST_COALESCE, "Got exception while trying"
                                 + " to coalesce requests and elect leader - thus not sending off the actual \"send new"
-                                + " update\" broadcast. Resetting coalesce system, letting the Ensurer-system handle"
-                                + " this.", t);
+                                + " update\" broadcast. Resetting the coalesce system, letting the Ensurer-system"
+                                + " handle this problem.", t);
 
-                        // We now reset the coalescing system, as we don't want to be in a state where we have a
-                        // coalescing thread that is dead! That would be unresolvable, as the logic above would just
-                        // put more and more messages into "coalescing" state, but the thread is gone, so no-one
-                        // will ever handle them.
+                        // We now reset the coalescing system (in finally block), as we don't want to be in a state
+                        // where we coalesce new messages into a coalescing thread that is dead! That would be
+                        // unresolvable, as the logic above would just put more and more messages into "coalescing"
+                        // state, but the thread is gone, so no-one will ever handle them.
 
                         // Note that this means we're temporarily screwed, but the Ensurer-logics will eventually kick
                         // in and start a new full update since it haven't seen a full update since this was started.
+                    }
+                    finally {
+                        // :: Reset coalescing system: Clear count and nodename, after which a new request for update
+                        // will start the election and coalescing process anew.
                         synchronized (this) {
-                            _updateRequest_OutstandingCount = 0;
-                            _updateRequest_HandlingNodename = null;
+                            // There are plenty of "asymmetric races" here based on the millisecond a message comes in.
+                            // Read the earlier comment (at "if (shouldStartCoalescingThread)") for more details; These
+                            // races are benign, as they *eventually* will resolve, albeit with either an update too
+                            // many, or that the "Ensurer" catches it.
+                            //
+                            // Example: If a new request comes in "right now", this node will start a new coalescing
+                            // round and fire off a new thread, while another node coalesces the same message node into
+                            // the existing round, since it hasn't yet reset due to milliseconds differences in
+                            // receiving the message, or that they (again due to milliseconds differences!) slept
+                            // different wrt. "short" or "long" delay.
+                            synchronized (this) {
+                                _updateRequest_OutstandingCount = 0;
+                                _updateRequest_HandlingNodename = null;
+                            }
                         }
                     }
                 }, "MatsEagerCacheServer." + _dataName + "-UpdateRequestsCoalescingDelay");
@@ -2440,16 +2453,6 @@ public interface MatsEagerCacheServer {
 
             // A full-update will be sent now, make note (for fastResponse evaluation, and possibly GUI)
             _lastFullUpdateProductionStartedTimestamp = System.currentTimeMillis();
-
-            // Reset count - after which a new request for update will start the election and coalescing process anew.
-            // Note that this CAN result in two coalescing threads running at the same time, but that is benign.
-            // (If the system is running in a normal way, outlier scenarios will resolve, typically very quickly. If
-            // you've coded some crazy stuff, e.g. sending requests for updates way too often, or similar, this
-            // coalescing- and ensurer-systems won't make things better. But fix your code then!)
-            synchronized (this) {
-                _updateRequest_OutstandingCount = 0;
-                _updateRequest_HandlingNodename = null;
-            }
 
             // ?: Is it us that should handle the actual broadcast of update?
             // .. AND is there no other update in the queue? (If there is a task in queue, that task will already send
