@@ -2418,15 +2418,16 @@ public interface MatsEagerCacheServer {
                         // will start the election and coalescing process anew.
                         synchronized (this) {
                             // There are plenty of "asymmetric races" here based on the millisecond a message comes in.
-                            // Read the earlier comment (at "if (shouldStartCoalescingThread)") for more details; These
+                            // Read the earlier comment (at "if (shouldStartCoalescingThread)") for more details. These
                             // races are benign, as they *eventually* will resolve, albeit with either an update too
-                            // many, or that the "Ensurer" catches it.
+                            // many, or that the Ensurer system eventually catches it.
                             //
-                            // Example: If a new request comes in "right now", this node will start a new coalescing
-                            // round and fire off a new thread, while another node coalesces the same message node into
-                            // the existing round, since it hasn't yet reset due to milliseconds differences in
-                            // receiving the message, or that they (again due to milliseconds differences!) slept
-                            // different wrt. "short" or "long" delay.
+                            // Example: If a new (broadcast) request comes in "right now" (after the reset), this node
+                            // will start a new coalescing round and fire off a new thread, while another node might
+                            // coalesce the same broadcast message into the existing coalescing round, since it hasn't
+                            // yet reset. This could happen due to milliseconds differences in receiving the message, or
+                            // that they (again due to milliseconds differences!) slept different wrt. "short" or "long"
+                            // delay.
                             synchronized (this) {
                                 _updateRequest_OutstandingCount = 0;
                                 _updateRequest_HandlingNodename = null;
