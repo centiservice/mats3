@@ -18,10 +18,15 @@ package io.mats3.test;
 
 /**
  * Test-utility: Simple barrier-functionality facilitating communication back from some async processing to the main
- * thread that sent a message to some processor, and is now waiting for the async processing to complete.
- * <p>
- * Can be used to wait for a result, or for an exception to be thrown. If the opposite of what you're waiting for is
- * what is resolved (i.e. you're waiting for a result, but an exception is thrown), an {@link AssertionError} is raised.
+ * thread. Can be just resolved, or resolved with an Object, or with an Exception - which the main thread awaits. If the
+ * opposite of what you're awaiting for is what is resolved (i.e. you're awaiting for a result, but the barrier is
+ * resolved with an exception), an {@link AssertionError} is raised from the await call. This tool is less Mats-specific
+ * than {@link MatsTestLatch}, and does not use a Result interface, but rather just a generic Object as result. If you'd
+ * like to e.g. communicate back from a Terminator and need both the incoming message and the state - and possibly the
+ * ProcessContext - then you should evaluate the {@link MatsTestLatch} instead.
+ * <p/>
+ * Reset/reuse is not automatic: You must call {@link #reset()} after having resolved and awaited it, otherwise a
+ * new await will immediately return with the result/exception of the last resolution.
  *
  * @see MatsTestLatch
  * @author Endre Stølsvik 2024-10-13 02:19 - http://stolsvik.com/, endre@stolsvik.com
