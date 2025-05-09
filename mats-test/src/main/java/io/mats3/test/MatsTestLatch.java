@@ -20,7 +20,13 @@ import io.mats3.MatsEndpoint.DetachedProcessContext;
 
 /**
  * Test-utility: Gives a latch-functionality facilitating communication back from typically a Mats Terminator to the
- * main-thread that sent a message to some processor, and is now waiting for the Terminator to get the result.
+ * main-thread that sent a message to some processor, and is now waiting for the Terminator to get the result - this
+ * tool is very Mats-specific and uses a {@link Result} interface which can carry the incoming message, the state
+ * object, and the {@link DetachedProcessContext ProcessContext} that the Mats processor received (the ProcessContext
+ * can carry sideloads and trace properties). A less Mats-specific tool is {@link MatsTestBarrier}, which does not use a
+ * Result interface, but rather just a generic Object as result - but it handles waiting for a result or an exception.
+ * <p/>
+ * Reset/reuse is automatic: After having waitForResult'ed it, the latch is reset and ready for reuse.
  *
  * @see MatsTestBarrier
  * @author Endre Stølsvik - 2015 - http://endre.stolsvik.com
@@ -77,48 +83,52 @@ public class MatsTestLatch {
      */
     public <S, I> Result<S, I> waitForResult(long timeout) {
         synchronized (this) {
-            if (!_resolved) {
-                try {
-                    this.wait(timeout);
+            try {
+                if (!_resolved) {
+                    try {
+                        this.wait(timeout);
+                    }
+                    catch (InterruptedException e) {
+                        throw new AssertionError("Should not get InterruptedException here.", e);
+                    }
                 }
-                catch (InterruptedException e) {
-                    throw new AssertionError("Should not get InterruptedException here.", e);
+
+                if (!_resolved) {
+                    throw new AssertionError("After waiting for " + timeout + " ms, the result was not present.");
                 }
+
+                // Return the result, capturing the state, data and context (we'll null it in finally).
+                return new Result<S, I>() {
+                    @SuppressWarnings("unchecked")
+                    private I _idto = (I) _dto;
+                    @SuppressWarnings("unchecked")
+                    private S _isto = (S) _sto;
+                    private DetachedProcessContext _icontext = _context;
+
+                    @Override
+                    public DetachedProcessContext getContext() {
+                        return _icontext;
+                    }
+
+                    @Override
+                    public S getState() {
+                        return _isto;
+                    }
+
+                    @Override
+                    public I getData() {
+                        return _idto;
+                    }
+                };
             }
 
-            if (!_resolved) {
-                throw new AssertionError("After waiting for " + timeout + " ms, the result was not present.");
+            finally {
+                // Null out the latch, for reuse.
+                _resolved = false;
+                _sto = null;
+                _dto = null;
+                _context = null;
             }
-
-            Result<S, I> result = new Result<S, I>() {
-                @SuppressWarnings("unchecked")
-                private I _idto = (I) _dto;
-                @SuppressWarnings("unchecked")
-                private S _isto = (S) _sto;
-                private DetachedProcessContext _icontext = _context;
-
-                @Override
-                public DetachedProcessContext getContext() {
-                    return _icontext;
-                }
-
-                @Override
-                public S getState() {
-                    return _isto;
-                }
-
-                @Override
-                public I getData() {
-                    return _idto;
-                }
-            };
-
-            // Null out the latch, for reuse.
-            _resolved = false;
-            _sto = null;
-            _dto = null;
-            _context = null;
-            return result;
         }
     }
 
