@@ -9,81 +9,163 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
-import io.mats3.test.abstractunit.AbstractMatsTestEndpoint.Result;
+import io.mats3.test.MatsTestEndpoint;
+import io.mats3.test.MatsTestEndpoint.Message;
+import io.mats3.test.MatsTestLatch;
+import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.test.junit.Rule_Mats;
-import io.mats3.test.junit.Rule_MatsEndpoints;
+import io.mats3.test.junit.Rule_MatsTestEndpoints;
+import io.mats3.test.junit.Rule_MatsTestEndpoints.Endpoint;
+import io.mats3.test.junit.Rule_MatsTestEndpoints.EndpointWithState;
+import io.mats3.test.junit.Rule_MatsTestEndpoints.Terminator;
+import io.mats3.test.junit.Rule_MatsTestEndpoints.TerminatorWithState;
 import io.mats3.util.MatsFuturizer.Reply;
 
 /**
- * Illustrate features {@link Rule_MatsEndpoints} and some simple usage scenarios.
+ * Tests all of the Junit 4 variants of {@link MatsTestEndpoint} with some simple usage scenarios.
  *
  * @author Kevin Mc Tiernan, 2025-04-23, kevin.mc.tiernan@storebrand.no
+ * @author Endre Stølsvik 2025-05-11 - http://stolsvik.com/, endre@stolsvik.com
  */
 public class U_RuleMatsEndpointsTest {
 
-    private static final String HELLO_ENDPOINT_ID = "HelloEndpoint";
-    private static final String HELLO_SEEDED_WITH_STATE = "HelloSeededWithState";
-    private static final String TERMINATOR_ENDPOINT = "Terminator";
+    private static final String ENDPOINT = "HelloEndpoint";
+    private static final String ENDPOINT_WITH_STATE = "HelloEndpointWithState";
+    private static final String TERMINATOR = "Terminator";
     private static final String TERMINATOR_WITH_STATE = "TerminatorWithState";
+
+    private static final String TERMINATOR_FOR_TEST = "TerminatorForTest";
+
+    private static final String ENDPOINT_NPL = "HelloEndpoint_NPL";
+    private static final String ENDPOINT_WITH_STATE_NPL = "HelloEndpointWithState_NPL";
+    private static final String TERMINATOR_NPL = "Terminator_NPL";
+    private static final String TERMINATOR_WITH_STATE_NPL = "TerminatorWithState_NPL";
 
     @ClassRule
     public static final Rule_Mats MATS = Rule_Mats.create();
 
+    private MatsTestLatch _matsTestLatch = MATS.getMatsTestLatch();
+
+    // ==================================================================================
+    // :: SETUP: The four types of endpoints we're testing
+    // ==================================================================================
+
     @Rule
-    public Rule_MatsEndpoints.Endpoint<String, String> _helloEndpoint =
-            Rule_MatsEndpoints.createEndpoint(HELLO_ENDPOINT_ID, String.class, String.class)
-                    .setMatsFactory(MATS.getMatsFactory())
-                    .setProcessLambda((ctx, msg) -> "Hello " + msg);
+    public Endpoint<ReplyDTO, RequestDTO> _helloEndpoint = Rule_MatsTestEndpoints
+            .createEndpoint(ENDPOINT, ReplyDTO.class, RequestDTO.class)
+            .setMatsFactory(MATS.getMatsFactory()) // Set MatsFactory explicitly, just to show how that works.
+            .setProcessLambda((ctx, msg) -> {
+                _matsTestLatch.resolve(ctx, null, msg);
+                return new ReplyDTO("Hello 1 " + msg.request);
+            });
     @Rule
-    public Rule_MatsEndpoints.EndpointWithState<String, String, String> _helloSeededWithState =
-            Rule_MatsEndpoints.createEndpoint(HELLO_SEEDED_WITH_STATE, String.class, String.class, String.class)
-                    .setMatsFactory(MATS.getMatsFactory())
-                    .setProcessLambda((ctx, msg) -> "Hello " + msg);
+    public EndpointWithState<ReplyDTO, StateSTO, RequestDTO> _helloEndpointWithState = Rule_MatsTestEndpoints
+            .createEndpoint(MATS, ENDPOINT_WITH_STATE, ReplyDTO.class, StateSTO.class, RequestDTO.class);
+    // Set ProcessLambda in test.
+
     @Rule
-    public Rule_MatsEndpoints.Terminator<String> _terminator =
-            Rule_MatsEndpoints.createTerminator(TERMINATOR_ENDPOINT, String.class)
-                    .setMatsFactory(MATS.getMatsFactory());
+    public Terminator<RequestDTO> _terminator = Rule_MatsTestEndpoints
+            .createTerminator(MATS, TERMINATOR, RequestDTO.class)
+            .setProcessLambda((ctx, msg) -> _matsTestLatch.resolve(ctx, null, msg));
     @Rule
-    public Rule_MatsEndpoints.TerminatorWithState<String, String> _terminatorWithState =
-            Rule_MatsEndpoints.createTerminator(TERMINATOR_WITH_STATE, String.class, String.class)
-                    .setMatsFactory(MATS.getMatsFactory());
+    public TerminatorWithState<StateSTO, RequestDTO> _terminatorWithState = Rule_MatsTestEndpoints
+            .createTerminator(MATS, TERMINATOR_WITH_STATE, StateSTO.class, RequestDTO.class);
+    // Set ProcessLambda in test.
+
+    // ------------------------------------------------------------------------------------
+    // :: Terminator for test - used to verify that endpoint '_helloEndpoint' replies!
+    // (i.e. a bona fide use of this rule, not to test it!)
+    @Rule
+    public TerminatorWithState<StateSTO, ReplyDTO> _terminatorForTest = Rule_MatsTestEndpoints
+            .createTerminator(MATS, TERMINATOR_FOR_TEST, StateSTO.class, ReplyDTO.class);
+
+    // =======================================================================================
+    // :: SETUP: Not having set Process Lambda will throw upon await, unless Terminators
+    // =======================================================================================
+
+    @Rule
+    public Endpoint<ReplyDTO, RequestDTO> _helloEndpoint_npl = Rule_MatsTestEndpoints
+            .createEndpoint(MATS, ENDPOINT_NPL, ReplyDTO.class, RequestDTO.class);
+    @Rule
+    public EndpointWithState<ReplyDTO, StateSTO, RequestDTO> _helloEndpointWithState_npl = Rule_MatsTestEndpoints
+            .createEndpoint(MATS, ENDPOINT_WITH_STATE_NPL, ReplyDTO.class, StateSTO.class, RequestDTO.class);
+    @Rule
+    public Terminator<RequestDTO> _terminator_npl = Rule_MatsTestEndpoints
+            .createTerminator(MATS, TERMINATOR_NPL, RequestDTO.class);
+    @Rule
+    public TerminatorWithState<StateSTO, RequestDTO> _terminatorWithState_npl = Rule_MatsTestEndpoints
+            .createTerminator(MATS, TERMINATOR_WITH_STATE_NPL, StateSTO.class, RequestDTO.class);
+
+    // ===============================================================================================================
+    // :: TESTS: Ordinary functionality
+    // ===============================================================================================================
 
     @Test
     public void endpointTest() throws ExecutionException, InterruptedException, TimeoutException {
         // :: Setup
-        String world = "World";
+        RequestDTO worldRequest = new RequestDTO("World 1");
 
         // :: Act
-        String result = MATS.getMatsFuturizer()
-                .futurizeNonessential("Test", getClass().getSimpleName(), HELLO_ENDPOINT_ID, String.class, world)
+        // Using Futurizer to send a message to the endpoint, and receive reply.
+        ReplyDTO replyDto = MATS.getMatsFuturizer()
+                .futurizeNonessential("Test", getClass().getSimpleName(), ENDPOINT, ReplyDTO.class, worldRequest)
                 .thenApply(Reply::get)
-                .get(1, TimeUnit.SECONDS);
+                .get(30, TimeUnit.SECONDS);
         // :: Verify
-        Assert.assertEquals("Hello " + world, result);
+        Assert.assertEquals("Hello 1 World 1", replyDto.reply);
 
-        Result<Void, String> epResult = _helloEndpoint.waitForResult();
-        Assert.assertEquals(world, epResult.getData());
+        Message<Void, RequestDTO> epMessage = _helloEndpoint.awaitInvocation();
+        Assert.assertEquals(worldRequest.request, epMessage.getData().request);
 
-        _helloSeededWithState.verifyNotInvoked();
+        // Do the latch check after the Test endpoint has been verified - it should have been resolved.
+        Result<Void, RequestDTO> latched = _matsTestLatch.waitForResult();
+        Assert.assertEquals(worldRequest.request, latched.getData().request);
+        Assert.assertNull(latched.getState());
+        Assert.assertNotNull(latched.getContext());
+
+        _helloEndpointWithState.verifyNotInvoked();
         _terminator.verifyNotInvoked();
         _terminatorWithState.verifyNotInvoked();
     }
 
     @Test
-    public void endpointStateTest() {
+    public void endpointWithStateTest() {
         // :: Setup
-        String world = "World";
+        RequestDTO worldRequest = new RequestDTO("World 2");
+        StateSTO initialState = new StateSTO("State for 2");
+
+        StateSTO terminatorState = new StateSTO("TerminatorState");
+
+        // Set the process lambda to be used by the endpoint.
+        _helloEndpointWithState.setProcessLambda((ctx, state, msg) -> {
+            _matsTestLatch.resolve(ctx, state, msg);
+            return new ReplyDTO("Hello 2 " + msg.request);
+        });
 
         // :: Act
+        // Using ordinary request-replyTo to send a message to the endpoint, and receive reply.
+        // This because the Futurizer cannot be used with initial state.
         MATS.getMatsInitiator().initiateUnchecked(init -> init.traceId("Test")
                 .from(getClass().getSimpleName())
-                .to(HELLO_SEEDED_WITH_STATE)
-                .send(world, "AStateOfSomeSort"));
+                .to(ENDPOINT_WITH_STATE)
+                .replyTo(TERMINATOR_FOR_TEST, terminatorState)
+                .request(worldRequest, initialState));
 
         // :: Verify
-        Result<String, String> epResult = _helloSeededWithState.waitForResult();
-        Assert.assertEquals(world, epResult.getData());
-        Assert.assertEquals("AStateOfSomeSort", epResult.getState());
+        Message<StateSTO, RequestDTO> epMessage = _helloEndpointWithState.awaitInvocation();
+        Assert.assertEquals(worldRequest.request, epMessage.getData().request);
+        Assert.assertEquals(initialState.state, epMessage.getState().state);
+
+        // Verify that the endpoint sent a reply to the terminator.
+        Message<StateSTO, ReplyDTO> terminatorMessage = _terminatorForTest.awaitInvocation();
+        Assert.assertEquals("Hello 2 World 2", terminatorMessage.getData().reply);
+        Assert.assertEquals(terminatorState.state, terminatorMessage.getState().state);
+
+        // Do the latch check after the Test endpoint has been verified - it should obviously have been resolved.
+        Result<StateSTO, RequestDTO> latched = _matsTestLatch.waitForResult();
+        Assert.assertEquals(worldRequest.request, latched.getData().request);
+        Assert.assertEquals(initialState.state, latched.getState().state);
+        Assert.assertNotNull(latched.getContext());
 
         _helloEndpoint.verifyNotInvoked();
         _terminator.verifyNotInvoked();
@@ -93,41 +175,146 @@ public class U_RuleMatsEndpointsTest {
     @Test
     public void terminatorTest() {
         // :: Setup
-        String world = "World";
+        RequestDTO worldRequest = new RequestDTO("World 3");
 
         // :: Act
         MATS.getMatsInitiator().initiateUnchecked(init -> init.traceId("Test")
                 .from(getClass().getSimpleName())
-                .to(TERMINATOR_ENDPOINT)
-                .send(world));
+                .to(TERMINATOR)
+                .send(worldRequest));
 
         // :: Verify
-        Result<Void, String> epResult = _terminator.waitForResult();
-        Assert.assertEquals(world, epResult.getData());
+        Message<Void, RequestDTO> epMessage = _terminator.awaitInvocation();
+        Assert.assertEquals(worldRequest.request, epMessage.getData().request);
+
+        // Do the latch check after the Test endpoint has been verified - it should have been resolved.
+        Result<Void, RequestDTO> latched = _matsTestLatch.waitForResult();
+        Assert.assertEquals(worldRequest.request, latched.getData().request);
+        Assert.assertNull(latched.getState());
+        Assert.assertNotNull(latched.getContext());
 
         _helloEndpoint.verifyNotInvoked();
-        _helloSeededWithState.verifyNotInvoked();
+        _helloEndpointWithState.verifyNotInvoked();
         _terminatorWithState.verifyNotInvoked();
     }
 
     @Test
-    public void terminatorStateTest() {
+    public void terminatorWithStateTest() {
         // :: Setup
-        String world = "World";
+        RequestDTO worldRequest = new RequestDTO("World 4");
+        StateSTO initialState = new StateSTO("State for 4");
+
+        // Set the process lambda to be used by the terminator.
+        _terminatorWithState.setProcessLambda((ctx, state, msg) -> _matsTestLatch.resolve(ctx, state, msg));
 
         // :: Act
         MATS.getMatsInitiator().initiateUnchecked(init -> init.traceId("Test")
                 .from(getClass().getSimpleName())
                 .to(TERMINATOR_WITH_STATE)
-                .send(world, "AStateOfSomeSort"));
+                .send(worldRequest, initialState));
 
         // :: Verify
-        Result<String, String> epResult = _terminatorWithState.waitForResult();
-        Assert.assertEquals(world, epResult.getData());
-        Assert.assertEquals("AStateOfSomeSort", epResult.getState());
+        Message<StateSTO, RequestDTO> epMessage = _terminatorWithState.awaitInvocation();
+        Assert.assertEquals(worldRequest.request, epMessage.getData().request);
+        Assert.assertEquals(initialState.state, epMessage.getState().state);
+
+        // Do the latch check after the Test endpoint has been verified - it should have been resolved.
+        Result<StateSTO, RequestDTO> latched = _matsTestLatch.waitForResult();
+        Assert.assertEquals(worldRequest.request, latched.getData().request);
+        Assert.assertEquals(initialState.state, latched.getState().state);
+        Assert.assertNotNull(latched.getContext());
 
         _helloEndpoint.verifyNotInvoked();
-        _helloSeededWithState.verifyNotInvoked();
+        _helloEndpointWithState.verifyNotInvoked();
         _terminator.verifyNotInvoked();
+    }
+
+    // ===============================================================================================================
+    // :: Tests for no process lambda - Endpoints should throw when awaiting invocation when missing process lambda.
+    // ===============================================================================================================
+
+    @Test(expected = IllegalStateException.class)
+    public void endpointTest_no_process_lambda() throws ExecutionException, InterruptedException, TimeoutException {
+        // :: Verify
+        _helloEndpoint_npl.awaitInvocation();
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void endpointWithStateTest_no_process_lambda() {
+        // :: Verify
+        _helloEndpointWithState_npl.awaitInvocation();
+    }
+
+    @Test
+    public void terminatorTest_no_process_lambda() {
+        // :: Setup
+        RequestDTO worldRequest = new RequestDTO("World 3 npl");
+
+        // :: Act
+        MATS.getMatsInitiator().initiateUnchecked(init -> init.traceId("Test")
+                .from(getClass().getSimpleName())
+                .to(TERMINATOR_NPL)
+                .send(worldRequest));
+
+        // :: Verify
+        Message<Void, RequestDTO> epMessage = _terminator_npl.awaitInvocation();
+        Assert.assertEquals(worldRequest.request, epMessage.getData().request);
+        Assert.assertNull(epMessage.getState());
+    }
+
+    @Test
+    public void terminatorWithStateTest_no_process_lambda() {
+        // :: Setup
+        RequestDTO worldRequest = new RequestDTO("World 4 npl");
+        StateSTO initialState = new StateSTO("State for 4 npl");
+
+        // :: Act
+        MATS.getMatsInitiator().initiateUnchecked(init -> init.traceId("Test")
+                .from(getClass().getSimpleName())
+                .to(TERMINATOR_WITH_STATE_NPL)
+                .send(worldRequest, initialState));
+
+        // :: Verify
+        Message<StateSTO, RequestDTO> epMessage = _terminatorWithState_npl.awaitInvocation();
+        Assert.assertEquals(worldRequest.request, epMessage.getData().request);
+        Assert.assertEquals(initialState.state, epMessage.getState().state);
+    }
+
+    // :: Reply, State, and Request DTOs used in the tests.
+
+    private static class ReplyDTO {
+        String reply;
+
+        ReplyDTO() {
+            // No-args constructor for deserialization.
+        }
+
+        ReplyDTO(String reply) {
+            this.reply = reply;
+        }
+    }
+
+    private static class StateSTO {
+        String state;
+
+        StateSTO() {
+            // No-args constructor for deserialization.
+        }
+
+        StateSTO(String state) {
+            this.state = state;
+        }
+    }
+
+    private static class RequestDTO {
+        String request;
+
+        RequestDTO() {
+            // No-args constructor for deserialization.
+        }
+
+        RequestDTO(String request) {
+            this.request = request;
+        }
     }
 }

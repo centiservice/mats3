@@ -30,11 +30,11 @@ import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint.ProcessSingleLambda;
 import io.mats3.MatsFactory;
+import io.mats3.test.MatsTestEndpoint.IEndpoint;
 import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
-import io.mats3.test.junit.Rule_MatsEndpoints.Endpoint;
 
 /**
- * Legacy version of {@link Endpoint} for a single-staged endpoint.
+ * Legacy version of {@link IEndpoint} for a single-staged endpoint.
  * <p>
  * Rule to create a single staged endpoint whose reply/processor can be changed throughout its life, i.e. per test (e.g.
  * answer "Sorry, no can do." for the first test, and then "Yes, we can!" for the next test). Useful for mocking
@@ -79,7 +79,7 @@ import io.mats3.test.junit.Rule_MatsEndpoints.Endpoint;
  * @author Johan Herman Hausberg, 2017.04 - jhausber@gmail.com
  * @author Asbjørn Aarrestad, 2017 - asbjorn@aarrestad.com
  * @author Endre Stølsvik, 2017 - http://stolsvik.com/, endre@stolsvik.com
- * @see Rule_MatsEndpoints
+ * @see Rule_MatsTestEndpoints
  */
 public class Rule_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, Void, I> implements TestRule {
     private static final Logger log = LoggerFactory.getLogger(Rule_MatsEndpoint.class);

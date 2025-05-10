@@ -26,9 +26,15 @@ import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint;
 import io.mats3.MatsEndpoint.DetachedProcessContext;
+import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsEndpoint.ProcessSingleLambda;
 import io.mats3.MatsEndpoint.ProcessTerminatorLambda;
 import io.mats3.MatsFactory;
+import io.mats3.test.MatsTestEndpoint.IEndpoint;
+import io.mats3.test.MatsTestEndpoint.IEndpointWithState;
+import io.mats3.test.MatsTestEndpoint.Message;
+import io.mats3.test.MatsTestEndpoint.ProcessSingleStateLambda;
+import io.mats3.test.MatsTestEndpoint.ProcessTerminatorNoStateLambda;
 
 /**
  * Common base class which consolidates the common logic utilized by both Rule_MatsEndpoint and Extension_MatsEndpoint.
@@ -55,7 +61,7 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
     private static final Logger log = LoggerFactory.getLogger(AbstractMatsTestEndpoint.class);
 
     /** Actual {@link MatsEndpoint} returned from the {@link MatsFactory} during creation. */
-    private MatsEndpoint<R, S> _endpoint;
+    protected MatsEndpoint<R, S> _endpoint;
 
     private final String _endpointId;
     private final Class<R> _replyMsgClass;
@@ -68,14 +74,15 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
     /**
      * Synchronized list keeping track of all endpoint invocations, storing the incoming message for later retrieval.
      */
-    private final SynchronizedInvocationList<S, I> _synchronizedInvocationList = new SynchronizedInvocationList<>();
+    protected final SynchronizedInvocationList<S, I> _synchronizedInvocationList = new SynchronizedInvocationList<>();
+
     /**
      * Default time out in milliseconds i.e. 30 seconds.
      *
      * @see #waitForRequest()
      * @see #waitForRequests(int)
-     * @see #waitForResult()
-     * @see #waitForResults(int)
+     * @see #awaitInvocation()
+     * @see #awaitInvocations(int)
      */
     private static final int DEFAULT_TIME_OUT_MILLIS = 30_000;
 
@@ -102,10 +109,10 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
      * (<code>I</code>). Will use a default timout value of 30 seconds.
      * <p>
      * Should one want to verify something within the context e.g. side-loads or incoming state (not always applicable),
-     * consider utilizing {@link #waitForResult}.
+     * consider utilizing {@link #awaitInvocation}.
      *
      * @return the first incoming message it encounters after calling this method.
-     * @see #waitForResult()
+     * @see #awaitInvocation()
      */
     protected I waitForRequest() {
         return waitForRequest(DEFAULT_TIME_OUT_MILLIS);
@@ -116,12 +123,12 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
      * (<code>I</code>).
      * <p>
      * Should one want to verify something within the context e.g. side-loads or incoming state (not always applicable),
-     * consider utilizing {@link #waitForResult}.
+     * consider utilizing {@link #awaitInvocation}.
      *
      * @param millisToWait
      *            time to wait before timing out.
      * @return the first incoming message it encounters after calling this method.
-     * @see #waitForResult(long)
+     * @see #awaitInvocation(long)
      */
     protected I waitForRequest(long millisToWait) {
         return waitForRequests(1, millisToWait).get(0);
@@ -132,12 +139,12 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
      * incoming message DTO's of the type (<code>I</code>). Will utilize a default timeout value of 30 seconds.
      * <p>
      * Should one want to verify something within the context e.g. side-loads or incoming state (not always applicable),
-     * consider utilizing {@link #waitForResults}.
+     * consider utilizing {@link #awaitInvocations}.
      *
      * @param expectedNumberOfIncomingMsgs
      *            the number of incoming messages before unblocking and returning the received objects.
      * @return the x number of incoming message it encounters after calling this method as a List&lt;I&gt;.
-     * @see #waitForResults(int)
+     * @see #awaitInvocations(int)
      */
     protected List<I> waitForRequests(int expectedNumberOfIncomingMsgs) {
         return waitForRequests(expectedNumberOfIncomingMsgs, DEFAULT_TIME_OUT_MILLIS);
@@ -148,68 +155,69 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
      * incoming message DTO's of the type (<code>I</code>).
      * <p>
      * Should one want to verify something within the context e.g. side-loads or incoming state (not always applicable),
-     * consider utilizing {@link #waitForResults}.
+     * consider utilizing {@link #awaitInvocations}.
      *
      * @param expectedNumberOfIncomingMsgs
      *            the number of incoming messages before unblocking and returning the received objects.
      * @param millisToWait
      *            time to wait before timing out.
      * @return the x number of incoming message it encounters after calling this method as a List&lt;I&gt;.
-     * @see #waitForResults(int, long)
+     * @see #awaitInvocations(int, long)
      */
     protected List<I> waitForRequests(int expectedNumberOfIncomingMsgs, long millisToWait) {
-        return _synchronizedInvocationList.getInvocationsWaitForCount(expectedNumberOfIncomingMsgs, millisToWait).stream()
-                .map(Result::getData)
+        return _synchronizedInvocationList.getInvocationsWaitForCount(expectedNumberOfIncomingMsgs, millisToWait)
+                .stream()
+                .map(Message::getData)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Blocks and waits for the endpoint to be invoked, then returns a {@link Result} containing the context, incoming
+     * Blocks and waits for the endpoint to be invoked, then returns a {@link Message} containing the context, incoming
      * state (<code>S</code>) and incoming message (<code>I</code>). Will use a default timout value of 30 seconds.
      *
-     * @return {@link Result}
+     * @return {@link Message}
      */
-    protected Result<S, I> waitForResult() {
-        return waitForResult(DEFAULT_TIME_OUT_MILLIS);
+    protected Message<S, I> awaitInvocation() {
+        return awaitInvocation(DEFAULT_TIME_OUT_MILLIS);
     }
 
     /**
-     * Blocks and waits for the specified amount of time for the endpoint to be invoked, then returns a {@link Result}
+     * Blocks and waits for the specified amount of time for the endpoint to be invoked, then returns a {@link Message}
      * containing the context, incoming state (<code>S</code>) and incoming message (<code>I</code>).
      *
      * @param millisToWait
-     *          before timing out.
-     * @return {@link Result}
+     *            before timing out.
+     * @return {@link Message}
      */
-    protected Result<S, I> waitForResult(long millisToWait) {
-        return waitForResults(1, millisToWait).get(0);
+    protected Message<S, I> awaitInvocation(long millisToWait) {
+        return awaitInvocations(1, millisToWait).get(0);
     }
 
     /**
-     * Blocks and waits for the endpoint to be invoked x number of times, then returns the x number of {@link Result}
-     * containing the context, incoming state (<code>S</code>) and incoming message (<code>I</code>).
-     * Will utilize a default timeout value of 30 seconds.
+     * Blocks and waits for the endpoint to be invoked x number of times, then returns the x number of {@link Message}
+     * containing the context, incoming state (<code>S</code>) and incoming message (<code>I</code>). Will utilize a
+     * default timeout value of 30 seconds.
      *
      * @param expectedNumberOfIncomingMsgs
-     *          the number of incoming messages before unblocking and returning the {@link Result}s.
-     * @return List of {@link Result Result}.
+     *            the number of incoming messages before unblocking and returning the {@link Message}s.
+     * @return List of {@link Message Result}.
      */
-    protected List<Result<S, I>> waitForResults(int expectedNumberOfIncomingMsgs) {
-        return waitForResults(expectedNumberOfIncomingMsgs, DEFAULT_TIME_OUT_MILLIS);
+    protected List<Message<S, I>> awaitInvocations(int expectedNumberOfIncomingMsgs) {
+        return awaitInvocations(expectedNumberOfIncomingMsgs, DEFAULT_TIME_OUT_MILLIS);
     }
 
     /**
      * Blocks and waits the specified amount of time for the endpoint to be invoked x number of times, then returns the
-     * x number of {@link Result} containing the context, incoming state (<code>S</code>) and incoming message
+     * x number of {@link Message} containing the context, incoming state (<code>S</code>) and incoming message
      * (<code>I</code>).
      *
      * @param expectedNumberOfIncomingMsgs
-     *          the number of incoming messages before unblocking and returning the {@link Result}s.
+     *            the number of incoming messages before unblocking and returning the {@link Message}s.
      * @param millisToWait
-     *          before timing out.
-     * @return List of {@link Result Result}.
+     *            before timing out.
+     * @return List of {@link Message Result}.
      */
-    protected List<Result<S, I>> waitForResults(int expectedNumberOfIncomingMsgs, long millisToWait) {
+    protected List<Message<S, I>> awaitInvocations(int expectedNumberOfIncomingMsgs, long millisToWait) {
         return _synchronizedInvocationList.getInvocationsWaitForCount(expectedNumberOfIncomingMsgs, millisToWait);
     }
 
@@ -290,14 +298,36 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
                     if (_processLambda instanceof ProcessSingleLambda) {
                         // -> Yes, execute it.
                         @SuppressWarnings("unchecked")
-                        ProcessSingleLambda<R, I> processSingleLambda = (ProcessSingleLambda<R, I>)_processLambda;
+                        ProcessSingleLambda<R, I> processSingleLambda = (ProcessSingleLambda<R, I>) _processLambda;
                         ctx.reply(processSingleLambda.process(ctx, msg));
+                    }
+                    else if (_processLambda instanceof ProcessSingleStateLambda) {
+                        // -> Yes, execute it.
+                        @SuppressWarnings("unchecked")
+                        ProcessSingleStateLambda<R, S, I> processTerminator = (ProcessSingleStateLambda<R, S, I>) _processLambda;
+                        ctx.reply(processTerminator.process(ctx, state, msg));
+                    }
+                    else if (_processLambda instanceof ProcessTerminatorNoStateLambda) {
+                        // -> Yes, execute it.
+                        @SuppressWarnings("unchecked")
+                        ProcessTerminatorNoStateLambda<I> processTerminator = (ProcessTerminatorNoStateLambda<I>) _processLambda;
+                        // No reply, so we'll need to cast the ProcessContext to a Void.
+                        @SuppressWarnings("unchecked")
+                        ProcessContext<Void> ctxVoid = (ProcessContext<Void>) ctx;
+                        processTerminator.process(ctxVoid, msg);
                     }
                     else if (_processLambda instanceof ProcessTerminatorLambda) {
                         // -> Yes, execute it.
                         @SuppressWarnings("unchecked")
-                        ProcessSingleLambda<R, I> processTerminator = (ProcessSingleLambda<R, I>)_processLambda;
-                        ctx.reply(processTerminator.process(ctx, msg));
+                        ProcessTerminatorLambda<S, I> processTerminator = (ProcessTerminatorLambda<S, I>) _processLambda;
+                        // No reply, so we'll need to cast the ProcessContext to a Void.
+                        @SuppressWarnings("unchecked")
+                        ProcessContext<Void> ctxVoid = (ProcessContext<Void>) ctx;
+                        processTerminator.process(ctxVoid, state, msg);
+                    }
+                    else {
+                        throw new AssertionError("Don't know this process lambda type: " + _processLambda.getClass()
+                                + ": " + _processLambda);
                     }
                 }
                 else {
@@ -308,7 +338,7 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
             finally {
                 // Utilizing a finally block to catch ALL invocations and ensure that the processor is executed.
                 // This ensures that any blocking waits in tests won't hold up the endpoint processor.
-                _synchronizedInvocationList.addInvocation(new Result<>() {
+                _synchronizedInvocationList.addInvocation(new Message<>() {
                     @Override
                     public DetachedProcessContext getContext() {
                         return ctx;
@@ -358,19 +388,19 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
      * Util to keep a list of invocations and the ability to {@link Object#wait(long)} for a number of invocations with
      * a timeout.
      * <p>
-     * Expected usage of class is multiple threads accessing {@link #addInvocation} and one test thread
-     * accessing either {@link #getInvocationsWaitForCount(int, long)} or {@link #hasInvocations()}.
+     * Expected usage of class is multiple threads accessing {@link #addInvocation} and one test thread accessing either
+     * {@link #getInvocationsWaitForCount(int, long)} or {@link #hasInvocations()}.
      *
      * @param <I>
-     *            The class type of the incoming message object to be stored within the {@link Result} in the internal
+     *            The class type of the incoming message object to be stored within the {@link Message} in the internal
      *            list.
      * @param <S>
-     *            The class type of the incoming state object to be stored within the {@link Result} in the internal
+     *            The class type of the incoming state object to be stored within the {@link Message} in the internal
      *            list.
      */
     static class SynchronizedInvocationList<S, I> {
         private final Object _lock = new Object();
-        private final List<Result<S, I>> _invocations = new ArrayList<>();
+        private final List<Message<S, I>> _invocations = new ArrayList<>();
 
         /**
          * Blocks and waits for the {@link #_invocations invocations list} to contain the given count number of
@@ -386,7 +416,7 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
          * @throws AssertionError
          *             if the expected number of invocations has not been received before timing out.
          */
-        List<Result<S, I>> getInvocationsWaitForCount(int count, long timeoutMillis) {
+        List<Message<S, I>> getInvocationsWaitForCount(int count, long timeoutMillis) {
             synchronized (_lock) {
                 // StartTime representing when we entered this method.
                 long startTime = System.currentTimeMillis();
@@ -423,7 +453,7 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
             }
         }
 
-        void addInvocation(Result<S, I> invocation) {
+        void addInvocation(Message<S, I> invocation) {
             synchronized (_lock) {
                 _invocations.add(invocation);
                 _lock.notifyAll();
@@ -457,14 +487,6 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
         }
     }
 
-    public interface Result<S, I> {
-        DetachedProcessContext getContext();
-
-        S getState();
-
-        I getData();
-    }
-
     // =========== Exceptions =========================================================================================
 
     /**
@@ -473,8 +495,8 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
      */
     static final class UnexpectedMatsTestEndpointInvocationError extends AssertionError {
         public UnexpectedMatsTestEndpointInvocationError(String endpointId, int numberOfInvocations) {
-            super("Unexpected invocation of MatsEndpoint with id[" + endpointId + "]. The endpoint was "
-                    + "invoked [" + numberOfInvocations + "] times.");
+            super("Unexpected invocation of MatsEndpoint with id [" + endpointId + "]. The endpoint was"
+                    + " invoked [" + numberOfInvocations + "] times.");
         }
     }
 
@@ -487,17 +509,13 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
         }
     }
 
-    public interface TestEndpoint<R, S, I> {
-        TestEndpoint<R, S, I> setMatsFactory(MatsFactory matsFactory);
-
-        void verifyNotInvoked();
-
-        Result<S, I> waitForResult();
-
-        Result<S, I> waitForResult(long millisToWait);
-
-        List<Result<S, I>> waitForResults(int expectedNumberOfIncomingMsgs);
-
-        List<Result<S, I>> waitForResults(int expectedNumberOfIncomingMsgs, long millisToWait);
+    /**
+     * Thrown if an {@link IEndpoint} or {@link IEndpointWithState} has not had its process lambda set when awaiting
+     * invocations.
+     */
+    protected static final class ProcessLambdaNotSetException extends IllegalStateException {
+        public ProcessLambdaNotSetException(String msg) {
+            super(msg);
+        }
     }
 }

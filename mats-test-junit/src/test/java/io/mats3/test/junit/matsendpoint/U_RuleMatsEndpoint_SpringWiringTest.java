@@ -38,12 +38,14 @@ import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Simple;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.test.SpringInjectRulesAndExtensions;
+import io.mats3.test.MatsTestEndpoint.Message;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
-import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
 import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.test.junit.Rule_MatsEndpoint;
-import io.mats3.test.junit.Rule_MatsEndpoints;
+import io.mats3.test.junit.Rule_MatsTestEndpoints;
+import io.mats3.test.junit.Rule_MatsTestEndpoints.Endpoint;
+import io.mats3.test.junit.Rule_MatsTestEndpoints.Terminator;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
 
@@ -134,11 +136,11 @@ public class U_RuleMatsEndpoint_SpringWiringTest {
             .setProcessLambda((ctx, msg) -> "Hello " + msg);
 
     @Rule
-    public Rule_MatsEndpoints.Terminator<String> _terminator =
-            Rule_MatsEndpoints.createTerminator("MockTerminator", String.class);
+    public Terminator<String> _terminator =
+            Rule_MatsTestEndpoints.createTerminator("MockTerminator", String.class);
     @Rule
-    public Rule_MatsEndpoints.Endpoint<String, String> _endpoint =
-            Rule_MatsEndpoints.createEndpoint("MockEndpoint", String.class, String.class);
+    public Endpoint<String, String> _endpoint =
+            Rule_MatsTestEndpoints.createEndpoint("MockEndpoint", String.class, String.class);
 
     @Inject
     private MatsTestLatch _matsTestLatch;
@@ -204,8 +206,8 @@ public class U_RuleMatsEndpoint_SpringWiringTest {
                 .send(world));
 
         // Verify
-        AbstractMatsTestEndpoint.Result<Void, String> result = _terminator.waitForResult();
-        Assert.assertEquals(world, result.getData());
+        Message<Void, String> message = _terminator.awaitInvocation();
+        Assert.assertEquals(world, message.getData());
     }
 
     @Test
@@ -222,8 +224,8 @@ public class U_RuleMatsEndpoint_SpringWiringTest {
         // :: Verify
         Assert.assertEquals("Hello " + world, result);
 
-        AbstractMatsTestEndpoint.Result<Void, String> epResult = _endpoint.waitForResult();
+        Message<Void, String> epMessage = _endpoint.awaitInvocation();
 
-        Assert.assertEquals(world, epResult.getData());
+        Assert.assertEquals(world, epMessage.getData());
     }
 }

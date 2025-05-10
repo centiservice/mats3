@@ -42,6 +42,9 @@ dependencies {
 
     // === TEST
     testImplementation "junit:junit:$junitVersion"
+    // Include the logging and micrometer
+    testImplementation project(":mats-intercept-logging")
+    testImplementation project(":mats-intercept-micrometer")
 }
 
 // To get output from the Test_CI_Variable "test"

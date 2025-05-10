@@ -29,26 +29,29 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import io.mats3.MatsEndpoint.ProcessSingleLambda;
 import io.mats3.MatsEndpoint.ProcessTerminatorLambda;
 import io.mats3.MatsFactory;
-import io.mats3.MatsInitiator.MatsInitiate;
+import io.mats3.test.MatsTestEndpoint.IEndpoint;
+import io.mats3.test.MatsTestEndpoint.IEndpointWithState;
+import io.mats3.test.MatsTestEndpoint.ITerminator;
+import io.mats3.test.MatsTestEndpoint.ITerminatorWithState;
+import io.mats3.test.MatsTestEndpoint.Message;
 import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
-import io.mats3.test.abstractunit.AbstractMatsTestEndpoint.TestEndpoint;
 
 /**
  * Extension which offers multiple variants of endpoints for testing purposes.
  * <ul>
- *     <li>{@link Endpoint Endpoint}</li>
+ *     <li>{@link IEndpoint Endpoint}</li>
  *     Functions identically to {@link Extension_MatsEndpoint}, with the exception that this implementation offers the
  *     <code>waitForRequest(s)</code> methods enabling verification of side loaded data through the returned context.
- *     <li>{@link EndpointWithState EndpointWithState}</li>
- *     Identical to {@link Endpoint Endpoint}, however, this implementation allows for the specification of a state
+ *     <li>{@link IEndpointWithState EndpointWithState}</li>
+ *     Identical to {@link IEndpoint Endpoint}, however, this implementation allows for the specification of a state
  *     class as well enabling one to test scenarios where one has an endpoint which spins off another MATS^3 flow and
  *     seeds the state of the target endpoint.
- *     <li>{@link Terminator Terminator}</li>
- *     Convenience implementation of {@link Endpoint Endpoint} allowing one to drop the specification of reply class,
+ *     <li>{@link ITerminator Terminator}</li>
+ *     Convenience implementation of {@link IEndpoint Endpoint} allowing one to drop the specification of reply class,
  *     when one is only interested in catching the incoming message.
- *     <li>{@link TerminatorWithState TerminatorWithState}</li>
- *     Identical to {@link EndpointWithState EndpointWithState}, with the same convenience as
- *     {@link Terminator Terminator} in that there is no need to specify a reply class.
+ *     <li>{@link ITerminatorWithState TerminatorWithState}</li>
+ *     Identical to {@link IEndpointWithState EndpointWithState}, with the same convenience as
+ *     {@link ITerminator Terminator} in that there is no need to specify a reply class.
  * </ul>
  * The endpoint's processor can be changed on demand using <code>setProcessLambda</code> method.
  * <p>
@@ -56,15 +59,15 @@ import io.mats3.test.abstractunit.AbstractMatsTestEndpoint.TestEndpoint;
  * <p>
  * Retrieve the endpoint's incoming message/messages by calling on of the following methods:
  * <ul>
- * <li>{@link Endpoint#waitForResult() waitForResult()} - Wait for a result(singular) using the default timeout</li>
- * <li>{@link Endpoint#waitForResult(long) waitForResult(long)} - Wait for a result(singular) with user specified
+ * <li>{@link IEndpoint#awaitInvocation() waitForResult()} - Wait for a result(singular) using the default timeout</li>
+ * <li>{@link IEndpoint#awaitInvocation(long) waitForResult(long)} - Wait for a result(singular) with user specified
  * timeout</li>
- * <li>{@link Endpoint#waitForResults(int) waitForResults(int)} - Wait for X results using the default timeout</li>
- * <li>{@link Endpoint#waitForResults(int, long) waitForResults(int, long)} - Wait for X results with user specified
+ * <li>{@link IEndpoint#awaitInvocations(int) waitForResults(int)} - Wait for X results using the default timeout</li>
+ * <li>{@link IEndpoint#awaitInvocations(int, long) waitForResults(int, long)} - Wait for X results with user specified
  * timeout</li>
  * </ul>
  * Given a case where one does not expect the endpoint to be invoked (no messages received) one can utilize
- * {@link Endpoint#verifyNotInvoked()} to ensure that the endpoint was not in fact invoked during the
+ * {@link IEndpoint#verifyNotInvoked()} to ensure that the endpoint was not in fact invoked during the
  * test.
  * <p>
  * Should one want to utilize these test endpoints in a test which brings up a Spring context containing a
@@ -74,7 +77,7 @@ import io.mats3.test.abstractunit.AbstractMatsTestEndpoint.TestEndpoint;
  * @author Endre Stølsvik, 2025-04-23 - http://stolsvik.com/, endre@stolsvik.com
  * @author Kevin Mc Tiernan, 2025-04-23, kevin.mc.tiernan@storebrand.no
  */
-public class Extension_MatsEndpoints {
+public class Extension_MatsTestEndpoints {
 
     /**
      * Creates a Jupiter Extension for a single-staged endpoint whose processor is <i>not</i> defined at start. Sets it up on
@@ -85,7 +88,7 @@ public class Extension_MatsEndpoints {
      * create(extensionMats, endpointId, replyClass, incomingClass)} to easily supply the corresponding
      * <code>{@literal @RegisterExtension}</code> {@link Extension_Mats} for fetching the <code>MatsFactory</code>.
      * <p>
-     * <b>Do notice that you need to invoke {@link Endpoint#setProcessLambda(ProcessSingleLambda)
+     * <b>Do notice that you need to invoke {@link IEndpoint#setProcessLambda(ProcessSingleLambda)
      * setProcessLambda(lambda)} - typically inside the
      * &#64;Test method - before sending messages to it, as there is no default.</b>
      * <p>
@@ -97,11 +100,11 @@ public class Extension_MatsEndpoints {
      *         the class of the reply message generated by this endpoint.
      * @param incomingMsgClass
      *         the incoming message class for this endpoint.
-     * @return {@link Endpoint}
+     * @return {@link IEndpoint}
      * @see #createTerminator(String, Class, Class)
      */
     public static <R, I> Endpoint<R, I> createEndpoint(String endpointId, Class<R> replyMsgClass,
-            Class<I> incomingMsgClass) {
+                                                       Class<I> incomingMsgClass) {
         return new EndpointImpl<>(endpointId, replyMsgClass, incomingMsgClass);
     }
 
@@ -117,10 +120,10 @@ public class Extension_MatsEndpoints {
      *         the class of the state object for this endpoint.
      * @param incomingMsgClass
      *         the incoming message class for this endpoint.
-     * @return {@link EndpointWithState}
+     * @return {@link IEndpointWithState}
      */
     public static <R, S, I> EndpointWithState<R, S, I> createEndpoint(String endpointId, Class<R> replyMsgClass,
-            Class<S> stateClass, Class<I> incomingMsgClass) {
+                                                                      Class<S> stateClass, Class<I> incomingMsgClass) {
         return new EndpointWithStateImpl<>(endpointId, replyMsgClass, stateClass, incomingMsgClass);
     }
 
@@ -132,7 +135,7 @@ public class Extension_MatsEndpoints {
      *         of the endpoint.
      * @param incomingMsgClass
      *         the incoming message class for this endpoint.
-     * @return {@link Terminator}
+     * @return {@link ITerminator}
      */
     public static <I> Terminator<I> createTerminator(String endpointId, Class<I> incomingMsgClass) {
         return new TerminatorImpl<>(endpointId, incomingMsgClass);
@@ -148,10 +151,10 @@ public class Extension_MatsEndpoints {
      *         the class of the state object for this endpoint.
      * @param incomingMsgClass
      *         the incoming message class for this endpoint.
-     * @return {@link Terminator}
+     * @return {@link ITerminator}
      */
     public static <S, I> TerminatorWithState<S, I> createTerminator(String endpointId, Class<S> stateClass,
-            Class<I> incomingMsgClass) {
+                                                                    Class<I> incomingMsgClass) {
         return new TerminatorWithStateImpl<>(endpointId, stateClass, incomingMsgClass) { };
     }
 
@@ -162,8 +165,8 @@ public class Extension_MatsEndpoints {
      * environments (read as: non-Spring).
      */
     public static <R, I> Endpoint<R, I> createEndpoint(Extension_Mats matsRule, String endpointId,
-            Class<R> replyMsgClass,
-            Class<I> incomingMsgClass) {
+                                                       Class<R> replyMsgClass,
+                                                       Class<I> incomingMsgClass) {
         EndpointImpl<R, I> rule_matsEndpoint = new EndpointImpl<>(endpointId, replyMsgClass, incomingMsgClass);
         // Set MatsFactory from the supplied Rule_Mats
         rule_matsEndpoint.setMatsFactory(matsRule.getMatsFactory());
@@ -177,7 +180,7 @@ public class Extension_MatsEndpoints {
      * environments (read as: non-Spring).
      */
     public static <R, S, I> EndpointWithState<R, S, I> createEndpoint(Extension_Mats matsRule, String endpointId,
-            Class<R> replyMsgClass, Class<S> stateClass, Class<I> incomingMsgClass) {
+                                                                      Class<R> replyMsgClass, Class<S> stateClass, Class<I> incomingMsgClass) {
         EndpointWithStateImpl<R, S, I> rule_matsEndpoint = new EndpointWithStateImpl<>(endpointId, replyMsgClass,
                 stateClass, incomingMsgClass);
         // Set MatsFactory from the supplied Rule_Mats
@@ -192,7 +195,7 @@ public class Extension_MatsEndpoints {
      * environments (read as: non-Spring).
      */
     public static <I> Terminator<I> createTerminator(Extension_Mats matsRule,
-            String endpointId, Class<I> incomingMsgClass) {
+                                                     String endpointId, Class<I> incomingMsgClass) {
         TerminatorImpl<I> iTerminatorNoState = new TerminatorImpl<>(endpointId, incomingMsgClass);
         iTerminatorNoState.setMatsFactory(matsRule.getMatsFactory());
         return iTerminatorNoState;
@@ -205,7 +208,7 @@ public class Extension_MatsEndpoints {
      * environments (read as: non-Spring).
      */
     public static <S, I> TerminatorWithState<S, I> createTerminator(Extension_Mats matsRule,
-            String endpointId, Class<S> stateClass, Class<I> incomingMsgClass) {
+                                                                    String endpointId, Class<S> stateClass, Class<I> incomingMsgClass) {
         TerminatorWithStateImpl<S, I> siTerminator =
                 new TerminatorWithStateImpl<>(endpointId, stateClass, incomingMsgClass);
         siTerminator.setMatsFactory(matsRule.getMatsFactory());
@@ -213,83 +216,43 @@ public class Extension_MatsEndpoints {
     }
 
     // ================================================================================================================
-    // Interfaces
+    // Interface overrides
     // ================================================================================================================
 
-    /**
-     * Mock endpoint which processes an incoming message and returns a reply. Ideal for mocking intermediate endpoints
-     * in a multi-stage flow whether they are internal to the application or external.
-     * <p>
-     * If no processor is defined this will function as a {@link Terminator}, thus one should consider using that
-     * instead if one ends up in a test situation where the processor is never defined.
-     *
-     * @param <R>
-     *         The reply class of the message generated by this endpoint.
-     * @param <I>
-     *         The incoming message class for this endpoint.
-     */
-    public interface Endpoint<R, I> extends EndpointWithState<R, Void, I>, BeforeEachCallback, AfterEachCallback {
-        @Override
-        Endpoint<R, I> setProcessLambda(ProcessSingleLambda<R, I> lambda);
+    public interface Endpoint<R, I> extends IEndpoint<R, I>,  BeforeEachCallback, AfterEachCallback {
+        Endpoint<R, I> setProcessLambda(ProcessSingleLambda<R, I> processLambda);
 
         @Override
         Endpoint<R, I> setMatsFactory(MatsFactory matsFactory);
     }
 
-    /**
-     * Equivalent to {@link Endpoint}, but allows for the definition of a state class. Thus, can be utilized to validate
-     * the passed state for flows which spin off new MATS^3 flows and seeds the state of the target endpoint through
-     * the use of {@link MatsInitiate#send(Object, Object)}.
-     *
-     * @param <R>
-     *         The reply class of the message generated by this endpoint.
-     * @param <S>
-     *         The state class of the endpoint.
-     * @param <I>
-     *         The incoming message class for this endpoint.
-     */
-    public interface EndpointWithState<R, S, I> extends TestEndpoint<R, S, I>, BeforeEachCallback, AfterEachCallback {
-        EndpointWithState<R, S, I> setProcessLambda(ProcessSingleLambda<R, I> lambda);
+    public interface EndpointWithState<R, S, I> extends IEndpointWithState<R,S,I>,  BeforeEachCallback, AfterEachCallback  {
+        EndpointWithState<R, S, I> setProcessLambda(ProcessSingleStateLambda<R, S, I> processLambda);
 
         @Override
         EndpointWithState<R, S, I> setMatsFactory(MatsFactory matsFactory);
     }
 
-    /**
-     * Simplified version of {@link Endpoint}, which doesn't require the specification of a return class. Useful for
-     * scenarios where one is only interested in the incoming message and has no need for processor.
-     *
-     * @param <I>
-     *         The incoming message class for this endpoint.
-     */
-    public interface Terminator<I> extends TerminatorWithState<Void, I>, BeforeEachCallback, AfterEachCallback {
-        @Override
-        Terminator<I> setProcessLambda(ProcessTerminatorLambda<Void, I> lambda);
+    public interface Terminator<I> extends ITerminator<I>,  BeforeEachCallback, AfterEachCallback  {
+        Terminator<I> setProcessLambda(ProcessTerminatorNoStateLambda<I> processLambda);
 
         @Override
         Terminator<I> setMatsFactory(MatsFactory matsFactory);
     }
 
-    /**
-     * Expanded version of {@link Terminator}, which also allows for the specification of a state class.
-     *
-     * @param <S>
-     *         The state class of the endpoint.
-     * @param <I>
-     *         The incoming message class for this endpoint.
-     */
-    public interface TerminatorWithState<S, I> extends TestEndpoint<Void, S, I>, BeforeEachCallback, AfterEachCallback {
-        TerminatorWithState<S, I> setProcessLambda(ProcessTerminatorLambda<S, I> lambda);
+    public interface TerminatorWithState<S, I> extends ITerminatorWithState<S, I>,  BeforeEachCallback, AfterEachCallback  {
+        TerminatorWithState<S, I> setProcessLambda(ProcessTerminatorLambda<S, I> processLambda);
 
         @Override
         TerminatorWithState<S, I> setMatsFactory(MatsFactory matsFactory);
     }
 
+
     // ================================================================================================================
     // Impls
     // ================================================================================================================
 
-    private static class EndpointImpl<R, I> extends EndpointWithStateImpl<R, Void, I>
+    private static class EndpointImpl<R, I> extends JupiterCommonsImpl<R, Void, I>
             implements Endpoint<R, I> {
 
         EndpointImpl(String endpointId, Class<R> replyMsgClass, Class<I> incomingMsgClass) {
@@ -319,7 +282,7 @@ public class Extension_MatsEndpoints {
         }
 
         @Override
-        public EndpointWithState<R, S, I> setProcessLambda(ProcessSingleLambda<R, I> lambda) {
+        public EndpointWithState<R, S, I> setProcessLambda(ProcessSingleStateLambda<R, S, I> lambda) {
             _processLambda = lambda;
             return this;
         }
@@ -332,15 +295,15 @@ public class Extension_MatsEndpoints {
         }
     }
 
-    private static class TerminatorImpl<I> extends TerminatorWithStateImpl<Void, I>
+    private static class TerminatorImpl<I> extends JupiterCommonsImpl<Void, Void, I>
             implements Terminator<I> {
 
         TerminatorImpl(String endpointId, Class<I> incomingMsgClass) {
-            super(endpointId, Void.class, incomingMsgClass);
+            super(endpointId, void.class, void.class, incomingMsgClass);
         }
 
         @Override
-        public Terminator<I> setProcessLambda(ProcessTerminatorLambda<Void, I> lambda) {
+        public Terminator<I> setProcessLambda(ProcessTerminatorNoStateLambda<I> lambda) {
             _processLambda = lambda;
             return this;
         }
@@ -382,31 +345,45 @@ public class Extension_MatsEndpoints {
      * @see TerminatorImpl
      * @see TerminatorWithStateImpl
      */
-    private static abstract class JupiterCommonsImpl<R, S, I> extends AbstractMatsTestEndpoint<R, S, I> {
+    private static abstract class JupiterCommonsImpl<R, S, I> extends AbstractMatsTestEndpoint<R, S, I>
+    implements BeforeEachCallback, AfterEachCallback  {
 
         protected JupiterCommonsImpl(String endpointId, Class<R> replyMsgClass, Class<S> stateClass,
                 Class<I> incomingMsgClass) {
             super(endpointId, replyMsgClass, stateClass, incomingMsgClass);
         }
 
-        @Override
-        public Result<S, I> waitForResult() {
-            return super.waitForResult();
+        public Message<S, I> awaitInvocation() {
+            assertProcessLambdaSetIfRelevant();
+            return super.awaitInvocation();
         }
 
-        @Override
-        public Result<S, I> waitForResult(long millisToWait) {
-            return super.waitForResult(millisToWait);
+        public Message<S, I> awaitInvocation(long millisToWait) {
+            assertProcessLambdaSetIfRelevant();
+            return super.awaitInvocation(millisToWait);
         }
 
-        @Override
-        public List<Result<S, I>> waitForResults(int expectedNumberOfIncomingMsgs) {
-            return super.waitForResults(expectedNumberOfIncomingMsgs);
+        public List<Message<S, I>> awaitInvocations(int expectedNumberOfIncomingMsgs) {
+            assertProcessLambdaSetIfRelevant();
+            return super.awaitInvocations(expectedNumberOfIncomingMsgs);
         }
 
-        @Override
-        public List<Result<S, I>> waitForResults(int expectedNumberOfIncomingMsgs, long millisToWait) {
-            return super.waitForResults(expectedNumberOfIncomingMsgs, millisToWait);
+        public List<Message<S, I>> awaitInvocations(int expectedNumberOfIncomingMsgs, long millisToWait) {
+            assertProcessLambdaSetIfRelevant();
+            return super.awaitInvocations(expectedNumberOfIncomingMsgs, millisToWait);
+        }
+
+        private void assertProcessLambdaSetIfRelevant() {
+            // ?: Is it a Terminator?
+            if ((this instanceof ITerminator) || (this instanceof ITerminatorWithState)) {
+                // -> Yes, and Terminators do not need process lambda set.
+                return;
+            }
+            if (_processLambda == null) {
+                throw new IllegalStateException("The process lambda has not been set for test endpoint '"
+                        + _endpoint.getEndpointConfig().getEndpointId() + "', and it is not a Terminator-type."
+                        + " Please set it using setProcessLambda() before awaitInvocation, or use a Terminator-type.");
+            }
         }
 
         // ================== Jupiter LifeCycle =======================================================================
