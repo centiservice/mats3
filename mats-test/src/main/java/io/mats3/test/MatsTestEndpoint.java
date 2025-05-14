@@ -18,6 +18,8 @@ package io.mats3.test;
 
 import java.util.List;
 
+import org.apache.activemq.command.Endpoint;
+
 import io.mats3.MatsEndpoint.DetachedProcessContext;
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsEndpoint.ProcessContext;
@@ -27,10 +29,58 @@ import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.MatsInitiate;
 
 /**
- * Test-utility: Interface for a test endpoint which can be used to verify that a message was sent to the endpoint, and
- * to retrieve the incoming message and its state, and its {@link DetachedProcessContext} (to e.g. get sideloads). To
- * get instances of this interface, use the JUnit 4 Rule {@code Rule_MatsTestEndpoints} or the JUnit 5 (Jupiter)
+ * Test utility that provides for a quick way to create assertable endpoints and terminators for testing purposes,
+ * integrated with JUnit 4 as a {@code Rule}, and Junit 5 (Jupiter) as an {@code Extension}, suitable for making
+ * collaborators in a test scenario, i.e. emulating external services or internal endpoints. The tooling's main purpose
+ * is to be able to wait for and assert incoming messages (along with its state and {@link ProcessContext
+ * ProcessContext} to get e.g. sideloads), and to change the stage processor on the fly so that it can be used to test
+ * different scenarios in each test method in a class.
+ * <p>
+ * To get instances of this interface, use the JUnit 4 Rule {@code Rule_MatsTestEndpoints} or the JUnit 5 (Jupiter)
  * Extension {@code Extension_MatsTestEndpoints}.
+ * <p>
+ * The endpoint's processor can be changed for each test method by using the <code>setProcessLambda(..lambda..)</code>
+ * method.
+ * <p>
+ * There are 4 different endpoint types to choose from, depending on your needs - they each have their separate
+ * sub-interfaces:
+ * <ul>
+ * <li>{@link IEndpoint Endpoint}</li> A single-stage Endpoint which is expected to reply when invoked. If the Process
+ * Lambda is not set when the await-methods are invoked, you will get an {@link IllegalStateException}.
+ * <li>{@link IEndpointWithState EndpointWithState}</li> Identical to {@link Endpoint Endpoint}, however, this
+ * implementation allows for the specification of a state class, i.e.g the "initial state" concept that can be used when
+ * sending messages (typically to "private" endpoints within the same service).
+ * <li>{@link ITerminator Terminator}</li> A Terminator which is not expected to reply when invoked. It is not required
+ * to set the Process Lambda for Terminators, since you might just want to assert that the endpoint was invoked and get
+ * the incoming message.
+ * <li>{@link ITerminatorWithState TerminatorWithState}</li> A Terminator that also takes state.
+ * </ul>
+ * Retrieve the endpoint's incoming message/messages by calling on of the following methods (that is, on the JUnit 4 or
+ * JUnit 5 interface variants, lacking the "I" prefix):
+ * <ul>
+ * <li>{@link MatsTestEndpoint#awaitInvocation() awaitInvocation()} - Wait for an incoming message (singular) using the
+ * default timeout (30 sec).</li>
+ * <li>{@link MatsTestEndpoint#awaitInvocation(long) awaitInvocation(long)} - Wait for an incoming message (singular)
+ * with the specified timeout. Setting a lower timeout than the default makes little sense.</li>
+ * <li>{@link MatsTestEndpoint#awaitInvocations(int) awaitInvocations(int)} - Wait for the specified number of incoming
+ * messages using the default timeout (30 sec)</li>
+ * <li>{@link MatsTestEndpoint#awaitInvocations(int, long) awaitInvocations(int, long)} - Wait for the specified number
+ * of incoming messages using the specified timeout. Setting a lower timeout than the default makes little sense.</li>
+ * </ul>
+ * Given a case where one does not expect the endpoint to be invoked (no messages received) one can utilize
+ * {@link MatsTestEndpoint#verifyNotInvoked()} to ensure that the endpoint was not in fact invoked during the test.
+ * <p>
+ * Should one want to utilize these test endpoints in a test which brings up a Spring context containing a
+ * {@link MatsFactory} one can utilize the <code>@SpringInjectRulesAndExtensions</code> (in 'mats-spring-test') which
+ * will inject/autowire this class automatically by providing the {@link MatsFactory} located in said Spring context.
+ * <p>
+ * Small tip wrt. typing out the left-hand-side interface type and generics, which is a bit tedious: These instances
+ * will be on fields of the test class. Since Java doesn't allow <code>var</code> for fields, you can use the following
+ * jig: Write it out as such "<code>@Rule String _endpoint = Rule_MatsTestEndpoints.createEndpoint("epId",
+ * ReplyDTO.class, StateSTO.class, requestDTO.class)</code>", that is, just use a dummy type for the left-hand-side
+ * while writing out what you actually want on the right-hand-side. This will obviously be red-penned by your IDE. Then,
+ * use your IDE's "auto-fix" functionality to change the type of the field to the correct type with generics (which here
+ * would be "<code>@Rule EndpointWithState&lt;ReplyDTO, StateSTO, RequestDTO&gt; _endpoint = ...</code>")
  *
  * @param <R>
  *            The reply class of the message generated by this endpoint.
@@ -40,23 +90,92 @@ import io.mats3.MatsInitiator.MatsInitiate;
  *            The incoming message class for this endpoint.
  */
 public interface MatsTestEndpoint<R, S, I> {
+    /**
+     * Must be called before the endpoint is used, to set the MatsFactory on which this endpoint should be created. You
+     * can call it directly, or use the convenience-variants on the factories that take the corresponding
+     * <code>Rule_Mats</code> or <code>Extension_Mats</code> as first argument, or for Spring-scenarios use the
+     * <code>@SpringInjectRulesAndExtensions</code> which will inject the MatsFactory for you.
+     *
+     * @param matsFactory
+     *            The MatsFactory to set.
+     * @return this instance of the object, for chaining.
+     */
     MatsTestEndpoint<R, S, I> setMatsFactory(MatsFactory matsFactory);
 
+    /**
+     * Verify that the endpoint was not invoked up to this point - <b>but remember that it is notoriously difficult to
+     * verify that something <i>has not</i> happened in such a very asynchronous system that Mats3 is</b>: The Mats flow
+     * might not yet have reached the point where this message potentially could have been sent, and even if it has, it
+     * might be that the test endpoint has not yet gotten the message. You must at least verify that you are <i>past</i>
+     * the point where the message possibly could have been sent, e.g. by having verified that the Mats flow have
+     * completed by having reached the Terminator. You should put any such "has not happened" assertions at the end of
+     * your test. To make it slightly more probable that such a message gets through, there's a 25 milliseconds wait
+     * before the test is performed.
+     */
     void verifyNotInvoked();
 
+    /**
+     * Wait for a single message to arrive at this endpoint. This will block until a message arrives, or the default
+     * timeout (30 sec) has passed, in which case an {@link AssertionError} is thrown.
+     *
+     * @return the Message.
+     */
     Message<S, I> awaitInvocation();
 
+    /**
+     * Wait for a single message to arrive at this endpoint. This will block until a message arrives, or the specified
+     * timeout has passed, in which case an {@link AssertionError} is thrown.
+     *
+     * @return the Message.
+     */
     Message<S, I> awaitInvocation(long millisToWait);
 
+    /**
+     * Wait for a number of messages to arrive at this endpoint. This will block until the specified number of messages
+     * arrive, or the default timeout (30 sec) has passed, in which case an {@link AssertionError} is thrown.
+     *
+     * @param expectedNumberOfIncomingMsgs
+     *            the number of messages to wait for.
+     * @return the list of Messages.
+     */
     List<Message<S, I>> awaitInvocations(int expectedNumberOfIncomingMsgs);
 
+    /**
+     * Wait for a number of messages to arrive at this endpoint. This will block until the specified number of messages
+     * arrive, or the specified timeout has passed, in which case an {@link AssertionError} is thrown.
+     *
+     * @param expectedNumberOfIncomingMsgs
+     *            the number of messages to wait for.
+     * @param millisToWait
+     *            the number of milliseconds to wait before timing out.
+     * @return the list of Messages.
+     */
     List<Message<S, I>> awaitInvocations(int expectedNumberOfIncomingMsgs, long millisToWait);
 
+    /**
+     * Representation of the incoming message to the endpoint, as returned by the await-methods.
+     */
     interface Message<S, I> {
+        /**
+         * Get the {@link ProcessContext} for this message. This is the context that was passed to the endpoint when it
+         * was invoked. You may get sideloads, and other information from this context.
+         *
+         * @return the {@link ProcessContext} for this message.
+         */
         DetachedProcessContext getContext();
 
+        /**
+         * Get the state of the endpoint. This is the state that was passed to the endpoint when it was invoked.
+         *
+         * @return the state that was passed to the endpoint when it was invoked.
+         */
         S getState();
 
+        /**
+         * Get the incoming message. This is the message that was passed to the endpoint when it was invoked.
+         *
+         * @return the incoming message.
+         */
         I getData();
     }
 

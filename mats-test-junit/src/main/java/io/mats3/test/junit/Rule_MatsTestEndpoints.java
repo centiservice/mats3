@@ -29,6 +29,7 @@ import org.junit.runners.model.Statement;
 import io.mats3.MatsEndpoint.ProcessSingleLambda;
 import io.mats3.MatsEndpoint.ProcessTerminatorLambda;
 import io.mats3.MatsFactory;
+import io.mats3.test.MatsTestEndpoint;
 import io.mats3.test.MatsTestEndpoint.IEndpoint;
 import io.mats3.test.MatsTestEndpoint.IEndpointWithState;
 import io.mats3.test.MatsTestEndpoint.ITerminator;
@@ -37,39 +38,12 @@ import io.mats3.test.MatsTestEndpoint.Message;
 import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
 
 /**
- * Rule which offers multiple variants of endpoints for testing purposes.
- * <ul>
- * <li>{@link Endpoint Endpoint}</li> Functions identically to {@link Rule_MatsEndpoint}, with the exception that this
- * implementation offers the <code>waitForRequest(s)</code> methods enabling verification of side loaded data through
- * the returned context.
- * <li>{@link EndpointWithState EndpointWithState}</li> Identical to {@link Endpoint Endpoint}, however, this
- * implementation allows for the specification of a state class as well enabling one to test scenarios where one has an
- * endpoint which spins off another MATS^3 flow and seeds the state of the target endpoint.
- * <li>{@link Terminator Terminator}</li> Convenience implementation of {@link Endpoint Endpoint} allowing one to drop
- * the specification of reply class, when one is only interested in catching the incoming message.
- * <li>{@link ITerminatorWithState TerminatorWithState}</li> Identical to {@link EndpointWithState EndpointWithState},
- * with the same convenience as {@link Terminator Terminator} in that there is no need to specify a reply class.
- * </ul>
- * The endpoint's processor can be changed on demand using <code>setProcessLambda</code> method.
- * <p>
- * Must be annotated with {@link Rule @Rule}. Do not use with {@link ClassRule @ClassRule}
- * <p>
- * Retrieve the endpoint's incoming message/messages by calling on of the following methods:
- * <ul>
- * <li>{@link Endpoint#awaitInvocation() waitForResult()} - Wait for a result(singular) using the default timeout</li>
- * <li>{@link Endpoint#awaitInvocation(long) waitForResult(long)} - Wait for a result(singular) with user specified
- * timeout</li>
- * <li>{@link Endpoint#awaitInvocations(int) waitForResults(int)} - Wait for X results using the default timeout</li>
- * <li>{@link Endpoint#awaitInvocations(int, long) waitForResults(int, long)} - Wait for X results with user specified
- * timeout</li>
- * </ul>
- * Given a case where one does not expect the endpoint to be invoked (no messages received) one can utilize
- * {@link Endpoint#verifyNotInvoked()} to ensure that the endpoint was not in fact invoked during the test.
- * <p>
- * Should one want to utilize these test endpoints in a test which brings up a Spring context containing a
- * {@link MatsFactory} one can utilize the <code>@SpringInjectRulesAndExtensions</code> (in 'mats-spring-test') which
- * will inject/autowire this class automatically by providing the {@link MatsFactory} located in said Spring context.
+ * JUnit 4 factories for {@link MatsTestEndpoint}. You get instances by using the different
+ * {@link #createEndpoint(String, Class, Class)} methods, and the (non-static) field must annotated with
+ * {@link Rule @Rule} (do <b>not</b> use with {@link ClassRule @ClassRule}). Read the JavaDoc at
+ * {@link MatsTestEndpoint} for more information.
  *
+ * @see MatsTestEndpoint
  * @author Endre Stølsvik, 2025-04-23 - http://stolsvik.com/, endre@stolsvik.com
  * @author Kevin Mc Tiernan, 2025-04-23, kevin.mc.tiernan@storebrand.no
  */
@@ -77,18 +51,19 @@ public class Rule_MatsTestEndpoints {
 
     /**
      * Creates a JUnit Rule for a single-staged endpoint whose processor is <i>not</i> defined at start. Sets it up on
-     * JUnit lifecycle 'before' and tears it down on 'after'. <b>Notice that a {@link MatsFactory} must be set before it
-     * is usable!</b> In a Spring environment, you should probably employ the
-     * <code>@SpringInjectRulesAndExtensions</code> to make this happen automagically. In a "pure Java" environment,
-     * consider the convenience overload {@link #createEndpoint(Rule_Mats, String, Class, Class) createEndpoint(MATS,
-     * endpointId, replyClass, stateClass, incomingClass)} to easily supply the corresponding
-     * <code>{@literal @ClassRule}</code> {@link Rule_Mats} for fetching the <code>MatsFactory</code>.
+     * JUnit lifecycle 'before' and tears it down on 'after'. <b>Notice that a {@link MatsFactory} and
+     * {@link Endpoint#setProcessLambda(ProcessSingleLambda) process lambda} must be set before it is usable!</b> In a
+     * Spring environment, you should probably employ the <code>@SpringInjectRulesAndExtensions</code> to set the
+     * MatsFactory automagically. In a "pure Java" environment, consider the convenience overload
+     * {@link #createEndpoint(Rule_Mats, String, Class, Class) createEndpoint(MATS, endpointId, replyClass, stateClass,
+     * incomingClass)} to easily supply the corresponding <code>{@literal @ClassRule}</code> {@link Rule_Mats} for
+     * fetching the <code>MatsFactory</code>.
      * <p/>
-     * <b>Do notice that you need to invoke {@link Endpoint#setProcessLambda(ProcessSingleLambda)
-     * setProcessLambda(lambda)} - typically inside the <code>{@literal @Test}</code> method - before sending messages
-     * to it, as there is no default.</b>
+     * <b>You need to set the process lambda via {@link Endpoint#setProcessLambda(ProcessSingleLambda)
+     * setProcessLambda(lambda)}</b> - typically inside the <code>{@literal @Test}</code> method - before sending messages
+     * to it. The await methods will throw an <code>IllegalStateException</code> if not set.
      * <p>
-     * Should there be no need for a processor, consider using {@link #createTerminator(String, Class, Class)} instead.
+     * Should there be no need for a processor, use {@link #createTerminator(String, Class, Class)} instead.
      *
      * @param endpointId
      *            of the endpoint.
@@ -106,7 +81,7 @@ public class Rule_MatsTestEndpoints {
 
     /**
      * Expanded version of {@link #createEndpoint(String, Class, Class)} which also allows for the specification of a
-     * state class.
+     * state class for the "initial state" concept when sending message or requests to the endpoint.
      *
      * @param endpointId
      *            of the endpoint.
@@ -124,8 +99,8 @@ public class Rule_MatsTestEndpoints {
     }
 
     /**
-     * Simplified version of {@link #createEndpoint(String, Class, Class)}, which does not require a reply class. Useful
-     * for mock endpoints where one is simply interested in the incoming message.
+     * Creates a Terminator, i.e. an endpoint which does not reply, and thus does not require reply class, and where the
+     * process lambda is optional. Useful for mock endpoints where one is simply interested in the incoming message.
      *
      * @param endpointId
      *            of the endpoint.
@@ -139,7 +114,7 @@ public class Rule_MatsTestEndpoints {
 
     /**
      * Expanded version of {@link #createTerminator(String, Class)}, which also allows for the specification of a state
-     * class.
+     * class for whatever state was provided in the initiation for the Terminator.
      *
      * @param endpointId
      *            of the endpoint.
@@ -155,7 +130,7 @@ public class Rule_MatsTestEndpoints {
     }
 
     /**
-     * Convenience variant of {@link #createEndpoint(String, Class, Class) create(endpointId, replyClass,
+     * Convenience variant of {@link #createEndpoint(String, Class, Class) createEndpoint(endpointId, replyClass,
      * incomingClass)} taking a {@link Rule_Mats} as first argument for fetching the {@link MatsFactory}, for use in
      * "pure Java" environments (read as: non-Spring).
      */
@@ -166,7 +141,7 @@ public class Rule_MatsTestEndpoints {
     }
 
     /**
-     * Convenience variant of {@link #createEndpoint(String, Class, Class, Class) create(endpointId, replyClass,
+     * Convenience variant of {@link #createEndpoint(String, Class, Class, Class) createEndpoint(endpointId, replyClass,
      * stateClass, incomingClass)} taking a {@link Rule_Mats} as first argument for fetching the {@link MatsFactory},
      * for use in "pure Java" environments (read as: non-Spring).
      */
@@ -188,7 +163,7 @@ public class Rule_MatsTestEndpoints {
     }
 
     /**
-     * Convenience variant of {@link #createTerminator(String, Class, Class) create(endpointId, stateClass,
+     * Convenience variant of {@link #createTerminator(String, Class, Class) createTerminator(endpointId, stateClass,
      * incomingClass)} taking a {@link Rule_Mats} as first argument for fetching the {@link MatsFactory}, for use in
      * "pure Java" environments (read as: non-Spring).
      */

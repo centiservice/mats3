@@ -77,7 +77,7 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
     protected final SynchronizedInvocationList<S, I> _synchronizedInvocationList = new SynchronizedInvocationList<>();
 
     /**
-     * Default time out in milliseconds i.e. 30 seconds.
+     * Default time out in milliseconds, 30 seconds.
      *
      * @see #waitForRequest()
      * @see #waitForRequests(int)
@@ -230,6 +230,13 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
      *             exception thrown if the endpoint has been invoked.
      */
     public void verifyNotInvoked() {
+        // Wait 25 ms as per JavaDoc contract
+        try {
+            Thread.sleep(25);
+        }
+        catch (InterruptedException e) {
+            throw new RuntimeException("Interrupted while chilling before checking that no messages has arrived.", e);
+        }
         // ?: Has there been any invocations of the endpoint?
         if (_synchronizedInvocationList.hasInvocations()) {
             // -> Yes, this was not expected as per invocation of this method. Throw hard.
@@ -284,31 +291,28 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
                     + ".class, mergeMode = MergeMode.MERGE_WITH_DEFAULTS)' to inject it from the Spring Context.");
         }
 
-        // Despite only using one stage, registering a multi-stage endpoint so that we can skip reply which is
-        // forced by a single stage endpoint. Thus, stateClass==void.class.
+        // Register a generic "staged" endpoint, with only one stage, to handle the different types of MatsTestEndpoint.
         _endpoint = _matsFactory.staged(_endpointId, _replyMsgClass, _stateClass);
 
         _endpoint.stage(_incomingMsgClass, (ctx, state, msg) -> {
             try {
                 // ?: Has a processor been defined?
                 if (_processLambda != null) {
+                    // -> Yes, then we should execute the processor.
                     log.debug("+++ [" + _endpointId + "] executing user defined process lambda, incoming message"
                             + " class:[" + (msg != null ? msg.getClass().getSimpleName() : "{null msg}")
                             + "], expected reply class: [" + _replyMsgClass + "]");
                     if (_processLambda instanceof ProcessSingleLambda) {
-                        // -> Yes, execute it.
                         @SuppressWarnings("unchecked")
                         ProcessSingleLambda<R, I> processSingleLambda = (ProcessSingleLambda<R, I>) _processLambda;
                         ctx.reply(processSingleLambda.process(ctx, msg));
                     }
                     else if (_processLambda instanceof ProcessSingleStateLambda) {
-                        // -> Yes, execute it.
                         @SuppressWarnings("unchecked")
                         ProcessSingleStateLambda<R, S, I> processTerminator = (ProcessSingleStateLambda<R, S, I>) _processLambda;
                         ctx.reply(processTerminator.process(ctx, state, msg));
                     }
                     else if (_processLambda instanceof ProcessTerminatorNoStateLambda) {
-                        // -> Yes, execute it.
                         @SuppressWarnings("unchecked")
                         ProcessTerminatorNoStateLambda<I> processTerminator = (ProcessTerminatorNoStateLambda<I>) _processLambda;
                         // No reply, so we'll need to cast the ProcessContext to a Void.
@@ -317,7 +321,6 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
                         processTerminator.process(ctxVoid, msg);
                     }
                     else if (_processLambda instanceof ProcessTerminatorLambda) {
-                        // -> Yes, execute it.
                         @SuppressWarnings("unchecked")
                         ProcessTerminatorLambda<S, I> processTerminator = (ProcessTerminatorLambda<S, I>) _processLambda;
                         // No reply, so we'll need to cast the ProcessContext to a Void.
@@ -332,7 +335,7 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
                 }
                 else {
                     // -> No, then we should not reply.
-                    log.warn("+++ [" + _endpointId + "] no processor defined, thus not replying.");
+                    log.debug("+++ [" + _endpointId + "] no process lambda defined, thus not replying.");
                 }
             }
             finally {
@@ -449,7 +452,8 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
                 }
 
                 // :: When the loop exits we know that the desired number of invocations has been reached.
-                return _invocations;
+                // Copy off the list before returning.
+                return new ArrayList<>(_invocations);
             }
         }
 

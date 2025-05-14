@@ -39,7 +39,8 @@ import io.mats3.spring.test.SpringInjectRulesAndExtensions.SpringInjectRulesAndE
 /**
  * Use this Test Execution Listener to autowire JUnit Rules and Jupiter Extensions, i.e. so that any fields in the Rule
  * or Extension annotated with @Inject or @Autowire will be autowired - typically needed for
- * <code>Rule_MatsEndpoint</code> and <code>Extension_MatsEndpoint</code>.
+ * <code>Rule_MatsEndpoint</code> and <code>Extension_MatsEndpoint</code>; and <code>Rule_MatsTestEndpoints</code> and
+ * <code>Extension_MatsTestEndpoints</code>
  * <p>
  * To use, just put this annotation on the test class. If that fails, typically because you are also employing a
  * different TestExecutionListener, a fallback is to directly list the
