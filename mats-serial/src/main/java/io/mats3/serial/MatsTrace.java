@@ -273,7 +273,7 @@ public interface MatsTrace {
      * @param replyToMessagingModel
      *            the {@link MessagingModel} of 'replyTo'.
      * @param data
-     *            the <b>serialized></b> request data, most often a JSON representing the Request Data Transfer Object
+     *            the <b>serialized</b> request data, most often a JSON representing the Request Data Transfer Object
      *            that the requested service expects to get.
      * @param replyState
      *            the <b>serialized</b> state data for the stageId that gets the reply to this request, that is, the
