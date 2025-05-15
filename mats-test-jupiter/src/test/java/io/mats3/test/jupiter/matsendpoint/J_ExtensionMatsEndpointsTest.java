@@ -16,6 +16,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import io.mats3.MatsInitiator;
 import io.mats3.spring.test.MatsTestContext;
 import io.mats3.spring.test.SpringInjectRulesAndExtensions;
+import io.mats3.test.MatsTestEndpoint;
 import io.mats3.test.MatsTestEndpoint.Message;
 import io.mats3.test.MatsTestLatch;
 import io.mats3.test.MatsTestLatch.Result;
@@ -65,7 +66,7 @@ public class J_ExtensionMatsEndpointsTest {
         // ==================================================================================
 
         @RegisterExtension
-        public Endpoint<ReplyDTO, RequestDTO> _helloEndpoint = Extension_MatsTestEndpoints
+        public Endpoint<ReplyDTO, RequestDTO> _endpoint = Extension_MatsTestEndpoints
                 .createEndpoint(ENDPOINT, ReplyDTO.class, RequestDTO.class)
                 .setMatsFactory(MATS.getMatsFactory()) // Set MatsFactory explicitly, just to show how that works.
                 .setProcessLambda((ctx, msg) -> {
@@ -73,7 +74,7 @@ public class J_ExtensionMatsEndpointsTest {
                     return new ReplyDTO("Hello 1 " + msg.request);
                 });
         @RegisterExtension
-        public EndpointWithState<ReplyDTO, StateSTO, RequestDTO> _helloEndpointWithState = Extension_MatsTestEndpoints
+        public EndpointWithState<ReplyDTO, StateSTO, RequestDTO> _endpointWithState = Extension_MatsTestEndpoints
                 .createEndpoint(MATS, ENDPOINT_WITH_STATE, ReplyDTO.class, StateSTO.class, RequestDTO.class);
         // Set ProcessLambda in test.
 
@@ -128,7 +129,7 @@ public class J_ExtensionMatsEndpointsTest {
             // :: Verify
             Assertions.assertEquals("Hello 1 World 1", replyDto.reply);
 
-            Message<Void, RequestDTO> epMessage = _helloEndpoint.awaitInvocation();
+            Message<Void, RequestDTO> epMessage = _endpoint.awaitInvocation();
             Assertions.assertEquals(worldRequest.request, epMessage.getData().request);
 
             // Do the latch check after the Test endpoint has been verified - it should have been resolved.
@@ -137,7 +138,7 @@ public class J_ExtensionMatsEndpointsTest {
             Assertions.assertNull(latched.getState());
             Assertions.assertNotNull(latched.getContext());
 
-            _helloEndpointWithState.verifyNotInvoked();
+            _endpointWithState.verifyNotInvoked();
             _terminator.verifyNotInvoked();
             _terminatorWithState.verifyNotInvoked();
         }
@@ -151,7 +152,7 @@ public class J_ExtensionMatsEndpointsTest {
             StateSTO terminatorState = new StateSTO("TerminatorState");
 
             // Set the process lambda to be used by the endpoint.
-            _helloEndpointWithState.setProcessLambda((ctx, state, msg) -> {
+            _endpointWithState.setProcessLambda((ctx, state, msg) -> {
                 _matsTestLatch.resolve(ctx, state, msg);
                 return new ReplyDTO("Hello 2 " + msg.request);
             });
@@ -166,7 +167,7 @@ public class J_ExtensionMatsEndpointsTest {
                     .request(worldRequest, initialState));
 
             // :: Verify
-            Message<StateSTO, RequestDTO> epMessage = _helloEndpointWithState.awaitInvocation();
+            Message<StateSTO, RequestDTO> epMessage = _endpointWithState.awaitInvocation();
             Assertions.assertEquals(worldRequest.request, epMessage.getData().request);
             Assertions.assertEquals(initialState.state, epMessage.getState().state);
 
@@ -181,7 +182,7 @@ public class J_ExtensionMatsEndpointsTest {
             Assertions.assertEquals(initialState.state, latched.getState().state);
             Assertions.assertNotNull(latched.getContext());
 
-            _helloEndpoint.verifyNotInvoked();
+            _endpoint.verifyNotInvoked();
             _terminator.verifyNotInvoked();
             _terminatorWithState.verifyNotInvoked();
         }
@@ -207,8 +208,8 @@ public class J_ExtensionMatsEndpointsTest {
             Assertions.assertNull(latched.getState());
             Assertions.assertNotNull(latched.getContext());
 
-            _helloEndpoint.verifyNotInvoked();
-            _helloEndpointWithState.verifyNotInvoked();
+            _endpoint.verifyNotInvoked();
+            _endpointWithState.verifyNotInvoked();
             _terminatorWithState.verifyNotInvoked();
         }
 
@@ -238,8 +239,8 @@ public class J_ExtensionMatsEndpointsTest {
             Assertions.assertEquals(initialState.state, latched.getState().state);
             Assertions.assertNotNull(latched.getContext());
 
-            _helloEndpoint.verifyNotInvoked();
-            _helloEndpointWithState.verifyNotInvoked();
+            _endpoint.verifyNotInvoked();
+            _endpointWithState.verifyNotInvoked();
             _terminator.verifyNotInvoked();
         }
 
@@ -298,6 +299,89 @@ public class J_ExtensionMatsEndpointsTest {
             Assertions.assertEquals(worldRequest.request, epMessage.getData().request);
             Assertions.assertEquals(initialState.state, epMessage.getState().state);
         }
+
+        // ===============================================================================================================
+        // :: Tests for process lambda that throws
+        // ===============================================================================================================
+
+        @Test
+        public void endpointTest_process_lambda_throws() {
+            endpointTest_process_lambda_throws_generic(_endpoint, ENDPOINT, "throwing lambda 1");
+        }
+
+        @Test
+        public void endpointWithStateTest_process_lambda_throws() {
+            endpointTest_process_lambda_throws_generic(_endpointWithState, ENDPOINT_WITH_STATE, "throwing lambda 2");
+        }
+
+        @Test
+        public void terminatorTest_process_lambda_throws() {
+            endpointTest_process_lambda_throws_generic(_terminator, TERMINATOR, "throwing lambda 3");
+        }
+
+        @Test
+        public void terminatorWithStateTest_process_lambda_throws() {
+            endpointTest_process_lambda_throws_generic(_terminatorWithState, TERMINATOR_WITH_STATE,
+                    "throwing lambda 4");
+        }
+
+        public void endpointTest_process_lambda_throws_generic(MatsTestEndpoint<?, ?, ?> ep, String epid,
+                String throwMessage) {
+            // :: Setup
+            // Set throwing lambda
+            _endpoint.setProcessLambda((ctx, msg) -> {
+                throw new RuntimeException(throwMessage);
+            });
+
+            // :: Act
+            MATS.getMatsInitiator().initiateUnchecked(init -> init.traceId("Test")
+                    .from(getClass().getSimpleName())
+                    .to(ENDPOINT)
+                    .send(new RequestDTO("...")));
+
+            // :: Verify (should throw)
+            try {
+                _endpoint.awaitInvocation();
+                Assertions.fail("Expected AssertionError not thrown!");
+            }
+            catch (AssertionError e) {
+                Assertions.assertTrue(e.getMessage().contains(throwMessage),
+                        "Expected lambda-thrown message to be in AssertionError");
+            }
+        }
+
+        // ===============================================================================================================
+        // :: Tests for no message received (very rudimentary)
+        // ===============================================================================================================
+
+        @Test
+        public void endpointTest_noMessage() {
+            endpointTest_noMessage(_endpoint, ENDPOINT);
+        }
+
+        @Test
+        public void endpointWithStateTest_noMessage() {
+            endpointTest_noMessage(_endpointWithState, ENDPOINT_WITH_STATE);
+        }
+
+        @Test
+        public void terminatorTest_noMessage() {
+            endpointTest_noMessage(_terminator, TERMINATOR);
+        }
+
+        @Test
+        public void terminatorWithStateTest_noMessage() {
+            endpointTest_noMessage(_terminatorWithState, TERMINATOR_WITH_STATE);
+        }
+
+        public void endpointTest_noMessage(MatsTestEndpoint<?, ?, ?> ep, String epid) {
+            // :: Setup
+            // Set any process lambda, so we don't get an exception for that.
+            _endpoint.setProcessLambda((ctx, msg) -> null);
+
+            // :: Act & Verify
+            _endpoint.verifyNotInvoked();
+        }
     }
 
     /**
@@ -354,7 +438,8 @@ public class J_ExtensionMatsEndpointsTest {
             // :: Act
             // Using Futurizer to send a message to the endpoint, and receive reply.
             ReplyDTO replyDto = _matsFuturizer
-                    .futurizeNonessential("Test", getClass().getSimpleName(), ENDPOINT_SPRING, ReplyDTO.class, worldRequest)
+                    .futurizeNonessential("Test", getClass().getSimpleName(), ENDPOINT_SPRING, ReplyDTO.class,
+                            worldRequest)
                     .thenApply(Reply::get)
                     .get(30, TimeUnit.SECONDS);
             // :: Verify

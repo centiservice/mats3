@@ -165,8 +165,8 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
      * @see #awaitInvocations(int, long)
      */
     protected List<I> waitForRequests(int expectedNumberOfIncomingMsgs, long millisToWait) {
-        return _synchronizedInvocationList.getInvocationsWaitForCount(expectedNumberOfIncomingMsgs, millisToWait)
-                .stream()
+        return _synchronizedInvocationList.getInvocationsWaitForCount(expectedNumberOfIncomingMsgs, millisToWait,
+                _endpointId).stream()
                 .map(Message::getData)
                 .collect(Collectors.toList());
     }
@@ -218,7 +218,8 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
      * @return List of {@link Message Result}.
      */
     protected List<Message<S, I>> awaitInvocations(int expectedNumberOfIncomingMsgs, long millisToWait) {
-        return _synchronizedInvocationList.getInvocationsWaitForCount(expectedNumberOfIncomingMsgs, millisToWait);
+        return _synchronizedInvocationList.getInvocationsWaitForCount(expectedNumberOfIncomingMsgs, millisToWait,
+                _endpointId);
     }
 
     /**
@@ -242,6 +243,12 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
             // -> Yes, this was not expected as per invocation of this method. Throw hard.
             throw new UnexpectedMatsTestEndpointInvocationError(_endpointId,
                     _synchronizedInvocationList.getNumberOfInvocations());
+        }
+        // ?: Has the process lambda possibly thrown an exception?
+        Throwable exceptionRaisedByProcessLambda = _synchronizedInvocationList.getExceptionRaisedByProcessLambda();
+        if (exceptionRaisedByProcessLambda != null) {
+            // -> Yes, this was not expected as per invocation of this method. Throw hard.
+            throw new ProcessLambdaFailedError(_endpointId, exceptionRaisedByProcessLambda);
         }
         // E-> All good! Drift away...
     }
@@ -337,26 +344,36 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
                     // -> No, then we should not reply.
                     log.debug("+++ [" + _endpointId + "] no process lambda defined, thus not replying.");
                 }
-            }
-            finally {
-                // Utilizing a finally block to catch ALL invocations and ensure that the processor is executed.
-                // This ensures that any blocking waits in tests won't hold up the endpoint processor.
-                _synchronizedInvocationList.addInvocation(new Message<>() {
-                    @Override
-                    public DetachedProcessContext getContext() {
-                        return ctx;
-                    }
 
-                    @Override
-                    public S getState() {
-                        return state;
-                    }
+                // :: Use Mats3's ability to perform an additional operation AFTER the processing/send/commit is done.
+                // Add the invocation to the invocation list.
+                ctx.doAfterCommit(() -> {
+                    _synchronizedInvocationList.addInvocation(new Message<>() {
+                        @Override
+                        public DetachedProcessContext getContext() {
+                            return ctx;
+                        }
 
-                    @Override
-                    public I getData() {
-                        return msg;
-                    }
+                        @Override
+                        public S getState() {
+                            return state;
+                        }
+
+                        @Override
+                        public I getData() {
+                            return msg;
+                        }
+                    });
                 });
+            }
+            catch (Throwable t) {
+                // :: Catch all exceptions (from process lambdas defined in test code).
+                // Log
+                log.error("+++ [" + _endpointId + "] caught exception in process lambda: " + t.getMessage(), t);
+                // Fail the synchronized invocation list, so that it will fail on any of the "await" methods.
+                _synchronizedInvocationList.exceptionRaisedByProcessLambda(t);
+                // Otherwise ignore, i.e. don't try to reply or anything - this will stop the Mats Flow, and possibly
+                // fail the test in other ways than on the await - but there's at least an ERROR logline in that case.
             }
         });
 
@@ -381,7 +398,7 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
         Optional<MatsEndpoint<?, ?>> endpoint = _matsFactory.getEndpoint(_endpointId);
         endpoint.ifPresent(ep -> ep.remove(30_000));
         _endpoint = null;
-        _synchronizedInvocationList.resetInvocations();
+        _synchronizedInvocationList.reset();
         log.debug("--- " + junitOrJupiter() + " --- /AFTER done on '" + idThis() + "'.");
     }
 
@@ -392,7 +409,7 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
      * a timeout.
      * <p>
      * Expected usage of class is multiple threads accessing {@link #addInvocation} and one test thread accessing either
-     * {@link #getInvocationsWaitForCount(int, long)} or {@link #hasInvocations()}.
+     * {@link #getInvocationsWaitForCount(int, long, String)} or {@link #hasInvocations()}.
      *
      * @param <I>
      *            The class type of the incoming message object to be stored within the {@link Message} in the internal
@@ -404,6 +421,7 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
     static class SynchronizedInvocationList<S, I> {
         private final Object _lock = new Object();
         private final List<Message<S, I>> _invocations = new ArrayList<>();
+        private Throwable _exceptionRaisedByProcessLambda;
 
         /**
          * Blocks and waits for the {@link #_invocations invocations list} to contain the given count number of
@@ -415,18 +433,27 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
          *            number of invocations to wait for.
          * @param timeoutMillis
          *            milliseconds to wait before timing out.
+         * @param endpointId
+         *            the endpointId of the endpoint being tested.
          * @return the number of count specified objects as a List&lt;I&gt;.
          * @throws AssertionError
          *             if the expected number of invocations has not been received before timing out.
          */
-        List<Message<S, I>> getInvocationsWaitForCount(int count, long timeoutMillis) {
+        List<Message<S, I>> getInvocationsWaitForCount(int count, long timeoutMillis, String endpointId) {
             synchronized (_lock) {
+
                 // StartTime representing when we entered this method.
                 long startTime = System.currentTimeMillis();
 
                 try {
                     // Loop until we have the desired number of invocations.
                     while (_invocations.size() < count) {
+                        // ?: Has the process lambda raised an exception during our waiting?
+                        if (_exceptionRaisedByProcessLambda != null) {
+                            // -> Yes, so then we don't care about any invocations, we just want to fail the test.
+                            throw new ProcessLambdaFailedError(endpointId, _exceptionRaisedByProcessLambda);
+                        }
+
                         // How long since we first entered this method?
                         long elapsedTime = System.currentTimeMillis() - startTime;
 
@@ -451,7 +478,14 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
                     throw new RuntimeException(e);
                 }
 
-                // :: When the loop exits we know that the desired number of invocations has been reached.
+                // ?: Has the process lambda raised an exception?
+                if (_exceptionRaisedByProcessLambda != null) {
+                    // -> Yes, so then we don't care about any invocations, we just want to fail the test.
+                    throw new ProcessLambdaFailedError(endpointId, _exceptionRaisedByProcessLambda);
+                }
+
+                // ----- When the loop exits we know that the desired number of invocations has been reached, and no
+                // exception has occurred in the process lambda.
                 // Copy off the list before returning.
                 return new ArrayList<>(_invocations);
             }
@@ -464,9 +498,10 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
             }
         }
 
-        void resetInvocations() {
+        void reset() {
             synchronized (_lock) {
                 _invocations.clear();
+                _exceptionRaisedByProcessLambda = null;
                 _lock.notifyAll();
             }
         }
@@ -489,6 +524,19 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
                 return !_invocations.isEmpty();
             }
         }
+
+        Throwable getExceptionRaisedByProcessLambda() {
+            synchronized (_lock) {
+                return _exceptionRaisedByProcessLambda;
+            }
+        }
+
+        void exceptionRaisedByProcessLambda(Throwable t) {
+            synchronized (_lock) {
+                _exceptionRaisedByProcessLambda = t;
+                _lock.notifyAll();
+            }
+        }
     }
 
     // =========== Exceptions =========================================================================================
@@ -501,6 +549,16 @@ public abstract class AbstractMatsTestEndpoint<R, S, I> {
         public UnexpectedMatsTestEndpointInvocationError(String endpointId, int numberOfInvocations) {
             super("Unexpected invocation of MatsEndpoint with id [" + endpointId + "]. The endpoint was"
                     + " invoked [" + numberOfInvocations + "] times.");
+        }
+    }
+
+    /**
+     * Thrown if the test-defined process lambda throws an exception.
+     */
+    static final class ProcessLambdaFailedError extends AssertionError {
+        public ProcessLambdaFailedError(String endpointId, Throwable t) {
+            super("The specified ProcessLambda for MatsTestEndpoint [" + endpointId + "] raised a '"
+                    + t.getClass().getSimpleName() + "' when it received a message: " + t.getMessage(), t);
         }
     }
 

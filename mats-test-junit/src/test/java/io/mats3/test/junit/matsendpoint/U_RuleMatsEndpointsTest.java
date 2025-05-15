@@ -51,7 +51,7 @@ public class U_RuleMatsEndpointsTest {
     // ==================================================================================
 
     @Rule
-    public Endpoint<ReplyDTO, RequestDTO> _helloEndpoint = Rule_MatsTestEndpoints
+    public Endpoint<ReplyDTO, RequestDTO> _endpoint = Rule_MatsTestEndpoints
             .createEndpoint(ENDPOINT, ReplyDTO.class, RequestDTO.class)
             .setMatsFactory(MATS.getMatsFactory()) // Set MatsFactory explicitly, just to show how that works.
             .setProcessLambda((ctx, msg) -> {
@@ -59,7 +59,7 @@ public class U_RuleMatsEndpointsTest {
                 return new ReplyDTO("Hello 1 " + msg.request);
             });
     @Rule
-    public EndpointWithState<ReplyDTO, StateSTO, RequestDTO> _helloEndpointWithState = Rule_MatsTestEndpoints
+    public EndpointWithState<ReplyDTO, StateSTO, RequestDTO> _endpointWithState = Rule_MatsTestEndpoints
             .createEndpoint(MATS, ENDPOINT_WITH_STATE, ReplyDTO.class, StateSTO.class, RequestDTO.class);
     // Set ProcessLambda in test.
 
@@ -84,10 +84,10 @@ public class U_RuleMatsEndpointsTest {
     // =======================================================================================
 
     @Rule
-    public Endpoint<ReplyDTO, RequestDTO> _helloEndpoint_npl = Rule_MatsTestEndpoints
+    public Endpoint<ReplyDTO, RequestDTO> _endpoint_npl = Rule_MatsTestEndpoints
             .createEndpoint(MATS, ENDPOINT_NPL, ReplyDTO.class, RequestDTO.class);
     @Rule
-    public EndpointWithState<ReplyDTO, StateSTO, RequestDTO> _helloEndpointWithState_npl = Rule_MatsTestEndpoints
+    public EndpointWithState<ReplyDTO, StateSTO, RequestDTO> _endpointWithState_npl = Rule_MatsTestEndpoints
             .createEndpoint(MATS, ENDPOINT_WITH_STATE_NPL, ReplyDTO.class, StateSTO.class, RequestDTO.class);
     @Rule
     public Terminator<RequestDTO> _terminator_npl = Rule_MatsTestEndpoints
@@ -114,7 +114,7 @@ public class U_RuleMatsEndpointsTest {
         // :: Verify
         Assert.assertEquals("Hello 1 World 1", replyDto.reply);
 
-        Message<Void, RequestDTO> epMessage = _helloEndpoint.awaitInvocation();
+        Message<Void, RequestDTO> epMessage = _endpoint.awaitInvocation();
         Assert.assertEquals(worldRequest.request, epMessage.getData().request);
 
         // Do the latch check after the Test endpoint has been verified - it should have been resolved.
@@ -123,7 +123,7 @@ public class U_RuleMatsEndpointsTest {
         Assert.assertNull(latched.getState());
         Assert.assertNotNull(latched.getContext());
 
-        _helloEndpointWithState.verifyNotInvoked();
+        _endpointWithState.verifyNotInvoked();
         _terminator.verifyNotInvoked();
         _terminatorWithState.verifyNotInvoked();
     }
@@ -137,7 +137,7 @@ public class U_RuleMatsEndpointsTest {
         StateSTO terminatorState = new StateSTO("TerminatorState");
 
         // Set the process lambda to be used by the endpoint.
-        _helloEndpointWithState.setProcessLambda((ctx, state, msg) -> {
+        _endpointWithState.setProcessLambda((ctx, state, msg) -> {
             _matsTestLatch.resolve(ctx, state, msg);
             return new ReplyDTO("Hello 2 " + msg.request);
         });
@@ -152,7 +152,7 @@ public class U_RuleMatsEndpointsTest {
                 .request(worldRequest, initialState));
 
         // :: Verify
-        Message<StateSTO, RequestDTO> epMessage = _helloEndpointWithState.awaitInvocation();
+        Message<StateSTO, RequestDTO> epMessage = _endpointWithState.awaitInvocation();
         Assert.assertEquals(worldRequest.request, epMessage.getData().request);
         Assert.assertEquals(initialState.state, epMessage.getState().state);
 
@@ -167,7 +167,7 @@ public class U_RuleMatsEndpointsTest {
         Assert.assertEquals(initialState.state, latched.getState().state);
         Assert.assertNotNull(latched.getContext());
 
-        _helloEndpoint.verifyNotInvoked();
+        _endpoint.verifyNotInvoked();
         _terminator.verifyNotInvoked();
         _terminatorWithState.verifyNotInvoked();
     }
@@ -193,8 +193,8 @@ public class U_RuleMatsEndpointsTest {
         Assert.assertNull(latched.getState());
         Assert.assertNotNull(latched.getContext());
 
-        _helloEndpoint.verifyNotInvoked();
-        _helloEndpointWithState.verifyNotInvoked();
+        _endpoint.verifyNotInvoked();
+        _endpointWithState.verifyNotInvoked();
         _terminatorWithState.verifyNotInvoked();
     }
 
@@ -224,8 +224,8 @@ public class U_RuleMatsEndpointsTest {
         Assert.assertEquals(initialState.state, latched.getState().state);
         Assert.assertNotNull(latched.getContext());
 
-        _helloEndpoint.verifyNotInvoked();
-        _helloEndpointWithState.verifyNotInvoked();
+        _endpoint.verifyNotInvoked();
+        _endpointWithState.verifyNotInvoked();
         _terminator.verifyNotInvoked();
     }
 
@@ -236,13 +236,13 @@ public class U_RuleMatsEndpointsTest {
     @Test(expected = IllegalStateException.class)
     public void endpointTest_no_process_lambda() throws ExecutionException, InterruptedException, TimeoutException {
         // :: Verify
-        _helloEndpoint_npl.awaitInvocation();
+        _endpoint_npl.awaitInvocation();
     }
 
     @Test(expected = IllegalStateException.class)
     public void endpointWithStateTest_no_process_lambda() {
         // :: Verify
-        _helloEndpointWithState_npl.awaitInvocation();
+        _endpointWithState_npl.awaitInvocation();
     }
 
     @Test
@@ -280,7 +280,91 @@ public class U_RuleMatsEndpointsTest {
         Assert.assertEquals(initialState.state, epMessage.getState().state);
     }
 
+    // ===============================================================================================================
+    // :: Tests for process lambda that throws
+    // ===============================================================================================================
+
+    @Test
+    public void endpointTest_process_lambda_throws() {
+        endpointTest_process_lambda_throws_generic(_endpoint, ENDPOINT, "throwing lambda 1");
+    }
+
+    @Test
+    public void endpointWithStateTest_process_lambda_throws() {
+        endpointTest_process_lambda_throws_generic(_endpointWithState, ENDPOINT_WITH_STATE, "throwing lambda 2");
+    }
+
+    @Test
+    public void terminatorTest_process_lambda_throws() {
+        endpointTest_process_lambda_throws_generic(_terminator, TERMINATOR, "throwing lambda 3");
+    }
+
+    @Test
+    public void terminatorWithStateTest_process_lambda_throws() {
+        endpointTest_process_lambda_throws_generic(_terminatorWithState, TERMINATOR_WITH_STATE, "throwing lambda 4");
+    }
+
+    public void endpointTest_process_lambda_throws_generic(MatsTestEndpoint<?, ?, ?> ep, String epid,
+            String throwMessage) {
+        // :: Setup
+        // Set throwing lambda
+        _endpoint.setProcessLambda((ctx, msg) -> {
+            throw new RuntimeException(throwMessage);
+        });
+
+        // :: Act
+        MATS.getMatsInitiator().initiateUnchecked(init -> init.traceId("Test")
+                .from(getClass().getSimpleName())
+                .to(ENDPOINT)
+                .send(new RequestDTO("...")));
+
+        // :: Verify (should throw)
+        try {
+            _endpoint.awaitInvocation();
+            Assert.fail("Expected AssertionError not thrown!");
+        }
+        catch (AssertionError e) {
+            Assert.assertTrue("Expected lambda-thrown message to be in AssertionError",
+                    e.getMessage().contains(throwMessage));
+        }
+    }
+
+    // ===============================================================================================================
+    // :: Tests for no message received (very rudimentary)
+    // ===============================================================================================================
+
+    @Test
+    public void endpointTest_noMessage() {
+        endpointTest_noMessage(_endpoint, ENDPOINT);
+    }
+
+    @Test
+    public void endpointWithStateTest_noMessage() {
+        endpointTest_noMessage(_endpointWithState, ENDPOINT_WITH_STATE);
+    }
+
+    @Test
+    public void terminatorTest_noMessage() {
+        endpointTest_noMessage(_terminator, TERMINATOR);
+    }
+
+    @Test
+    public void terminatorWithStateTest_noMessage() {
+        endpointTest_noMessage(_terminatorWithState, TERMINATOR_WITH_STATE);
+    }
+
+    public void endpointTest_noMessage(MatsTestEndpoint<?,?,?> ep, String epid) {
+        // :: Setup
+        // Set any process lambda, so we don't get an exception for that.
+        _endpoint.setProcessLambda((ctx, msg) -> null);
+
+        // :: Act & Verify
+        _endpoint.verifyNotInvoked();
+    }
+
+    // ===============================================================================================================
     // :: Reply, State, and Request DTOs used in the tests.
+    // ===============================================================================================================
 
     private static class ReplyDTO {
         String reply;
