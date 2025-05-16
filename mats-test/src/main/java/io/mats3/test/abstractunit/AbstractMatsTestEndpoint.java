@@ -43,7 +43,7 @@ import io.mats3.test.MatsTestEndpoint.ProcessTerminatorNoStateLambda;
  * <li>mats-test-jupiter</li>
  * </ul>
  * <p>
- * Set's up a {@link MatsEndpoint} which processor can be modified on the fly. Also provides utility methods to extract
+ * Sets up a {@link MatsEndpoint} which processor can be modified on the fly. Also provides utility methods to extract
  * incoming requests and verify that endpoint har or hasn't been invoked.
  *
  * @param <R>

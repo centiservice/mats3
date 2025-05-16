@@ -29,9 +29,12 @@ import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint.ProcessSingleLambda;
 import io.mats3.MatsFactory;
+import io.mats3.test.MatsTestEndpoint;
 import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
 
 /**
+ * <b>Note: You should rather use the newer {@link MatsTestEndpoint} solution!</b>
+ * <p>
  * Extension to create a single staged endpoint whose reply/processor can be changed throughout its life, i.e. per test
  * (e.g. answer "Sorry, no can do." for the first test, and then "Yes, we can!" for the next test). Useful for mocking
  * endpoints in tests where you need predictable replies, and may also be used to verify that an endpoint was
@@ -162,6 +165,10 @@ public class Extension_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, Vo
         extension_matsEndpoint.setMatsFactory(extensionMats.getMatsFactory());
         return extension_matsEndpoint;
     }
+
+    // ================================================================================================================
+    // Expose request methods by changing the visibility to public, as the superclass methods are protected.
+    // ================================================================================================================
 
     @Override
     public I waitForRequest() {

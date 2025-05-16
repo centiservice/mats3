@@ -44,8 +44,6 @@ import io.mats3.test.abstractunit.AbstractMatsTestEndpoint;
  * {@link MatsTestEndpoint} for more information.
  *
  * @see MatsTestEndpoint
- * @author Endre Stølsvik, 2025-04-23 - http://stolsvik.com/, endre@stolsvik.com
- * @author Kevin Mc Tiernan, 2025-04-23, kevin.mc.tiernan@storebrand.no
  */
 public class Rule_MatsTestEndpoints {
 
