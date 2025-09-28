@@ -1,6 +1,6 @@
 // Customize the Gradle Wrapper generation task.
 wrapper {
-    gradleVersion = "8.5"
+    gradleVersion = "8.14.3"
     // Use "-all"-version of distribution, since IntelliJ works better then..
     setDistributionType(Wrapper.DistributionType.ALL)
 }
@@ -16,7 +16,7 @@ allprojects {
 ext {
     activeMqVersion = '5.18.5'
     artemisMqVersion = '2.37.0'
-    springVersion = '5.3.33' // Spring 6 depends on Java 17 and Jakarta EE 9+
+    springVersion = '5.3.39' // Spring 6 depends on Java 17 and Jakarta EE 9+
     // https://github.com/micrometer-metrics/micrometer/wiki/1.13-Migration-Guide
     micrometerVersion = '1.12.10' // 1.13.x have changed use of prometheus, and we need to sync.
     jacksonVersion = '2.17.2'
@@ -73,6 +73,8 @@ if (project.properties.containsKey('mats.build.java_version')) {
 subprojects {
     apply plugin: 'java-library'
 
+    repositories { mavenCentral() }
+
     java {
         toolchain {
             languageVersion.set(JavaLanguageVersion.of(javaVersion))
@@ -80,8 +82,6 @@ subprojects {
         withJavadocJar()
         withSourcesJar()
     }
-
-    repositories { mavenCentral() }
 
     tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
