@@ -35,6 +35,9 @@ Mats<sup>3</sup>-specific HTML-based monitor and control surface of the queues a
 
 Go to the [Documentation](https://mats3.io/docs/) page of [mats3.io](https://mats3.io/).
 
+The different modules are described in the [README-development.md](README-development.md), which also contains
+instructions on how to build, develop, run unit tests and integration tests, of the library itself.
+
 # What is Mats?
 
 There's a document going into details [here](https://mats3.io/background/what-is-mats/), and for the rationale behind
@@ -199,8 +202,8 @@ system consisting of >50 services and applications and well over thousand Mats E
 been expanded and altered through this time, being developed by a good set of developers, with very close to 100%
 uptime. It was even moved from on-prem to one of the large cloud providers with no downtime, simply spinning up
 instances in the cloud, and taking down the instances on-prem, without even the developers noticing when their service
-was moved! It has multiple customer frontends, both web and apps, and several backend UIs for backoffice functions. Many
-million messages are produced and consumed each day. The Message Broker in use in this production setup is Apache
+was moved! It has multiple customer frontends, both web and apps, and several backend UIs for backoffice functions. Tens
+of millions of messages are produced and consumed each day. The Message Broker in use in this production setup is Apache
 ActiveMQ Classic, but all unit and integration tests also run on Apache ActiveMQ Artemis (formerly JBoss HornetQ, and
 what Red Hat AMQ 7+ is built on). For more, read [this](docs/WhatIsMats.md), then [this](docs/RationaleForMats.md) - and
 the documentation at [mats3.io](https://mats3.io/docs/).
@@ -276,7 +279,7 @@ cross-cutting concerns to the processing layer without having to add this to the
 logging and metrics solutions are implemented as such plugins.
 
 The instrumentation and metadata of the messages is utilized in the MatsBrokerMonitor project, which provides a
-Mats3-specific view of the queues, topics, DLQs and the actual messages residing on the message broker.
+Mats3-specific view of the queues, topics, DLQs, and the actual messages residing on the message broker.
 
 ## Alternatives & Key Comparisons
 
@@ -317,7 +320,7 @@ is not present in Akka.
 
 Bottom line: Mats3 does not demand a new mental model - quite the opposite: It is made to be as close to bog-standard
 synchronous coding as possible, while still being fully message-driven and asynchronous. It is pure Java (albeit with an
-optional SpringConfig module for defining Endpoints via annotations), with a deceivingly simple API to ease you into the
+optional SpringConfig module for defining Endpoints via annotations), with a disarmingly simple API to ease you into the
 concepts: You'll be writing business code pretty much immediately, and you'll be able to reason about the code in a
 linear fashion, just as you would with synchronous code.
 
@@ -337,7 +340,7 @@ were coding a blocking, synchronous method, but you get the benefits of asynchro
 
 Most other distributed architectures trying to alleviate the problems of synchronous HTTP calls, heavily leak the
 underlying distribution principles and architecture, whether it is event sourcing, sagas, messaging, or external
-orchestration. Mats3 abstracts this away in a substantial and meaningful way, letting developers focus on what needs to
+orchestration. Mats3 abstracts this away in a significant and meaningful way, letting developers focus on what needs to
 happen - the business logic - not how it’s coordinated.
 
 # Examples
