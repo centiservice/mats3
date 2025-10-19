@@ -62,14 +62,10 @@ dependencies {
     testImplementation project(':mats-localinspect')
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = 'Mats^3 Utilities'
-                description = 'Mats^3 Utilities - notably the MatsFuturizer, which provides a bridge from' +
-                        ' synchronous processes to the highly asynchronous Mats^3 services.'
-            }
-        }
+mavenPublishing {
+    pom {
+        name = 'Mats^3 Utilities'
+        description = 'Mats^3 Utilities - notably the MatsFuturizer, which provides a bridge from' +
+                ' synchronous processes to the highly asynchronous Mats^3 services.'
     }
 }

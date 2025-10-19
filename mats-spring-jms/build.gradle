@@ -57,16 +57,12 @@ dependencies {
     testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = 'Mats^3 Spring tooling for Mats^3 JMS Implementation'
-                description = 'Mats^3 Spring tooling for the Mats^3 JMS implementation, including an' +
-                        ' implementation of JmsMatsTransactionManager using Spring\'s PlatformTransactionManager,' +
-                        ' and tooling for configuring a MatsFactory for different scenarios: development, staging,' +
-                        ' production.'
-            }
-        }
+mavenPublishing {
+    pom {
+        name = 'Mats^3 Spring tooling for Mats^3 JMS Implementation'
+        description = 'Mats^3 Spring tooling for the Mats^3 JMS implementation, including an' +
+                ' implementation of JmsMatsTransactionManager using Spring\'s PlatformTransactionManager,' +
+                ' and tooling for configuring a MatsFactory for different scenarios: development, staging,' +
+                ' production.'
     }
 }

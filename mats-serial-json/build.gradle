@@ -20,14 +20,10 @@ dependencies {
     testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = 'Mats^3 Jackson-based MatsSerializer implementation'
-                description = 'Mats^3 MatsSerializer implementation using Jackson to serialize between' +
-                        ' MatsTraceStringImpl and byte arrays. Employed by the Mats^3 JMS Implementation.'
-            }
-        }
+mavenPublishing {
+    pom {
+        name = 'Mats^3 Jackson-based MatsSerializer implementation'
+        description = 'Mats^3 MatsSerializer implementation using Jackson to serialize between' +
+                ' MatsTraceStringImpl and byte arrays. Employed by the Mats^3 JMS Implementation.'
     }
 }

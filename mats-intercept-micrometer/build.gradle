@@ -41,13 +41,9 @@ dependencies {
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = 'Mats^3 Micrometer Metrics'
-                description = 'Mats^3 interceptor adding metrics gathering using Spring\'s Micrometer solution.'
-            }
-        }
+mavenPublishing {
+    pom {
+        name = 'Mats^3 Micrometer Metrics'
+        description = 'Mats^3 interceptor adding metrics gathering using Spring\'s Micrometer solution.'
     }
 }

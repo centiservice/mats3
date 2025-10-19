@@ -42,8 +42,8 @@ dependencies {
     testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
 
     // Single Spring test inside
-    testImplementation ("org.springframework:spring-test:$springVersion") {
-        exclude group:'junit', module:'junit'
+    testImplementation("org.springframework:spring-test:$springVersion") {
+        exclude group: 'junit', module: 'junit'
     }
     testImplementation "org.springframework:spring-context:$springVersion"
     testImplementation "org.springframework:spring-tx:$springVersion"
@@ -66,13 +66,9 @@ test {
     useJUnitPlatform()
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = 'Mats^3 Jupiter (JUnit 5) testing tools'
-                description = 'Mats^3 testing tools for Jupiter (JUnit 5).'
-            }
-        }
+mavenPublishing {
+    pom {
+        name = 'Mats^3 Jupiter (JUnit 5) testing tools'
+        description = 'Mats^3 testing tools for Jupiter (JUnit 5).'
     }
 }

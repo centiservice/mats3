@@ -17,13 +17,9 @@ dependencies {
     testImplementation project(':mats-intercept-micrometer')
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = 'Mats^3 Intercept API'
-                description = 'Extension to the Mats^3 API which adds interception capabilities.'
-            }
-        }
+mavenPublishing {
+    pom {
+        name = 'Mats^3 Intercept API'
+        description = 'Extension to the Mats^3 API which adds interception capabilities.'
     }
 }

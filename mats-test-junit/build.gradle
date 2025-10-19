@@ -50,13 +50,9 @@ dependencies {
     testImplementation "org.mockito:mockito-junit-jupiter:$mockitoVersion"
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = 'Mats^3 JUnit 4 testing tools'
-                description = 'Mats^3 testing tools for JUnit 4.'
-            }
-        }
+mavenPublishing {
+    pom {
+        name = 'Mats^3 JUnit 4 testing tools'
+        description = 'Mats^3 testing tools for JUnit 4.'
     }
 }

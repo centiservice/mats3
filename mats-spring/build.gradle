@@ -30,15 +30,11 @@ dependencies {
     testRuntimeOnly "ch.qos.logback:logback-classic:$logbackVersion"
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = 'Mats^3 "SpringConfig"'
-                description = 'Mats^3 Spring integration ("SpringConfig"), supplying a set of annotations including' +
-                        ' @EnableMats to enable bean scanning for @MatsMapping and @MatsClassMapping annotations,' +
-                        ' simplifying Mats^3 use in a Spring context.'
-            }
-        }
+mavenPublishing {
+    pom {
+        name = 'Mats^3 "SpringConfig"'
+        description = 'Mats^3 Spring integration ("SpringConfig"), supplying a set of annotations including' +
+                ' @EnableMats to enable bean scanning for @MatsMapping and @MatsClassMapping annotations,' +
+                ' simplifying Mats^3 use in a Spring context.'
     }
 }

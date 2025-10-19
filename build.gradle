@@ -1,3 +1,10 @@
+// Mats3
+
+plugins {
+    id 'java-library'
+    id "com.vanniktech.maven.publish" version "0.34.0" // Publish to Maven Central, over Portal Publisher API
+}
+
 // Customize the Gradle Wrapper generation task.
 wrapper {
     gradleVersion = "8.14.3"
@@ -9,7 +16,7 @@ allprojects {
     group = 'io.mats3'
     version = '1.0.0+2025-05-17'
 
-    layout.getBuildDirectory().set(new File("build-gradle"))
+    layout.getBuildDirectory().set(file("build-gradle"))
 }
 
 // Versions for all libraries used throughout the subprojects
@@ -72,15 +79,17 @@ if (project.properties.containsKey('mats.build.java_version')) {
 // Common for all subprojects, even 'mats-api-test'
 subprojects {
     apply plugin: 'java-library'
+    apply plugin: "com.vanniktech.maven.publish"
 
     repositories { mavenCentral() }
 
     java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+
         toolchain {
             languageVersion.set(JavaLanguageVersion.of(javaVersion))
         }
-        withJavadocJar()
-        withSourcesJar()
     }
 
     tasks.withType(JavaCompile).configureEach {
@@ -148,30 +157,53 @@ subprojects {
         }
     }
 
-    // ------------------------------------------------
-    // -- Simple tools
-
     // Define dependency report task that all subprojects gets. Invoke with "./gradlew allDeps | less"
     tasks.register('allDeps', DependencyReportTask) {}
 
-    // Some info about current gradle environment.
-    tasks.register('systemInformation') {
-        def gradleVersion = gradle.gradleVersion // Needed due to config cache.
-        doLast {
-            println "\n** Java properties [System.getProperties()], sorted:\n"
-            System.properties.sort().each { k, v ->
-                println("$k = $v")
+    // :: For publishing subprojects: All, minus 'mats-api-test*'
+    if (!it.name.startsWith('mats-api-test')) {
+        mavenPublishing { // 'publishToMavenCentral' task.
+            publishToMavenCentral()
+            signAllPublications()
+
+            coordinates(group.toString(), name, version.toString())
+
+            pom {
+                name = 'Mats^3'
+                description = 'Message-based Asynchronous Transactional Staged Stateless Services'
+                url = 'https://github.com/centiservice/mats3'
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'stolsvik'
+                        name = 'Endre Stølsvik'
+                        email = 'endre@stolsvik.com'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/stolsvik/mats.git'
+                    developerConnection = 'scm:git:ssh://github.com:centiservice/mats3.git'
+                    url = 'https://github.com/centiservice/mats3'
+                }
             }
-            println "\n** Environment [System.getenv()], sorted:\n"
-            System.env.sort().each { k, v ->
-                println("$k = $v")
-            }
-            println ''
-            println "** Java Version:   " + System.getProperty("java.version")
-            println "** Groovy Version: " + GroovySystem.getVersion()
-            println "** Gradle Version: " + gradleVersion
         }
     }
+
+    // Also clean out some dir sometimes popping up, IntelliJ?
+    clean {
+        delete "$projectDir/out/"
+    }
+}
+
+clean {
+    // Vanniktech publish plugin creates this, so clean it too.
+    delete "build/"
+    // Note: "build-gradle" pops back up after any gradle run, as config cache and problem report puts things there.
 }
 
 // For "all JavaDoc" task, sweeping together all sources to make a complete set of JavaDoc in one go.
@@ -188,68 +220,27 @@ tasks.register('alljavadoc', Javadoc) {
 // .. ensure 'alljavadoc' is run together with './gradlew clean javadoc', thus building 'all' + submodules.
 javadoc.dependsOn alljavadoc
 
-// For publishing subprojects: All, minus 'mats-api-test*'
-configure(subprojects.findAll { ! it.name.startsWith('mats-api-test') }) {
-    apply plugin: 'signing'
-    apply plugin: 'maven-publish'
+// ------------------------------------------------
+// -- Simple tools
 
-    signing {
-        // Sign everything, even MD5s and SHAs..
-        sign publishing.publications
-    }
-
-    publishing {
-        publications {
-            mavenJava(MavenPublication) {
-                pom {
-                    name = 'Mats^3'
-                    description = 'Message-based Asynchronous Transactional Staged Stateless Services'
-                    url = 'https://github.com/centiservice/mats3'
-                    licenses {
-                        license {
-                            name = 'The Apache License, Version 2.0'
-                            url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
-                        }
-                    }
-                    developers {
-                        developer {
-                            id = 'stolsvik'
-                            name = 'Endre Stølsvik'
-                            email = 'endre@stolsvik.com'
-                        }
-                    }
-                    scm {
-                        connection = 'scm:git:https://github.com/stolsvik/mats.git'
-                        developerConnection = 'scm:git:ssh://github.com:centiservice/mats3.git'
-                        url = 'https://github.com/centiservice/mats3'
-                    }
-                }
-                from components.java
-            }
+// Some info about current gradle environment.
+import java.nio.charset.Charset
+tasks.register('systemInformation') {
+    def gradleVersion = gradle.gradleVersion // Needed due to config cache.
+    doLast {
+        println "\n** Java properties [System.getProperties()], sorted:\n"
+        System.properties.sort().each { k, v ->
+            println("$k = $v")
         }
-        repositories {
-            maven {
-                name 'SonatypeOSSRHSnapshot'
-                url 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
-                credentials {
-                    // using findProperty(..) to be able to build without it being defined.
-                    username findProperty('sonatypeUsername') as String ?: "should be in different file"
-                    password findProperty('sonatypePassword') as String ?: "should be in different file"
-                }
-            }
-            maven {
-                name 'SonatypeOSSRHStaging'
-                url 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2'
-                credentials {
-                    // using findProperty(..) to be able to build without it being defined.
-                    username findProperty('sonatypeUsername') as String ?: "should be in different file"
-                    password findProperty('sonatypePassword') as String ?: "should be in different file"
-                }
-            }
+        println "\n** Environment [System.getenv()], sorted:\n"
+        System.env.sort().each { k, v ->
+            println("$k = $v")
         }
+        println ''
+        println "** Charset.defaultCharset(): " + Charset.defaultCharset()
+        println ''
+        println "** Java Version:   " + System.getProperty("java.version")
+        println "** Groovy Version: " + GroovySystem.getVersion()
+        println "** Gradle Version: " + gradleVersion
     }
-
-    // Tasks to publish to Sonatype's OSSRH (OSS Repository Hosting), Snapshot and Staging
-    tasks.register('matsPublishSnapshot') { dependsOn publishAllPublicationsToSonatypeOSSRHSnapshotRepository }
-    tasks.register('matsPublishStaging') { dependsOn publishAllPublicationsToSonatypeOSSRHStagingRepository }
 }

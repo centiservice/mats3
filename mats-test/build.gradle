@@ -54,13 +54,9 @@ test {
     }
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            pom {
-                name = 'Mats^3 Testing tooling'
-                description = 'Mats^3 Testing tools, as well as the base for specific JUnit or Jupiter (Junit 5) tools.'
-            }
-        }
+mavenPublishing {
+    pom {
+        name = 'Mats^3 Testing tooling'
+        description = 'Mats^3 Testing tools, as well as the base for specific JUnit or Jupiter (Junit 5) tools.'
     }
 }
