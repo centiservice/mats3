@@ -33,7 +33,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 /**
  * Configures a Jackson JSON field-based ObjectMapper to be used in Mats3, ensuring a common standard configuration.
  * <p>
- * The ObjectMapper is configured be as lenient and compact as possible. The configuration is as such:
+ * The ObjectMapper is configured to be as lenient and compact as possible. The configuration is as such:
  * <ul>
  * <li>Only read and write fields, ignore methods and constructors (except for Records, which Jackson handles somewhat
  * differently).</li>
@@ -113,12 +113,12 @@ public class FieldBasedJacksonMapper {
 
     private static ObjectMapper internalJacksonObjectMapper(boolean useBlackbird, String sayWhat) {
         // Use StackWalker to get the caller's stack frame
-        String callerInfo;
         StackWalker walker = StackWalker.getInstance();
         StackWalker.StackFrame callerFrame = walker.walk(stream -> stream.skip(1)
                 .filter(f -> !f.getClassName().contains(".FieldBasedJacksonMapper"))
                 .findFirst().orElse(null));
 
+        String callerInfo;
         if (callerFrame != null) {
             String callingClassName = callerFrame.getClassName();
             String callingMethodName = callerFrame.getMethodName();
@@ -158,6 +158,7 @@ public class FieldBasedJacksonMapper {
         mapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
 
         // Drop nulls
+        // TODO: Change to NON_DEFAULT.
         mapper.setSerializationInclusion(Include.NON_NULL);
 
         // If props are in JSON that aren't in Java DTO, do not fail.
