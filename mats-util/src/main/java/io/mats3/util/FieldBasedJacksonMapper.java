@@ -159,7 +159,7 @@ public class FieldBasedJacksonMapper {
 
         // Drop nulls
         // TODO: Change to NON_DEFAULT.
-        mapper.setSerializationInclusion(Include.NON_NULL);
+        mapper.setDefaultPropertyInclusion(Include.NON_NULL);
 
         // If props are in JSON that aren't in Java DTO, do not fail.
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
