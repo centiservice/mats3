@@ -11,6 +11,8 @@ out/
 
 # ActiveMQ KahaDB
 kahadb/
+KahaDb/
+KahaDB/
 activemq-data/
 
 # Idea
