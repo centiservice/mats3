@@ -157,6 +157,11 @@ subprojects {
         }
     }
 
+    // Also clean out some dir sometimes popping up, IntelliJ?
+    clean {
+        delete "$projectDir/out/"
+    }
+
     // Define dependency report task that all subprojects gets. Invoke with "./gradlew allDeps | less"
     tasks.register('allDeps', DependencyReportTask) {}
 
@@ -192,11 +197,6 @@ subprojects {
                 }
             }
         }
-    }
-
-    // Also clean out some dir sometimes popping up, IntelliJ?
-    clean {
-        delete "$projectDir/out/"
     }
 }
 

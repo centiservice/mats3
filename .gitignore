@@ -8,7 +8,7 @@ build-eclipse/
 .gradle
 build-gradle/
 out/
-# Publish plugin creates this
+# Vanniktech Maven Publish plugin creates this
 /build/
 
 # ActiveMQ KahaDB
