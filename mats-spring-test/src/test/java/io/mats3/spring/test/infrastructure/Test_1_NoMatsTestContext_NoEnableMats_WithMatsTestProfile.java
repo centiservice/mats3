@@ -16,8 +16,8 @@
 
 package io.mats3.spring.test.infrastructure;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,9 +35,9 @@ import io.mats3.spring.EnableMats;
 import io.mats3.spring.test.MatsTestContext;
 import io.mats3.spring.test.MatsTestProfile;
 import io.mats3.spring.test.TestSpringMatsFactoryProvider;
-import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
+import io.mats3.test.MatsTestHelp;
 
 /**
  * This sets up a small Mats infrastructure WITHOUT employing the {@link MatsTestContext @MatsTestContext} nor the

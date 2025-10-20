@@ -18,7 +18,7 @@ package io.mats3.spring;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.junit.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;

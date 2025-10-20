@@ -19,7 +19,7 @@ package io.mats3.spring.shutdownorder;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 import jakarta.jms.ConnectionFactory;
 
 import org.junit.Assert;

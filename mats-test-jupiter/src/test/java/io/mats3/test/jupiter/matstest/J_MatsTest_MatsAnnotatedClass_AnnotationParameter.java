@@ -21,7 +21,7 @@ import static io.mats3.test.jupiter.matstest.J_MatsTest_MatsAnnotatedClass.callM
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;

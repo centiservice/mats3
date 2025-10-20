@@ -21,9 +21,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
-
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +41,9 @@ import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.test.jupiter.Extension_MatsEndpoint;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
 
 /**
  * Illustrates that {@link Extension_MatsEndpoint} is autowired by Spring when using the test execution listener

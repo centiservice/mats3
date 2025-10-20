@@ -21,9 +21,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
-
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -48,6 +45,9 @@ import io.mats3.test.junit.Rule_MatsTestEndpoints.Endpoint;
 import io.mats3.test.junit.Rule_MatsTestEndpoints.Terminator;
 import io.mats3.util.MatsFuturizer;
 import io.mats3.util.MatsFuturizer.Reply;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
 
 /**
  * Illustrates that {@link Rule_MatsEndpoint} is autowired by Spring when using the test execution listener provided by

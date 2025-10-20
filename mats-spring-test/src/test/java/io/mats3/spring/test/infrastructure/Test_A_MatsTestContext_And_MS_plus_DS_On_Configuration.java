@@ -16,7 +16,7 @@
 
 package io.mats3.spring.test.infrastructure;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 import javax.sql.DataSource;
 
 import org.junit.Assert;

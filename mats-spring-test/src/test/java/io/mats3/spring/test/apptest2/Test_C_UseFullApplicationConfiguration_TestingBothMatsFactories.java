@@ -16,7 +16,7 @@
 
 package io.mats3.spring.test.apptest2;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.junit.Assert;
 import org.junit.Test;

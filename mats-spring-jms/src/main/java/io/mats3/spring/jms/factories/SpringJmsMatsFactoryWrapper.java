@@ -19,9 +19,6 @@ package io.mats3.spring.jms.factories;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-import javax.annotation.PostConstruct;
-import jakarta.jms.ConnectionFactory;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.FactoryBean;
@@ -35,6 +32,9 @@ import io.mats3.MatsFactory;
 import io.mats3.MatsFactory.MatsFactoryWrapper;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.test.MatsTestFactory;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.jms.ConnectionFactory;
 
 /**
  * Wrapper that should be used for a JmsMatsFactory in a Spring context. In addition to the wrapped {@link MatsFactory},

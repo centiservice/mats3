@@ -16,8 +16,8 @@
 
 package io.mats3.spring.test.infrastructure;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -30,9 +30,9 @@ import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator;
 import io.mats3.MatsInitiator.MessageReference;
 import io.mats3.spring.test.MatsTestContext;
-import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
+import io.mats3.test.MatsTestHelp;
 
 @RunWith(SpringRunner.class)
 @MatsTestContext

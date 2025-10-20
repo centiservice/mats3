@@ -18,7 +18,7 @@ package io.mats3.spring.basics;
 
 import java.util.Optional;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.junit.Assert;
 import org.junit.Test;

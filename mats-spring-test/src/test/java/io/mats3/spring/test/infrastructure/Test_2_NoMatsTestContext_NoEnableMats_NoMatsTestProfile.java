@@ -16,8 +16,8 @@
 
 package io.mats3.spring.test.infrastructure;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,9 +33,9 @@ import io.mats3.MatsInitiator.MessageReference;
 import io.mats3.serial.json.MatsSerializerJson;
 import io.mats3.spring.test.MatsTestProfile;
 import io.mats3.spring.test.TestSpringMatsFactoryProvider;
-import io.mats3.test.MatsTestHelp;
 import io.mats3.test.MatsTestBrokerInterface;
 import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
+import io.mats3.test.MatsTestHelp;
 
 /**
  * Identical to {@link Test_1_NoMatsTestContext_NoEnableMats_WithMatsTestProfile}, only here not even marking with the

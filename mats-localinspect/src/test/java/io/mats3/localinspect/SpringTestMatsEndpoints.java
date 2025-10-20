@@ -16,23 +16,24 @@
 
 package io.mats3.localinspect;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
+import java.util.ArrayList;
+import java.util.List;
+
+import jakarta.inject.Inject;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsEndpoint;
 import io.mats3.MatsEndpoint.ProcessContext;
+import io.mats3.MatsFactory;
+import io.mats3.spring.EnableMats;
 import io.mats3.spring.MatsClassMapping;
 import io.mats3.spring.MatsClassMapping.Stage;
 import io.mats3.spring.MatsEndpointSetup;
 import io.mats3.spring.MatsMapping;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import io.mats3.MatsFactory;
-import io.mats3.spring.EnableMats;
-
-import java.util.ArrayList;
-import java.util.List;
+import jakarta.annotation.PostConstruct;
 
 /**
  * @author Endre Stølsvik 2022-02-21 21:40 - http://stolsvik.com/, endre@stolsvik.com

@@ -16,7 +16,7 @@
 
 package io.mats3.spring.test.apptest1;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.springframework.stereotype.Service;
 

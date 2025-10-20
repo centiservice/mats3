@@ -32,8 +32,8 @@ ext {
     springVersion = '6.2.12'
     // https://github.com/micrometer-metrics/micrometer/wiki/1.13-Migration-Guide
     micrometerVersion = '1.12.13' // 1.13.x have changed use of prometheus, and we need to sync.
-    javaxInjectVersion = '1'
-    javaxAnnotationVersion = '1.3.2'
+    jakartaInjectVersion = '2.0.1'
+    jakartaAnnotationVersion = '3.0.0'
     stbHealthCheckVersion = '0.4.1+2024-05-07' // For 'MatsEagerCacheStorebrandHealthCheck'
 
     // For the JUnit testing tools - including the library tests

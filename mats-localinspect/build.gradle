@@ -26,7 +26,7 @@ dependencies {
     testImplementation "org.springframework:spring-tx:$springVersion"
 
     // We're testing SpringConfig, with @Inject.
-    testImplementation "javax.inject:javax.inject:$javaxInjectVersion"
+    testImplementation "jakarta.inject:jakarta.inject-api:$jakartaInjectVersion"
 
     // The JUnit library
     testImplementation "junit:junit:$junitVersion"

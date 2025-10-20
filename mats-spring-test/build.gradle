@@ -31,9 +31,9 @@ dependencies {
     // :: TEST
 
     // @Inject
-    testImplementation "javax.inject:javax.inject:$javaxInjectVersion"
+    testImplementation "jakarta.inject:jakarta.inject-api:$jakartaInjectVersion"
     // @PostConstruct
-    testImplementation "javax.annotation:javax.annotation-api:$javaxAnnotationVersion"
+    testImplementation "jakarta.annotation:jakarta.annotation-api:$jakartaAnnotationVersion"
 
     // Spring: compileOnly above - now we need it to run.
     testImplementation "org.springframework:spring-test:$springVersion"

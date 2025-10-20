@@ -18,7 +18,7 @@ package io.mats3.test.junit;
 
 import java.util.List;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.junit.ClassRule;
 import org.junit.Rule;

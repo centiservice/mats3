@@ -16,7 +16,7 @@ dependencies {
     // Need the MatsSerializerJson
     implementation project(":mats-serial-json")
     // The Rule_MatsEndpoint is annotated with @Inject to hook into Spring injection if relevant.
-    implementation "javax.inject:javax.inject:$javaxInjectVersion"
+    implementation "jakarta.inject:jakarta.inject-api:$jakartaInjectVersion"
 
     // H2 Database, for database tests - but we do not want to make this dependency transitive, so compileOnly.
     compileOnly "com.h2database:h2:$h2Version"
@@ -31,7 +31,7 @@ dependencies {
     testImplementation project(':mats-spring')
 
     // ..Removed in Java 11
-    testImplementation "javax.annotation:javax.annotation-api:$javaxAnnotationVersion"
+    testImplementation "jakarta.annotation:jakarta.annotation-api:$jakartaAnnotationVersion"
 
     // JMS API - to "handle" the ConnectionFactory - provided by 'mats-test' via 'implementation'.
     testCompileOnly "jakarta.jms:jakarta.jms-api:$jmsVersion"
