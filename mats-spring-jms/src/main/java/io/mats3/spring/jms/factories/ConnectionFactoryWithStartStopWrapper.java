@@ -16,7 +16,7 @@
 
 package io.mats3.spring.jms.factories;
 
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 
 import io.mats3.util.wrappers.ConnectionFactoryWrapper;
 

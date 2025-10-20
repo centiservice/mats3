@@ -16,7 +16,7 @@
 
 package io.mats3.impl.jms;
 
-import javax.jms.Session;
+import jakarta.jms.Session;
 
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
 import io.mats3.MatsInitiator;

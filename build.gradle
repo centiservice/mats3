@@ -21,13 +21,17 @@ allprojects {
 
 // Versions for all libraries used throughout the subprojects
 ext {
-    activeMqVersion = '5.19.1' // ActiveMQ 6+ needs Java 17
-    artemisMqVersion = '2.38.0' // Artemis 2.39+ needs Java 17
-    springVersion = '5.3.39' // Spring 6 depends on Java 17 and Jakarta EE 9+
+    // Need the JMS API to build several modules, but ONLY on 'compileOnly' and 'testCompileOnly'!
+    // It is otherwise provided by the JMS Broker implementation.
+    jmsVersion = '3.1.0'
+    slf4jVersion = '2.0.17'
+    jacksonVersion = '2.20.0' // Jackson 3 changes packaging.
+
+    activeMqVersion = '6.1.7'
+    artemisMqVersion = '2.43.0'
+    springVersion = '6.2.12'
     // https://github.com/micrometer-metrics/micrometer/wiki/1.13-Migration-Guide
     micrometerVersion = '1.12.13' // 1.13.x have changed use of prometheus, and we need to sync.
-    jacksonVersion = '2.20.0' // Jackson 3 needs Java 17
-    slf4jVersion = '2.0.17'
     javaxInjectVersion = '1'
     javaxAnnotationVersion = '1.3.2'
     stbHealthCheckVersion = '0.4.1+2024-05-07' // For 'MatsEagerCacheStorebrandHealthCheck'
@@ -42,29 +46,9 @@ ext {
     logbackVersion = '1.5.19'
     h2Version = '2.4.240'
     jettyVersion = '9.4.58.v20250814'
-    hibernateVersion = '5.6.15.Final' // Hibernate 6 depends on Jakarta.persistence.
+    hibernateVersion = '7.1.4.Final'
     remockVersion = '2.1.0'
     mockitoVersion = '5.20.0'
-
-    // Need the JMS API to build several modules, but ONLY on 'compileOnly' and 'testCompileOnly'!
-    // On runtime, the JMS API will be provided by the user. For tests, by 'mats-test' which includes an
-    // 'implementation' dependency on ActiveMQ & Artemis Clients, which again depends on the JMS 2.0.3 API.
-    // (that version is still using the javax.jms package namespace, though.)
-    //
-    // Ideally, we want to depend on the JMS API javax.jms v1.1-rev-1, i.e. the old JMS API - but we also want be able
-    // to run with javax.jms 2.0, and jakarta.jms v2.0.3
-    //
-    // However, IntelliJ has a bug (https://youtrack.jetbrains.com/issue/IDEA-247645) which makes it impossible to
-    // run anything inside IntelliJ in such a "split dependency" mode: Even though we say 'compileOnly', it still chucks
-    // the dependency onto the test runtime classpath. It is crucial to be able to develop and test inside IntelliJ.
-    // However, this then leads to a problem where the places we decorate e.g. a JMS ConnectionFactory: The 2.0 API
-    // includes multiple new methods, which return new classes, so we can't switch between these versions without
-    // also changing the java files (3 instances)
-    //
-    // Also, since ActiveMQ is, AFAIK, the latest holdout on JMS 1.1, it makes little difference to move up to
-    // Jakarta's JMS 2.0.3 (which still uses the javax.jms package namespace, contrasted with JMS 3.0, which uses
-    // jakarta.jms). This was the old dep: 'javax.jms:jms-api:1.1-rev-1'
-    jmsApiDependency = 'jakarta.jms:jakarta.jms-api:2.0.3'
 }
 
 // :: Find which Java version to use for the toolchain.

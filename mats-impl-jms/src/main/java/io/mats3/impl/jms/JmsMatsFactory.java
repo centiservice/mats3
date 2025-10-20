@@ -35,7 +35,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import javax.jms.MessageConsumer;
+import jakarta.jms.MessageConsumer;
 import javax.sql.DataSource;
 
 import org.slf4j.Logger;

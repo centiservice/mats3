@@ -19,8 +19,8 @@ package io.mats3.impl.jms;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-import javax.jms.Connection;
-import javax.jms.MessageConsumer;
+import jakarta.jms.Connection;
+import jakarta.jms.MessageConsumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -24,10 +24,6 @@ import java.util.List;
 import java.util.Optional;
 
 import javax.inject.Inject;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
 import javax.sql.DataSource;
 
 import org.hibernate.Session;
@@ -49,10 +45,14 @@ import io.mats3.spring.EnableMats;
 import io.mats3.spring.MatsMapping;
 import io.mats3.spring.jms.tx.SpringTestDataTO;
 import io.mats3.spring.jms.tx.SpringTestStateTO;
-import io.mats3.spring.jms.tx.varioussetups.Test_SpringManagedTx_H2Based_AbstractBase_PlatformTransactionManager.SpringConfiguration_Abstract_PlatformTransactionManager;
 import io.mats3.test.MatsTestBrokerInterface.MatsMessageRepresentation;
 import io.mats3.test.MatsTestLatch.Result;
 import io.mats3.util.RandomString;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 /**
  * Testing Spring DB Transaction management, using HibernateTransactionManager - also including tests using all of
@@ -112,7 +112,7 @@ public class Test_SpringManagedTx_H2Based_HibernateTransactionManager
             DataTableDbo data = new DataTableDbo(valueHibernate);
             // Getting current Hibernate Session (must not close it)
             Session currentSession = _sessionFactory.getCurrentSession();
-            currentSession.save(data);
+            currentSession.persist(data);
 
             // :: .. and also insert row using Spring JDBC
             String valueSpringJdbc = ENDPOINT_HIBERNATE + '[' + msg.string + "]-SpringJdbc";

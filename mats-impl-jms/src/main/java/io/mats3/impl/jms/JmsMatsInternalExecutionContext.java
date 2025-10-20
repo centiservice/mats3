@@ -20,8 +20,8 @@ import java.sql.Connection;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
+import jakarta.jms.Message;
+import jakarta.jms.MessageConsumer;
 
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
 

@@ -18,7 +18,7 @@ package io.mats3.spring.jms.factories;
 
 import java.util.function.Supplier;
 
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 
 import io.mats3.MatsFactory;
 import io.mats3.spring.jms.factories.ScenarioConnectionFactoryWrapper.ConnectionFactoryProvider;

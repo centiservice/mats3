@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.inject.Inject;
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -44,7 +44,7 @@ import io.mats3.test.broker.MatsTestBroker;
 
 /**
  * The intention of this test is to verify that a {@link MatsFactory} created through the use of a
- * {@link AbstractFactoryBean} is shutdown BEFORE the {@link javax.jms.ConnectionFactory JMS ConnectionFactory}. The
+ * {@link AbstractFactoryBean} is shutdown BEFORE the {@link jakarta.jms.ConnectionFactory JMS ConnectionFactory}. The
  * reason we want to verify that this is true is to ensure that there are no unwanted exceptions being generated during
  * shutdown, as shutting down the connectionFactory before shutting down the MatsFactory can lead to.
  * <p>

@@ -19,7 +19,7 @@ dependencies {
     // (When running in test, mats-test will probably always be present. Also, these are compiled constants.)
     compileOnly project(":mats-test")
     // JMS API - since you must pull in a JMS Client, which thus provides the JMS API, we use compileOnly.
-    compileOnly "$jmsApiDependency"
+    compileOnly "jakarta.jms:jakarta.jms-api:$jmsVersion"
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
 
@@ -41,7 +41,7 @@ dependencies {
     testImplementation "com.h2database:h2:$h2Version"
 
     // JMS API - to "handle" the ConnectionFactory - provided by 'mats-test' via 'implementation'.
-    testCompileOnly "$jmsApiDependency"
+    testCompileOnly "jakarta.jms:jakarta.jms-api:$jmsVersion"
 
     // Spring: compileOnly above - we need it to run
     // Annotation

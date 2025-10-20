@@ -9,7 +9,7 @@ dependencies {
     // ..ActiveMQ Kaha - not needed for ordinary tests, but when using MatsTestBroker for setup for examples.
     compileOnly "org.apache.activemq:activemq-kahadb-store:$activeMqVersion"
     // The Apache ActiveMQ Artemis client and server.
-    compileOnly "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
+    compileOnly "org.apache.activemq:artemis-jakarta-client:$artemisMqVersion"
     compileOnly "org.apache.activemq:artemis-server:$artemisMqVersion"
 
     // TESTING:
@@ -17,7 +17,7 @@ dependencies {
     // Bring in JUnit
     testImplementation "junit:junit:$junitVersion"
     // JMS API - to "handle" the ConnectionFactory - provided by 'mats-test' via 'implementation'.
-    testCompileOnly "$jmsApiDependency"
+    testCompileOnly "jakarta.jms:jakarta.jms-api:$jmsVersion"
     // Need logging system in tests
     testCompileOnly "org.slf4j:slf4j-api:$slf4jVersion"
     testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
@@ -26,7 +26,7 @@ dependencies {
     // Apache ActiveMQ broker (server), which is the default test backing broker. Also includes the client.
     testImplementation "org.apache.activemq:activemq-broker:$activeMqVersion"
     // Apache Artemis client and server.
-    testImplementation "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
+    testImplementation "org.apache.activemq:artemis-jakarta-client:$artemisMqVersion"
     testImplementation "org.apache.activemq:artemis-server:$artemisMqVersion"
 }
 

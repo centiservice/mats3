@@ -13,7 +13,7 @@ dependencies {
     // Some test uses the MatsTestBroker directly.
     testImplementation project(':mats-test-broker')
     // JMS API: The test 'Test_InitiationElideJmsCommit' "hack" the JMS API.
-    testCompileOnly "$jmsApiDependency"
+    testCompileOnly "jakarta.jms:jakarta.jms-api:$jmsVersion"
     // ActiveMQ Client: The test 'ActiveMq_AMQ_8617_LotsOfDlqs' needs the ActiveMQConnectionFactory.
     testCompileOnly "org.apache.activemq:activemq-client:$activeMqVersion"
     // H2 Database, for the database tests

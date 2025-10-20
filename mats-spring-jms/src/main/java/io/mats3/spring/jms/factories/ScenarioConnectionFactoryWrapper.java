@@ -16,7 +16,7 @@
 
 package io.mats3.spring.jms.factories;
 
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;

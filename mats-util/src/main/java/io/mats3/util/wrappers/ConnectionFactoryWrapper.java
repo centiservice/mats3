@@ -18,10 +18,10 @@ package io.mats3.util.wrappers;
 
 import io.mats3.MatsFactory.MatsWrapper;
 
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
-import javax.jms.JMSContext;
-import javax.jms.JMSException;
+import jakarta.jms.Connection;
+import jakarta.jms.ConnectionFactory;
+import jakarta.jms.JMSContext;
+import jakarta.jms.JMSException;
 
 /**
  * A base Wrapper for a JMS {@link ConnectionFactory}, which simply implements ConnectionFactory, takes a

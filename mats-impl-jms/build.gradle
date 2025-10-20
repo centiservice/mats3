@@ -11,9 +11,9 @@ dependencies {
     api project(":mats-serial")
 
     // JMS API - since you must pull in a JMS Client, which thus provides the JMS API, we use compileOnly.
-    // (2023-06-10: Changed from 'api' to 'compileOnly' when ActiveMQ 5.18 went from using javax.jms to jakarta.jms,
+    // (2023-06-10: Changed from 'api' to 'compileOnly' when ActiveMQ 5.18 went from using jakarta.jms to jakarta.jms,
     // which lead to problems where "auto-upgrade" in dependency resolution didn't work anymore thus giving both.)
-    compileOnly "$jmsApiDependency"
+    compileOnly "jakarta.jms:jakarta.jms-api:$jmsVersion"
 
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"

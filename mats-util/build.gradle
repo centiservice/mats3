@@ -7,7 +7,7 @@ dependencies {
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
     // JMS API. This is only relevant for the JMS ConnectionFactoryWrapper, and you must depend yourself.
-    compileOnly "$jmsApiDependency"
+    compileOnly "jakarta.jms:jakarta.jms-api:$jmsVersion"
     // Jackson, for the FieldBasedJacksonMapper and caches. CompileOnly, so that you can use the util without Jackson.
     // If you use mats-serial-json, you will get Jackson on the classpath, and the Cache implementations will use it.
     compileOnly "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"

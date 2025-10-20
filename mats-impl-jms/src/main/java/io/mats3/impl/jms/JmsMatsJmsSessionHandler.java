@@ -16,8 +16,8 @@
 
 package io.mats3.impl.jms;
 
-import javax.jms.MessageProducer;
-import javax.jms.Session;
+import jakarta.jms.MessageProducer;
+import jakarta.jms.Session;
 
 import io.mats3.impl.jms.JmsMatsException.JmsMatsJmsException;
 import io.mats3.impl.jms.JmsMatsTransactionManager.JmsMatsTxContextKey;

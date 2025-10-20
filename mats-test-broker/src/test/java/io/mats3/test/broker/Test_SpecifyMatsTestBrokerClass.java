@@ -16,7 +16,7 @@
 
 package io.mats3.test.broker;
 
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.junit.Assert;

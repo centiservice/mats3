@@ -16,7 +16,7 @@
 
 package io.mats3.spring.jms.tx.varioussetups;
 
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

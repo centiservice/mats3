@@ -18,7 +18,7 @@ package io.mats3.spring.jms.factories;
 
 import java.sql.Connection;
 
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 import javax.sql.DataSource;
 
 import org.slf4j.Logger;

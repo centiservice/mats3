@@ -29,7 +29,7 @@ dependencies {
     implementation "org.apache.activemq:activemq-broker:$activeMqVersion"
     // .. and pull in Artemis (Apache ActiveMQ Artemis) Client and Server, since you can choose to test with it.
     // .. (note that Artemis has always used JMS 2.0.)
-    implementation "org.apache.activemq:artemis-jms-client:$artemisMqVersion"
+    implementation "org.apache.activemq:artemis-jakarta-client:$artemisMqVersion"
     implementation "org.apache.activemq:artemis-server:$artemisMqVersion"
 
     // H2 Database, for database tests - but we do not want to make this dependency transitive, so compileOnly.

@@ -22,7 +22,7 @@ import java.net.URL;
 import java.util.Collections;
 import java.util.Enumeration;
 
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;

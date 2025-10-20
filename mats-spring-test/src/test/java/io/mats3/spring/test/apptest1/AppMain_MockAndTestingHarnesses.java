@@ -16,7 +16,7 @@
 
 package io.mats3.spring.test.apptest1;
 
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

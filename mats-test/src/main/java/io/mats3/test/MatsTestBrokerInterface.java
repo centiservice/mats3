@@ -19,14 +19,14 @@ package io.mats3.test;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
-import javax.jms.JMSException;
-import javax.jms.MapMessage;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.Queue;
-import javax.jms.Session;
+import jakarta.jms.Connection;
+import jakarta.jms.ConnectionFactory;
+import jakarta.jms.JMSException;
+import jakarta.jms.MapMessage;
+import jakarta.jms.Message;
+import jakarta.jms.MessageConsumer;
+import jakarta.jms.Queue;
+import jakarta.jms.Session;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -250,7 +250,7 @@ public interface MatsTestBrokerInterface {
                     int maxWaitMillis = 30_000;
 
                     // We'll wait for threads to get into receive before we close connection, even if one of the
-                    // threads get the DLQ right away, otherwise there's risk of javax.jms.IllegalStateException:
+                    // threads get the DLQ right away, otherwise there's risk of jakarta.jms.IllegalStateException:
                     // session closed.
                     CountDownLatch threadsReceiving = new CountDownLatch(3);
                     // The latch to trigger when one of the threads finds a DLQ.

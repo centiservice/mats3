@@ -17,7 +17,7 @@
 package io.mats3.spring.matsfactoryqualifier;
 
 import javax.inject.Inject;
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 
 import org.junit.Assert;
 import org.slf4j.Logger;

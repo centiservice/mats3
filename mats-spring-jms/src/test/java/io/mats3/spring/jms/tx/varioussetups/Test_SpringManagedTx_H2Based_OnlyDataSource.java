@@ -16,7 +16,7 @@
 
 package io.mats3.spring.jms.tx.varioussetups;
 
-import javax.jms.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
 import javax.sql.DataSource;
 
 import org.junit.runner.RunWith;
