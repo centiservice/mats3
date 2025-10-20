@@ -20,7 +20,9 @@ source is a good place to learn about Mats<sup>3</sup>, explained [here](https:/
 To use Mats in a project, fetch [`mats-impl-jms`](https://mvnrepository.com/artifact/io.mats3/mats-impl-jms)
 from [Maven Central](https://mvnrepository.com/artifact/io.mats3).
 
-Runs on Java 11+. _(Developed on Java 11, runs in prod on 11, 17 and 21)_
+Java Versions supported:
+* v2: Java 21+
+* v1: Java 11+ (Prod-run to Java 21, above which we're limited by the Spring 5 integration)
 
 License: [Apache License, Version 2.0](LICENSE)
 

@@ -23,7 +23,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        javaversion: [11, 17, 21]
+        javaversion: [21]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -46,7 +46,7 @@ jobs:
     strategy:
       matrix:
         os: [macos-latest, windows-latest]
-        javaversion: [11]
+        javaversion: [21]
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -68,7 +68,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        javaversion: [11]
+        javaversion: [21]
 
     runs-on: ${{ matrix.os }}
     steps:

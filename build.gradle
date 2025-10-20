@@ -7,7 +7,7 @@ plugins {
 
 // Customize the Gradle Wrapper generation task.
 wrapper {
-    gradleVersion = "8.14.3"
+    gradleVersion = "9.1.0"
     // Use "-all"-version of distribution, since IntelliJ works better then..
     setDistributionType(Wrapper.DistributionType.ALL)
 }
@@ -68,7 +68,7 @@ ext {
 }
 
 // :: Find which Java version to use for the toolchain.
-int javaVersion = 11;
+int javaVersion = 21;
 if (project.properties.containsKey('mats.build.java_version')) {
     javaVersion = Integer.parseInt((String) project.properties['mats.build.java_version'])
     println "Specified Java version for toolchain, using Java version: $javaVersion"
@@ -84,8 +84,8 @@ subprojects {
     repositories { mavenCentral() }
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
 
         toolchain {
             languageVersion.set(JavaLanguageVersion.of(javaVersion))
