@@ -21,30 +21,37 @@ allprojects {
 
 // Versions for all libraries used throughout the subprojects
 ext {
+    // :: Required for Mats3 API and implementation proper
+    // (Worth pointing out that the API have NO dependencies)
     // Need the JMS API to build several modules, but ONLY on 'compileOnly' and 'testCompileOnly'!
     // It is otherwise provided by the JMS Broker implementation.
-    jmsVersion = '3.1.0'
-    slf4jVersion = '2.0.17'
-    jacksonVersion = '2.20.0' // Jackson 3 changes packaging.
+    jmsVersion = '3.1.0'     // For the JMS Impl
+    slf4jVersion = '2.0.17'  // For logging throughout
+    jacksonVersion = '2.20.0' // For the on-wire MatsSerializer
 
-    activeMqVersion = '6.1.7'
-    artemisMqVersion = '2.43.0'
-    springVersion = '6.2.12'
+    // :: "Peripheral subsystems", metrics, healthcheck, SpringConfig
     // https://github.com/micrometer-metrics/micrometer/wiki/1.13-Migration-Guide
     micrometerVersion = '1.12.13' // 1.13.x have changed use of prometheus, and we need to sync.
+    stbHealthCheckVersion = '0.4.1+2024-05-07' // For 'MatsEagerCacheStorebrandHealthCheck'
+    // Next three for Mats SpringConfig
+    springVersion = '6.2.12' // For Mats3 SpringConfig
     jakartaInjectVersion = '2.0.1'
     jakartaAnnotationVersion = '3.0.0'
-    stbHealthCheckVersion = '0.4.1+2024-05-07' // For 'MatsEagerCacheStorebrandHealthCheck'
 
+    // :: For the testing tooling
+    // Need a broker (one of these)
+    activeMqVersion = '6.1.7'
+    artemisMqVersion = '2.43.0'
+    // Convenient in-jvm db for testing DataSource and DB tx.
+    h2Version = '2.4.240'
     // For the JUnit testing tools - including the library tests
     junitVersion = '4.13.2'
     // For the Jupiter testing tools
     jupiterVersion = '5.14.0'
     jupiterPlatformVersion = '1.14.0'
 
-    // For testing
+    // :: For actually running tests (i.e. only used in testImplementation etc)
     logbackVersion = '1.5.19'
-    h2Version = '2.4.240'
     jettyVersion = '12.1.2'
     hibernateVersion = '7.1.4.Final'
     remockVersion = '2.1.0'
