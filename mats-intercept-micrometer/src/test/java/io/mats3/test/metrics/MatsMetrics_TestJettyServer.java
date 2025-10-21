@@ -23,22 +23,23 @@ import java.util.Collections;
 import java.util.Enumeration;
 
 import jakarta.jms.ConnectionFactory;
-import javax.servlet.ServletContext;
-import javax.servlet.ServletContextEvent;
-import javax.servlet.ServletContextListener;
-import javax.servlet.annotation.WebListener;
-import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletContextEvent;
+import jakarta.servlet.ServletContextListener;
+import jakarta.servlet.annotation.WebListener;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
-import org.eclipse.jetty.annotations.AnnotationConfiguration;
+import org.eclipse.jetty.ee11.annotations.AnnotationConfiguration;
+import org.eclipse.jetty.ee11.webapp.Configuration;
+import org.eclipse.jetty.ee11.webapp.WebAppConfiguration;
+import org.eclipse.jetty.ee11.webapp.WebAppContext;
+import org.eclipse.jetty.ee11.webapp.WebXmlConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
-import org.eclipse.jetty.util.resource.Resource;
-import org.eclipse.jetty.webapp.Configuration;
-import org.eclipse.jetty.webapp.WebAppContext;
-import org.eclipse.jetty.webapp.WebXmlConfiguration;
+import org.eclipse.jetty.util.resource.ResourceFactory;
 import org.h2.jdbcx.JdbcConnectionPool;
 import org.h2.jdbcx.JdbcDataSource;
 import org.slf4j.Logger;
@@ -211,7 +212,8 @@ public class MatsMetrics_TestJettyServer {
     public static Server createServer(ConnectionFactory jmsConnectionFactory, int port) {
         WebAppContext webAppContext = new WebAppContext();
         webAppContext.setContextPath("/");
-        webAppContext.setBaseResource(Resource.newClassPathResource("webapp"));
+        ResourceFactory resourceFactory = ResourceFactory.of(webAppContext);
+        webAppContext.setBaseResource(resourceFactory.newClassLoaderResource("webapp"));
         // If any problems starting context, then let exception through so that we can exit.
         webAppContext.setThrowUnavailableOnStartupException(true);
         // Store the port number this server shall run under in the ServletContext.
@@ -220,13 +222,11 @@ public class MatsMetrics_TestJettyServer {
         webAppContext.getServletContext().setAttribute(ConnectionFactory.class.getName(), jmsConnectionFactory);
 
         // Override the default configurations, stripping down and adding AnnotationConfiguration.
-        // https://www.eclipse.org/jetty/documentation/9.4.x/configuring-webapps.html
-        // Note: The default resides in WebAppContext.DEFAULT_CONFIGURATION_CLASSES
+        // Full list: jetty-ee11-webapp-12.1.2.jar!/META-INF/services/org.eclipse.jetty.ee11.webapp.Configuration
+        // .. plus: jetty-ee11-annotations-12.1.2.jar!/META-INF/services/org.eclipse.jetty.ee11.webapp.Configuration
         webAppContext.setConfigurations(new Configuration[] {
-                // new WebInfConfiguration(),
+                new WebAppConfiguration(), // Exposes the o.e.j.ee11.servlet.listener.IntrospectorCleaner class!
                 new WebXmlConfiguration(), // Evidently adds the DefaultServlet, as otherwise no read of "/webapp/"
-                // new MetaInfConfiguration(),
-                // new FragmentConfiguration(),
                 new AnnotationConfiguration() // Adds Servlet annotation processing.
         });
 
@@ -234,7 +234,7 @@ public class MatsMetrics_TestJettyServer {
         // Find location for current classes
         URL classesLocation = MatsMetrics_TestJettyServer.class.getProtectionDomain().getCodeSource().getLocation();
         // Set this location to be scanned.
-        webAppContext.getMetaData().setWebInfClassesDirs(Collections.singletonList(Resource.newResource(
+        webAppContext.getMetaData().setWebInfClassesResources(Collections.singletonList(resourceFactory.newResource(
                 classesLocation)));
 
         // Create the actual Jetty Server

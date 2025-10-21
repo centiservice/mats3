@@ -45,7 +45,7 @@ ext {
     // For testing
     logbackVersion = '1.5.19'
     h2Version = '2.4.240'
-    jettyVersion = '9.4.58.v20250814'
+    jettyVersion = '12.1.2'
     hibernateVersion = '7.1.4.Final'
     remockVersion = '2.1.0'
     mockitoVersion = '5.20.0'
