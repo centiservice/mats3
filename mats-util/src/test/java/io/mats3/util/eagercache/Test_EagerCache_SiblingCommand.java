@@ -24,8 +24,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-
 import io.mats3.MatsFactory;
 import io.mats3.test.MatsTestFactory;
 import io.mats3.test.broker.MatsTestBroker;
@@ -40,7 +38,7 @@ public class Test_EagerCache_SiblingCommand {
     private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_SiblingCommand.class);
 
     @Test
-    public void run() throws InterruptedException, JsonProcessingException {
+    public void run() throws InterruptedException {
         // ## ARRANGE:
 
         // Create the source data.
@@ -57,14 +55,12 @@ public class Test_EagerCache_SiblingCommand {
         MatsEagerCacheServer cacheServer1 = MatsEagerCacheServer.create(serverMatsFactory1,
                 "Customers", CustomerTransferDTO.class,
                 () -> (consumeTo) -> sourceData.customers.stream()
-                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo)
-        );
+                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo));
 
         MatsEagerCacheServer cacheServer2 = MatsEagerCacheServer.create(serverMatsFactory2,
                 "Customers", CustomerTransferDTO.class,
                 () -> (consumeTo) -> sourceData.customers.stream()
-                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo)
-        );
+                        .map(CustomerTransferDTO::fromCustomerDTO).forEach(consumeTo));
 
         CountDownLatch[] latch = new CountDownLatch[1];
 
@@ -139,7 +135,8 @@ public class Test_EagerCache_SiblingCommand {
         matsTestBroker.close();
     }
 
-    private static void latchWaitAndAssert(CountDownLatch[] latch, SiblingCommand[] siblingCommand, String commandName, String string, byte[] binary) throws InterruptedException {
+    private static void latchWaitAndAssert(CountDownLatch[] latch, SiblingCommand[] siblingCommand, String commandName,
+            String string, byte[] binary) throws InterruptedException {
         log.info("\n\n######### Waiting for sibling command to be received.\n\n");
         latch[0].await(30, TimeUnit.SECONDS);
 

@@ -23,10 +23,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-
 import io.mats3.MatsFactory;
 import io.mats3.test.MatsTestBarrier;
 import io.mats3.test.MatsTestFactory;
@@ -35,6 +31,9 @@ import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.eagercache.MatsEagerCacheServer.CacheDataCallback;
+
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectWriter;
 
 /**
  * Simple/basic test of the {@link MatsEagerCacheServer} and {@link MatsEagerCacheClient}: A single server and a single
@@ -47,16 +46,16 @@ public class Test_EagerCache_SimpleCacheServerAndClient {
     private final ObjectWriter _replyWriter = _objectMapper.writerFor(CustomerData.class);
 
     @Test
-    public void simpleServerAndClient_Small() throws JsonProcessingException {
+    public void simpleServerAndClient_Small() {
         simpleServerAndClient(0);
     }
 
     @Test
-    public void simpleServerAndClient_Large() throws JsonProcessingException {
+    public void simpleServerAndClient_Large() {
         simpleServerAndClient(Integer.MAX_VALUE);
     }
 
-    public void simpleServerAndClient(int sizeCutover) throws JsonProcessingException {
+    public void simpleServerAndClient(int sizeCutover) {
         // ## ARRANGE:
 
         // Create the source data.

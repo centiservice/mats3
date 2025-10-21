@@ -16,15 +16,9 @@
 
 package io.mats3.serial.json;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.ObjectWriter;
 
 import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace;
@@ -33,6 +27,11 @@ import io.mats3.serial.impl.MatsTraceFieldImpl;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
 import io.mats3.util.compression.InflaterInputStreamWithStats;
+
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
+import tools.jackson.databind.ObjectWriter;
 
 /**
  * Implementation of {@link MatsSerializer} that employs <a href="https://github.com/FasterXML/jackson">Jackson JSON
@@ -189,7 +188,7 @@ public class MatsSerializerJson implements MatsSerializer {
             return new SerializedMatsTraceImpl(resultBytes, meta, (int) serializedBytesLength, nanosTaken_Serialization,
                     nanosTaken_Compression);
         }
-        catch (IOException e) {
+        catch (JacksonException e) {
             throw new SerializationException("Couldn't serialize MatsTrace, which is crazy!\n" + matsTrace, e);
         }
     }
@@ -297,7 +296,7 @@ public class MatsSerializerJson implements MatsSerializer {
             return new DeserializedMatsTraceImpl(matsTrace, matsTraceBytes.length, decompressedBytesLength,
                     nanosTaken_Deserialization, nanosTaken_Decompression);
         }
-        catch (IOException e) {
+        catch (JacksonException e) {
             throw new SerializationException("Couldn't deserialize MatsTrace from given JSON, which is crazy!\n"
                     + new String(matsTraceBytes, StandardCharsets.UTF_8), e);
         }
@@ -353,7 +352,7 @@ public class MatsSerializerJson implements MatsSerializer {
         try {
             return _objectMapper.writeValueAsString(object);
         }
-        catch (JsonProcessingException e) {
+        catch (JacksonException e) {
             throw new SerializationException("Couldn't serialize Object [" + object + "].", e);
         }
     }
@@ -374,7 +373,7 @@ public class MatsSerializerJson implements MatsSerializer {
         try {
             return _objectMapper.readValue((String) serialized, type);
         }
-        catch (IOException e) {
+        catch (JacksonException e) {
             throw new SerializationException("Couldn't deserialize JSON into object of type [" + type + "].\n"
                     + serialized, e);
         }

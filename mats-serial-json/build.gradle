@@ -5,14 +5,15 @@ dependencies {
     implementation project(':mats-util')
 
     // Dependency on the Jackson JSON library, which is the serialization mechanism in use.
-    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
-    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
-    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${jacksonVersion}"
+    implementation "tools.jackson.core:jackson-databind:${jacksonVersion}"
 
     // === Test
 
     // This module is an "extension" of JUnit - and we employ classes from it, so API-level dependency.
     testImplementation "junit:junit:$junitVersion"
+
+    // Including the Blackbird module for Jackson, which is dynamically loaded by the FieldBasedJacksonMapper.
+    testImplementation "tools.jackson.module:jackson-module-blackbird:${jacksonVersion}"
 
     // Need logging system in tests
     testCompileOnly "org.slf4j:slf4j-api:$slf4jVersion"

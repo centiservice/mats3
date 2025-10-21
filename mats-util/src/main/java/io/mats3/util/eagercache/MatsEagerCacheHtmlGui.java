@@ -36,10 +36,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.ObjectWriter;
-
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheClientInformation;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheUpdated;
@@ -50,6 +46,9 @@ import io.mats3.util.eagercache.MatsEagerCacheServer.CacheServerInformation;
 import io.mats3.util.eagercache.MatsEagerCacheServer.ExceptionEntry;
 import io.mats3.util.eagercache.MatsEagerCacheServer.LogEntry;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.CacheMonitor;
+
+import tools.jackson.databind.ObjectReader;
+import tools.jackson.databind.ObjectWriter;
 
 /**
  * Embeddable HTML GUI for the {@link MatsEagerCacheClient} and {@link MatsEagerCacheServer}.
@@ -546,12 +545,7 @@ public interface MatsEagerCacheHtmlGui {
             }
 
             public String toJson() {
-                try {
-                    return MatsEagerCacheClientHtmlGui.JSON_WRITE_REPLY.writeValueAsString(this);
-                }
-                catch (JsonProcessingException e) {
-                    throw new RuntimeException("Could not serialize to JSON", e);
-                }
+                return MatsEagerCacheClientHtmlGui.JSON_WRITE_REPLY.writeValueAsString(this);
             }
         }
     }

@@ -22,8 +22,8 @@ import java.io.IOException;
 
 import org.junit.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
 
 import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.compression.InflaterInputStreamWithStats;

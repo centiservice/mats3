@@ -10,9 +10,7 @@ dependencies {
     compileOnly "jakarta.jms:jakarta.jms-api:$jmsVersion"
     // Jackson, for the FieldBasedJacksonMapper and caches. CompileOnly, so that you can use the util without Jackson.
     // If you use mats-serial-json, you will get Jackson on the classpath, and the Cache implementations will use it.
-    compileOnly "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
-    compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
-    compileOnly "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${jacksonVersion}"
+    compileOnly "tools.jackson.core:jackson-databind:${jacksonVersion}"
     // Storebrand HealthCheck API, for the MatsEagerCacheStorebrandHealthCheck. (HealthCheck system from Storebrand, optional)
     compileOnly "com.storebrand.healthcheck:healthcheck-api:$stbHealthCheckVersion"
 
@@ -41,11 +39,9 @@ dependencies {
     testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
     // Jackson for the tests, ref compileOnly above.
-    testImplementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
-    testImplementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
-    testImplementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${jacksonVersion}"
+    testImplementation "tools.jackson.core:jackson-databind:${jacksonVersion}"
     // Including the Blackbird module for Jackson, which is dynamically loaded by the FieldBasedJacksonMapper.
-    testImplementation "com.fasterxml.jackson.module:jackson-module-blackbird:${jacksonVersion}"
+    testImplementation "tools.jackson.module:jackson-module-blackbird:${jacksonVersion}"
 
     // Storebrand HealthCheck implementation
     testImplementation "com.storebrand.healthcheck:healthcheck-impl:$stbHealthCheckVersion"

@@ -28,11 +28,6 @@ import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.ObjectWriter;
-
 import io.mats3.MatsFactory;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
@@ -45,6 +40,10 @@ import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheReceivedPartialData;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheUpdated;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl;
+
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
+import tools.jackson.databind.ObjectWriter;
 
 /**
  * Factored out setup for tests that involve two servers and two clients.
@@ -75,8 +74,7 @@ public class CommonSetup_TwoServers_TwoClients {
     public final AtomicInteger cacheClient1_updateCount;
     public final AtomicInteger cacheClient2_updateCount;
 
-    public static CommonSetup_TwoServers_TwoClients create(int originalCount) throws JsonProcessingException,
-            InterruptedException {
+    public static CommonSetup_TwoServers_TwoClients create(int originalCount) throws InterruptedException {
         return new CommonSetup_TwoServers_TwoClients(originalCount, null /* partialUpdateMapper */,
                 (server) -> {
                     // No server adjustments
@@ -86,7 +84,7 @@ public class CommonSetup_TwoServers_TwoClients {
     }
 
     public static CommonSetup_TwoServers_TwoClients createWithServerAdjust(int originalCount,
-            Consumer<MatsEagerCacheServer> serversAdjust) throws JsonProcessingException, InterruptedException {
+            Consumer<MatsEagerCacheServer> serversAdjust) throws InterruptedException {
         return new CommonSetup_TwoServers_TwoClients(originalCount, null /* partialUpdateMapper */, serversAdjust,
                 (client) -> {
                     // No client adjustments
@@ -94,7 +92,7 @@ public class CommonSetup_TwoServers_TwoClients {
     }
 
     public static CommonSetup_TwoServers_TwoClients createWithClientAdjust(int originalCount,
-            Consumer<MatsEagerCacheClient<?>> clientsAdjust) throws JsonProcessingException, InterruptedException {
+            Consumer<MatsEagerCacheClient<?>> clientsAdjust) throws InterruptedException {
         return new CommonSetup_TwoServers_TwoClients(originalCount, null /* partialUpdateMapper */,
                 (server) -> {
                     // No server adjustments
@@ -103,7 +101,7 @@ public class CommonSetup_TwoServers_TwoClients {
 
     public static CommonSetup_TwoServers_TwoClients createWithPartialUpdateMapper(int originalCount,
             Function<CacheReceivedPartialData<CustomerTransferDTO, DataCarrier>, DataCarrier> partialUpdateMapper)
-            throws JsonProcessingException, InterruptedException {
+            throws InterruptedException {
         return new CommonSetup_TwoServers_TwoClients(originalCount, partialUpdateMapper,
                 (server) -> {
                     // No server adjustments
@@ -116,7 +114,7 @@ public class CommonSetup_TwoServers_TwoClients {
             Function<CacheReceivedPartialData<CustomerTransferDTO, DataCarrier>, DataCarrier> partialUpdateMapper,
             Consumer<MatsEagerCacheServer> serversAdjust,
             Consumer<MatsEagerCacheClient<?>> clientsAdjust)
-            throws JsonProcessingException, InterruptedException {
+            throws InterruptedException {
         // Create source data, one set for each server.
         sourceData1 = DummyFinancialService.createRandomReplyDTO(1234L, originalCount);
         sourceData2 = DummyFinancialService.createRandomReplyDTO(1234L, originalCount);
@@ -257,8 +255,7 @@ public class CommonSetup_TwoServers_TwoClients {
         }
     }
 
-    public void assertUpdateAndConsistency(boolean expectedFullUpdate, int expectedDataCount)
-            throws JsonProcessingException {
+    public void assertUpdateAndConsistency(boolean expectedFullUpdate, int expectedDataCount) {
         // :: Assert internal consistency between the two source datasets
         // NOTE! This is the responsibility of the server side (i.e. the server-side service), not the cache system.
         // Ref. partial updates: The service itself must ensure that the data is consistent between its instances.

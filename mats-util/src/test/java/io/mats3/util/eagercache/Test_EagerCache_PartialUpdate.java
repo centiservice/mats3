@@ -28,7 +28,8 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectReader;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectReader;
 
 import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.CustomerDTO;
@@ -208,7 +209,7 @@ public class Test_EagerCache_PartialUpdate {
                             }
                         }
                     }
-                    catch (IOException e) {
+                    catch (JacksonException e) {
                         throw new RuntimeException("Could not deserialize the partial update data.", e);
                     }
                 }

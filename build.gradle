@@ -27,7 +27,7 @@ ext {
     // It is otherwise provided by the JMS Broker implementation.
     jmsVersion = '3.1.0'     // For the JMS Impl
     slf4jVersion = '2.0.17'  // For logging throughout
-    jacksonVersion = '2.20.0' // For the on-wire MatsSerializer
+    jacksonVersion = '3.0.0' // For the on-wire MatsSerializer
 
     // :: "Peripheral subsystems", metrics, healthcheck, SpringConfig
     // https://github.com/micrometer-metrics/micrometer/wiki/1.13-Migration-Guide

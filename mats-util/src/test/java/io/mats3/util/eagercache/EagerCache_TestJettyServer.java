@@ -43,7 +43,6 @@ import org.eclipse.jetty.util.resource.ResourceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.storebrand.healthcheck.HealthCheckLogger;
 import com.storebrand.healthcheck.HealthCheckRegistry;
 import com.storebrand.healthcheck.HealthCheckRegistry.CreateReportRequest;
@@ -58,6 +57,8 @@ import io.mats3.util.DummyFinancialService;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientMock;
 import io.mats3.util.eagercache.MatsEagerCacheHtmlGui.AccessControl;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl;
+
+import tools.jackson.core.JacksonException;
 
 /**
  * Test Jetty Server for the EagerCache, which "boots" 2x Cache Server and Clients, and then creates HTML GUIs and
@@ -89,7 +90,7 @@ public class EagerCache_TestJettyServer {
                     ((MatsEagerCacheServerImpl) server)._setCoalescingDelays(1000, 3000);
                 });
             }
-            catch (JsonProcessingException | InterruptedException e) {
+            catch (JacksonException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
 

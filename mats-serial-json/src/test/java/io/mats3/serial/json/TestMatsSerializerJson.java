@@ -16,8 +16,6 @@
 
 package io.mats3.serial.json;
 
-import java.util.Objects;
-
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -25,10 +23,14 @@ import io.mats3.serial.MatsSerializer;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
 
 /**
- * Test object serialization and deserialization for {@link MatsSerializerJson}. It also handles Java Records, but
- * cannot test this in this project since it is Java 8.
+ * Test object serialization and deserialization for {@link MatsSerializerJson}.
  */
 public class TestMatsSerializerJson {
+
+    // #########################################################
+    // ## NOTE!! MORE TESTS IN Test_FieldBasedJacksonMapper!! ##
+    // #########################################################
+
     @Test
     public void deserializePrimitivesAndPrimitiveWrappersAndString() {
         MatsSerializerJson serializer = MatsSerializerJson.create();
@@ -76,108 +78,6 @@ public class TestMatsSerializerJson {
         Assert.assertEquals(Boolean.FALSE, serializer.newInstance(boolean.class));
 
         Assert.assertEquals("", serializer.newInstance(String.class));
-    }
-
-    @Test
-    public void straight_back_and_forth() {
-        MatsSerializerJson serializer = MatsSerializerJson.create();
-
-        ClassTest ClassTest = new ClassTest("endre", 1);
-
-        System.out.println("ClassTest:              " + ClassTest);
-        String json = serializer.serializeObject(ClassTest);
-        System.out.println("JSON serialized:         " + json);
-        Assert.assertEquals("{\"string\":\"endre\",\"integer\":1}", json);
-
-        String meta = getMeta(serializer);
-        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
-        System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
-        Assert.assertEquals(ClassTest, ClassTest_deserialized);
-    }
-
-    @Test
-    public void missingJsonField() {
-        MatsSerializerJson serializer = MatsSerializerJson.create();
-        String meta = getMeta(serializer);
-
-        // Missing the string
-        String json = "{\"integer\":1}";
-
-        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
-        System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
-        Assert.assertEquals(new ClassTest(null, 1), ClassTest_deserialized);
-
-        // Missing the integer
-        json = "{\"string\":\"endre\"}";
-
-        ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
-        System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
-        Assert.assertEquals(new ClassTest("endre", 0), ClassTest_deserialized);
-    }
-
-    @Test
-    public void extraJsonField() {
-        MatsSerializerJson serializer = MatsSerializerJson.create();
-        String meta = getMeta(serializer);
-
-        // Extra fields
-        String json = "{\"string\":\"endre\", \"integer\":1, \"string2\":\"kamel\", \"integer2\":1, \"bool\":true}";
-
-        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
-        System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
-        Assert.assertEquals(new ClassTest("endre", 1), ClassTest_deserialized);
-
-        // Missing the string, but also extra fields
-        json = "{\"integer\":1, \"string2\":\"kamel\", \"integer2\":1, \"bool\":true}";
-
-        ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
-        System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
-        Assert.assertEquals(new ClassTest(null, 1), ClassTest_deserialized);
-    }
-
-    @Test
-    public void emptyJsonToClass() {
-        MatsSerializerJson serializer = MatsSerializerJson.create();
-        String meta = getMeta(serializer);
-
-        // Empty JSON
-        String json = "{}";
-
-        ClassTest ClassTest_deserialized = serializer.deserializeObject(json, ClassTest.class, meta);
-        System.out.println("ClassTest deserialized: " + ClassTest_deserialized);
-        Assert.assertEquals(new ClassTest(null, 0), ClassTest_deserialized);
-    }
-
-    @SuppressWarnings("overrides")
-    static class ClassTest {
-        final String string;
-        final int integer;
-
-        public ClassTest() {
-            this.string = null;
-            this.integer = 0;
-        }
-
-        public ClassTest(String string, int integer) {
-            this.string = string;
-            this.integer = integer;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ClassTest testClass = (ClassTest) o;
-            return integer == testClass.integer && Objects.equals(string, testClass.string);
-        }
-
-        @Override
-        public String toString() {
-            return "ClassTest{" +
-                    "string='" + string + '\'' +
-                    ", integer=" + integer +
-                    '}';
-        }
     }
 
     private static String getMeta(MatsSerializer serializer) {

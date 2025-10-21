@@ -20,7 +20,6 @@ import static io.mats3.util.eagercache.MatsEagerCacheServer.LogLevel.DEBUG;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.LogLevel.INFO;
 import static io.mats3.util.eagercache.MatsEagerCacheServer.LogLevel.WARN;
 
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.DecimalFormat;
@@ -59,10 +58,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.SequenceWriter;
-
 import io.mats3.MatsEndpoint;
 import io.mats3.MatsEndpoint.ProcessContext;
 import io.mats3.MatsFactory;
@@ -73,6 +68,11 @@ import io.mats3.util.TraceId;
 import io.mats3.util.compression.ByteArrayDeflaterOutputStreamWithStats;
 import io.mats3.util.eagercache.MatsEagerCacheClient.MatsEagerCacheClientImpl;
 import io.mats3.util.eagercache.MatsEagerCacheServer.MatsEagerCacheServerImpl.NodeAdvertiser.NodeAndTimestamp;
+
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectWriter;
+import tools.jackson.databind.SequenceWriter;
 
 /**
  * The server side of the Mats Eager Cache system - sitting on the "data owner" side. <b>All caches within a Mats3
@@ -2727,7 +2727,7 @@ public interface MatsEagerCacheServer {
                 try {
                     jacksonSeq = _sentDataTypeWriter.writeValues(out);
                 }
-                catch (IOException e) {
+                catch (JacksonException e) {
                     _currentlyHavingProblemsCreatingSourceDataResult = true;
                     _cacheMonitor.exception(MonitorCategory.PRODUCE_DATA, "Got exception while trying to create Jackson"
                             + " SequenceWriter, which shouldn't happen, as we're writing to ByteArrayOutputStream.", e);
@@ -2741,7 +2741,7 @@ public interface MatsEagerCacheServer {
                         nanosTaken_serializeAndCompress[0] += (System.nanoTime() - nanosStart);
                         // TODO/CONSIDER: Log each entity's size to monitor and HealthCheck. (up to max 1_000 entities)
                     }
-                    catch (IOException e) {
+                    catch (JacksonException e) {
                         _cacheMonitor.exception(MonitorCategory.PRODUCE_DATA, "Got IOException while writing"
                                 + " to Jackson SequenceWriter, which shouldn't happen, as we're writing to"
                                 + " ByteArrayOutputStream.", e);
@@ -2763,7 +2763,7 @@ public interface MatsEagerCacheServer {
                 try {
                     jacksonSeq.close();
                 }
-                catch (IOException e) {
+                catch (JacksonException e) {
                     _currentlyHavingProblemsCreatingSourceDataResult = true;
                     _cacheMonitor.exception(MonitorCategory.PRODUCE_DATA, "Got exception when closing Jackson"
                             + " SequenceWriter, which shouldn't happen, as we're writing to ByteArrayOutputStream.", e);

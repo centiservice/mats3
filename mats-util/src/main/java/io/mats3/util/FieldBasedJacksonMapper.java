@@ -21,14 +21,16 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.core.StreamReadConstraints;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+import tools.jackson.core.StreamReadConstraints;
+import tools.jackson.core.json.JsonFactory;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JacksonModule;
+import tools.jackson.databind.MapperFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.json.JsonMapper.Builder;
 
 /**
  * Configures a Jackson JSON field-based ObjectMapper to be used in Mats3, ensuring a common standard configuration.
@@ -52,7 +54,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  * in extreme cases up to 20% faster on the deserialization side. The detection logic can be overridden using system
  * property "mats.jackson.useBlackbird", setting it to "true" or "false" before this class is loaded - if true, and the
  * module is not on the classpath, it will throw an exception. Add it to your project with:<br>
- * <code>implementation "com.fasterxml.jackson.module:jackson-module-blackbird:${jacksonVersion}"</code>
+ * <code>implementation "tools.jackson.module:jackson-module-blackbird:${jacksonVersion}"</code>
  * <p>
  * Thread-safety: The returned ObjectMappers are thread-safe, meant for sharing.
  */
@@ -62,11 +64,11 @@ public class FieldBasedJacksonMapper {
     private static final Class<?> __blackbirdModuleClass;
     private static final boolean __useBlackbird;
     static {
-        // Check if 'com.fasterxml.jackson.module.blackbird.BlackbirdModule' is on the classpath, and if so, store
+        // Check if 'tools.jackson.module.blackbird.BlackbirdModule' is on the classpath, and if so, store
         // the class (since we need to instantiate it reflectively), and decide on the __useBlackbird flag.
         Class<?> blackbirdModuleClass;
         try {
-            blackbirdModuleClass = Class.forName("com.fasterxml.jackson.module.blackbird.BlackbirdModule");
+            blackbirdModuleClass = Class.forName("tools.jackson.module.blackbird.BlackbirdModule");
 
         }
         catch (ClassNotFoundException e) {
@@ -127,7 +129,20 @@ public class FieldBasedJacksonMapper {
         else {
             callerInfo = "Unknown";
         }
-        ObjectMapper mapper;
+
+        // Much larger constraints, and make max string length effectively infinite.
+        StreamReadConstraints streamReadConstraints = StreamReadConstraints
+                .builder()
+                .maxNestingDepth(10_000) // default 1000 (from 3.0: 500)
+                .maxNumberLength(100_000) // default 1000
+                .maxStringLength(Integer.MAX_VALUE)
+                .build();
+        JsonFactory factory = JsonFactory.builder()
+                .streamReadConstraints(streamReadConstraints)
+                .build();
+
+        Builder builder = JsonMapper.builder(factory);
+
         String currentJavaVersion = System.getProperty("java.version");
         if (useBlackbird) {
             log.info(sayWhat + " Jackson JsonMapper, USING Jackson Blackbird Module! (Java: "
@@ -135,52 +150,44 @@ public class FieldBasedJacksonMapper {
             if (__blackbirdModuleClass == null) {
                 throw new IllegalStateException("You have requested to use Jackson Blackbird Module, but it is not on"
                         + " the classpath. Add it to your project with: "
-                        + "implementation \"com.fasterxml.jackson.module:jackson-module-blackbird:${jacksonVersion}\"");
+                        + "implementation \"tools.jackson.module:jackson-module-blackbird:${jacksonVersion}\"");
             }
-            com.fasterxml.jackson.databind.Module blackbirdModule;
+            JacksonModule blackbirdModule;
             try {
-                blackbirdModule = (com.fasterxml.jackson.databind.Module) __blackbirdModuleClass
+                blackbirdModule = (JacksonModule) __blackbirdModuleClass
                         .getDeclaredConstructor().newInstance();
+                builder.addModule(blackbirdModule);
             }
             catch (Throwable t) {
                 throw new RuntimeException(t);
             }
-            mapper = JsonMapper.builder().addModule(blackbirdModule).build();
         }
         else {
             log.info(sayWhat + " Jackson JsonMapper, NOT using Jackson Blackbird Module. (Java: "
                     + currentJavaVersion + ", caller: " + callerInfo + ")");
-            mapper = JsonMapper.builder().build();
         }
 
+        // Drop null values from JSON
+        // Had a hope to use NON_DEFAULT, but that didn't pan out: If a field is 'Integer', then with NON_DEFAULT it
+        // would not be serialized if it was Integer.of(0): Because that's 0, and considered "default".
+        // But the point of using Integer was the "nullable int", in that NOT having it set is different from 0.
+        builder.changeDefaultPropertyInclusion(incl -> incl.withValueInclusion(Include.NON_NULL));
         // Read and write any access modifier fields (e.g. private)
-        mapper.setVisibility(PropertyAccessor.ALL, Visibility.NONE);
-        mapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
-
-        // Drop nulls
-        // TODO: Change to NON_DEFAULT.
-        mapper.setDefaultPropertyInclusion(Include.NON_NULL);
+        builder.changeDefaultVisibility(vc -> vc.with(Visibility.NONE).withFieldVisibility(Visibility.ANY));
+        // Allow final fields to be written to.
+        builder.enable(MapperFeature.ALLOW_FINAL_FIELDS_AS_MUTATORS);
 
         // If props are in JSON that aren't in Java DTO, do not fail.
-        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        builder.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-        // Write e.g. Dates as "1975-03-11" instead of timestamp, and instead of array-of-ints [1975, 3, 11].
-        // Uses ISO8601 with milliseconds and timezone (if present).
-        mapper.registerModule(new JavaTimeModule());
-        mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        // :: Dates:
+        // Write times and dates using Strings of ISO-8601.
+        builder.disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS);
+        // Tack on "[Europe/Oslo]" if present in a ZoneDateTime
+        builder.enable(DateTimeFeature.WRITE_DATES_WITH_ZONE_ID);
+        // Do not OVERRIDE (!!) the timezone id if it actually is present!
+        builder.disable(DateTimeFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE);
 
-        // Handle Optional, OptionalLong, OptionalDouble
-        mapper.registerModule(new Jdk8Module());
-
-        // 10x constraints, and make max string length effectively infinite.
-        StreamReadConstraints streamReadConstraints = StreamReadConstraints
-                .builder()
-                .maxNestingDepth(10000) // default 1000
-                .maxNumberLength(10000) // default 1000
-                .maxStringLength(Integer.MAX_VALUE)
-                .build();
-        mapper.getFactory().setStreamReadConstraints(streamReadConstraints);
-
-        return mapper;
+        return builder.build();
     }
 }

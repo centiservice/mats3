@@ -28,9 +28,9 @@ import java.util.zip.DeflaterInputStream;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.ObjectWriter;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
+import tools.jackson.databind.ObjectWriter;
 
 import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.CustomerData;

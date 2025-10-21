@@ -28,6 +28,7 @@ import io.mats3.serial.MatsTrace.Call.CallType;
 import io.mats3.serial.MatsTrace.Call.MessagingModel;
 import io.mats3.serial.MatsTrace.KeepMatsTrace;
 import io.mats3.serial.impl.MatsTraceFieldImpl;
+import io.mats3.util.FieldBasedJacksonMapper;
 
 /**
  * @author Endre Stølsvik 2022-02-11 00:32 - http://stolsvik.com/, endre@stolsvik.com
@@ -244,6 +245,7 @@ public class TestMatsTraceTimestamps {
     }
 
     private MatsTrace reserialize(MatsTrace mt, MatsSerializer ser) {
+        String json = FieldBasedJacksonMapper.getMats3DefaultJacksonObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(mt);
         SerializedMatsTrace serialized = ser.serializeMatsTrace(mt);
         return ser.deserializeMatsTrace(serialized.getMatsTraceBytes(), serialized.getMeta()).getMatsTrace();
     }

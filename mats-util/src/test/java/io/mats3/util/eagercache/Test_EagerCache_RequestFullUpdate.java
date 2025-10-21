@@ -23,14 +23,13 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-
 import io.mats3.util.DummyFinancialService;
 import io.mats3.util.DummyFinancialService.CustomerData;
 import io.mats3.util.FieldBasedJacksonMapper;
 import io.mats3.util.eagercache.MatsEagerCacheClient.CacheUpdated;
+
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectWriter;
 
 public class Test_EagerCache_RequestFullUpdate {
     private static final Logger log = LoggerFactory.getLogger(Test_EagerCache_RequestFullUpdate.class);
@@ -39,37 +38,36 @@ public class Test_EagerCache_RequestFullUpdate {
     private final ObjectWriter _replyWriter = _objectMapper.writerFor(CustomerData.class);
 
     @Test
-    public void onlyClientSide_small() throws InterruptedException, JsonProcessingException {
+    public void onlyClientSide_small() throws InterruptedException {
         run(0, 3, 0);
     }
 
     @Test
-    public void onlyServerSide_small() throws InterruptedException, JsonProcessingException {
+    public void onlyServerSide_small() throws InterruptedException {
         run(3, 0, 0);
     }
 
     @Test
-    public void fromBothServerAndClient_small() throws InterruptedException, JsonProcessingException {
+    public void fromBothServerAndClient_small() throws InterruptedException {
         run(3, 3, 0);
     }
 
     @Test
-    public void onlyClientSide_large() throws InterruptedException, JsonProcessingException {
+    public void onlyClientSide_large() throws InterruptedException {
         run(0, 3, Integer.MAX_VALUE);
     }
 
     @Test
-    public void onlyServerSide_large() throws InterruptedException, JsonProcessingException {
+    public void onlyServerSide_large() throws InterruptedException {
         run(3, 0, Integer.MAX_VALUE);
     }
 
     @Test
-    public void fromBothServerAndClient_large() throws InterruptedException, JsonProcessingException {
+    public void fromBothServerAndClient_large() throws InterruptedException {
         run(3, 3, Integer.MAX_VALUE);
     }
 
-    private void run(int serverSideCount, int clientSideCount, int sizeCutover) throws InterruptedException,
-            JsonProcessingException {
+    private void run(int serverSideCount, int clientSideCount, int sizeCutover) throws InterruptedException {
         // ## ARRANGE:
 
         int customerCount = 10;
@@ -118,8 +116,7 @@ public class Test_EagerCache_RequestFullUpdate {
     }
 
     @Test
-    public void blockingClientRequest() throws InterruptedException,
-            JsonProcessingException {
+    public void blockingClientRequest() throws InterruptedException {
         // ## ARRANGE BASE:
 
         int customerCount = 10;
