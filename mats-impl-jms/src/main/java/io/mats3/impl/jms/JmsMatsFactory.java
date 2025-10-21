@@ -35,8 +35,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import jakarta.jms.MessageConsumer;
 import javax.sql.DataSource;
+
+import jakarta.jms.MessageConsumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,7 +67,7 @@ import io.mats3.serial.MatsTrace;
 public class JmsMatsFactory implements JmsMatsStatics, JmsMatsStartStoppable, MatsFactory {
 
     private static final String MATS_IMPLEMENTATION_NAME = "JMS Mats3";
-    private static final String MATS_IMPLEMENTATION_VERSION = "1.0.1+2025-10-20";
+    private static final String MATS_IMPLEMENTATION_VERSION = "B-2.0.0.B0+2025-10-22";
 
     public static final String INTERCEPTOR_CLASS_MATS_LOGGING = "io.mats3.intercept.logging.MatsMetricsLoggingInterceptor";
     public static final String INTERCEPTOR_CLASS_MATS_METRICS = "io.mats3.intercept.micrometer.MatsMicrometerInterceptor";

@@ -1,3 +1,24 @@
+## B-2.0.0.B0+2025-10-21
+
+* New major version!
+* v2-series will require Java 21.
+* **Note: No (major) changes in the Mats<sup>3</sup> API!** (It has no dependencies)
+* Upgraded to Gradle 9.1. Finally, no "Deprecated Gradle features were used in this build..."!
+* All dependencies upgraded, now past the 17+ requiring libs.
+* Moved over to jakarta-namespace for all javax-stuff, most notably JMS.
+* Core (Mats<sup>3</sup> implementation):
+  * JMS 3.1.0
+  * Jackson 3.0.0
+* Specific modules (Mats<sup>3</sup> SpringConfig)
+  * Spring 6.2.12
+  * Jakarta Inject 2.0.1
+  * Jakarta Annotations 1.3.2
+* For testing:
+  * Hibernate 7.1.4.Final
+  * ActiveMQ 6.1.7
+  * Artemis 2.43.0
+  * Jetty 12.1.2
+
 ## 1.0.1+2025-10-20
 
 * Changed to use Maven Central Portal API for publish, using Vanniktech's plugin.
