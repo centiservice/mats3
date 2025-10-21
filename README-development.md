@@ -108,13 +108,20 @@ To see what will be published, we rely on the Central Portal's "review" function
 Release types / SemVer tags:
 * Experimental (testing a new feature / fix):
     * Prefix `EXP-`, suffix: `.EXPX+<iso date>` to the version, X being a counter from 0.  
-      example: `EXP-1.0.0.EXP0+2025-10-16`
+      Example: `EXP-1.0.0.EXP0+2025-10-16`  
+      Description: "Experimental release"
+* Beta (while working on major overhauls):
+    * Prefix `B-`, suffix: `.BX+<iso date>` to the version, X being a counter from 0.  
+      Example: `B-2.0.0.B0+2025-10-21`  
+      Description: "Beta release"
 * Release Candidate (before a new version, testing that it works, preferably in production!):
     * Prefix `RC-`, suffix `.RCX+<iso date>` to the version, X being a counter from 0  
-      example: `RC-1.0.0.RC0+2025-10-16`
+      Example: `RC-1.0.0.RC0+2025-10-16`  
+      Description: "Release Candidate"
 * Release
     * Suffix `+<iso date>` to the version.  
-      example: `1.0.0+2025-10-16`
+      Example: `1.0.0+2025-10-16`  
+      Description: "Release"
 
 ### Transcript of a successful RC publish:
 
