@@ -146,6 +146,12 @@ subprojects {
         testLogging {
             exceptionFormat = 'full'
         }
+
+        // Concurrency, on top of config-cache concurrency
+        if (project.name == 'mats-util') {
+            println "Special for ${project.name}"
+            maxParallelForks = 2
+        }
     }
 
     // Also clean out some dir sometimes popping up, IntelliJ?
