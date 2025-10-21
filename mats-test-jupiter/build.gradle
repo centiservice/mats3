@@ -1,5 +1,9 @@
 // mats-test-jupiter
 
+test {
+    useJUnitPlatform()
+}
+
 dependencies {
     // This module is an "extension" of Jupiter (JUnit5) - and we employ classes from it, so API-level dependency.
     api "org.junit.jupiter:junit-jupiter-api:$jupiterVersion"
@@ -60,10 +64,6 @@ dependencies {
     // H2 database for testing DataSource parameter providing in @MatsTest
     testRuntimeOnly "com.h2database:h2:$h2Version"
 
-}
-
-test {
-    useJUnitPlatform()
 }
 
 mavenPublishing {
