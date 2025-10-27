@@ -1,11 +1,13 @@
-## B-2.0.0.B0+2025-10-21
+## B-2.0.0.B0+2025-10-22
 
-* New major version!
-* v2-series will require Java 21.
-* **Note: No (major) changes in the Mats<sup>3</sup> API!** (It has no dependencies)
-* Upgraded to Gradle 9.1. Finally, no "Deprecated Gradle features were used in this build..."!
-* All dependencies upgraded, now past the 17+ requiring libs.
-* Moved over to jakarta-namespace for all javax-stuff, most notably JMS.
+* New major version, due to Java 21 and Jakarta namespaces.
+* **Moved over to jakarta-namespace for all javax libraries, most notably JMS.**
+* **V2-series will require Java 21.**
+* **No changes in the Mats<sup>3</sup> API!**  
+  _As long as you get the dependencies upgraded, your Mats<sup>3</sup> Endpoints, Stages and Initiations will
+  work without change._
+* Upgraded to Gradle 9.1.0. Finally, no "Deprecated Gradle features were used in this build..."!
+* All dependencies upgraded, now past the Java 17+ requiring libs.
 * Core (Mats<sup>3</sup> implementation):
   * JMS 3.1.0
   * Jackson 3.0.0
