@@ -111,16 +111,16 @@ public class SetupTestMatsEndpoints {
             sto.number2 = Math.E * 2;
 
             // Add measurement
-            context.logMeasurement("test.stagemeasure1", "Test measurement 1 from stage 1 of master", "test", Math.PI);
-            context.logMeasurement("test.stagemeasure2", "Test measurement 2 from stage 1 of master", "test", Math.PI,
+            context.logMeasurement("test.stagemeasure1", "Test measurement 1 from stage 1 of master", "baseUnit1", Math.PI);
+            context.logMeasurement("test.stagemeasure2", "Test measurement 2 from stage 1 of master", "baseUnit2", Math.PI,
                     "labelKeyA", "labelValueA");
-            context.logMeasurement("test.stagemeasure3", "Test measurement 3 from stage 1 of master", "test", Math.PI,
+            context.logMeasurement("test.stagemeasure3", "Test measurement 3 from stage 1 of master", "baseUnit3", Math.PI,
                     "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
 
-            context.logTimingMeasurement("test.stagetiming1", "Test measurement 1 from stage 1 of master", 1_000);
-            context.logTimingMeasurement("test.stagetiming2", "Test measurement 2 from stage 1 of master", 1_000_000,
+            context.logTimingMeasurement("test.stagetiming1", "Test TIMING 1 from stage 1 of master", 1_000);
+            context.logTimingMeasurement("test.stagetiming2", "Test TIMING 2 from stage 1 of master", 1_000_000,
                     "labelKeyA", "labelValueA");
-            context.logTimingMeasurement("test.stagetiming3", "Test measurement 3 from stage 1 of master",
+            context.logTimingMeasurement("test.stagetiming3", "Test TIMING 3 from stage 1 of master",
                     1_000_000_000, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
 
             context.request(ENDPOINT + ".Mid", new DataTO(dto.number, dto.string + ":MidCall2", 7));

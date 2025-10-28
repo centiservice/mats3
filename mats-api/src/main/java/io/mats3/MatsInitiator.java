@@ -541,9 +541,10 @@ public interface MatsInitiator extends Closeable {
          * side).
          *
          * @param key
-         *            the key on which to store the byte array payload. The receiver will have to use this key to get
-         *            the payload out again, so either it will be a specific key that the sender and receiver agree
-         *            upon, or you could generate a random key, and reference this key as a field in the Request DTO.
+         *            the key on which to store the String payload. The receiver will have to use this key to get the
+         *            payload out again, so there must be an agreement on the key. If you need a variable number of
+         *            payloads, then you could use a random or sequenced key, and reference the relevant keys in a List
+         *            in the Request DTO.
          * @param payload
          *            the byte array.
          * @return the {@link MatsInitiate} for chaining.
@@ -564,8 +565,9 @@ public interface MatsInitiator extends Closeable {
          *
          * @param key
          *            the key on which to store the String payload. The receiver will have to use this key to get the
-         *            payload out again, so either it will be a specific key that the sender and receiver agree upon, or
-         *            you could generate a random key, and reference this key as a field in the Request DTO.
+         *            payload out again, so there must be an agreement on the key. If you need a variable number of
+         *            payloads, then you could use a random or sequenced key, and reference the relevant keys in a List
+         *            in the Request DTO.
          * @param payload
          *            the string.
          * @return the {@link MatsInitiate} for chaining.
@@ -574,7 +576,8 @@ public interface MatsInitiator extends Closeable {
         MatsInitiate addString(String key, String payload);
 
         /**
-         * Adds a measurement of a described variable, in a base unit, for this Initiation - <b>be sure to understand
+         * Adds a measurement of a described variable, in a base unit, for this Initiation (but for timings, use
+         * {@link #logTimingMeasurement(String, String, long, String...) the other method!}) - <b>be sure to understand
          * that the three String parameters are <i>constants</i> for each measurement.</b> To exemplify, you may measure
          * five different things in an Initiation, i.e. "number of items in order", "total amount for order in dollar",
          * etc - and each of these obviously have different metricId, metricDescription and possibly different baseUnit
@@ -584,8 +587,8 @@ public interface MatsInitiator extends Closeable {
          * for customer 5678"</i>.
          * <p />
          * Note: It is illegal to use the same 'metricId' for more than one measurement for a given Initiation, and this
-         * also goes between measurements and {@link #logTimingMeasurement(String, String, long, String...) timing
-         * measurements}.
+         * also goes between 'ordinary measurements' (using this method) and
+         * {@link #logTimingMeasurement(String, String, long, String...) 'timing measurements'}.
          * <p />
          * <b>Inclusion as metric by plugin 'mats-intercept-micrometer'</b>: A new meter will be created (and cached),
          * of type <code>DistributionSummary</code>, with the 'name' set to
@@ -596,31 +599,33 @@ public interface MatsInitiator extends Closeable {
          * <p />
          * <b>Inclusion as log line by plugin 'mats-intercept-logging'</b>: A log line will be output by each added
          * measurement, where the MDC for that log line will have an entry with key
-         * <code>"mats.ops.measure.{metricId}.{baseUnit}"</code>. Read about parameter 'labelKeyValue' below.
+         * <code>"mats.exec.ops.measure.{metricId}.{baseUnit}"</code>. ("measure"-&gt;"time" for timings). Read about
+         * parameter 'labelKeyValue' below.
          * <p />
          * It generally makes most sense if the same metrics are added for each processing of a particular Initiation,
          * i.e. if the "number of items" are 0, then that should also be recorded along with the "total amount for order
          * in dollar" as 0, not just elided. Otherwise, your metrics will be skewed.
          * <p />
          * You should use a dot-notation for the metricId if you want to add multiple meters with a
-         * hierarchical/subdivision layout.
+         * hierarchical/subdivision layout. Do not use the four suffixes ".info", ".total", ".created" and ".bucket"!
          * <p />
          * The vararg 'labelKeyValue' is an optional element where the String-array consist of one or several alternate
          * key, value pairs. <b>Do not employ this feature unless you know what the effects are, and you actually need
          * it!</b> This will be added as labels/tags to the metric, and added to the SLF4J MDC for the measurement log
-         * line with the key being <code>"mats.ops.measure.{metricId}.{labelKey}"</code> ("measure"-&gt;"time" for
-         * timings). The keys should be constants as explained for the other parameters, while the value can change, but
-         * only between a given set of values (think <code>enum</code>) - using e.g. the 'customerId' as value doesn't
-         * make sense and will blow up your metric cardinality. Notice that if you do employ e.g. two labels, each
-         * having one of three values, <i>you'll effectively create 9 different meters</i>, where your measurement will
-         * go to one of them.
+         * line with the key being <code>"mats.exec.ops.measure.{metricId}.{baseUnit}.tag.{labelKey}"</code>
+         * ("measure"-&gt;"time" for timings), and the value being the <code>{labelValue}</code>. The keys should be
+         * constants as explained for the other parameters, while the value can change, but only between a given set of
+         * values (think <code>enum</code>) - using e.g. the 'customerId' as value doesn't make sense and will blow up
+         * your metric cardinality. Notice that if you do employ e.g. two labels, each having one of three values,
+         * <i>you'll effectively create 9 different meters</i>, where your measurement will go to one of them.
          * <p />
          * <b>NOTICE: If you want to do a timing, then instead use
          * {@link #logTimingMeasurement(String, String, long, String...)}</b>
          *
          * @param metricId
          *            constant, short, possibly dot-separated if hierarchical, id for this particular metric, e.g.
-         *            "items" or "amount", or "db.query.orders".
+         *            "items" or "amount", or "db.query.orders". Do not use the four suffixes ".info", ".total",
+         *            ".created" and ".bucket"!
          * @param metricDescription
          *            constant, textual description for this metric, e.g. "Number of items in customer order", "Total
          *            amount of customer order"
@@ -640,11 +645,13 @@ public interface MatsInitiator extends Closeable {
 
         /**
          * Same as {@link #logMeasurement(String, String, String, double, String...) addMeasurement(..)}, but
-         * specifically for timings - <b>Read that JavaDoc!</b>
+         * specifically for timings - <b>Read that JavaDoc!</b> (The reason for having timings as a specific method, is
+         * that different "output methods" like Micrometer/Prometheus metrics, and slf4j logging with MDC-based
+         * key/value, employ different magnitudes for the time-based measurements).
          * <p />
          * Note: It is illegal to use the same 'metricId' for more than one measurement for a given Initiation, and this
-         * also goes between timing measurements and {@link #logMeasurement(String, String, String, double, String...)
-         * measurements}.
+         * also goes between 'timing measurements' and {@link #logMeasurement(String, String, String, double, String...)
+         * 'ordinary measurements'}.
          * <p />
          * For the metrics-plugin 'mats-intercept-micrometer' plugin, the 'baseUnit' argument is deduced to whatever is
          * appropriate for the receiving metrics system, e.g. for Prometheus it is "seconds", even though you always
@@ -655,12 +662,13 @@ public interface MatsInitiator extends Closeable {
          *
          * @param metricId
          *            constant, short, possibly dot-separated if hierarchical, id for this particular metric, e.g.
-         *            "db.query.orders" or "calcprofit".
+         *            "db.query.orders" or "calcprofit". Do not use the four suffixes ".info", ".total", ".created" and
+         *            ".bucket"!
          * @param metricDescription
          *            constant, textual description for this metric, e.g. "Time taken to execute order query", "Time
          *            taken to calculate profit or loss".
          * @param nanos
-         *            time taken <b>in nanoseconds</b>
+         *            time taken <b>in nanoseconds</b>.
          * @param labelKeyValue
          *            a String-vararg array consisting of alternate key,value pairs which will becomes labels or tags or
          *            entries for the metrics and log lines. Read the JavaDoc at

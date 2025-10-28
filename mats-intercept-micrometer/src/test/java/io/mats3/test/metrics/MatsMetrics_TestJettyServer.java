@@ -165,16 +165,16 @@ public class MatsMetrics_TestJettyServer {
             DataTO dto = new DataTO(42, "TheAnswer");
             matsFactory.getDefaultInitiator().initiateUnchecked(
                     (msg) -> {
-                        msg.logMeasurement("test.initmeasure1", "Test measurement 1 from initiation", "test", Math.PI);
-                        msg.logMeasurement("test.initmeasure2", "Test measurement 2 from initiation", "test", Math.PI,
+                        msg.logMeasurement("test.initmeasure1", "Test measurement 1 from initiation", "baseUnit1", Math.PI);
+                        msg.logMeasurement("test.initmeasure2", "Test measurement 2 from initiation", "baseUnit2", Math.PI,
                                 "labelKeyA", "labelValueA");
-                        msg.logMeasurement("test.initmeasure3", "Test measurement 3 from initiation", "test", Math.PI,
+                        msg.logMeasurement("test.initmeasure3", "Test measurement 3 from initiation", "baseUnit3", Math.PI,
                                 "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
 
-                        msg.logTimingMeasurement("test.inittiming1", "Test measurement 1 from initiation", 1_000);
-                        msg.logTimingMeasurement("test.inittiming2", "Test measurement 2 from initiation", 1_000_000,
+                        msg.logTimingMeasurement("test.inittiming1", "Test TIMING 1 from initiation", 1_000);
+                        msg.logTimingMeasurement("test.inittiming2", "Test TIMING 2 from initiation", 1_000_000,
                                 "labelKeyA", "labelValueA");
-                        msg.logTimingMeasurement("test.inittiming3", "Test measurement 3 from initiation",
+                        msg.logTimingMeasurement("test.inittiming3", "Test TIMING 3 from initiation",
                                 1_000_000_000, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
 
                         msg.traceId(MatsTestHelp.traceId())

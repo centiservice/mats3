@@ -19,6 +19,8 @@ dependencies {
     testImplementation project(":mats-test-junit")
     // Using the MatsTestBroker directly
     testImplementation project(":mats-test-broker")
+    // Importing logging, to check how metrics are logged
+    testImplementation project(":mats-intercept-logging")
 
     // Include Prometheus MeterRegistry
     testImplementation "io.micrometer:micrometer-registry-prometheus" // Using BOM
