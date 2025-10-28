@@ -34,7 +34,7 @@ import io.mats3.spring.test.MatsTestContext;
  * Test that lets us check that we log hard if we're missing a no-args constructor for @MatsClassMapping (we'll in a
  * later version throw). Note that when using Jackson for serialization, as the {@link MatsSerializerJson} does, this
  * will throw anyway since Jackson itself requires this.
- * <p/>
+ * <p>
  * Note: This is a "manual test": You need to check the log for the expected "HARD WARNING - DEPRECATION!!" log line.
  *
  * @author Endre Stølsvik 2023-09-16 13:06 - http://stolsvik.com/, endre@stolsvik.com

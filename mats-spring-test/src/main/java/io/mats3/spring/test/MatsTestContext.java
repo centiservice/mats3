@@ -47,11 +47,11 @@ import io.mats3.util.MatsFuturizer;
  * Connections), automatically importing the configuration . The configuration is done in
  * {@link MatsTestInfrastructureConfiguration}. This annotation can be put on a test-class, or on a
  * {@literal @Configuration} class (typically a nested static class within the test-class).
- * <p />
+ * <p>
  * <i>Observe: If this "kitchen sink" annotation doesn't serve your needs, an alternative for quickly putting a
  * {@link MatsFactory} into a Spring test context is to utilize the methods in {@link TestSpringMatsFactoryProvider}
  * within a <code>{@literal @Bean}</code> factory method.</i>
- * <p />
+ * <p>
  * The annotation, mostly via {@link MatsTestInfrastructureConfiguration}, sets up the following:
  * <ul>
  * <li>Meta-annotated with {@link DirtiesContext}, since the Spring Test Context caching system is problematic when one
@@ -72,7 +72,7 @@ import io.mats3.util.MatsFuturizer;
  * <li>A {@link MatsTestLatch} instance in the Spring Context, since when you need it, you need it both in the
  * {@literal @Configuration} class, and in the test-class - nice to already have an instance defined.</li>
  * </ul>
- * <p />
+ * <p>
  * For some more background on the Context Caching: <a href=
  * "http://docs.spring.io/spring/docs/current/spring-framework-reference/html/integration-testing.html#testcontext-ctx-management-caching">
  * Read the Spring doc about Context Caching</a> and <a href="https://jira.spring.io/browse/SPR-7377">read a "wont-fix"

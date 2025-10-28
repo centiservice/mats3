@@ -160,7 +160,7 @@ public class JmsMatsInternalExecutionContext {
      * Used by JMS Mats to inform via logging whether the SQL Connection was actually employed (Notice that if this is
      * not possible to determine, it will return whether the SQL Connection was gotten). Read JavaDoc of
      * {@link #setSqlTxConnectionSuppliers(Supplier, Supplier)}.
-     * <p/>
+     * <p>
      * If the method {@link #setSqlTxConnectionSuppliers(Supplier, Supplier)} was not invoked, which is the case in a
      * non-SQL {@link JmsMatsTransactionManager}, like {@link JmsMatsTransactionManager_Jms}, this method will return
      * <code>false</code>.

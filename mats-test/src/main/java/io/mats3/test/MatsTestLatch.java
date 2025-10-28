@@ -25,7 +25,7 @@ import io.mats3.MatsEndpoint.DetachedProcessContext;
  * object, and the {@link DetachedProcessContext ProcessContext} that the Mats processor received (the ProcessContext
  * can carry sideloads and trace properties). A less Mats-specific tool is {@link MatsTestBarrier}, which does not use a
  * Result interface, but rather just a generic Object as result - but it handles waiting for a result or an exception.
- * <p/>
+ * <p>
  * Reset/reuse is automatic: After having waitForResult'ed it, the latch is reset and ready for reuse.
  *
  * @see MatsTestBarrier
@@ -73,7 +73,7 @@ public class MatsTestLatch {
      * Waits for the specified time for {@link #resolve(DetachedProcessContext, Object, Object)} resolve(..)} to be
      * invoked by some other thread, returning the result. If the result is already in, it immediately returns. If the
      * result does not come within timeout, an {@link AssertionError} is raised.
-     * <p />
+     * <p>
      * <b>Notice: If you wait for something that <i>should</i> happen, you should rather use the non-arg method
      * {@link #waitForResult()}.
      *

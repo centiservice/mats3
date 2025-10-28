@@ -57,7 +57,7 @@ import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
  * An interceptor that instruments a MatsFactory with metrics using the (Spring) Micrometer framework. If you provide a
  * {@link MeterRegistry}, it will employ this to create the metrics on, otherwise it employs the
  * {@link Metrics#globalRegistry}.
- * <p/>
+ * <p>
  * Meters included are for these different phases:
  * <ol>
  * <li>Initiate Completed</li>
@@ -69,7 +69,7 @@ import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
  *
  * These are the 11 default + user metrics being recorded as Micrometer {@link Timer}s or {@link DistributionSummary}s -
  * <b>Remember that counts are also implicitly present</b>:
- * <p/>
+ * <p>
  * Execution: Init or stage:
  * <ul>
  * <li><i>Timing</i>: {@link #TIMER_EXEC_TOTAL_NAME "mats.exec.total"} Total time taken to execute init or stage.</li>
@@ -132,7 +132,7 @@ import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
  * <li>{@link #TAG_TO "to"} <b>(Only for <i>sent</i> messages)</b> which stageId this message is targeting.</li>
  * </ul>
  *
- * <p/>
+ * <p>
  *
  * <b>Note: Number of produced <i>meters</i>: </b>Notice the argument 'includeAllTags' on the multi-arg install(..)
  * method (default <code>false</code>): If this is <code>true</code>, then tags will be added to the meters which will
@@ -155,21 +155,21 @@ import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
  * given HTTP Endpoint can be used by a multitude of users. The direct comparison would be that you created a different
  * meter for each user of a given HTTP endpoint. For a popular endpoint with many users, this would result in a massive
  * number of different meters.
- * <p/>
+ * <p>
  * You may set 'includeAllTags' to <code>true</code>, and then use a Micrometer {@link MeterFilter} to tweak the tags
  * with more precision than this all-or-nothing approach, e.g. include "initiatingAppName" and "initiatorId" for
  * specific endpoints or stages.
- * <p/>
+ * <p>
  * This is not the case with the 'mats-intercept-logging' plugin, as that records all such meta info (and quite a bit
  * more) on each log line. You can thus "after the fact" decide on what slicing you want the measures to be divided
  * along. The negative is that this requires quite substantial amount of storage.
- * <p/>
+ * <p>
  * <b>Notice the class {@link SuggestedTimingHistogramsMeterFilter}</b>, which configures the timing-specific metrics
  * with hopefully relevant histograms. You may apply this as such:<br />
  * <code>Metrics.globalRegistry.config().meterFilter(new SuggestedTimingHistogramsMeterFilter());</code><br />
  * .. or you may apply any other distribution or histogram configuration using the {@link MeterFilter} logic of
  * Micrometer.
- * <p/>
+ * <p>
  * <b>Note: This interceptor (Micrometer Metrics) has special support in <code>JmsMatsFactory</code>: If present on the
  * classpath, it is automatically installed using the {@link #install(MatsFactory)} install method.</b>
  * This implies that it employs the {@link Metrics#globalRegistry Micrometer 'globalRegistry'} - and 'includeAllTags'
@@ -310,7 +310,7 @@ public class MatsMicrometerInterceptor
      * This is a cardinality-explosion-avoidance limit in case of wrongly used initiatorIds. These are not supposed to
      * be dynamic, but there is nothing hindering a user from creating a new initiatorId per initiation. Thus, if we go
      * above a certain number of such entries, we stop adding.
-     * <p/>
+     * <p>
      * Value is 500 (increased on 2025-02-19, after being 200 since 2021-10-21).
      */
     public static final int MAX_NUMBER_OF_METRICS = 500;

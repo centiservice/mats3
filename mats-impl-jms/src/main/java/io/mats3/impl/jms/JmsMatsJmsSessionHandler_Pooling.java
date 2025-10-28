@@ -164,7 +164,7 @@ public class JmsMatsJmsSessionHandler_Pooling implements JmsMatsJmsSessionHandle
 
     /**
      * Returns a JmsMatsJmsSessionHandler which uses the specified pooling derivation.
-     * <p/>
+     * <p>
      * Note that is seems like ActiveMQ is not all that great at multiplexing multiple sessions and consumers over the
      * same connection. The setting FACTORY,FACTORY ends up using only a single JMS Connection for the entire
      * MatsFactory. A good compromise seems to be the default used in the convenience method

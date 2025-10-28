@@ -39,7 +39,7 @@ import io.mats3.util.MatsFuturizer;
  * Test that exercises a specific situation where very fast tests, employing {@link Rule_Mats} and thus
  * {@link MatsTestBroker} which spins up an <b>in-vm ActiveMQ Broker</b>, could sometimes spuriously fail when a
  * {@link MatsFuturizer} tried sending a request, getting a "Session is closed" exception.
- * <p/>
+ * <p>
  * This test should be "run until failed", but since the problem is now fixed (see below), it should not fail.
  * <ol>
  * <li>It relies on method order, as the problem is rather specific.</li>

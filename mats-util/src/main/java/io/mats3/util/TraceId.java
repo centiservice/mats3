@@ -26,9 +26,9 @@ import io.mats3.MatsInitiator.InitiateLambda;
  * A small tool to produce an opinionated TraceId - an example of such a string could be
  * <code>"Order.placeOrder:calcShipping[cid:123456][oid:654321]iu4m3p</code> - since this class implements
  * {@link CharSequence}, it can be used directly as the 'traceId' argument in initiations.
- * <p/>
+ * <p>
  * The tool accepts null for any of the three "mandatory" pieces "appShort", "initShort" and "reason".
- * <p/>
+ * <p>
  * <b>Remember that TraceIds should be as short as possible!</b> Be conservative with the lengths of these constituent
  * strings, and key names, and key values! Don't use UUIDs, they are typically both way too unique, and way too long
  * since they only use a limited alphabet.
@@ -41,7 +41,7 @@ import io.mats3.MatsInitiator.InitiateLambda;
  * <li>{@link #batchId(long) batchId(..)}: If this Mats Flow is a part of several that are sent out in a batch, then you
  * may employ this to group them together.</li>
  * </ol>
- * <p/>
+ * <p>
  * The special factory variants {@link #concat(String, String, String) concat(..)} and
  * {@link #fork(String, String, String) fork(..)} are used if you already have some kind of eventId or traceId which you
  * want to hook into the new Mats Flow. If you want to add contextual information on the existing eventId for a new
@@ -49,21 +49,21 @@ import io.mats3.MatsInitiator.InitiateLambda;
  * flows, then you use <code>fork(..)</code> (uses a "|" - which is done automatically for you if you initiate new
  * messages from within a Mats Flow, i.e. inside a Stage with {@link ProcessContext#initiate(InitiateLambda)
  * processContext.initiate(..)}.
- * <p/>
+ * <p>
  * The only important thing with a TraceId is that it is unique, so that it is possible to uniquely find it in the
  * distributed logging system. All else is only relevant for understanding when you need to reason about a specific
  * flow, typically in a debugging scenario, e.g. why did this end up on a Dead Letter Queue. It is extremely nice to
  * then immediately understand quite a bit out from the TraceId alone.
- * <p/>
+ * <p>
  * Note: It is possible to extend this concept into domain-specific tools which add more specialized
  * {@link #add(String, long) add(key, value)}-variants in that the key is specified. E.g. if you in many contexts have
  * customerId and an orderId, it is nice if this always uses the same key "custId" (or "cid") and "orderId" (or "oid"),
  * instead of this varying between the initiating services. Thus you add a method <code>customerId(value)</code> and
  * <code>orderId(value)</code>, which just forwards to the add-method.
- * <p/>
+ * <p>
  * Note: You can modify and reuse a TraceId object, e.g. change the 'reason' and perform a new initialization. Mats will
  * perform a {@link #toString()} on the instance when
- * <p/>
+ * <p>
  * <b>There's a document about these identifiers at Mats3's github:
  * <a href="https://github.com/centiservice/mats3/blob/main/docs/TraceIdsAndInitiatorIds.md">TraceIds and
  * InitiatorIds.</a></b>

@@ -24,7 +24,7 @@ import io.mats3.serial.MatsTrace.KeepMatsTrace;
  * encoded JSON or XML, or some binary serialization protocol), <b>and</b> STOs and DTOs to and from some type, e.g.
  * byte arrays or Strings. This is separated out from the Mats communication implementation (i.e. JMS or RabbitMQ), as
  * it is a separate aspect, i.e. both the JMS and RabbitMQ implementation can utilize the same serializer.
- * <p />
+ * <p>
  * There are two levels of serialization needed: For the DTOs and STOs that the Mats API expose to the "end user", and
  * then the serialization of the MatsTrace itself. There is an implementation of MatsTrace in the impl package called
  * <code>MatsTraceFieldImpl</code> which is meant to be serialized by fields (thus the field names are short).
@@ -283,7 +283,7 @@ public interface MatsSerializer {
      * Will return a new instance of the requested type. This is used to instantiate "empty objects" for Endpoint State
      * objects (STOs), and to test, at Endpoint registration, whether it is possible to get hold of instances of the
      * Request and Reply DTO for an Endpoint (to ensure that it will be possible in runtime).
-     * <p/>
+     * <p>
      * The reason for having this in the MatsSerializer is that it is somewhat dependent on the object serializer in
      * use: GSON allows to instantiate private, missing-no-args-constructor classes, while Jackson does not.
      *

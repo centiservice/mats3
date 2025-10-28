@@ -32,7 +32,7 @@ import io.mats3.test.junit.Rule_Mats;
 /**
  * Tests Issue 64 as understood after investigation as it was originally reported. The initial investigation was carried
  * out in 'mats-spring' test <code>Issue_64_ReplyToMatsClassMappingWithNullReplyState</code>.
- * <p/>
+ * <p>
  * If an initiation request is performed to some EndpointX, with init.replyTo(EndpointA, null), i.e. the replyState
  * being null, EndpointA was actually invoked with null state. This on first blush seems intuitive, but it screws over
  * what EndpointA expects: It has declared some state class S, and expects to be able to set variables on it etc - it
@@ -196,7 +196,7 @@ public class Issue_64_ReplyToMultiStageWithNullReplyState {
     /**
      * Sending directly to the endpoint with initial state = null, which one might think should exhibit the same
      * behaviour (i.e. result in null incoming state), actually works.
-     * <p/>
+     * <p>
      * The reason this works, is that the MatsTraceFieldImpl only adds the initial StackState if initialState != null.
      * Explicitly setting null, or not setting initial state, is exactly the same: send(dto) without initial state just
      * calls send(dto, null).
@@ -218,7 +218,7 @@ public class Issue_64_ReplyToMultiStageWithNullReplyState {
     /**
      * Requesting directly to the endpoint with initial state = null, which one might think should exhibit the same
      * behaviour (i.e. result in null incoming state), actually works.
-     * <p/>
+     * <p>
      * The reason this works, is that the MatsTraceFieldImpl only adds initial StackState if initialState != null.
      * Explicitly setting null, or not setting initial state, is exactly the same: request(dto) without initial state
      * just calls request(dto, null).

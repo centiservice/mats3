@@ -49,7 +49,7 @@ import io.mats3.test.broker.MatsTestBroker;
  * along with test-specific mocked-out endpoints: You will then probably not have the MatsFactory present in the Spring
  * context. You can then use this class to get a "quick and dirty" MatsFactory (with an in-vm MQ Broker backing it) on
  * which your application's endpoints, and mocked-out endpoints in the test, can run.
- * <p />
+ * <p>
  * <i>If your requirements aren't all that exotic, you may get this indirectly invoked by using the
  * {@literal @}{@link MatsTestContext} annotation directly on the Test-class. If your requirements are slightly more
  * involved, check out the {@link MatsTestInfrastructureConfiguration} and {@link MatsTestInfrastructureDbConfiguration}
@@ -72,7 +72,7 @@ public class TestSpringMatsFactoryProvider {
     /**
      * If you need a {@link MatsFactory} employing Spring's DataSourceTransactionManager (which you probably do in a
      * Spring environment utilizing SQL), this is your factory method.
-     * <p />
+     * <p>
      * Usage: In the test, make a @Bean-annotated method which returns the result of this method - or employ the
      * convenience {@link MatsTestInfrastructureDbConfiguration}.
      *
@@ -118,7 +118,7 @@ public class TestSpringMatsFactoryProvider {
      * If you need a {@link MatsFactory}, but you need to make your own {@link PlatformTransactionManager}, this is your
      * factory method - <b>please note that the contained {@link DataSource} should have been wrapped using the static
      * method {@link JmsMatsTransactionManager_JmsAndSpringManagedSqlTx#wrapLazyConnectionDatasource(DataSource)}</b>.
-     * <p />
+     * <p>
      * Usage: In the test, make a @Bean-annotated method which returns the result of this method - or employ the
      * convenience {@link MatsTestInfrastructureDbConfiguration}.
      *
@@ -171,7 +171,7 @@ public class TestSpringMatsFactoryProvider {
      * you DO make any database calls within any Mats endpoint lambda, you will now have no or poor transactional
      * demarcation, use {@link #createSpringDataSourceTxTestMatsFactory(int, DataSource, MatsSerializer)
      * createSpringDataSourceTxTestMatsFactory(..)} instead.
-     * <p />
+     * <p>
      * Usage: In the test, make a @Bean-annotated method which returns the result of this method - or employ the
      * convenience {@link MatsTestInfrastructureConfiguration}.
      *

@@ -132,7 +132,7 @@ public class Rule_MatsEndpoint<R, I> extends AbstractMatsTestEndpoint<R, Void, I
      * consider the convenience overload {@link #create(Rule_Mats, String, Class, Class) create(Mats_Rule, endpointId,
      * replyClass, incomingClass)} to easily supply the corresponding <code>{@literal @ClassRule}</code>
      * {@link Rule_Mats} for fetching the <code>MatsFactory</code>.
-     * <p/>
+     * <p>
      * <b>Do notice that you need to invoke {@link #setProcessLambda(ProcessSingleLambda)} - typically inside the
      * <code>{@literal @Test}</code> method - before sending messages to it, as there is no default.</b>
      *

@@ -41,7 +41,7 @@ import io.mats3.util.RandomString;
  * Two tests, each sending messages to Endpoints having the same EndpointId, but residing on different MatsFactories -
  * one configured by @MatsMapping-annotated method on the {@link AppEndpoints} {@literal @Configuration} class, while
  * the other is configured by the inner static class {@link SingleEndpointUsingMatsClassMapping}.
- * <p />
+ * <p>
  * <b>Notice that the processors on the two endpoints are different (even though they have the exact same EndpointId):
  * One is multiplying the incoming number by 2, while the other by 3 - and also the strings are different.</b>
  *

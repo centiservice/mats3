@@ -24,7 +24,7 @@ package io.mats3.test;
  * than {@link MatsTestLatch}, and does not use a Result interface, but rather just a generic Object as result. If you'd
  * like to e.g. communicate back from a Terminator and need both the incoming message and the state - and possibly the
  * ProcessContext - then you should evaluate the {@link MatsTestLatch} instead.
- * <p/>
+ * <p>
  * Reset/reuse is not automatic: You must call {@link #reset()} after having resolved and awaited it, otherwise a
  * new await will immediately return with the result/exception of the last resolution.
  *

@@ -29,7 +29,7 @@ import io.mats3.MatsStage;
  * ({@link #createFactoryReport(Appendable, boolean, boolean, boolean) createFactoryReport(Appendable,..)}) to include.
  * If the {@link LocalStatsMatsInterceptor} is installed on the {@link MatsFactory} which handles the Intercept API, it
  * will include pretty nice "local statistics" for all initiators, endpoints and stages.
- * <p />
+ * <p>
  * Note: You are expected to {@link #create(MatsFactory) create} one instance of an implementation of this interface per
  * MatsFactory, and keep these around for the lifetime of the MatsFactories (i.e. for the JVM) - as in multiple
  * singletons. Do not create one per HTML request. The reason for this is that at a later point, this class might be

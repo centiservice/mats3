@@ -123,7 +123,7 @@ public class Test_E_PieceTogetherExplicitComponents {
 
         /**
          * Test "Terminator" endpoint where we send the result of testing the endpoint in the application.
-         * <p />
+         * <p>
          * <b>Notice how we register this on both the MatsFactories.</b>
          */
         @MatsMapping(endpointId = TERMINATOR, matsFactoryQualifierValue = "matsFactoryX")

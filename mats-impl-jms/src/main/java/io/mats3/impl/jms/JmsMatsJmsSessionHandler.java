@@ -133,7 +133,7 @@ public interface JmsMatsJmsSessionHandler {
 
         /**
          * For Initiators: This returns the JmsSessionHolder to the Session Pool for the underlying Connection.
-         * <p />
+         * <p>
          * <b>Note: It is allowed to call this in a finally block after use, so it must guard against already having
          * {@link #crashed(Throwable) crashed} when inside the {@link JmsMatsTransactionManager}</b>, in which case it
          * should probably effectively act as a no-op.

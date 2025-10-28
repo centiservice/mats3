@@ -43,7 +43,7 @@ import io.mats3.test.MatsTestHelp;
  * This sets up a small Mats infrastructure WITHOUT employing the {@link MatsTestContext @MatsTestContext} nor the
  * {@link EnableMats @EnableMats} annotation, but still marking with the {@link MatsTestProfile} annotation. This is
  * thus a pretty manual setup of a Mats test, but where the mats infrastructure still knows that it is a test.
- * <p />
+ * <p>
  * An additional reason is to see (visually, in logs) that the .close() method on MatsFactory interface kicks in by
  * Spring as a destroy method - which is employed by the wrapped inside {@link TestSpringMatsFactoryProvider} for taking
  * down ActiveMQ.

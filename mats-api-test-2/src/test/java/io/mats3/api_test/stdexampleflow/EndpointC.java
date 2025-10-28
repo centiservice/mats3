@@ -21,7 +21,7 @@ import io.mats3.MatsFactory;
 
 /**
  * Mats two-stage Endpoint which calculates <code>a/b + c</code>.
- * <p />
+ * <p>
  * Utilizes EndpointD which can calculate <code>a/b</code>.
 
  * @author Endre Stølsvik 2021-09-26 19:33 - http://stolsvik.com/, endre@stolsvik.com

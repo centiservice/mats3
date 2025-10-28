@@ -50,7 +50,7 @@ import io.mats3.test.broker.MatsTestBroker;
  * <p>
  * The {@link MatsFactory} and {@link MatsTestBroker} beans created in this configuration have been wrapped so as to get
  * to intercept their "stop" and "close" calls, to be able to verify the order in which they are stopped.
- * <p />
+ * <p>
  * Note that we do not use SpringRunner or other frameworks, but instead do all Spring config ourselves. This so that
  * the testing is as application-like as possible.
  *

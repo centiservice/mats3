@@ -1059,7 +1059,7 @@ public class MatsTraceFieldImpl implements MatsTrace, Cloneable {
     /**
      * Implementation of {@link Channel} used for the reply stack, extending the {@link ToChannel} by adding SpanId,
      * employed for the {@link CallImpl#getReplyStack_internal()}.
-     * <p />
+     * <p>
      * We're hitching the SpanIds onto the ReplyTo Stack, as they have the same stack semantics. However, do note that
      * the Channel-stack and the SpanId-stack are "offset" wrt. to what they refer to:
      * <ul>

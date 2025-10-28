@@ -22,11 +22,11 @@ import java.util.regex.Pattern;
  * Utility class for replacing dodgy characters from queue/topic names, and names in general, in the Message Broker
  * world - it is quite restrictive, replacing any character not in [a-z,A-Z,0-9,.,_,-] (lower alpha, upper alpha,
  * digits, dot, underscore, minus/dash) with '_'.
- * <p />
+ * <p>
  * The code is literally: <br />
  * &nbsp;&nbsp;&nbsp;&nbsp;<code>Pattern.compile("[^a-zA-Z0-9._\\-]").matcher(input).replaceAll("_")</code> <br />
  * .. but the compiled pattern is statically cached.
- * <p />
+ * <p>
  * Its functionality may very well be copied to where its logic is needed if not desired to depend on 'mats-util'.
  */
 public class SanitizeMqNames {

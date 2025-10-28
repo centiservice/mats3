@@ -103,7 +103,7 @@ public @interface SpringInjectRulesAndExtensions {
 
         /**
          * Find all fields in class with given annotation. Amended from StackOverflow, inspired by Apache Commons Lang.
-         * <p/>
+         * <p>
          * https://stackoverflow.com/a/29766135
          */
         @SuppressWarnings("unchecked")

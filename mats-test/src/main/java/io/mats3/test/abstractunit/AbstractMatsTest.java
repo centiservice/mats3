@@ -200,7 +200,7 @@ public abstract class AbstractMatsTest {
 
     /**
      * <b>You should probably NOT use this method, but instead the {@link #getMatsFactory()}!</b>.
-     * <p />
+     * <p>
      * This method is public for a single reason: If you need a <i>new, separate</i> {@link MatsFactory} using the same
      * JMS ConnectionFactory as the one provided by {@link #getMatsFactory()}. The only currently known reason for this
      * is if you want to register two endpoints with the same endpointId, and the only reason for this again is to test

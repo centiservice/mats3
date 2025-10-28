@@ -52,7 +52,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * A logging interceptor that writes loglines to two SLF4J loggers, including multiple pieces of information on the MDC
  * (initiatorId, endpointId and stageIds, and timings and sizes), so that it hopefully is easy to reason about and debug
  * all Mats flows, and to be able to use the logging system (e.g. Kibana over ElasticSearch) to create statistics.
- * <p />
+ * <p>
  * Two loggers are used, which are {@link #log_init "io.mats3.log.init"} and {@link #log_stage "io.mats3.log.stage"}.
  * All loglines' message-part is prepended with <code>"#MATSLOG#"</code>.
  *
@@ -68,7 +68,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * </ol>
  * Some MDC properties are set by the JMS implementation, and not by this interceptor. These are the ones that do not
  * have a JavaDoc-link in the below listings.
- * <p />
+ * <p>
  * Note that all loglines that are emitted by any code, user or system, <i>which are within Mats init or processing</i>,
  * will have the follow properties set:
  * <ul>
@@ -369,14 +369,14 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
  * are in the "combined" form (e.g. initiation producing a single message), and for log lines for individual messages
  * (i.e. where an initiation produced two messages, which results in three log lines: 1 for the initiation, and 2 for
  * the messages).
- * <p/>
+ * <p>
  * <b>Note:</b> This logging interceptor honors the {@link MatsInitiate#setTraceProperty(String, Object) Trace Property}
  * {@link MatsLoggingInterceptor#SUPPRESS_LOGGING_TRACE_PROPERTY_KEY} and the Endpoint Attribute
  * {@link MatsLoggingInterceptor#SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY}. Number of suppressed log outputs per
  * matsFactoryName/initAppName/initiatorId/stageId will be logged every 30 minutes (stageId = "INIT" for initiations),
  * on the {@link #LOG_STAGE_NAME} logger. The first logging for each combo after logging the number of suppressions will
  * also be logged in full.
- * <p/>
+ * <p>
  * <b>Note: This interceptor (SLF4J Logger with Metrics on MDC) has special support in <code>JmsMatsFactory</code>: If
  * present on the classpath, it is automatically installed using the {@link #install(MatsFactory)} install method.</b>
  * This interceptor implements the special marker-interface {@link MatsLoggingInterceptor} of which there can only be

@@ -82,7 +82,7 @@ import io.mats3.spring.MatsClassMapping.Stage;
 
 /**
  * The {@link BeanPostProcessor}-class specified by the {@link EnableMats @EnableMats} annotation.
- * <p/>
+ * <p>
  * It checks all Spring beans registered to the Spring {@link ApplicationContext} for whether their classes are
  * annotated with {@link MatsClassMapping @MatsClassMapping}, or if they have methods annotated with
  * {@link MatsMapping @MatsMapping} or {@link MatsEndpointSetup @MatsEndpointSetup}, and if so configures Mats endpoints
@@ -91,7 +91,7 @@ import io.mats3.spring.MatsClassMapping.Stage;
  * the endpoints, and then {@link MatsFactory#start() MatsFactory.start()} as late as possible in the startup procedure.
  * Upon Spring context shutdown, it invokes {@link MatsFactory#stop(int) MatsFactory.stop(..)} as early as possible in
  * the shutdown procedure.
- * <p/>
+ * <p>
  * <h3>Startup procedure:</h3>
  * <ol>
  * <li>The {@link MatsSpringAnnotationRegistration} (which is a <code>BeanPostProcessor</code>) will have each bean in
@@ -129,7 +129,7 @@ import io.mats3.spring.MatsClassMapping.Stage;
  * programmatically using e.g. <code>@PostConstruct</code> or similar functionality, these will also be started - unless
  * they have not had their {@link MatsEndpoint#finishSetup()} method invoked, ref. "delayed start" mentioned above.
  * </p>
- * <p/>
+ * <p>
  * <h3>Shutdown procedure:</h3>
  * <ol>
  * <li>Upon {@link ContextClosedEvent}, all MatsFactories in the ApplicationContext will have their
@@ -143,7 +143,7 @@ import io.mats3.spring.MatsClassMapping.Stage;
  * endpoints, this early stopping and releasing of connections is beneficial so that when the in-vm ActiveMQ is stopped
  * somewhat later, one won't get a load of connection failures from the Mats endpoints which otherwise would have their
  * connections shut down under their feet.
- * <p/>
+ * <p>
  *
  * @author Endre Stølsvik - 2016-05-21 - http://endre.stolsvik.com
  */

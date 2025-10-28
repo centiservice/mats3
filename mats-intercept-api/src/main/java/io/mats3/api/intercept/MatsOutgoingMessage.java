@@ -177,23 +177,23 @@ public interface MatsOutgoingMessage {
          * An interceptor might need to add state to an outgoing message which will be present on incoming message of
          * the next stage of a multi-stage endpoint - i.e. "extra state" in addition to the State class that the user
          * has specified for the Endpoint.
-         * <p/>
+         * <p>
          * Only relevant for {@link MessageType#REQUEST}, {@link MessageType#NEXT} and {@link MessageType#GOTO} - will
          * throw {@link IllegalStateException} otherwise.
-         * <p/>
+         * <p>
          * REQUEST: If extra-state is added to an outgoing REQUEST-message from ServiceA.stage1, it will be present
          * again on the subsequent REPLY-message to ServiceA.stage2 (and any subsequent stages).
-         * <p/>
+         * <p>
          * NEXT: If extra-state is added to an outgoing NEXT-message from ServiceA.stage1, it will be present again on
          * the subsequent incoming message to ServiceA.stage2 (and any subsequent stages).
-         * <p/>
+         * <p>
          * To add info to the receiving stage of a REQUEST, you may employ {@link #addBytes(String, byte[])} and
          * {@link #addString(String, String)}. Given that such extra-state would need support from the receiving
          * endpoint too to make much sense (i.e. an installed interceptor reading and understanding the incoming extra
          * state, typically the same interceptor installed there as the one adding the state), it could just pick up the
          * side load and transfer it over to the extra state if that was desired. Therefore, even though it could be
          * possible to add extra-state to the <i>targeted/receiving endpoint</i>, I've decided against it so far.
-         * <p/>
+         * <p>
          * The extra-state is available on the stage interception at
          * {@link StageCommonContext#getIncomingSameStackHeightExtraState(String, Class)}.
          */

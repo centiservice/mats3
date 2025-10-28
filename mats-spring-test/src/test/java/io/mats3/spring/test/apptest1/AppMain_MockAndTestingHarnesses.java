@@ -42,7 +42,7 @@ import io.mats3.util.MatsFuturizer;
 
 /**
  * "AppTest1" - showing different ways to employ the testing harnesses supplied by Mats in a Spring application.
- * <p />
+ * <p>
  * A simple Spring test application using Mats and Mats' SpringConfig; You may run it as an application, i.e. it has a
  * <code>main</code> method. The point is to show how such an Mats-utilizing Spring application, with
  * <code>{@literal @Configuration}</code> classes, <code>{@literal @Service}</code> classes,

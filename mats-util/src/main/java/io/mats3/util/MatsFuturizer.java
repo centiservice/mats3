@@ -55,11 +55,11 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * {@link #futurize(CharSequence, String, String, int, TimeUnit, Class, Object, InitiateLambda) futurize(...)} for full
  * configurability), specifying which Mats Endpoint to invoke and the request DTO instance, and then you get a
  * {@link CompletableFuture} in return. This future will complete once the invoked Mats Endpoint replies.
- * <p/>
+ * <p>
  * It is extremely important to understand that this is NOT how you compose multiple Mats Endpoints together! This is
  * ONLY supposed to be used when you are in a synchronous context (e.g. in a Servlet, or a Spring @RequestMapping) "on
  * the edge" of the Mats fabric, and want to interact with the Mats fabric of Endpoints.
- * <p/>
+ * <p>
  * Another aspect to understand, is that while Mats "guarantees" that a successfully submitted initiation will flow
  * through the Mats endpoints, no matter what happens with the processing nodes <i>(unless you employ <i>NonPersistent
  * messaging</i>, which futurizeNonessential(..) does!)</i>, nothing can be guaranteed wrt. the completion of the
@@ -74,14 +74,14 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * Thus, the MatsFuturizer should always just be employed out the very outer edge facing the actual client - any other
  * processing should be performed using MatsEndpoints, and composition of MatsEndpoints should be done using multi-stage
  * MatsEndpoints.
- * <p/>
+ * <p>
  * Note that in the case of pure "GET-style" requests where information is only retrieved and no state in the total
  * system is changed, everything is a bit more relaxed: If a processing fails, the worst thing that happens is a
  * slightly annoyed user. But if this was an "add order" or "move money" instruction from the user, a mid-processing
  * failure is rather bad and could require human intervention to clean up. <b>Thus, the
  * <code>futurizeNonessential(..)</code> method should only be employed for such <i>safe</i> "GET-style" requests</b>.
  * Any other potentially state changing operations must employ the generic <code>futurize(..)</code> method.
- * <p/>
+ * <p>
  * A question you might have, is how this works in a multi-node setup? For a Mats flow, it does not matter which node a
  * given stage of a MatsEndpoint is performed, as it is by design totally stateless wrt. the executing node, as all
  * state resides in the message. However, for a synchronous situation as in a HTTP request, it definitely matters that
@@ -90,7 +90,7 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * is that the final reply is specified to come in on a <i>node-specific topic</i>, i.e. it literally has the node name
  * (default being the hostname) as a part of the MatsEndpoint name, and it is a
  * {@link MatsFactory#subscriptionTerminator(String, Class, Class, ProcessTerminatorLambda) SubscriptionTerminator}.
- * <p/>
+ * <p>
  * <b>Logger MDCs for completion and metrics</b> <i>(on the logger <code>"io.mats3.util.MatsFuturizer.Reply"</code> if
  * INFO-enabled)</i>:
  * <ul>
@@ -253,7 +253,7 @@ public class MatsFuturizer implements AutoCloseable {
      * incoming {@link DetachedProcessContext#getBytes(String) "sideloads"} and other metadata. It also contains a
      * timestamp of when the outgoing message was initiated (both as {@link #getInitiationTimestamp() millis} and
      * {@link #getInitiationNanos() nanos}), as well as the {@link #getRoundTripNanos() round-trip-time} in nanos.
-     * <p/>
+     * <p>
      * You may choose between using the final fields, or the getters, as you prefer. You should probably be consistent
      * within a project!
      *
@@ -411,7 +411,7 @@ public class MatsFuturizer implements AutoCloseable {
      * {@link MatsInitiate#addBytes(String, byte[]) "sideloads"} to the outgoing message, use the "customInit"
      * parameter, which directly is the {@link InitiateLambda InitiateLambda} that the MatsFuturizer initiation is
      * using.
-     * <p/>
+     * <p>
      * For a bit more explanation, please read JavaDoc of
      * {@link #futurizeNonessential(CharSequence, String, String, Class, Object) futurizeInteractiveUnreliable(..)}
      *
@@ -456,7 +456,7 @@ public class MatsFuturizer implements AutoCloseable {
      * {@link MatsInitiate#addBytes(String, byte[]) "sideloads"} to the outgoing message, use the "customInit"
      * parameter, which directly is the {@link InitiateLambda InitiateLambda} that the MatsFuturizer initiation is
      * using.
-     * <p/>
+     * <p>
      * For a bit more explanation, please read JavaDoc of
      * {@link #futurizeNonessential(CharSequence, String, String, Class, Object) futurizeInteractiveUnreliable(..)}
      *
@@ -489,7 +489,7 @@ public class MatsFuturizer implements AutoCloseable {
      * <b>NOTICE: This variant must <u>only</u> be used for "GET-style" Requests where none of the endpoints the call
      * flow passes will add, remove or alter any state of the system, and where it doesn't matter all that much if a
      * message (and hence the Mats flow) is lost!</b>
-     * <p/>
+     * <p>
      * The goal of this method is to be able to get hold of e.g. account holdings, order statuses etc, for presentation
      * to a user. The thinking is that if such a flow fails where a message of the call flow disappears, this won't make
      * for anything else than a bit annoyed user: No important state change, like the adding, deleting or change of an
@@ -501,7 +501,7 @@ public class MatsFuturizer implements AutoCloseable {
      * stored to permanent storage at any point, while interactive means that it will skip any backlogged queues. In
      * addition, the <i>noAudit</i> flag is set, since it is a waste of storage space to archive the actual contents of
      * Request and Reply messages that do not alter the system.
-     * <p/>
+     * <p>
      * Sets the following properties on the sent Mats message:
      * <ul>
      * <li><b>Non-persistent</b>: Since it is not vitally important that this message is not lost, non-persistent

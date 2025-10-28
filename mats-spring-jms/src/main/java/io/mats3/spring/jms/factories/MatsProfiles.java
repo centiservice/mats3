@@ -29,7 +29,7 @@ import io.mats3.spring.jms.factories.ScenarioConnectionFactoryWrapper.Connection
  * (or, for {@link MatsProfiles#PROFILE_MATS_TEST}, name prefix) specified here, but also checks the Spring
  * {@link Environment} for the existence of a property of the same names but with the dash ("-") replaced by dot (".").
  * The Spring Environment by default consist of System Properties and Environment Variables.
- * <p />
+ * <p>
  * <b>The main documentation for the MatsScenario concept is in the JavaDoc of
  * {@link ScenarioConnectionFactoryProducer}</b>.
  *

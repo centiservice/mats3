@@ -55,7 +55,7 @@ public class Extension_MatsTestEndpoints {
      * {@link #createEndpoint(Extension_Mats, String, Class, Class) createEndpoint(MATS, endpointId, replyClass,
      * stateClass, incomingClass)} to easily supply the corresponding <code>{@literal @Extension}</code>
      * {@link Extension_Mats} for fetching the <code>MatsFactory</code>.
-     * <p/>
+     * <p>
      * <b>You need to set the process lambda via {@link Endpoint#setProcessLambda(ProcessSingleLambda)
      * setProcessLambda(lambda)}</b> - typically inside the <code>{@literal @Test}</code> method - before sending
      * messages to it. The await methods will throw an <code>IllegalStateException</code> if not set.

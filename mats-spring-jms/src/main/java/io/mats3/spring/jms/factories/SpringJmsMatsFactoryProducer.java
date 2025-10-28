@@ -45,7 +45,7 @@ import io.mats3.spring.jms.tx.JmsMatsTransactionManager_JmsAndSpringManagedSqlTx
  * <code>HibernateTransactionManager</code>). The code here is very simple, really just creating the {@link MatsFactory}
  * normally and then wrapping it up in a {@link SpringJmsMatsFactoryWrapper} which provides hook-in to the Spring
  * context (read more about those hook-in features on its {@link SpringJmsMatsFactoryWrapper JavaDoc}).
- * <p />
+ * <p>
  * <b>NOTE: It returns an instance of {@link SpringJmsMatsFactoryWrapper}, which it is assumed that you put in the
  * Spring context as a bean, so that Spring property injection and <code>@PostConstruct</code> is run on it.</b> If you
  * instead employ a FactoryBean <i>(e.g. because you have made a cool Mats single-annotation-configuration solution for
@@ -64,7 +64,7 @@ public class SpringJmsMatsFactoryProducer {
     /**
      * If you need a {@link MatsFactory} employing Spring's DataSourceTransactionManager (which you probably do in a
      * Spring environment utilizing SQL), this is your factory method.
-     * <p />
+     * <p>
      * Usage: Make a @Bean-annotated method which returns the result of this method, or employ a Spring
      * <code>FactoryBean</code> where you then need to invoke
      * {@link SpringJmsMatsFactoryWrapper#postConstructForFactoryBean(Environment, ApplicationContext)}.
@@ -102,7 +102,7 @@ public class SpringJmsMatsFactoryProducer {
     /**
      * If you need a {@link MatsFactory} employing a {@link PlatformTransactionManager} of your choosing, which you
      * quite possibly want in a Spring environment using e.g. Spring JDBC or Hibernate, this is your factory method.
-     * <p />
+     * <p>
      * Usage: Make a @Bean-annotated method which returns the result of this method, or employ a Spring
      * <code>FactoryBean</code> where you then need to invoke
      * {@link SpringJmsMatsFactoryWrapper#postConstructForFactoryBean(Environment, ApplicationContext)}.
@@ -143,7 +143,7 @@ public class SpringJmsMatsFactoryProducer {
      * demarcation, use
      * {@link #createSpringDataSourceTxMatsFactory(String, String, MatsSerializer, ConnectionFactory, DataSource)
      * createSpringDataSourceTxMatsFactory(..)} instead.
-     * <p />
+     * <p>
      * Usage: Make a @Bean-annotated method which returns the result of this method, or employ a Spring
      * <code>FactoryBean</code> where you then need to invoke
      * {@link SpringJmsMatsFactoryWrapper#postConstructForFactoryBean(Environment, ApplicationContext)}.

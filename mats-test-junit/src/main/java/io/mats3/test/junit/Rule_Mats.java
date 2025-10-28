@@ -34,14 +34,14 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
 /**
  * {@link ClassRule} which provides a full Mats harness for unit testing by creating {@link JmsMatsFactory MatsFactory}
  * utilizing an in-vm Active MQ broker, and optionally a {@link TestH2DataSource} for database tests.
- * <p/>
+ * <p>
  * <b>Notice: If you are in a Spring-context, this is probably not what you are looking for</b>, as the MatsFactory then
  * should reside as a bean in the Spring context. Look in the 'mats-spring-test' package for testing tools for Spring.
- * <p/>
+ * <p>
  * By default the {@link #create() rule} will create a {@link MatsSerializerJson} which will be the serializer utilized
  * by the created {@link JmsMatsFactory MatsFactory}. Should one want to use a different serialize then this can be
  * specified using the method {@link #create(MatsSerializer)}.
- * <p/>
+ * <p>
  * {@link Rule_Mats} shall be considered a {@link ClassRule} and thus annotated as such, being a {@link ClassRule} also
  * means that the instance field shall be static. Therefore to utilize {@link Rule_Mats} one should add it to a test
  * class in this fashion:

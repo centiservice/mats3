@@ -1102,7 +1102,7 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
     /**
      * Special case of JmsMatsJmsException indicating that reading from JMS Message failed, i.e. caused a JMSException.
      * This shall "crash" the JmsSessionHolder
-     * <p/>
+     * <p>
      * NOTE: This means we will NOT run the "completed" Interceptors.
      */
     private static class JmsMessageReadFailure_JmsMatsJmsException extends JmsMatsJmsException {
@@ -1115,7 +1115,7 @@ class JmsMatsStageProcessor<R, S, I> implements JmsMatsStatics, JmsMatsTxContext
      * Special case of MatsRefuseMessageException indicating that there are issues with the contents of the JMS message
      * (not MapMessage, missing data, wrong stage etc): Handled by tx mgr, attempted insta-rollback (refuse). Note:
      * There was not a JMS problem here, but the contents of the message was wrong/unexpected.
-     * <p/>
+     * <p>
      * NOTE: This means we will NOT run the "completed" Interceptors.
      */
     private static class JmsMessageProblem_RefuseMessageException extends MatsRefuseMessageException {

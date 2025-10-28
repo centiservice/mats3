@@ -72,7 +72,7 @@ public class TestH2DataSource implements XADataSource, DataSource, ConnectionPoo
      * Property {@link #SYSPROP_MATS_TEST_H2} (<code>"mats.test.h2"</code>) is directly set to a different URL to use,
      * with the special case that if it is {@link #SYSPROP_VALUE_FILE_BASED} (<code>"file"</code>), in which case
      * {@link #FILE_BASED_TEST_H2_DATABASE_URL} (<code>"jdbc:h2:./matsTestH2DB;AUTO_SERVER=TRUE</code>) is used as URL.
-     * <p />
+     * <p>
      * <b>Notice that the method {@link #cleanDatabase()} is invoked when creating the DataSource, which is relevant
      * when using the file-based variant.</b>
      *

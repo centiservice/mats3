@@ -36,14 +36,14 @@ import io.mats3.test.broker.MatsTestBroker;
  * started, and an ActiveMQ ConnectionFactory will be produced. <i>(ActiveMQ is default, but this class by default
  * employs the {@link MatsTestBroker} tool class for creating these connections, and this class can be directed to
  * instead create, or connect to, an Artemis broker).</i>
- * <p/>
+ * <p>
  * Note: The actual decision logic and "Spring interfacing" is done in {@link ScenarioConnectionFactoryWrapper}, which
  * is the actual class of instances that will end up as Spring beans - this class is a producer of such instances,
  * simplifying the configuration, providing sane defaults.
- * <p/>
+ * <p>
  * <b>Do note that this is purely a convenience functionality, and is in no way required for the Mats system to
  * work!</b>
- * <p/>
+ * <p>
  * As a matter of fact, you can achieve the exact same with Spring's Profiles (or any other "switch configuration based
  * on some property or state"-logic you can cook up), but this class effectively represents an opinionated
  * implementation of the config switching that will be needed in most scenarios working with Mats, and will probably
@@ -53,12 +53,12 @@ import io.mats3.test.broker.MatsTestBroker;
  * <code>@CompanyMatsSetup</code>-type annotation which alone will pull up both the needed ConnectionFactory (with URL
  * and whatever needed already set) and MatsFactory, which handles all the mentioned scenarios, by merely placing that
  * annotation on the main config class of your service.
- * <p/>
+ * <p>
  * The point is this: If you are new to Message Queue based development, you will probably soon sit with the problem of
  * how to create a code base that efficiently lets you run it in production, while also is easy to develop on, and being
  * simple to perform integration test on your endpoints - the problem being that you need different types of
  * ConnectionFactories for the different scenarios, and in some cases also needing an in-vm MQ Broker.
- * <p/>
+ * <p>
  * There are typically four different scenarios that you need to juggle between, the two latter being identical wrt. the
  * Mats setup (which is the reason that {@link MatsScenario} only has three scenarios defined):
  *
@@ -89,7 +89,7 @@ import io.mats3.test.broker.MatsTestBroker;
  * </ul>
  *
  * Please now read (all the) JavaDoc of {@link MatsProfiles} and its enum values!
- * <p/>
+ * <p>
  * For the localhost and localVM scenarios, this class by default utilizes the ActiveMQ Broker and ConnectionFactory.
  * For all scenarios, but in particular for the "regular" (production-like), you can provide whatever ConnectionFactory
  * you want (configured as you desire) - this class will just wrap it.
@@ -105,13 +105,13 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
      * You may invoke the other "withXXX" methods to tailor further, but this is optional. After finished setup, invoke
      * {@link #createConnectionFactory()} to get the {@link ScenarioConnectionFactoryWrapper} that you then can feed to
      * a {@link MatsFactory}.
-     * <p/>
+     * <p>
      * Notice that deciding between Production and e.g. Staging, and other prod-like environments, and which
      * corresponding ConnectionFactory URL or even type of ConnectionFactory you should employ here, is up to you: You
      * might be using configuration properties, Spring's Profile concept, System Properties (java cmd line
      * "-D"-properties), or system environment variables - only you know how you differentiate between these
      * environments.
-     * <p/>
+     * <p>
      * Notice: You are required to set up this provider lambda. However, if you are just setting up your project,
      * wanting to start writing tests, or otherwise only use the {@link MatsScenario#LOCALVM LocalVM scenario}, and thus
      * will not utilize the "regular" scenario just yet, you could just supply a lambda here that throws e.g. an
@@ -157,7 +157,7 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
      * class, so do not provide this unless you want a different broker entirely!), an instance of {@link MatsTestBroker
      * MatsTestBroker} will be gotten by invoking {@link MatsTestBroker#create()}. From the instance of
      * {@code MatsTestBroker}, the {@link MatsTestBroker#getConnectionFactory() ConnectionFactory will be gotten}.
-     * <p/>
+     * <p>
      * Notice that the {@code MatsTestBroker} has a small extra feature, where you can have it produce a
      * ConnectionFactory to localhost or a specific URL instead of the in-vm MQ Broker it otherwise produces, by means
      * of specifying a special system property ("-D" options) (In this case, it does not create the in-vm MQ Broker
@@ -182,7 +182,7 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
      * {@link ConfigurableScenarioDecider#createDefaultScenarioDecider()}. This default is configured to throw
      * {@link IllegalStateException} if none of the {@link MatsScenario}s are chosen. This method can override that by
      * invoking the {@link ConfigurableScenarioDecider#setDefaultScenario(Supplier)} method for you.
-     * <p />
+     * <p>
      * Note: This method is only of use if you employ the default ScenarioDecider, and it thus makes no sense to use it
      * while also employing {@link #withScenarioDecider(ScenarioDecider)}, as you should have handled the default
      * scenario situation in the ScenarioDecider you then provide!
@@ -210,12 +210,12 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
      * run integration tests against a specific Active MQ Broker, e.g. on your localhost, there is already a feature for
      * that in {@link MatsTestBroker}, as mentioned in the JavaDoc of
      * {@link #withLocalVmConnectionFactory(ConnectionFactoryProvider) localVmConnectionFactory(..)}).</i>
-     * <p />
+     * <p>
      * How you otherwise decide between {@link MatsScenario#REGULAR REGULAR}, {@link MatsScenario#LOCALHOST LOCALHOST}
      * and {@link MatsScenario#LOCALVM LOCALVM} is up to you. <i>(For REGULAR, you will again have to decide whether you
      * are in Production or Staging or whatever, if this e.g. gives different URLs or changes which ConnectionFactory
      * class to instantiate - read more at {@link #withRegularConnectionFactory(ConnectionFactoryProvider)}.</i>
-     * <p />
+     * <p>
      * Note: This method should not be used in conjunction with invoking the {@link #withDefaultScenario(MatsScenario)}
      * method, as you should have handled the default scenario situation in the ScenarioDecider you provide!
      *
@@ -306,7 +306,7 @@ public class ScenarioConnectionFactoryProducer implements MatsProfiles {
     /**
      * Employing {@link MatsTestBroker} directly, getting an in-vm broker (default ActiveMQ, but can be overridden by
      * sys props)
-     * <p/>
+     * <p>
      * <i>Note that the MatsTestBroker has features to choose which broker type, and can also be directed to connect to
      * localhost instead of employing an in-vm broker - which is actually what is done in the
      * {@link ScenarioLocalhostConnectionFactory} class right above.</i>

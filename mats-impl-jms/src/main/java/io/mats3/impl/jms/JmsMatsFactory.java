@@ -316,7 +316,7 @@ public class JmsMatsFactory implements JmsMatsStatics, JmsMatsStartStoppable, Ma
     /**
      * Sets the default KeepTrace if the initiation doesn't set one itself. The default for this default is
      * {@link KeepTrace#COMPACT}. Not yet moved to FactoryConfig, because I want to evaluate.
-     * <p/>
+     * <p>
      * Must be set before the MatsFactory is "published", memory wise.
      *
      * @param defaultKeepTrace
@@ -702,7 +702,7 @@ public class JmsMatsFactory implements JmsMatsStatics, JmsMatsStartStoppable, Ma
      * {@link JmsMatsInitiate#createForTrueInitiation(JmsMatsFactory, List, JmsMatsInternalExecutionContext, DoAfterCommitRunnableHolder, String)}</li>
      * </ul>
      * <b>Notice: When forking out in new thread, make sure to copy over this ThreadLocal!</b>
-     * <p/>
+     * <p>
      * Notice: This concept is NOT overlapping with "existing mats initiate": The properties from current stage
      * processing shall be moved over to the new initiation EVEN IF this is done with a non-default initiator. The
      * "hoisting" of an initiation transactions into an existing transaction is orthogonal to whether the processing is

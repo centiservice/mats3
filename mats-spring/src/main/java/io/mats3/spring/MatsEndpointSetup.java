@@ -38,12 +38,12 @@ import io.mats3.spring.MatsEndpointSetup.MatsEndpointSetups;
  * <b>NOTE: You should probably use {@link MatsClassMapping} or {@link MatsMapping @MatsMapping} instead - or otherwise
  * consider plain programmatic registration instead of using this feature as it brings very little convenience compared
  * to pure Java.</b>
- * <p/>
+ * <p>
  * A method annotated with this repeatable annotation specifies a method that shall <em>set up</em> a Multi-Staged Mats
  * Endpoint. Note that as opposed to {@link MatsMapping @MatsMapping} and {@link MatsClassMapping}, this method will be
  * invoked <em>once</em> at startup to <i>set up</i> the endpoint, and will not be invoked each time when the Mats
  * endpoint gets a message (as is the case with {@literal @MatsMapping} and {@literal @MatsClassMapping}).
- * <p/>
+ * <p>
  * You specify the EndpointId, state STO type and the reply DTO type using annotation parameters. The method is then
  * invoked once during Spring context startup, with a {@link MatsEndpoint MatsEndpoint} instance as argument, as would
  * have been returned by {@link MatsFactory#staged(String, Class, Class) matsFactory.staged(...)} when using
@@ -54,7 +54,7 @@ import io.mats3.spring.MatsEndpointSetup.MatsEndpointSetups;
  * config getters on the endpoint instance, and for each stage you create (e.g. to set concurrency). Remember again that
  * this is a <i>setup method</i> where you should set up the endpoint, and it is invoked only <i>once</i> during
  * startup, and then never again.
- * <p/>
+ * <p>
  * In a multi-MatsFactory setup, you may qualify which MatsFactory this Endpoint should be constructed on - read JavaDoc
  * on @{@link MatsMapping} for how this works.
  *

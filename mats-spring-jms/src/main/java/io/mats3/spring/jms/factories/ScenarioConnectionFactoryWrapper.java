@@ -31,7 +31,7 @@ import io.mats3.util.wrappers.ConnectionFactoryWrapper;
  * A <code>ConnectionFactoryWrapper</code> which lazily decides which of the three {@link MatsScenario}s are active, and
  * produces the wrapper-target {@link ConnectionFactory} based on that - you most probably want to use
  * {@link ScenarioConnectionFactoryProducer} to make an instance of this class, but you can configure it directly too.
- * <p />
+ * <p>
  * <b>The main documentation for this MatsScenario concept is in the JavaDoc of
  * {@link ScenarioConnectionFactoryProducer}</b>.
  *

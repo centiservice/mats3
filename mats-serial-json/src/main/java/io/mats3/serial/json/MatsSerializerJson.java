@@ -37,7 +37,7 @@ import tools.jackson.databind.ObjectWriter;
  * Implementation of {@link MatsSerializer} that employs <a href="https://github.com/FasterXML/jackson">Jackson JSON
  * library</a> for serialization and deserialization, and compress and decompress using {@link Deflater} and
  * {@link Inflater}.
- * <p />
+ * <p>
  * The Jackson {@link ObjectMapper} is configured to only handle fields (think "data struct"), i.e. not use setters or
  * getters; and to only include non-null fields; and upon deserialization to ignore properties from the JSON that has no
  * field in the class to be deserialized into (both to enable the modification of DTOs on the client side by removing

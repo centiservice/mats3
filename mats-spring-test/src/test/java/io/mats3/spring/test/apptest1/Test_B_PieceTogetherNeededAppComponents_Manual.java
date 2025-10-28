@@ -51,7 +51,7 @@ import io.mats3.util.MatsFuturizer.Reply;
  * This test "pieces together" what we need from the application to run the test, and then create the necessary Mats
  * infrastructure components "manually", employing {@link TestSpringMatsFactoryProvider} to get a handy
  * {@link MatsFactory} backed by an in-vm ActiveMQ. See {@link TestConfiguration}.
- * <p />
+ * <p>
  * <b>Worth noting:</b> Spring's testing tools have a feature where any inner class annotated
  * with @{@link Configuration} will be automatically picked up. However, this works really badly together
  * with @{@link ComponentScan} which is employed by the application {@link AppMain_MockAndTestingHarnesses}: Since we
@@ -59,7 +59,7 @@ import io.mats3.util.MatsFuturizer.Reply;
  * internal Configuration class</i>! (this is relevant for {@link Test_A_UseFullApplicationConfiguration}) I perceive
  * this as a pretty annoying flaw, but that is how it is. That is why we here use the @{@link ContextConfiguration} and
  * <i>explicitly</i> point it to the inner Configuration class, which then is NOT annotated with Configuration.
- * <p />
+ * <p>
  * An alternative is employing the nonstandard {@link ConfigurationForTest} and
  * {@link ComponentScanExcludingConfigurationForTest} combination instead of the Spring standard - this is done in the
  * "apptest2" test package, {@link AppMain_TwoMatsFactories}. If you find this nicer, then go right ahead. Also, if

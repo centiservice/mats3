@@ -50,7 +50,7 @@ public class AppEndpoints {
 
     /**
      * Test "Single" endpoint.
-     * <p/>
+     * <p>
      * Notice how we're using the same endpointId as {@link SingleEndpointUsingMatsClassMapping}, but this is OK since
      * this is on a different MatsFactory.
      */
@@ -65,7 +65,7 @@ public class AppEndpoints {
 
     /**
      * Test Single-Stage @MatsClassMapping endpoint.
-     * <p/>
+     * <p>
      * Notice how we're using the same endpointId as {@link AppEndpoints#springMatsSingleEndpoint(SpringTestDataTO)},
      * but this is OK since this is on a different MatsFactory.
      */

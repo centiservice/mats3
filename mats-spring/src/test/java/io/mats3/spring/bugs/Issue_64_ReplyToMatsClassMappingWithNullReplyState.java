@@ -44,7 +44,7 @@ import io.mats3.test.MatsTestLatch.Result;
  * (notice the <code>@MatsClassMapping</code>), i.e. setting <code>null</code> reply state. This "correctly" gives null
  * as incoming state to the staged endpoint, but this works out rather bad for MatsClassMapping, where the state object
  * also works as "this" for the "template" fields (i.e. injected fields), as well as the stage methods.
- * <p/>
+ * <p>
  * Realized that this was not a problem with <code>@MatsClassMapping</code> itself, but more generically as it is thus
  * evidently possible to force the receiving endpoint to get a null state, even though the endpoint has declared a state
  * class, so continued investigation with a plain Java test in "mats-api-test", class:

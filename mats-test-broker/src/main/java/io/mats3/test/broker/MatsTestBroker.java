@@ -53,10 +53,10 @@ import io.mats3.test.broker.messagecursor.Reflection_Hacked_StoreQueueCursor.Ref
 /**
  * A special utility class utilized in tests and Mats test infrastructure providing a ConnectionFactory for the test
  * (Jms)MatsFactory - and if relevant also fires up an embedded ("in-VM") ActiveMQ (default) or Artemis message broker.
- * <p/>
+ * <p>
  * If the system property "{@link #SYSPROP_MATS_TEST_BROKER mats.test.broker}" is set, it directs which type of broker
  * should be connected to, and possibly instantiate embedded.
- * <p/>
+ * <p>
  * If the system property "{@link #SYSPROP_MATS_TEST_BROKERURL mats.test.brokerurl}" is set, it both defines whether the
  * embedded message broker will be created and which URL the created ConnectionFactory should use.
  *
@@ -126,7 +126,7 @@ public interface MatsTestBroker {
      * Currently, the Mats3 system per default employs "Mats Managed Dlq Diverts", and in test setting, this is set to 2
      * in 'MatsTestFactory' since it doesn't make much sense to wait for exponential fallback of 7 redeliveries in a
      * "test that this message DLQs"-setting.
-     * <p/>
+     * <p>
      * However, historically, this constant here was set to 2 to achieve the same effect (For ActiveMQ, this means 1
      * delivery + 1 redelivery. For Artemis, it sets the maximumRedeliveries to 2) - but now, to test the Mats managed
      * DLQ, we set this to a higher number (5) so that it is the MatsFactory that does DLQ divert. In the test
@@ -260,10 +260,10 @@ public interface MatsTestBroker {
     /**
      * <b>Note: This is most probably NOT what you want to use in a testing scenario - for this you want to use the
      * method {@link MatsTestBroker} class directly, using its {@link #create()} method.</b>
-     * <p/>
+     * <p>
      * This method is publicly available for examples and experiments, and provide a way to create an ActiveMQ broker
      * with some Mats optimizations, with a single method call.
-     * <p/>
+     * <p>
      * Note: The Broker gets a random name. If you want to connect to a in-vm broker, you must provide this name, check
      * JavaDoc of method {@link #newActiveMqConnectionFactory(String)} for info.
      *
@@ -522,7 +522,7 @@ public interface MatsTestBroker {
     /**
      * <b>Note: This is most probably NOT what you want to use in a testing scenario - for this you want to use the
      * method {@link MatsTestBroker} class directly, using its {@link #create()} method.</b>
-     * <p/>
+     * <p>
      * This method is publicly available for examples and experiments, and provide a way to create an ActiveMQ
      * ConnectionFactory with some Mats optimizations, with a single method call.
      *

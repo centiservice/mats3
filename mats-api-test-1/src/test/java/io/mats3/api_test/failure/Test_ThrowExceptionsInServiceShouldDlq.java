@@ -45,7 +45,7 @@ import io.mats3.test.junit.Rule_Mats;
  * {@link MatsRefuseMessageException}, which should put the message on the MQ DLQ for that endpoint's queue right away,
  * without retries.</li>
  * </ol>
- * <p/>
+ * <p>
  * ASCII-artsy, it looks like this:
  *
  * <pre>

@@ -304,7 +304,7 @@ public interface MatsFactory extends StartStoppable {
      * Gets or creates the default Initiator (whose name is 'default') from which to initiate new Mats processes, i.e.
      * send a message from "outside of Mats" to a Mats endpoint - <b>NOTICE: This is an active object that can carry
      * backend resources, and it is Thread Safe: You are not supposed to create one instance per message you send!</b>
-     * <p />
+     * <p>
      * <b>IMPORTANT NOTICE!!</b> The MatsInitiator returned from this specific method is special when used within a Mats
      * Stage's context (i.e. the Thread running a Mats Stage): Any initiations performed with it within a Mats Stage
      * will have the same transactional demarcation as an initiation performed using
@@ -318,7 +318,7 @@ public interface MatsFactory extends StartStoppable {
      * will never throw those exceptions, since the actual initiation is not performed until the Mats Stage exits. But,
      * if you want to make such a dual mode method that can be employed both outside and within a Mats Stage, you should
      * thus code for the "Outside" mode, handling those Exceptions as you would in an ordinary initiation.
-     * <p />
+     * <p>
      * If you would really NOT want this - i.e. you for some reason want the initiation performed within the stage to
      * execute even though the Mats Stage fails - you may use {@link #getOrCreateInitiator(String)}, and you can even
      * request the same underlying default initiator by just supplying that method with the argument "default". Please,
@@ -326,7 +326,7 @@ public interface MatsFactory extends StartStoppable {
      * retry-mechanism will kick in, running the Mats Stage one more time, and you will thus potentially send that
      * message many times - one time per retry - since such an initiation with a NON-default MatsInitiator is
      * specifically then <i>not</i> part of the Stage's transactional demarcation.
-     * <p />
+     * <p>
      * <b>Just to ensure that this point comes across: The returned MatsInitiator is Thread Safe, and meant for reuse:
      * You are <em>not</em> supposed to create one instance of {@link MatsInitiator} per message you need to send, and
      * then close it afterwards - rather either create one for the entire application, or e.g. for each component:</b>
@@ -344,14 +344,14 @@ public interface MatsFactory extends StartStoppable {
      * Gets or creates a new Initiator from which to initiate new Mats processes, i.e. send a message from "outside of
      * Mats" to a Mats endpoint - <b>NOTICE: This is an active object that can carry backend resources, and it is Thread
      * Safe: You are not supposed to create one instance per message you send!</b>
-     * <p />
+     * <p>
      * A reason for wanting to make more than one {@link MatsInitiator} could be that each initiator might have its own
      * connection to the underlying message broker. You also might want to name the initiators based on what part of the
      * application uses it; The name of the initiator shows up in monitors and tooling.
-     * <p />
+     * <p>
      * <b>IMPORTANT NOTICE!!</b> Please read the JavaDoc of {@link #getDefaultInitiator()} for important information
      * wrt. transactional demarcation when employing a NON-default MatsInitiator <i>within a Mats Stage</i>.
-     * <p />
+     * <p>
      * <b>Just to ensure that this point comes across: The returned MatsInitiator is Thread Safe, and meant for reuse:
      * You are <em>not</em> supposed to create one instance of {@link MatsInitiator} per message you need to send, and
      * then close it afterwards - rather either create one for the entire application, or e.g. for each component:</b>
@@ -403,7 +403,7 @@ public interface MatsFactory extends StartStoppable {
     /**
      * Waits until all endpoints have fully entered the receive-loops, i.e. runs
      * {@link MatsEndpoint#waitForReceiving(int)} on all the endpoints started from this factory.
-     * <p />
+     * <p>
      * <b>Note: If there are no Endpoints registered, this will immediately return <code>true</code>!</b>
      */
     @Override
@@ -535,7 +535,7 @@ public interface MatsFactory extends StartStoppable {
          * X-Request-ID of "abc", and the Mats flow is initiated with TraceId "123", the resulting TraceId for the Mats
          * flow would be "abc+123" (the plus character being the preferred separator for composed TraceIds, i.e.
          * TraceIds that are put together by successively more specific information).
-         * <p />
+         * <p>
          * The Function gets the entire user provided TraceId as input (as set via
          * {@link MatsInitiate#traceId(CharSequence)}, and should return a fully formed TraceId that should be used
          * instead. Needless to say, it should never throw, and if it doesn't have any contextual id to prefix with, it
@@ -886,7 +886,7 @@ public interface MatsFactory extends StartStoppable {
      * A base Wrapper for {@link MatsFactory}, which simply implements MatsFactory, takes a MatsFactory instance and
      * forwards all calls to that. Use this if you need to wrap the MatsFactory, where most of the methods are
      * pass-through to the target, as any changes to the MatsFactory interface then won't break your wrapper.
-     * <p />
+     * <p>
      * Note: The {@link #hashCode()} and {@link #equals(Object)} are implemented to forward to the wrappee.
      */
     class MatsFactoryWrapper implements MatsWrapper<MatsFactory>, MatsFactory {

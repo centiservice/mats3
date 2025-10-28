@@ -42,12 +42,12 @@ import io.mats3.MatsFactory.MatsWrapper;
  * PreparedStatement - i.e. not until the user code actually needs to talk to the database. This deferring results in a
  * situation where if the user code opens a transaction, but does <i>not</i> need to talk to the database after all, and
  * then commits the transaction, the entire operation is elided - saving several round-trips over the wire.
- * <p />
+ * <p>
  * The use of Java Dynamic Proxies is a simple way to ensure that the implementation is future proof, in that any method
  * that appears on the Connection in any Java version will be handled by triggering actual Connection fetching and
  * subsequent call-through to the actual method. Only the methods that are used in standard transaction management are
  * specially handled to defer the getting of the actual Connection.
- * <p />
+ * <p>
  * Note that it is assumed that the AutoCommit, TransactionIsolation and ReadOnly values are identical for all fetched
  * Connections (that is, the pool resets them to some default when {@link Connection#close() connection.close()} is
  * invoked). The default values for these properties are retrieved from the very first Connection that is actually
@@ -56,7 +56,7 @@ import io.mats3.MatsFactory.MatsWrapper;
  * PreparedStatement is created). However, as a further performance optimization, when about to set the value, it is
  * compared against those default values gotten from the first Connection, and if they are equal, the actual
  * setting-invocation is elided.
- * <p />
+ * <p>
  * Inspired by Spring's LazyConnectionDataSourceProxy, but with the additional feature that you can query the Connection
  * proxy for whether the underlying Connection was actually gotten, since it is a {@link DeferredConnectionProxy
  * DeferredConnectionProxy} (extends {@link Connection}). It also has the method
@@ -65,7 +65,7 @@ import io.mats3.MatsFactory.MatsWrapper;
  * {@link #methodInvoked(boolean, DeferredConnectionProxy, Connection, Method, Object[], Object) methodInvoked(..)},
  * which is invoked after every method invoked on the returned {@link DeferredConnectionProxy DeferredConnectionProxy}s,
  * which primarily is interesting for testing, but might have other uses.
- * <p />
+ * <p>
  * If in a Spring environment, the returned Connection instances furthermore implements
  * <code>org.springframework.jdbc.datasource.ConnectionProxy</code>.
  *

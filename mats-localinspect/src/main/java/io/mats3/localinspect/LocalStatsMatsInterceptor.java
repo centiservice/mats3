@@ -54,10 +54,10 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
 /**
  * Interceptor that collects "local stats" for Initiators and Stages of Endpoints, which can be used in conjunction with
  * a MatsFactory report generator, {@link LocalHtmlInspectForMatsFactory}.
- * <p />
+ * <p>
  * To install, invoke the {@link #install(MatsFactory)} method, supplying the MatsFactory. The report generator
  * will fetch the interceptor from the MatsFactory.
- * <p />
+ * <p>
  * <b>Implementation note:</b> Mats allows Initiators and Endpoints to be defined "runtime" - there is no specific setup
  * time vs. run time. This implies that the set of Endpoints and Initiators in a MatsFactory can increase from one run
  * of a report generation to the next (Endpoint may even be deleted, but this is really only meant for testing).
@@ -82,7 +82,7 @@ public class LocalStatsMatsInterceptor
      * This is an Out Of Memory avoidance in case of wrongly used initiatorIds. These are not supposed to be dynamic,
      * but there is nothing hindering a user from creating a new initiatorId per initiation. Thus, if we go above a
      * certain number of such entries, we stop adding.
-     * <p />
+     * <p>
      * Value is 500.
      */
     public static final int MAX_NUMBER_OF_DYNAMIC_ENTRIES = 500;
@@ -172,7 +172,7 @@ public class LocalStatsMatsInterceptor
 
         /**
          * Note: Not present for the {@link #isInitial()} stage, as there is no "between" for the initial stage.
-         * <p />
+         * <p>
          * Note: Only recorded for messages that happens to have the two "between" stages executed on the same node, to
          * both eliminate time skews between nodes, and to get higher precision (nanoTime()).
          */

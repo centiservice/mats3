@@ -51,7 +51,7 @@ import io.mats3.test.broker.MatsTestBroker;
  * "AppTest2" - showing how multiple MatsFactories work in a Spring environment, along with some testing - in particular
  * utilizing the special <code>{@link ComponentScanExcludingConfigurationForTest}</code> and
  * <code>{@link ConfigurationForTest}</code>.
- * <p />
+ * <p>
  * A simple Spring test application using Mats and Mats' SpringConfig; You may run it as an application, i.e. it has a
  * <code>main</code> method. The point is to show how such an Mats-utilizing Spring application, with
  * <code>{@literal @Configuration}</code> classes, <code>{@literal @Service}</code> classes,

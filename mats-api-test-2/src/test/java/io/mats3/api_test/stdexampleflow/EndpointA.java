@@ -21,7 +21,7 @@ import io.mats3.MatsFactory;
 
 /**
  * Vulgarly complex Mats Endpoint to calculate <code>a*b - (c/d + e)</code>, consisting of three stages.
- * <p/>
+ * <p>
  * Utilizes EndpointB which can calculate <code>a*b</code>, and EndpointC which can calculate <code>a/b + c</code>.
  *
  * @author Endre Stølsvik 2021-09-26 19:33 - http://stolsvik.com/, endre@stolsvik.com

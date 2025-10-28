@@ -32,7 +32,7 @@ import io.mats3.spring.jms.factories.ScenarioConnectionFactoryProducer;
  * <code>@ActiveProfiles({@link MatsProfiles#PROFILE_MATS_TEST})</code>. This is of relevance if you employ the
  * {@link ScenarioConnectionFactoryProducer JmsSpringConnectionFactoryProducer}
  * "scenario decider" system - the "mats-test" profile per default sends this into "in-vm broker mode".
- * <p />
+ * <p>
  * You may just as well do the direct <code>{@literal @ActiveProfiles}</code> annotation yourself, but this is a few
  * letter shorter, and slightly more concise.
  *

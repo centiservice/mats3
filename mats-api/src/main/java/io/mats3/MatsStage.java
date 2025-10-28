@@ -25,7 +25,7 @@ import io.mats3.MatsEndpoint.ProcessSingleLambda;
  * A representation of a process stage of a {@link MatsEndpoint}. Either constructed implicitly (for single-stage
  * endpoints, and terminators), or by invoking the {@link MatsEndpoint#stage(Class, io.mats3.MatsEndpoint.ProcessLambda)
  * MatsEndpoint.stage(...)}-methods on {@link MatsFactory#staged(String, Class, Class) multi-stage} endpoints.
- * <p />
+ * <p>
  * Note: It should be possible to use instances of <code>MatsStage</code> as keys in a <code>HashMap</code>, i.e. their
  * equals and hashCode should remain stable throughout the life of the MatsFactory - and similar instances but with
  * different MatsFactory are <i>not</i> equals. Depending on the implementation, instance equality may be sufficient.
@@ -47,7 +47,7 @@ public interface MatsStage<R, S, I> extends StartStoppable {
     /**
      * Starts this stage, thereby firing up the queue processing using a set of threads, the number decided by the
      * {@link StageConfig#getConcurrency()} for each stage.
-     * <p/>
+     * <p>
      * Will generally be invoked implicitly by {@link MatsEndpoint#start()}. The only reason for calling this should be
      * if its corresponding {@link #stop(int)} method has been invoked to stop processing.
      */

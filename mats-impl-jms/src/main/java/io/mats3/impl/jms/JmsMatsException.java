@@ -38,7 +38,7 @@ public class JmsMatsException extends Exception {
      * Groovy chooses to ignore the concept of checked exceptions - and it is also possible to throw such an Exception
      * with the "sneaky-throws" paradigm in pure Java (Google it) - and therefore, it is possible to get such Checked
      * Exceptions propagating even though the signature of a method states that it should not be possible.
-     * <p />
+     * <p>
      * Shall cause rollback.
      */
     public static class JmsMatsUndeclaredCheckedExceptionRaisedRuntimeException extends RuntimeException {
@@ -63,7 +63,7 @@ public class JmsMatsException extends Exception {
 
     /**
      * Specialization of {@link JmsMatsJmsException}.
-     * <p />
+     * <p>
      * Corresponds to the {@link MatsInitiator.MatsMessageSendException}, i.e. "VERY BAD!".
      */
     static class JmsMatsMessageSendException extends JmsMatsJmsException {

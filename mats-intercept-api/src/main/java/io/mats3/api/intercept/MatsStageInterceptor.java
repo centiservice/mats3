@@ -36,7 +36,7 @@ import io.mats3.api.intercept.MatsStageInterceptor.StageCompletedContext.StagePr
 /**
  * <b>Extension of MatsPlugin: Implement this interface to intercept Stage Processing</b>, then register with
  * {@link FactoryConfig#installPlugin(MatsPlugin)}.
- * <p />
+ * <p>
  * Intercepts stage processors with ability to modify the stage processing, and implement extra logging and metrics
  * gathering.
  *
@@ -51,7 +51,7 @@ public interface MatsStageInterceptor extends MatsPlugin {
      * or database or messaging system fails, this will result in the {@link StageCompletedContext} of the
      * {@link #stageCompleted(StageCompletedContext) stageCompleted(..)} call describe the problem and contain the
      * cause, see {@link StageProcessResult#USER_EXCEPTION} and {@link StageProcessResult#SYSTEM_EXCEPTION}.
-     * <p />
+     * <p>
      * <b>Note: This should really never be triggered. It would be prudent to "notify the humans" if it ever did.</b>
      */
     default void stagePreprocessAndDeserializeError(StagePreprocessAndDeserializeErrorContext context) {
@@ -72,10 +72,10 @@ public interface MatsStageInterceptor extends MatsPlugin {
      * {@link ProcessContext} (and thus modify any reply, request, next or initiations) and/or modifying state and
      * message - or even take over the entire stage. Wrt. changing messages, you should also consider
      * {@link MatsStageInterceptOutgoingMessages#stageInterceptOutgoingMessages(StageInterceptOutgoingMessageContext)}.
-     * <p />
+     * <p>
      * Default implementation is to call directly through - and if overriding, you also need to call through to get the
      * actual stage to execute.
-     * <p />
+     * <p>
      * Pulled out in separate interface, so that we don't need to invoke it if the interceptor doesn't need it.
      */
     interface MatsStageInterceptUserLambda {
@@ -91,7 +91,7 @@ public interface MatsStageInterceptor extends MatsPlugin {
     /**
      * While still within the stage process context, this interception enables modifying outgoing messages from the user
      * lambda, setting trace properties, adding "sideloads", deleting a message, or initiating additional messages.
-     * <p />
+     * <p>
      * Pulled out in separate interface, so that we don't need to invoke it if the interceptor doesn't need it.
      */
     interface MatsStageInterceptOutgoingMessages extends MatsStageInterceptor {
@@ -182,7 +182,7 @@ public interface MatsStageInterceptor extends MatsPlugin {
 
     /**
      * Common context elements for stage interception, including all the incoming message/envelope data and metadata.
-     * <p/>
+     * <p>
      * <b>Remember: There are also lots of properties on the ProcessContext!</b>
      */
     interface StageCommonContext extends StageInterceptContext {
@@ -220,7 +220,7 @@ public interface MatsStageInterceptor extends MatsPlugin {
          * calculate <i>total endpoint time</i>: If the result of a stage is {@link StageProcessResult#REPLY} or
          * {@link StageProcessResult#NONE}, then the endpoint is finished, and the current time vs. endpoint entered
          * timestamp (this method) is the total time this endpoint used.
-         * <p/>
+         * <p>
          * <b>Note that this is susceptible to time skews between nodes: If the initial stage was run on node A, while
          * this stage is run on node B, calculations on the timestamp returned from this method (from node A) vs. this
          * node (B's) {@link System#currentTimeMillis()} is highly dependent on the time synchronization between node A
@@ -240,14 +240,14 @@ public interface MatsStageInterceptor extends MatsPlugin {
          * from that endpoint is received on EndpointA.Stage3 (There can potentially be dozens of message passing and
          * processings in between those two stages (of the same endpoint), as AnotherEndpointB might itself have a dozen
          * stages, each performing requests to yet other endpoints).
-         * <p/>
+         * <p>
          * <b>Note that this is susceptible to time skews between nodes: If the preceding stage was run on node A, while
          * this stage is run on node B, calculations on the timestamp returned from this method (from node A) vs. this
          * node (B's) {@link System#currentTimeMillis()} is highly dependent on the time synchronization between node A
          * and node B.</b>
-         * <p/>
+         * <p>
          * Note: There is no preceding stage for a REQUEST to the Initial Stage of an Endpoint.
-         * <p/>
+         * <p>
          * Note: On a Terminator whose corresponding initiation did a REQUEST, the "same stack height" ends up being the
          * initiator (it is stack height 0). If an initiation goes directly to a Terminator (e.g. "fire-and-forget"
          * PUBLISH or SEND), again the "same stack height" is the initiator.

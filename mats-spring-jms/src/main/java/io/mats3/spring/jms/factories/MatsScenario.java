@@ -22,11 +22,11 @@ import io.mats3.spring.jms.factories.ScenarioConnectionFactoryWrapper.ScenarioDe
 /**
  * The three different Mats Scenarios that the {@link ScenarioConnectionFactoryWrapper} juggles between based on the
  * results of a set of three {@link ScenarioDecider}s, with an optional default choice.
- * <p />
+ * <p>
  * The method {@link ConfigurableScenarioDecider#createDefaultScenarioDecider()} creates a
  * {@link ConfigurableScenarioDecider} that sets up the standard links between the different {@link MatsProfiles} values
  * and these scenarios, as described in the JavaDoc of those values.
- * <p />
+ * <p>
  * <b>The main documentation for this MatsScenario concept is in the JavaDoc of
  * {@link ScenarioConnectionFactoryProducer}</b>.
  *

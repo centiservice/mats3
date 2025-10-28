@@ -39,10 +39,10 @@ import io.mats3.util.MatsFuturizer;
 /**
  * Spring {@link Configuration @Configuration} class that cooks up the simple test infrastructure, employing a
  * {@link MatsSerializer} from the Spring context if available, otherwise creates a default {@link MatsSerializerJson}.
- * <p />
+ * <p>
  * There is very little magic with this convenience test infrastructure configuration, you could just as well have made
  * these beans yourself - just check the code!
- * <p />
+ * <p>
  * Provided beans:
  * <ol>
  * <li>{@link MatsFactory}.</li>

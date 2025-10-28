@@ -68,9 +68,9 @@ public interface MatsTrace {
      * If this newly created MatsTrace is a child-flow (initiated within a Stage) of an existing flow, then this method
      * should be invoked to set the parent MatsMessageId, and the "total call number" which is a "Call Overflow
      * protection" mechanism.
-     * <p />
+     * <p>
      * <b>Parent Mats Message Id:</b> The MatsMessageId of the message whose processing spawned this new flow.
-     * <p />
+     * <p>
      * <b>Total Call Number:</b> Initializes the {@link #getTotalCallNumber()}. If this message is initiated within an
      * existing call flow, set to the current call's {@link #getTotalCallNumber()} + 1. This number will increase for
      * every subsequent call this flow is going through, just as with {@link #getCallNumber()} - the difference being
@@ -317,7 +317,7 @@ public interface MatsTrace {
      * opposed to the normal request out to a service expecting a reply. The functionality is functionally identical to
      * {@link #addSendCall(String, String, MessagingModel, Object, Object)} addSendCall(...)}, but has its own
      * {@link Call.CallType CallType} enum value {@link Call.CallType#NEXT NEXT}.
-     * <p />
+     * <p>
      * Note: Cannot specify {@link MessagingModel} here, as one cannot fathom where that would make sense: It must be
      * {@link MessagingModel#QUEUE QUEUE}.
      *
@@ -415,29 +415,29 @@ public interface MatsTrace {
 
     /**
      * Returns the {@link StackState} for the {@link #getCurrentCall()}, if present.
-     * <p />
+     * <p>
      * Searches in the {@link #getStateFlow() 'State Flow'} from the back (most recent) for the first element that is at
      * the current stack height, as defined by {@link #getCurrentCall()}.{@link Call#getReplyStackHeight()}. If a more
      * shallow stackDepth than the specified is encountered, or the list is exhausted without the Stack Height being
      * found, the search is terminated with null. This happens for the initial stage for an endpoint, unless the
      * 'initialState' was set on the SEND or REQUEST.
-     * <p />
+     * <p>
      * The point of the 'State Flow' is the same as for the Call list: Monitoring and debugging, by keeping a history of
      * all calls in the processing, along with the states that was present at each call point.
-     * <p />
+     * <p>
      * If "condensing" is on ({@link KeepMatsTrace#COMPACT COMPACT} or {@link KeepMatsTrace#MINIMAL MINIMAL}), the
      * stack-state-list is - by the condensing algorithm - turned in to a pure stack (as available via
      * {@link #getStateStack()}), with the StackState for the earliest stack element at position 0, while the latest
      * (current) at end of list. The above-specified search algorithm still works, as it now will either find the
      * element with the correct stack depth at the end of the list, or it is not there.
-     * <p />
+     * <p>
      * NOTE: The StateStack (mostly) includes a frame for the <i>current</i> call, as opposed to the
      * {@link Call#getReplyStack()} (reply stack), which only includes frames below us. Note that as a matter of
      * avoiding space use, on a REQUEST call, the StackState is not added for the actual REQUEST message's state stack,
      * unless the "initial incoming state" is supplied (which is uncommon - a service invocation typically starts with
      * an empty state). However, on REPLY messages, it will always be present, and hence the state stack is typically
      * one level higher (includes current frame) than the reply stack (only includes frames below).
-     * <p />
+     * <p>
      * NOTE: As further info on how the state stack relates to the reply stack height: When a REPLY comes to a
      * terminator, there are 0 more frames below. However, the terminator needs its state, which is at state stack
      * height 0.

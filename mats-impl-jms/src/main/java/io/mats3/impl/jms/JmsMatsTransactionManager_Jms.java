@@ -38,10 +38,10 @@ import io.mats3.impl.jms.JmsMatsJmsSessionHandler.JmsSessionHolder;
  * Implementation of {@link JmsMatsTransactionManager} handling only JMS (getting Connections, and creating Sessions),
  * doing all transactional handling "native", i.e. using only the JMS API (as opposed to e.g. using Spring and its
  * transaction managers).
- * <p />
+ * <p>
  * The JMS Connection and Session handling is performed in calling code, where the resulting {@link JmsSessionHolder} is
  * provided to the {@link TransactionalContext_Jms#doTransaction(JmsMatsInternalExecutionContext, ProcessingLambda)}.
- * <p />
+ * <p>
  * Note: Musing about the JmsMats transactional handling 6 years later (2021-02-03), I do find it a tad bit obscure.
  * This entire Mats implementation is a JMS implementation, and all JMS Session handling is handled by the "core", but
  * just exactly commit and rollback is handled in this class. The extensions handling SQL are much more "independent" as

@@ -35,16 +35,16 @@ import io.mats3.test.junit.Rule_Mats;
 
 /**
  * Tests the initiation within a stage functionality.
- * <p/>
+ * <p>
  * FIVE Terminators are set up: One for the normal service return, two for the initiations that are done using the
  * service's context.initiate(...), plus one for an initiation done directly on the MatsFactory.getDefaultInitiator()
  * (which when running within a Mats Stage should take part in the Stage's transactional demarcation), plus one more for
  * an initiation done directly on a MatsFactory.getOrCreateInitiator(..) from within the Stage (NOT recommended way to
  * code!).
- * <p/>
+ * <p>
  * A single-stage service is set up - which initiates three new messages to the three extra Terminators (2 x initiations
  * on ProcessContext, and 1 initiation directly on the MatsFactory), and returns a result to the normal Terminator.
- * <p/>
+ * <p>
  * TWO tests are performed:
  * <ol>
  * <li>An initiator does a request to the service, setting replyTo(Terminator) - which should result in all FIVE

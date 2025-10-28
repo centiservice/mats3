@@ -33,11 +33,11 @@ import io.mats3.test.junit.Rule_Mats;
  * "Manual visual test": The test cannot assert the suppression itself, you need to manually check the logs. But at
  * least, you get a setup where it can be easily checked. Also, the tests does check that the suppression doesn't crash
  * anything.
- * <p/>
+ * <p>
  * Note: You must run the tests one by one to be able to understand the result. Read the full output, not only the log
  * lines that IntelliJ tries to delimit for the test. The asynchronous nature of Mats results in IntelliJ not being able
  * to correctly delimit the logging output: The resulting log lines seems jumbled.
- * <p/>
+ * <p>
  * Read the JavaDoc of the tests.
  *
  * @author Endre Stølsvik - 2022-08-27 15:38 - http://endre.stolsvik.com
@@ -157,7 +157,7 @@ public class Test_SuppressLogging {
     /**
      * Requesting log suppression, but the Mats Flow goes to an endpoint and terminator which hasn't enabled
      * suppression.
-     * <p/>
+     * <p>
      * <b>NOTICE: The initiation will be log suppressed, as that is decided by the sender - but the endpoint and
      * terminator will log normally.</b>
      */

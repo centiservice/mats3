@@ -44,7 +44,7 @@ import io.mats3.serial.MatsTrace.StackState;
  * "residual" messages and DLQs. DLQ-fetching is useful if the test is designed to fail a stage, i.e. that a stage under
  * test raises some {@link RuntimeException}, or the special <code>MatsRefuseMessageException</code> due to some
  * internal validation performed.
- * <p/>
+ * <p>
  * Usage: If employing the Mats test tools, one of these should have been created for you. For the JUnit
  * <code>Rule_Mats</code>, and JUnit Jupiter <code>Extension_Mats</code>, there's a getter directly on the
  * rule/extension instance. For Spring, employing the <code>@MatsTestContext</code> or corresponding
@@ -97,14 +97,14 @@ public interface MatsTestBrokerInterface {
      * setting" of the properties which the tool needs to perform its job. (Reason for reflection: This class resides in
      * the 'mats-test' project - which is for testing, while the <code>SpringJmsMatsFactoryWrapper</code> is in the
      * 'mats-spring-jms' project - which is for "production").
-     * <p />
+     * <p>
      * The matsFactory parameter currently needs to be a JmsMatsFactory. We need all of the following from it
      * <ul>
      * <li><code>matsFactory.getFactoryConfig().getMatsDestinationPrefix()</code> (standard MatsFactory)</li>
      * <li><code>matsFactory.getFactoryConfig().getMatsTraceKey()</code> (standard MatsFactory)</li>
      * <li>The {@link MatsSerializer} to provide access to contents from messages (from JmsMatsFactory)</li>
      * </ul>
-     * <p />
+     * <p>
      * <b>Note: The MatsFactory provided may be a {@link MatsFactoryWrapper}, but it must resolve to a
      * {@link JmsMatsFactory} via the {@link MatsFactory#unwrapFully()}!</b> Otherwise, it'll throw an
      * {@link IllegalArgumentException}.

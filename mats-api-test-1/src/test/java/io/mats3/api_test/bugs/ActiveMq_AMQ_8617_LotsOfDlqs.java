@@ -40,10 +40,10 @@ import io.mats3.test.junit.Rule_Mats;
 /**
  * Testing a failure scenario observed with ActiveMQ with connectionFactory.setNonBlockingRedelivery() and
  * redeliveryPolicy set to exponential backoff with collision avoidance.
- * <p/>
+ * <p>
  * The bug is described in <a href="https://issues.apache.org/jira/browse/AMQ-8617">AMQ-8617</a>, and now fixed for
  * ActiveMQ >= 5.17.3.
- * <p/>
+ * <p>
  * Tests both a whole heap DLQing messages in a row (which was the problem in AMQ-8617), and then a set where some DLQs
  * (exception all the time), while others go through, after 0 or 1 exception - the latter to validate that ordinary DLQ
  * and deliveries still work.

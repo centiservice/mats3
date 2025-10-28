@@ -29,10 +29,10 @@ import io.mats3.MatsInitiator.MatsInitiate;
 /**
  * <b>Extension of MatsPlugin: Implement this interface to intercept Initiations</b>, then register with
  * {@link FactoryConfig#installPlugin(MatsPlugin)}.
- * <p />
+ * <p>
  * Meant for intercepting initiations with ability to modify the initiation, and to implement extra logging and metrics
  * gathering.
- * <p />
+ * <p>
  * When more than one interceptor is installed, the ordering becomes interesting. If the following class is added twice,
  * <b>first</b> with 1 as the argument, and then <b>secondly</b> with 2 as the argument ..:
  *
@@ -117,20 +117,20 @@ import io.mats3.MatsInitiator.MatsInitiate;
  * executed. What this means, is that you should probably not make severe ordering dependencies between interceptors
  * which depends on wrapping the MatsInitiate instance, as your head will most probably hurt from the ensuing twisted
  * reasoning!
- * <p />
+ * <p>
  * <b>Note: This is only invoked for proper, actual initiations "from outside of Mats", i.e. using a
  * {@link MatsInitiator} gotten with {@link MatsFactory#getDefaultInitiator()} or
  * {@link MatsFactory#getOrCreateInitiator(String)}</b> <i>- and notice the special semantics of getDefaultInitiator(),
  * whereby if such an seemingly "from the outside" initiation is invoked when code-flow-wise within a Stage, you will
  * actually be "elevated" to be initiated "within Mats" using the Stage initiator - and hence this interceptor will not
  * be invoked (it is no longer "from outside of Mats").</i>
- * <p />
+ * <p>
  * The concept of "outside" vs. "inside" perhaps seems subtle, but there is a distinct difference: No processing will
  * ever happen in a Mats fabric if no initiations happens "from the outside": It is always a "from the outside"
  * initiation that will set Mats flows in action. Such a process flow might then set several new Mats flows in action
  * (i.e. initiations "from the inside"), but those are dependent on the initial Mats flow that was set in motion "from
  * the outside", and would never have been initiated was it not for such initiation.
- * <p />
+ * <p>
  * To catch initiations "from the inside", you will employ a {@link MatsStageInterceptor}.
  *
  * @author Endre Stølsvik - 2020-01-08 - http://endre.stolsvik.com
@@ -149,7 +149,7 @@ public interface MatsInitiateInterceptor extends MatsPlugin {
      * {@link MatsInitiate} (and thus modify any request, send or publishes) - or even take over the entire initiation.
      * Wrt. changing messages, you should also consider
      * {@link MatsInitiateInterceptOutgoingMessages#initiateInterceptOutgoingMessages(InitiateInterceptOutgoingMessagesContext)}.
-     * <p />
+     * <p>
      * Pulled out in separate interface, so that we don't need to invoke it if the interceptor doesn't need it.
      */
     interface MatsInitiateInterceptUserLambda {
@@ -163,7 +163,7 @@ public interface MatsInitiateInterceptor extends MatsPlugin {
     /**
      * While still within the initiation context, this interception enables modifying outgoing messages from the user
      * lambda, setting trace properties, adding "sideloads", deleting a message, or initiating additional messages.
-     * <p />
+     * <p>
      * Pulled out in separate interface, so that we don't need to invoke it if the interceptor doesn't need it.
      */
     interface MatsInitiateInterceptOutgoingMessages extends MatsInitiateInterceptor {

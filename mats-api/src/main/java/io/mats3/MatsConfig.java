@@ -31,13 +31,13 @@ public interface MatsConfig {
     /**
      * Returns the concurrency set up for this factory, or endpoint, or stage. Will provide the default unless
      * overridden by {@link #setConcurrency(int)} before start.
-     * <p />
+     * <p>
      * It is the {@link MatsStage}s that eventually will be affected by this number, specifically how many standard and
      * {@link MatsInitiate#interactive() interactive} StageProcessors is fired up for each Stage. One StageProcessor is
      * one thread consuming from the stage-specific queue, thus if the concurrency for a Stage is resolved to be 6, then
      * by default 2 x 6 threads will be consuming from this stage's queue: 6 for normal priority, and 6 for interactive
      * priority.
-     * <p />
+     * <p>
      * If default logic is in effect (i.e. have not been set by {@link #setConcurrency(int)}, or that is set to 0), a
      * {@link MatsStage} will default to its {@link MatsEndpoint}, while an endpoint will default to the
      * {@link MatsFactory}. The default for the {@link MatsFactory} is the <b>minimum</b> of <code>[10, number_of_cpus x
@@ -61,9 +61,9 @@ public interface MatsConfig {
     /**
      * Changes the default concurrency of the Factory, or of the endpoint (which defaults to the concurrency of the
      * {@link MatsFactory}), or of the process stage (which defaults to the concurrency of the {@link MatsEndpoint}).
-     * <p />
+     * <p>
      * Will only have effect before the {@link MatsStage} is started. Can be reset by stopping, setting, and restarting.
-     * <p />
+     * <p>
      * Setting to 0 will invoke default logic - read about that in {@link #getConcurrency()}.
      *
      * @param concurrency
@@ -83,14 +83,14 @@ public interface MatsConfig {
     /**
      * Returns the interactive concurrency set up for this factory, or endpoint, or stage. Will provide the default
      * unless overridden by {@link #setConcurrency(int)} before start.
-     * <p />
+     * <p>
      * If default logic is in effect (i.e. have not been set by {@link #setConcurrency(int)}, or that is set to 0), a
      * {@link MatsStage} will see if the same Stage's normal concurrency is non-default, and if so, use that -
      * otherwise, it will use the interactive concurrency of its parent Endpoint. The {@link MatsEndpoint} will see if
      * the same Endpoint's normal concurrency is non-default, and if so, use that - otherwise it will use the
      * interactive concurrency of its parent Factory. The {@link MatsFactory} will by default use the normal concurrency
      * of the Factory.
-     * <p />
+     * <p>
      * Effectively, a more specific setting for interactive concurrency overrides a less specific. Stage is more
      * specific than Endpoint, which is more specific than Factory, and in addition interactive is more specific than
      * normal.
@@ -107,7 +107,7 @@ public interface MatsConfig {
     /**
      * Like {@link #setConcurrency(int)}, but changes the "interactive concurrency" specifically - this is relevant for
      * the Mats Flows that are initiated with the {@link MatsInitiate#interactive() interactive} flag set.
-     * <p />
+     * <p>
      * Setting to 0 will invoke default logic - which is to use the {@link #getConcurrency() normal concurrency}.
      *
      * @param concurrency
@@ -192,7 +192,7 @@ public interface MatsConfig {
         /**
          * Will start the entity - or the entities below it (the only "active" entity is a {@link MatsStage} Processor).
          * Calling this method when the entity is already running has no effect.
-         * <p />
+         * <p>
          * Further documentation on extensions - note the special semantics for {@link MatsFactory}
          */
         void start();
@@ -203,10 +203,10 @@ public interface MatsConfig {
          * the entity has already gotten into the receive loop, the method immediately returns. (For a
          * {@link MatsFactory}, all its Endpoints must have started ok, for an Endpoint all Stages must have started ok,
          * and for a Stage, at least one its StageProcessors must have started ok)
-         * <p />
+         * <p>
          * Note: Currently, this only holds for the initial start. If the entity has started the receive-loop at some
          * point, it will always immediately return - even though it is currently stopped.
-         * <p />
+         * <p>
          * Further documentation on extensions.
          *
          * @param timeoutMillis
@@ -219,7 +219,7 @@ public interface MatsConfig {
         /**
          * Will stop the entity - or the entities below it (the only "active" entity is a {@link MatsStage} Processor).
          * This method is idempotent, calling it when the entity is already stopped has no effect.
-         * <p />
+         * <p>
          * Further documentation on extensions - note the special semantics for {@link MatsFactory}
          *
          * @param gracefulShutdownMillis

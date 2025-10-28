@@ -41,7 +41,7 @@ import jakarta.jms.ConnectionFactory;
  * it also needs the JMS {@link ConnectionFactory} which the MatsFactory employs as that will be used to handle the
  * properties of "MatsTestBrokerInterface" for when the MatsFactory produced will be used in a test scenario (which it
  * will in a setup employing the {@link ScenarioConnectionFactoryProducer}).
- * <p />
+ * <p>
  * Current features:
  * <ul>
  * <li>If the Spring context contains an (empty) instance of 'MatsTestBrokerInterface', it populates it with the
@@ -51,7 +51,7 @@ import jakarta.jms.ConnectionFactory;
  * {@link MatsScenario#LOCALVM})</i>, it sets the MatsFactory's default concurrency to 2, to avoid tons of unnecessary
  * threads and polluted log output.</li>
  * </ul>
- * <p />
+ * <p>
  * <b>Notice! It by default relies on Spring property injection and @PostConstruct being run to do its thing - if you
  * are in a FactoryBean scenario, then read up on the
  * {@link #postConstructForFactoryBean(Environment, ApplicationContext)} method!</b>

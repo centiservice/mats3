@@ -32,7 +32,7 @@ import io.mats3.test.MatsTestLatch.Result;
  * Tests that a service that specifies Object as its Reply type can really return whatever it wants, and that whatever
  * is returned will be serialized as the type it is, not what was specified (i.e. Object), which the receiver will
  * receive correctly. And that if it returns null, the receiver will return null.
- * <p />
+ * <p>
  * <b>NOTE: If the ReplyClass==Void.TYPE (i.e. void.class), the only thing you can answer is 'null'.</b>
  *
  * @see Test_DifferingFromSpecifiedTypes_ForReplyAndIncoming

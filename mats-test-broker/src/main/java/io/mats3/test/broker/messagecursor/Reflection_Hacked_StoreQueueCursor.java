@@ -32,14 +32,14 @@ import org.apache.activemq.broker.region.policy.PendingQueueMessageStoragePolicy
  * There's a bug, or implementation curiosity, in ActiveMQ, which leads to starvation when dequeuing messages from a
  * queue where some messages are persistent and others are non-persistent. It is explained in the repository <a href=
  * "https://github.com/stolsvik/activemq_priority_nonpersistent_issue">github.com/stolsvik/activemq_priority_nonpersistent_issue</a>.
- * <p/>
+ * <p>
  * An extension of {@link StoreQueueCursor} which must use reflection on the private fields to achieve its goal of
  * overriding the {@link #getNextCursor()} method.
  * <p>
  * A better alternative would be to re-implement the entire class. This was a tad problematic due to some needed classes
  * and methods being package-private in the ActiveMQ codebase. It did work out, though, by copying out 3 more classes.
  * This exploration can be found in the above mentioned repository.
- * <p/>
+ * <p>
  * To employ this, use the "policy" {@link Reflection_Hacked_StorePendingQueueMessageStoragePolicy}.
  */
 public class Reflection_Hacked_StoreQueueCursor extends StoreQueueCursor {

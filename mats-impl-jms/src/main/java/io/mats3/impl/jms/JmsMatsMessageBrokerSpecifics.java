@@ -30,7 +30,7 @@ import io.mats3.impl.jms.JmsMatsException.JmsMatsJmsException;
 
 /**
  * Some small specifics for the underlying JMS Implementation. Currently handled: ActiveMQ.
- * <p />
+ * <p>
  * <h2>ActiveMQ</h2>
  * <ul>
  * <li>Check for Connection liveliness: {@code ActiveMQConnection.is[Closed|Closing|TransportFailed]}.</li>

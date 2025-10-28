@@ -33,13 +33,13 @@ import io.mats3.MatsFactory.MatsWrapper;
  * instance implementing this interface using typically {@link MatsFactory#getDefaultInitiator()}, and then invoke
  * {@link #initiate(InitiateLambda)}, where the lambda will provide you with the necessary {@link MatsInitiate} instance
  * on which you have methods to construct and dispatch e.g. "send" and "request" Messages.
- * <p/>
+ * <p>
  * <b>Notice: This class is Thread Safe</b> - you are not supposed to make one instance per message initiation, but
  * rather make one (or a few) for the entire application, and use it/them for all your initiation needs. The mentioned
  * {@link MatsFactory#getDefaultInitiator()} is what you typically want to use, get the instance, and keep it to perform
  * all your Mats initiations. For example, in a Spring-based service, you'd typically put it in the Spring context, and
  * inject it where ever there is a need to perform Mats initiations.
- * <p/>
+ * <p>
  * <i>Implementation Note: It shall be possible to use instances of <code>MatsInitiator</code> as keys in a
  * <code>HashMap</code>, i.e. their equals and hashCode should remain stable throughout the life of the MatsFactory -
  * and similar instances but with different MatsFactory are <i>not</i> equals. Depending on the implementation, instance
@@ -118,7 +118,7 @@ public interface MatsInitiator extends Closeable {
      * after the {@link InitiateLambda} has been run, any external resource (typically DB) has been committed, <b>and
      * then</b> some situation occurs that makes it impossible to send out messages. <i>(Some developers might recognize
      * this as the <i>"VERY BAD!-initiation"</i> situation)</i>.
-     * <p />
+     * <p>
      * This is a rare, but unfortunate situation, but which is hard to guard completely against, in particular in the
      * "Best Effort 1-Phase Commit" paradigm that the current Mats implementations runs on. What it means, is that if
      * you e.g. in the initiate-lambda did some "job allocation" logic on a table in a database, and based on that
@@ -126,7 +126,7 @@ public interface MatsInitiator extends Closeable {
      * not actually been sent</i>. The result is that in the database, you will see those jobs as processed
      * (semantically "started processing"), but in reality the downstream endpoints never started working on them since
      * the message was not actually sent out.
-     * <p />
+     * <p>
      * This situation can to a degree be alleviated if you catch this exception, and then use a <i>compensating
      * transaction</i> to de-allocate the jobs in the database again. However, since bad things often happen in
      * clusters, you might not be able to do the de-allocation either (due to the database becoming inaccessible at the
@@ -145,7 +145,7 @@ public interface MatsInitiator extends Closeable {
      * not gotten through the processing: Either that message flow sits in a downstream Dead Letter Queue due to some
      * error, or you ended up in the situation explained here: The database commit went through, but the messages was
      * not sent.
-     * <p />
+     * <p>
      * Please note that this should, in a somewhat stable operations environment, happen extremely seldom: What needs to
      * occur for this to happen, is that in the sliver of time between the commit of the database and the commit of the
      * message broker, this node crashes, the network is lost, or the message broker goes down. Given that a check for
@@ -153,14 +153,14 @@ public interface MatsInitiator extends Closeable {
      * most robust systems that can monitor themselves, you should consider employing a state machine handling as
      * outlined above. You might never see that health check trip, but now you can at least sleep without thinking about
      * that 1 billion dollar order that was never processed.
-     * <p />
+     * <p>
      * PS: Best effort 1PC: Two transactions are opened: one for the message broker, and one for the database. The
      * business logic and possibly database reads and changes are performed. The database is committed first, as that
      * has many more failure scenarios than the message systems, e.g. data or code problems giving integrity constraint
      * violations, and spurious stuff like MS SQL's deadlock victim, etc. Then the message queue is committed, as the
      * only reason for the message broker to not handle a commit is basically that you've had infrastructure problems
      * like connectivity issues or that the broker has crashed.
-     * <p />
+     * <p>
      * Notice that it has been decided to not let this exception extend the {@link MatsBackendException}, even though it
      * is definitely a backend problem. The reason is that it in all situations where {@code MatsBackendException} is
      * raised, the other resources have not been committed yet, as opposed to situations where this
@@ -223,11 +223,11 @@ public interface MatsInitiator extends Closeable {
     /**
      * An implementation of this interface is given to you when you want to initiate a new Mats Flow. It is the argument
      * given to the {@link InitiateLambda#initiate(MatsInitiate) InitiateLambda.initiate(..)} lambda you implement.
-     * <p/>
+     * <p>
      * To initiate a message "from the outside", i.e. from synchronous application code, you must get a
      * {@link MatsInitiator}, e.g. by invoking {@link MatsFactory#getDefaultInitiator()}, and then invoke
      * {@link MatsInitiator#initiate(InitiateLambda) matsInitiator.initiate(..)} on that.
-     * <p/>
+     * <p>
      * To initiate a new message "from the inside", i.e. while already inside a {@link MatsStage processing stage} of an
      * endpoint, you use the initiate method on the stage lambda's ProcessContext:
      * {@link ProcessContext#initiate(InitiateLambda) processContext.initiate(..)}. (Notice that initiating a <i>new</i>
@@ -245,21 +245,21 @@ public interface MatsInitiator extends Closeable {
          * which is solely used for logging and debugging purposes. It should be unique, at least to a degree where it
          * is <u>very</u> unlikely that you will have two identical traceIds within a couple of years ("guaranteed
          * globally unique through all time" is not relevant).
-         * <p />
+         * <p>
          * If the first character is a "!", it will be removed - in the case that
          * {@link ProcessContext#initiate(InitiateLambda) initiation within a stage}, this denotes that the TraceId
          * should not be prepended with the stage's TraceId.
-         * <p />
+         * <p>
          * Since this is very important when doing distributed and asynchronous architectures, it is mandatory.
-         * <p />
+         * <p>
          * The traceId follows a Mats processing from the initiation until it is finished, usually in a Terminator.
-         * <p />
+         * <p>
          * It should be a world-unique Id, preferably set all the way back when some actual person performed some event.
          * E.g. in a "new order" situation, the Id would best be set when the user clicked the "place order" button on
          * the web page - or maybe even derived from the event when he first initiated the shopping cart - or maybe even
          * when he started the session. The point is that when using e.g. Kibana or Splunk to track events that led to
          * some outcome, a robust, versatile and information-rich track/trace Id makes wonders.
-         * <p />
+         * <p>
          * <b>It is strongly recommended to use small, dense, <u>information rich</u> Trace Ids.</b> Sticking in an UUID
          * as Trace Id certainly fulfils the uniqueness-requirement, but it is a crappy solution, as it by itself does
          * not give any hint of source, cause, relevant entities, or goal. <i>(It isn't even dense for the uniqueness an
@@ -272,12 +272,12 @@ public interface MatsInitiator extends Closeable {
          * uniqueness ('qz7apy9') generated at the initiating, so that even if the customer managed to click three times
          * on the "place order" button for the same cart, you would still be able to separate the resulting three
          * different Mats call flows.
-         * <p />
+         * <p>
          * You should consider storing the traceId as a column in any inserted rows in any databases that was affected
          * by this call flow, e.g. in the row for a placed order, you'd have the traceId as a column. This both to be
          * able to tie this db row back to the logging system, but also if new Mats flows are initiated based on this
          * row, you can include the order TraceId in the new TraceId (with either "|" or "+" as separator).
-         * <p />
+         * <p>
          * For situations where one Mats Flow "forks" new Mats flows, make new TraceIds for the "sub flows" by tying
          * together the existing TraceId and a new Sub TraceId with a "|". In the order/shipping example, the user would
          * first have placed an order, resulting in an entry in an order database table - where the traceId was stored
@@ -289,18 +289,18 @@ public interface MatsInitiator extends Closeable {
          * multiple "stop and go" sub-flows (the stops being where the process stays for a while as an entry in a
          * database, here "order", then possibly "filling", "shipping" and finally "delivery", or whatever your multiple
          * processes' flows consists of).
-         * <p />
+         * <p>
          * The "+" character should be used to indicate that an "initiated from the outside" TraceId is concatenated by
          * multiple parts, which so far has been used to pick up an X-Request-ID header from a HTTP-request, and
          * prepending this to the TraceId for a resulting Mats-flow, i.e. Mats TraceId="{X-Request-ID}+{Flow TraceID}".
          * (Check out {@link FactoryConfig#setInitiateTraceIdModifier(Function)} for a way to automate this.)
-         * <p />
+         * <p>
          * The difference between "|" and "+" is meant to be that "|" indicates that there is a Mats Flow TraceId on
          * both sides of the "|", while the "+" is used when a "from the outside"-initiated TraceId is built up by
          * multiple pieces, e.g. X-Request-Id, or Batch Run Number, on the left side. Remember, this is all meant for
          * human consumption, in particular when debugging. Do what you feel is meaningful - the Mats system doesn't
          * care!
-         * <p />
+         * <p>
          * (For the default implementation "JMS Mats", the Trace Id is set on the <code>MDC</code> of the SLF4J logging
          * system, using the key "traceId". Since this implementation logs a few lines per handled message, in addition
          * to any log lines you emit yourself, you will, by collecting the log lines in a common log system (e.g. the
@@ -323,7 +323,7 @@ public interface MatsInitiator extends Closeable {
          * stabilizes, without much errors or DLQs, you should consider initiating it with {@link KeepTrace#COMPACT}
          * or even {@link KeepTrace#MINIMAL} (the latter also dropping the "trail", thus only keeping information
          * strictly relevant for the current message).
-         * <p />
+         * <p>
          * <b>This functionality is solely for debugging, the Mats endpoints works identically with any setting</b>,
          * thus it is a tradeoff between performance (size of messages) and debuggability. The resulting kept trace
          * would typically be visible in a "toString()" of the {@link ProcessContext} - or in an external (e.g.
@@ -341,11 +341,11 @@ public interface MatsInitiator extends Closeable {
          * used, where a ordinary persistent message would be DLQed if it failed to be delivered to an endpoint. This
          * can severely impact monitoring (as you don't get a build-up of DLQs when things goes wrong - only log lines)
          * and to a degree debugging (since you don't have the DLQ'ed messages to look at).)
-         * <p />
+         * <p>
          * <b>This is only usable for "pure GET"-style requests <i>without <u>any</u> state changes along the flow</i>,
          * i.e. "AccountService.getBalances", for display to an end user.</b> If such a message is lost, the world won't
          * go under.
-         * <p />
+         * <p>
          * The upshot here is that non-persistent messaging typically is blazingly fast and is way less resource
          * demanding, as the messages will not have to (transactionally) be stored in non-volatile storage. It is
          * therefore wise to actually employ this feature where it makes sense (which, again, is <i>only</i> relevant
@@ -358,7 +358,7 @@ public interface MatsInitiator extends Closeable {
         /**
          * Same as {@link #nonPersistent()}, but you can set a time-to-live too. If the message gets this old and have
          * not yet been delivered to the receiving Mats endpoint, it will be deleted and never delivered.
-         * <p />
+         * <p>
          * This functionality often makes sense for messages that are <b>both</b> {@link #interactive() interactive} and
          * {@link #nonPersistent() non-persistent}: Such messages shall only be "getters" free of any side effects (i.e.
          * no state is changed by the entire message flow), and where a human is actively waiting for the reply. If
@@ -366,7 +366,7 @@ public interface MatsInitiator extends Closeable {
          * does not make sense to use processing resources to handle a massive stack of these messages when the
          * consumption is restored an hour later, as e.g. the synchronously waiting HTTP call that was waiting for the
          * reply has timed out, and the waiting human is probably long gone anyway.
-         * <p />
+         * <p>
          * <b>Notice on use:</b> This should <b>NOT</b> be employed for message flows where any stage might change any
          * state, i.e. message flows with side effects (Think "PUT", "POST" and "DELETE"-style messages) - which also
          * should <b>NOT</b> employ {@link #nonPersistent() non-persistent} messaging. The rationale is that such
@@ -375,7 +375,7 @@ public interface MatsInitiator extends Closeable {
          * where an order is only valid until 21:00, or something like this. This both because of the <i>"Note on
          * implementation"</i> below, and that the entire facility of "time to live" is optional both for Mats and for
          * the underlying message queue system.
-         * <p />
+         * <p>
          * <b>Notice on implementation:</b> If the message is a part of a multi-message flow, which most Mats
          * initiations pretty much invariably is (a request consists of a request-message and a reply-message), this TTL
          * will be set afresh on every new message in the flow, possibly with the amount of time taken in the processing
@@ -407,7 +407,7 @@ public interface MatsInitiator extends Closeable {
          * "AccountService.getBalances" service both for the Web Application that the user facing GUI are employing, and
          * the batch processing of a ton of orders. Without such a feature, the interactive usage could be backlogged by
          * the batch process, while if the interactive flag is set, it will bypass the backlog of "ordinary" messages.
-         * <p />
+         * <p>
          * This implies that MATS defines two levels of prioritization: "Ordinary" and "Interactive". Most processing
          * should employ the default, i.e. "Ordinary", while places where <i><u>a human is actually waiting for the
          * reply</u></i> should employ the fast-lane, i.e. "Interactive". It is <b>imperative</b> to not abuse this
@@ -416,7 +416,7 @@ public interface MatsInitiator extends Closeable {
          * increasing {@link MatsConfig#setConcurrency(int) concurrency} or the number of nodes that is running the
          * problematic endpoint or stage; increase the speed and/or throughput of external systems like the database; or
          * somehow just code the whole thing to be faster!
-         * <p />
+         * <p>
          * It will often make sense to set both this flag, and the {@link #nonPersistent()}, at the same time. E.g. when
          * you need to show the account balance for a customer: It both needs to skip past any bulk/batch queue of such
          * requests (since a human is literally waiting for the result), but it is also a "pure GET"-style request, not
@@ -428,11 +428,11 @@ public interface MatsInitiator extends Closeable {
 
         /**
          * Marks this Mats flow as not relevant for auditing.
-         * <p />
+         * <p>
          * When considering auditing ("event sourcing"-style) of all messages, one quickly realizes that there are very
          * many messages that aren't that interesting to log. These are pure getters employed to show information to
          * users, and even worse in this respect, <i>"Are you up?"</i>-type health checks.
-         * <p />
+         * <p>
          * This flag is here to mark messages as such: <i>"You will gain no historic insight in logging the following
          * message flow!"</i>. This flag should NOT be set for ANY messages that (can potentially) change state in any
          * part of the total system (i.e. "permanent state", e.g. a row in a database). More subtle, the flag should
@@ -441,7 +441,7 @@ public interface MatsInitiator extends Closeable {
          * be a problem, as the initiator of the "add order" Mats flow would obviously not set noAudit(). However, if it
          * is coded as multiple "stop and go" flows, i.e. add the order to some incoming order table. Then a next,
          * separate Mats flow is validation: <i>That</i> getter <i>should</i> be audited, hence do not set noAudit().
-         * <p />
+         * <p>
          * Note: It might be interesting to log that such messages actually happened, but not the content of them. This
          * is to be able to tally them, i.e. <i>"WebService.healthCheck is invoking AccountService.webStatus 52389052
          * times per day"</i> - both to see that it is probably a bit excessive, and to see that there is traffic there
@@ -459,15 +459,15 @@ public interface MatsInitiator extends Closeable {
          * {@link ProcessContext#initiate(InitiateLambda)}, the 'from' property is already set to the stageId of the
          * currently processing Stage, but it can be <b>overridden</b> if desired. It is important that you do not make
          * this into a dynamic string, i.e. do not add some Id to it (such Ids should go into the traceId).
-         * <p />
+         * <p>
          * It it is smart to decide on a common prefix for all Mats Endpoints and InitiatorIds for a particular service.
          * E.g. "OrderService" or "InventoryService" or something like this.
-         * <p />
+         * <p>
          * A good value that would be of use when debugging a call trace is something following a structure like
          * <code>"OrderService.REST.place_order_from_user"</code>, this example trying to convey that it is from the
          * OrderSystem, coming in over its REST endpoint "place_order_from_user". Note that there are no e.g. userId
          * there.
-         * <p />
+         * <p>
          * <b>NOTE:</b> This is only used for tracing/debugging (in particular, it is not related to the
          * {@link #replyTo(String, Object) replyTo} functionality), but should be set to something that will give
          * insights when you try to make sense of call flows. Think of a introspection system showing a histogram of
@@ -532,10 +532,10 @@ public interface MatsInitiator extends Closeable {
 
         /**
          * Adds a binary payload to the outgoing request message, e.g. a PDF document.
-         * <p />
+         * <p>
          * The rationale for having this is to not have to encode a largish byte array inside the JSON structure that
          * carries the Request DTO - byte arrays represent very badly in JSON.
-         * <p />
+         * <p>
          * Note: The byte array is not compressed (as might happen with the DTO), so if the payload is large, you might
          * want to consider compressing it before attaching it (and will then have to decompress it on the receiving
          * side).
@@ -554,10 +554,10 @@ public interface MatsInitiator extends Closeable {
 
         /**
          * Adds a String payload to the outgoing request message, e.g. a XML, JSON or CSV document.
-         * <p />
+         * <p>
          * The rationale for having this is to not have to encode a largish string document inside the JSON structure
          * that carries the Request DTO.
-         * <p />
+         * <p>
          * Note: The String payload is not compressed (as might happen with the DTO), so if the payload is large, you
          * might want to consider compressing it before attaching it and instead use the
          * {@link #addBytes(String, byte[]) addBytes(..)} method (and will then have to decompress it on the receiving
@@ -585,30 +585,30 @@ public interface MatsInitiator extends Closeable {
          * shall not change between one Initiation and the next (of the same "type", i.e. place in the code): e.g. the
          * metricDescription shall <b>NOT</b> be dynamically constructed to e.g. say <i>"Number of items in order 1234
          * for customer 5678"</i>.
-         * <p />
+         * <p>
          * Note: It is illegal to use the same 'metricId' for more than one measurement for a given Initiation, and this
          * also goes between 'ordinary measurements' (using this method) and
          * {@link #logTimingMeasurement(String, String, long, String...) 'timing measurements'}.
-         * <p />
+         * <p>
          * <b>Inclusion as metric by plugin 'mats-intercept-micrometer'</b>: A new meter will be created (and cached),
          * of type <code>DistributionSummary</code>, with the 'name' set to
          * <code>"mats.exec.ops.measure.{metricId}.{baseUnit}"</code> ("measure"-&gt;"time" for timings), and
          * 'description' to description. (Tags/labels already added on the meter by the plugin include 'appName',
          * 'initiatorId', 'initiatingAppName', 'stageId' (for stages), and 'initiatorName' (for inits)). Read about
          * parameter 'labelKeyValue' below.
-         * <p />
+         * <p>
          * <b>Inclusion as log line by plugin 'mats-intercept-logging'</b>: A log line will be output by each added
          * measurement, where the MDC for that log line will have an entry with key
          * <code>"mats.exec.ops.measure.{metricId}.{baseUnit}"</code>. ("measure"-&gt;"time" for timings). Read about
          * parameter 'labelKeyValue' below.
-         * <p />
+         * <p>
          * It generally makes most sense if the same metrics are added for each processing of a particular Initiation,
          * i.e. if the "number of items" are 0, then that should also be recorded along with the "total amount for order
          * in dollar" as 0, not just elided. Otherwise, your metrics will be skewed.
-         * <p />
+         * <p>
          * You should use a dot-notation for the metricId if you want to add multiple meters with a
          * hierarchical/subdivision layout. Do not use the four suffixes ".info", ".total", ".created" and ".bucket"!
-         * <p />
+         * <p>
          * The vararg 'labelKeyValue' is an optional element where the String-array consist of one or several alternate
          * key, value pairs. <b>Do not employ this feature unless you know what the effects are, and you actually need
          * it!</b> This will be added as labels/tags to the metric, and added to the SLF4J MDC for the measurement log
@@ -618,7 +618,7 @@ public interface MatsInitiator extends Closeable {
          * values (think <code>enum</code>) - using e.g. the 'customerId' as value doesn't make sense and will blow up
          * your metric cardinality. Notice that if you do employ e.g. two labels, each having one of three values,
          * <i>you'll effectively create 9 different meters</i>, where your measurement will go to one of them.
-         * <p />
+         * <p>
          * <b>NOTICE: If you want to do a timing, then instead use
          * {@link #logTimingMeasurement(String, String, long, String...)}</b>
          *
@@ -648,15 +648,15 @@ public interface MatsInitiator extends Closeable {
          * specifically for timings - <b>Read that JavaDoc!</b> (The reason for having timings as a specific method, is
          * that different "output methods" like Micrometer/Prometheus metrics, and slf4j logging with MDC-based
          * key/value, employ different magnitudes for the time-based measurements).
-         * <p />
+         * <p>
          * Note: It is illegal to use the same 'metricId' for more than one measurement for a given Initiation, and this
          * also goes between 'timing measurements' and {@link #logMeasurement(String, String, String, double, String...)
          * 'ordinary measurements'}.
-         * <p />
+         * <p>
          * For the metrics-plugin 'mats-intercept-micrometer' plugin, the 'baseUnit' argument is deduced to whatever is
          * appropriate for the receiving metrics system, e.g. for Prometheus it is "seconds", even though you always
          * record the measurement in nanoseconds using this method.
-         * <p />
+         * <p>
          * For the logging-plugin 'mats-intercept-logging' plugin, the timing in the log line will be in milliseconds
          * (with fractions), even though you always record the measurement in nanoseconds using this method.
          *
@@ -690,7 +690,7 @@ public interface MatsInitiator extends Closeable {
 
         /**
          * <b>Variation of the request initiation method</b>, where the incoming state is sent along.
-         * <p />
+         * <p>
          * <b>This only makes sense if the same code base "owns" both the initiation code and the endpoint to which this
          * message is sent.</b> It is mostly here for completeness, since it is <i>possible</i> to send state along with
          * the message, but if employed between different services, it violates the premise that MATS is built on: State
@@ -706,7 +706,7 @@ public interface MatsInitiator extends Closeable {
         /**
          * Sends a message to an endpoint, without expecting any reply ("fire-and-forget"). The 'reply' parameter must
          * not be set.
-         * <p />
+         * <p>
          * Note that the difference between <code>request(..)</code> and <code>send(..)</code> is only that replyTo is
          * not set for send, otherwise the mechanism is exactly the same.
          *
@@ -717,7 +717,7 @@ public interface MatsInitiator extends Closeable {
 
         /**
          * <b>Variation of the {@link #send(Object)} method</b>, where the incoming state is sent along.
-         * <p />
+         * <p>
          * <b>This only makes sense if the same code base "owns" both the initiation code and the endpoint to which this
          * message is sent.</b> It is mostly here for completeness, since it is <i>possible</i> to send state along with
          * the message, but if employed between different services, it violates the premise that MATS is built on: State
@@ -736,11 +736,11 @@ public interface MatsInitiator extends Closeable {
          * SubscriptionTerminator}, employing the publish/subscribe pattern instead of message queues (topic in JMS
          * terms). <b>This means that all of the live servers that are listening to this endpointId will receive the
          * message, and if there are no live servers, then no one will receive it.</b>
-         * <p />
+         * <p>
          * The concurrency of a SubscriptionTerminator is always 1, as it only makes sense for there being only one
          * receiver per server - otherwise it would just mean that all of the active listeners on one server would get
          * the message, per semantics of the pub/sub.
-         * <p />
+         * <p>
          * It is only possible to publish to SubscriptionTerminators as employing publish/subscribe for multi-stage
          * services makes no sense.
          *
@@ -751,7 +751,7 @@ public interface MatsInitiator extends Closeable {
 
         /**
          * <b>Variation of the {@link #publish(Object)} method</b>, where the incoming state is sent along.
-         * <p />
+         * <p>
          * <b>This only makes sense if the same code base "owns" both the initiation code and the endpoint to which this
          * message is sent.</b> The possibility to send state along with the request makes most sense with the publish
          * method: A SubscriptionTerminator is often paired with a Terminator, where the Terminator receives the
@@ -806,7 +806,7 @@ public interface MatsInitiator extends Closeable {
          * the Mats implementation in use, or configured into this instance of the Mats implementation. Mirrors the same
          * method at {@link ProcessContext#getAttribute(Class, String...)}. There is also a ThreadLocal-accessible
          * version at {@link ContextLocal#getAttribute(Class, String...)}.
-         * <p />
+         * <p>
          * Mandatory: If the Mats implementation has a transactional SQL Connection, it shall be available by
          * <code>'context.getAttribute(Connection.class)'</code>.
          *
@@ -853,7 +853,7 @@ public interface MatsInitiator extends Closeable {
     enum KeepTrace {
         /**
          * <b>Default</b>: Keep all history for request and reply DTOs, and all history for state STOs.
-         * <p />
+         * <p>
          * All calls with data and state should be kept, which e.g means that at the Terminator, all request and reply
          * DTOs, and all STOs (with their changing values between each stage of a multi-stage endpoint) will be present
          * in the underlying protocol.
@@ -863,7 +863,7 @@ public interface MatsInitiator extends Closeable {
         /**
          * Nulls out Data for other than current call while still keeping the meta-info for the call history, and
          * condenses State to a pure stack.
-         * <p />
+         * <p>
          * This is a compromise between FULL and MINIMAL, where the DTOs and STOs except for the ones needed in the
          * stack, are "nulled out", while the call trace itself (with metadata) is still present, which e.g. means that
          * at the Terminator, you will know all endpoints and stages that the call flow traversed, but not the data or
@@ -873,7 +873,7 @@ public interface MatsInitiator extends Closeable {
 
         /**
          * Only keep the current call, and condenses State to a pure stack.
-         * <p />
+         * <p>
          * Keep <b>zero</b> history, where only the current call, and only the STOs needed for the current stack, are
          * present. This e.g. means that at the Terminator, no Calls nor DTOs and STOs except for the current incoming
          * to the Terminator will be present in the underlying protocol.

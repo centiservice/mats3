@@ -43,7 +43,7 @@ import io.mats3.spring.MatsClassMapping.MatsClassMappings;
  * Java-modifier <code>transient</code> on such Spring-injected fields, so that the serializer understands that it is
  * not a part of state. In addition, if a field is of type {@link ProcessContext ProcessContext}, it will be injected by
  * the Mats JavaConfig machinery before a stage-method is invoked.
- * <p/>
+ * <p>
  * All methods that are annotated with @{@link Stage Stage} is regarded as a stage of the Mats Endpoint. To know the
  * order of the stages, and ordinal must be assigned to the Stage - read its JavaDoc. The initial stage is the method
  * annotated with <code>@Stage(0)</code> (The constant {@link Stage#INITIAL Stage.INITIAL} is conveniently available),
@@ -53,16 +53,16 @@ import io.mats3.spring.MatsClassMapping.MatsClassMappings;
  * last stage does not have a return type (i.e. it is <code>void</code>), it will be a Terminator. Any methods that are
  * not annotated with <code>@Stage</code> is ignored, thus you may structure and divide your code into sub methods as
  * you see fit.
- * <p/>
+ * <p>
  * <b>Note:</b> If you only need a single stage, i.e. a single-stage Endpoint, or Terminator, you should instead
  * consider {@link MatsMapping}.
- * <p/>
+ * <p>
  * <b>Note:</b> You should mark the injected/autowired fields with the java keyword <code>transient</code> to ensure
  * that the serializer understands that it is not part of the state. <i>(The values are <code>null</code>'ed out before
  * state serialization takes place, so an injected DataSource will never be attempted serialized as state. However, some
  * type of serializers, e.g. Gson, will prepare to serialize all fields, even though they will always be null, and thus
  * possibly fail on newer versions of Java. Such preparation does not take place if a field is marked transient.)</i>
- * <p/>
+ * <p>
  * Each stage-method can take zero, one, two or many arguments. The machinery looks for a ProcessContext and an incoming
  * DTO argument. Neither ProcessContext nor an incoming DTO is required. The rationale for taking more than the required
  * arguments is that you could potentially want to invoke it differently in a testing scenario (depending on how you
@@ -74,19 +74,19 @@ import io.mats3.spring.MatsClassMapping.MatsClassMappings;
  * <li>2+: One may be the ProcessContext, and the others are searched for the @{@link Dto} annotation, and if one is
  * found, this is the incoming DTO.</li>
  * </ul>
- * <p/>
+ * <p>
  * The logic to determine which fields are state, and which fields are injected, is as follows: When Mats SpringConfig
  * gets the bean, injection is already performed by Spring. Any fields that are non-null is thus assumed to be injected
  * by Spring and not part of the State, <i>unless</i> the field is <i>also</i> non-null when simply instantiated as a
  * new object, using the current Mats serialization mechanism of creating an empty State object. The rationale for the
  * latter is that such fields must be default initialized, like e.g.
  * <code>List&lt;Car&gt; cars = new ArrayList&lt;&gt;()</code>. A field of type ProcessContext is not a state field.
- * <p/>
+ * <p>
  * It is worth noting that the singleton Spring-constructed bean instance is never actually employed outside of being
  * inspected at start up: Its class is inspected to set up the MatsEndpoint and its stages, and the singleton instance
  * is used as a <i>template</i> for which fields of the Endpoint's State object are injected, and which fields are
  * state.
- * <p/>
+ * <p>
  * In a multi-MatsFactory setup, you may qualify which MatsFactory this Endpoint should be constructed on - read JavaDoc
  * on @{@link MatsMapping} for how this works.
  *

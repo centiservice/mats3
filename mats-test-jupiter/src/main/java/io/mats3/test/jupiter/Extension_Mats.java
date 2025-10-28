@@ -36,19 +36,19 @@ import io.mats3.test.abstractunit.AbstractMatsTest;
 /**
  * Provides a full MATS harness for unit testing by creating {@link JmsMatsFactory MatsFactory} utilizing an in-vm
  * Active MQ broker, and optionally a {@link TestH2DataSource} for database tests.
- * <p/>
+ * <p>
  * <b>Notice: If you are in a Spring-context, this is probably not what you are looking for</b>, as the MatsFactory then
  * should reside as a bean in the Spring context. Look in the 'mats-spring-test' package for testing tools for Spring.
- * <p/>
+ * <p>
  * By default the {@link #create() extension} will create a {@link MatsSerializerJson} which will be the serializer
  * utilized by the created {@link JmsMatsFactory MatsFactory}. Should one want to use a different serializer then this
  * can be specified using the method {@link #create(MatsSerializer)}.
- * <p/>
+ * <p>
  * {@link Extension_Mats} shall be annotated with
  * {@link org.junit.jupiter.api.extension.RegisterExtension @RegisterExtension} and the instance field shall be static
  * for the Jupiter life cycle to pick up the extension at the correct time. {@link Extension_Mats} can be viewed in the
  * same manner as one would view a ClassRule in JUnit4.
- * <p/>
+ * <p>
  * Example:
  *
  * <pre>
