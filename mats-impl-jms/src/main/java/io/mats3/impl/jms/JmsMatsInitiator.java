@@ -356,7 +356,7 @@ class JmsMatsInitiator implements MatsInitiator, JmsMatsTxContextKey, JmsMatsSta
                 else {
                     // -> Only a single message
                     // Fetch the message
-                    MatsSentOutgoingMessage singleMessage = messagesToSend.get(0);
+                    MatsSentOutgoingMessage singleMessage = messagesToSend.getFirst();
                     // :: Switch-case on the type of the single message
                     switch (singleMessage.getMessageType()) {
                         case REQUEST:
@@ -369,9 +369,9 @@ class JmsMatsInitiator implements MatsInitiator, JmsMatsTxContextKey, JmsMatsSta
                             initiateProcessResult = InitiateProcessResult.PUBLISH;
                             break;
                         default:
-                            log.error(LOG_PREFIX + "UNEXPECTED MESSAGE TYPE IN INITIATION! ["
-                                    + singleMessage.getMessageType() + "] - REPORT BUG! - resolving to MULTIPLE!");
-                            initiateProcessResult = InitiateProcessResult.MULTIPLE;
+                            // Due to the unstash functionality, we can come with pretty much any type of single message
+                            // as "initiate process result". But we shove them into a separate category "OTHER".
+                            initiateProcessResult = InitiateProcessResult.OTHER;
                     }
                 }
 

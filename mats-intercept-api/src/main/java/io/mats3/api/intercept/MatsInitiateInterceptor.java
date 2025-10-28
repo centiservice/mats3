@@ -19,6 +19,7 @@ package io.mats3.api.intercept;
 import java.time.Instant;
 
 import io.mats3.MatsEndpoint.MatsRefuseMessageException;
+import io.mats3.MatsEndpoint.ProcessLambda;
 import io.mats3.MatsFactory;
 import io.mats3.MatsFactory.FactoryConfig;
 import io.mats3.MatsFactory.MatsPlugin;
@@ -224,6 +225,13 @@ public interface MatsInitiateInterceptor extends MatsPlugin {
             PUBLISH,
 
             MULTIPLE,
+
+            /**
+             * With {@link MatsInitiate#unstash(byte[], Class, Class, Class, ProcessLambda) unstash(..)}, we can end up
+             * with an "initiate process result" of a single message with type REPLY, REPLY_SUBSCRIPTION, NEXT, or GOTO.
+             * But those aren't traditional initiation results, so we'll just shove them into a special category.
+             */
+            OTHER,
 
             /**
              * Any exception thrown in the user lambda, causing rollback of the processing. This may both be code
