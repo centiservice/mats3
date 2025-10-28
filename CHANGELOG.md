@@ -10,10 +10,11 @@
 * Core (Mats<sup>3</sup> implementation):
   * Jakarta JMS 3.1.0
   * Jackson 3.0.1
-* Specific modules (Mats<sup>3</sup> SpringConfig / testing tooling)
+* Specific modules (Mats<sup>3</sup> SpringConfig / metrics / testing tooling):
   * Spring 6.2.12
   * Jakarta Inject 2.0.1
   * Jakarta Annotations 3.0.0
+  * Micrometer 1.15.5
   * Jupiter/JUnit 6.0.0 (still works on v5, Mats<sup>3</sup> also have good-'ol JUnit v4.13.2 support)
 * "Dev dependencies":
   * ActiveMQ 6.1.8

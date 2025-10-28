@@ -31,8 +31,7 @@ ext {
     jacksonVersion = '3.0.1' // For the on-wire MatsSerializer
 
     // :: "Peripheral subsystems", metrics, healthcheck, SpringConfig
-    // https://github.com/micrometer-metrics/micrometer/wiki/1.13-Migration-Guide
-    micrometerVersion = '1.12.13' // 1.13.x have changed use of prometheus, and we need to sync.
+    micrometerVersion = '1.15.5'
     stbHealthCheckVersion = '0.4.1+2024-05-07' // For 'MatsEagerCacheStorebrandHealthCheck'
     // Next three for Mats SpringConfig
     springVersion = '6.2.12' // For Mats3 SpringConfig
@@ -51,12 +50,13 @@ ext {
     jupiterVersion = '6.0.0'
     jupiterPlatformVersion = '6.0.0'
 
-    // :: For actually running tests (i.e. only used in testImplementation etc)
+    // :: For actually running tests (i.e. only used in testImplementation: Tests & TestJettyServers)
     logbackVersion = '1.5.20'
     jettyVersion = '12.1.3'
     hibernateVersion = '7.1.5.Final'
     remockVersion = '2.1.0'
     mockitoVersion = '5.20.0'
+    prometheusVersion = '1.3.10' // Sync to Micrometer's other prometheus dependencies. (Only using 'exporter-servlet')
 }
 
 // :: Find which Java version to use for the toolchain.

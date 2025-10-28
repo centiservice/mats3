@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URL;
 import java.util.Collections;
-import java.util.Enumeration;
 
 import jakarta.jms.ConnectionFactory;
 import jakarta.servlet.ServletContext;
@@ -57,9 +56,9 @@ import io.mats3.test.broker.MatsTestBroker;
 import io.mats3.test.metrics.SetupTestMatsEndpoints.DataTO;
 import io.mats3.test.metrics.SetupTestMatsEndpoints.StateTO;
 import io.micrometer.core.instrument.Metrics;
-import io.micrometer.prometheus.PrometheusConfig;
-import io.micrometer.prometheus.PrometheusMeterRegistry;
-import io.prometheus.client.Collector.MetricFamilySamples;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import io.prometheus.metrics.exporter.servlet.jakarta.PrometheusMetricsServlet;
 
 import ch.qos.logback.core.CoreConstants;
 
@@ -139,33 +138,13 @@ public class MatsMetrics_TestJettyServer {
     }
 
     /**
-     * Prometheus metrics.
+     * Prometheus metrics - utilizing servlet from `io.prometheus:prometheus-metrics-exporter-servlet-jakarta`
      */
     @WebServlet("/metrics")
-    public static class MetricsServlet extends HttpServlet {
-        @Override
-        protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
-            res.setContentType("text/plain; charset=utf-8");
-            log.info("Scrape!");
-            PrintWriter out = res.getWriter();
-
-            Enumeration<MetricFamilySamples> metricFamilySamplesEnum = __prometheusMeterRegistry
-                    .getPrometheusRegistry().metricFamilySamples();
-            int numMetricFamilies = 0;
-            int numSamples = 0;
-            while (metricFamilySamplesEnum.hasMoreElements()) {
-                MetricFamilySamples metricFamilySamples = metricFamilySamplesEnum.nextElement();
-                numMetricFamilies++;
-                numSamples += metricFamilySamples.samples.size();
-            }
-            // NOTE!! We must use "\n" here, and not "println(..)", as the latter uses System.lineSeparator(), while
-            // Prometheus is extremely picky and only tolerates "\n". This is a problem if running on Windows.
-            out.print("# === Meta info: ===============================\n");
-            out.print("#  MetricFamilySamples instances: " + numMetricFamilies + "\n");
-            out.print("#  Sample instances: " + numSamples + "\n");
-            out.print("\n");
-            out.print("# === Prometheus scrape: =======================\n");
-            __prometheusMeterRegistry.scrape(out);
+    public static class MetricsServlet extends PrometheusMetricsServlet {
+        public MetricsServlet() {
+            // Notice that this constructor uses PrometheusProperties loaded via PrometheusPropertiesLoader.
+            super(__prometheusMeterRegistry.getPrometheusRegistry());
         }
     }
 

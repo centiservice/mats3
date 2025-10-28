@@ -4,7 +4,8 @@ dependencies {
     // The Logger plugin only depends on the intercept-api
     api project(':mats-intercept-api')
     // Micrometer
-    api "io.micrometer:micrometer-core:$micrometerVersion"
+    implementation platform("io.micrometer:micrometer-bom:$micrometerVersion")
+    implementation "io.micrometer:micrometer-core" // Using BOM
     // The SFL4J API. Since you should provide the SLF4J implementation yourself, we use compileOnly.
     compileOnly "org.slf4j:slf4j-api:$slf4jVersion"
 
@@ -20,7 +21,9 @@ dependencies {
     testImplementation project(":mats-test-broker")
 
     // Include Prometheus MeterRegistry
-    testImplementation "io.micrometer:micrometer-registry-prometheus:$micrometerVersion"
+    testImplementation "io.micrometer:micrometer-registry-prometheus" // Using BOM
+    // .. and include the exporter-servlet
+    testImplementation "io.prometheus:prometheus-metrics-exporter-servlet-jakarta:$prometheusVersion"
 
     // Base Jetty Server
     testImplementation "org.eclipse.jetty:jetty-server:$jettyVersion"
