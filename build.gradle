@@ -28,7 +28,7 @@ ext {
     // It is otherwise provided by the JMS Broker implementation.
     jmsVersion = '3.1.0'     // For the JMS Impl
     slf4jVersion = '2.0.17'  // For logging throughout
-    jacksonVersion = '3.0.0' // For the on-wire MatsSerializer
+    jacksonVersion = '3.0.1' // For the on-wire MatsSerializer
 
     // :: "Peripheral subsystems", metrics, healthcheck, SpringConfig
     // https://github.com/micrometer-metrics/micrometer/wiki/1.13-Migration-Guide
@@ -41,20 +41,20 @@ ext {
 
     // :: For the testing tooling
     // Need a broker (one of these)
-    activeMqVersion = '6.1.7'
+    activeMqVersion = '6.1.8'
     artemisMqVersion = '2.43.0'
     // Convenient in-jvm db for testing DataSource and DB tx.
     h2Version = '2.4.240'
     // For the JUnit testing tools - including the library tests
     junitVersion = '4.13.2'
     // For the Jupiter testing tools
-    jupiterVersion = '5.14.0'
-    jupiterPlatformVersion = '1.14.0'
+    jupiterVersion = '6.0.0'
+    jupiterPlatformVersion = '6.0.0'
 
     // :: For actually running tests (i.e. only used in testImplementation etc)
-    logbackVersion = '1.5.19'
-    jettyVersion = '12.1.2'
-    hibernateVersion = '7.1.4.Final'
+    logbackVersion = '1.5.20'
+    jettyVersion = '12.1.3'
+    hibernateVersion = '7.1.5.Final'
     remockVersion = '2.1.0'
     mockitoVersion = '5.20.0'
 }

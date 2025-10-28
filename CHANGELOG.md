@@ -6,20 +6,22 @@
 * **No changes in the Mats<sup>3</sup> API!**  
   _As long as you get the dependencies upgraded, your Mats<sup>3</sup> Endpoints, Stages and Initiations will
   work without change._
-* Upgraded to Gradle 9.1.0. Finally, no "Deprecated Gradle features were used in this build..."!
-* All dependencies upgraded, now past the Java 17+ requiring libs.
+* All dependencies upgraded. Both wrt. the jakarta-change, and past Java 17-requiring libs.
 * Core (Mats<sup>3</sup> implementation):
-  * JMS 3.1.0
-  * Jackson 3.0.0
-* Specific modules (Mats<sup>3</sup> SpringConfig)
+  * Jakarta JMS 3.1.0
+  * Jackson 3.0.1
+* Specific modules (Mats<sup>3</sup> SpringConfig / testing tooling)
   * Spring 6.2.12
   * Jakarta Inject 2.0.1
-  * Jakarta Annotations 1.3.2
-* For testing:
-  * Hibernate 7.1.4.Final
-  * ActiveMQ 6.1.7
+  * Jakarta Annotations 3.0.0
+  * Jupiter/JUnit 6.0.0 (still works on v5, Mats<sup>3</sup> also have good-'ol JUnit v4.13.2 support)
+* "Dev dependencies":
+  * ActiveMQ 6.1.8
   * Artemis 2.43.0
-  * Jetty 12.1.2
+  * Hibernate 7.1.5.Final, w/ Jakarta Persistence 3.2.0
+  * Jetty 12.1.3, w/ _ee11_, Jakarta Servlet 6.1.0
+  * Logback 1.5.20
+* Upgraded to Gradle 9.1.0. Finally, no "Deprecated Gradle features were used in this build..."!
 
 ## 1.0.1+2025-10-20
 
