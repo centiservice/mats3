@@ -3,6 +3,7 @@
 plugins {
     id 'java-library'
     id "com.vanniktech.maven.publish" version "0.34.0" // Publish to Maven Central, over Portal Publisher API
+    id "com.github.ben-manes.versions" version "0.53.0" // Checks dependencies.
 }
 
 // Customize the Gradle Wrapper generation task.
@@ -65,9 +66,14 @@ if (project.properties.containsKey('mats.build.java_version')) {
     println "Specified Java version for toolchain, using Java version: $javaVersion"
 }
 
-// :: Note: Two different subproject-blocks, one for all common elements, and one for publishing.
+// Check dependencies: `./gradlew dependencyUpdates --refresh-dependencies --no-parallel`
+tasks.named("dependencyUpdates").configure {
+    rejectVersionIf {
+        return ['RC', 'CR', '-M', 'ALPHA'].any { bad -> it.candidate.version.toUpperCase().contains(bad) }
+    }
+}
 
-// Common for all subprojects, even 'mats-api-test'
+// Common for all subprojects, but publishing tasks excludes the 'mats-api-test*' projects.
 subprojects {
     apply plugin: 'java-library'
     apply plugin: "com.vanniktech.maven.publish"

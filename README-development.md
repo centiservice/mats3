@@ -68,6 +68,8 @@ used.
   version shown here is also the one used for building.
 * `allDeps`: Runs the `DependencyReportTask` for the Java projects (i.e., get all library/"maven" dependencies for all
   configurations)
+* `dependencyUpdates --refresh-dependencies --no-parallel`: Checks for updates to dependencies (not compatible with
+  parallel)
 * `clean`: Clean the built artifacts.
 
 ## Development
