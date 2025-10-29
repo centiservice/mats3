@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 
 import io.mats3.MatsEndpoint;
 import io.mats3.MatsFactory;
+import io.mats3.api.intercept.MatsMetricsInterceptor;
 import io.mats3.test.MatsTestHelp;
 
 public class SetupTestMatsEndpoints {
@@ -48,19 +49,26 @@ public class SetupTestMatsEndpoints {
 
     @BeforeClass
     public static void setupLeafService() {
-        getMatsFactory().single(ENDPOINT + ".Leaf", DataTO.class, DataTO.class,
+        var single = getMatsFactory().single(ENDPOINT + ".Leaf", DataTO.class, DataTO.class,
                 (context, dto) -> {
                     if (log.isDebugEnabled()) log.debug("Incoming message for LeafService: DTO:[" + dto
                             + "], context:\n" + context);
                     // Use the 'multiplier' in the request to formulate the reply.. I.e. multiply the number..!
                     return new DataTO(dto.number * dto.multiplier, dto.string + ":FromLeafService");
                 });
+        // DIS-Allow suppression (this is also default!)
+        single.getEndpointConfig()
+                .setAttribute(MatsMetricsInterceptor.SUPPRESS_METRICS_ENDPOINT_ALLOWS_ATTRIBUTE_KEY, false);
+
     }
 
     @BeforeClass
     public static void setupMidMultiStagedService() {
         MatsEndpoint<DataTO, StateTO> ep = getMatsFactory().staged(ENDPOINT + ".Mid", DataTO.class,
                 StateTO.class);
+        // Allow suppression
+        ep.getEndpointConfig().setAttribute(MatsMetricsInterceptor.SUPPRESS_METRICS_ENDPOINT_ALLOWS_ATTRIBUTE_KEY, true);
+
         ep.stage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for MidService: DTO:[" + dto
                     + "], STO:[" + sto + "], context:\n" + context);
@@ -95,6 +103,9 @@ public class SetupTestMatsEndpoints {
     @BeforeClass
     public static void setupMasterMultiStagedService() {
         MatsEndpoint<DataTO, StateTO> ep = getMatsFactory().staged(ENDPOINT, DataTO.class, StateTO.class);
+        // Allow suppression
+        ep.getEndpointConfig().setAttribute(MatsMetricsInterceptor.SUPPRESS_METRICS_ENDPOINT_ALLOWS_ATTRIBUTE_KEY, true);
+
         ep.stage(DataTO.class, (context, sto, dto) -> {
             if (log.isDebugEnabled()) log.debug("Incoming message for Multi: DTO:[" + dto
                     + "], STO:[" + sto + "], context:\n" + context);

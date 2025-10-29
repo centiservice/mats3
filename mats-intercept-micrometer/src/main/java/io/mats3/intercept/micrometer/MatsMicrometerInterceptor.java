@@ -392,8 +392,6 @@ public class MatsMicrometerInterceptor
     public void initiateCompleted(InitiateCompletedContext ctx) {
         // :: INITIATION TIMINGS AND SIZES
 
-        String initiatingAppName = ctx.getInitiator().getParentFactory().getFactoryConfig().getAppName();
-        String initiatorName = ctx.getInitiator().getName();
         /*
          * The initiatorId is set by sending an actual message. If no message is sent from an initation lambda, there is
          * no initiatorId. But the lambda still executed, so we want to measure it - thus using a fictive initiatorId in
@@ -404,10 +402,25 @@ public class MatsMicrometerInterceptor
          * situation. Therefore, we just pick the first message's "from" (i.e. "initiatorId") to tag the timings with.
          */
         List<MatsSentOutgoingMessage> outgoingMessages = ctx.getOutgoingMessages();
-        String commonInitiatorId = outgoingMessages.isEmpty()
-                ? INITIATOR_ID_WHEN_NO_OUTGOING_MESSAGES
-                : outgoingMessages.get(0).getInitiatorId();
+        String commonInitiatorId;
+        // ?: No outgoing messages? (I.e. "empty initiation", which one can argue should be avoided)
+        if (outgoingMessages.isEmpty()) {
+            // -> Yes - there's no outgoing msg, so we use a fictive initiatorId - and we can't metrics-suppress.
+            commonInitiatorId = INITIATOR_ID_WHEN_NO_OUTGOING_MESSAGES;
+        }
+        else {
+            // -> There are outgoing messages
+            // ?: Are metrics suppressed? (all messages must agree)
+            if (suppressInitMetrics(outgoingMessages)) {
+                // -> Yes, so we just skip this initiation.
+                return;
+            }
+            // E-> No, so we go ahead and measure it.
+            // We use the first message's initiatorId.
+            commonInitiatorId = outgoingMessages.getFirst().getInitiatorId();
+        }
 
+        String initiatingAppName = ctx.getInitiator().getParentFactory().getFactoryConfig().getAppName();
         ExecutionMetrics executionMetrics = _executionMetricsCache.getOrCreate(new ExecutionMetricsParams("init",
                 initiatingAppName, commonInitiatorId, "", commonInitiatorId, NO_STAGE_INDEX));
         // ?: Did we get an ExecutionMetrics?
@@ -436,13 +449,17 @@ public class MatsMicrometerInterceptor
 
     @Override
     public void stageReceived(StageReceivedContext ctx) {
-        ProcessContext<Object> processContext = ctx.getProcessContext();
-        String initiatingAppName = _includeAllTags ? processContext.getInitiatingAppName() : "";
-        String initiatorId = _includeAllTags ? processContext.getInitiatorId() : "";
-        String stageId = processContext.getStageId();
+        ProcessContext<Object> procCtx = ctx.getProcessContext();
+        if (suppressStageMetrics(ctx, procCtx)) {
+            return;
+        }
+
+        String initiatingAppName = _includeAllTags ? procCtx.getInitiatingAppName() : "";
+        String initiatorId = _includeAllTags ? procCtx.getInitiatorId() : "";
+        String stageId = procCtx.getStageId();
         int stageIndex = ctx.getStage().getStageConfig().getStageIndex();
 
-        String from = (!_includeAllTags) && (stageIndex == 0) ? "" : processContext.getFromStageId();
+        String from = (!_includeAllTags) && (stageIndex == 0) ? "" : procCtx.getFromStageId();
 
         ReceivedMetrics receivedMetrics = _receivedMetricsCache.getOrCreate(new ReceivedMetricsParams(
                 ctx.getIncomingMessageType().toString(), initiatingAppName, initiatorId, from, stageId, stageId,
@@ -456,10 +473,14 @@ public class MatsMicrometerInterceptor
 
     @Override
     public void stageCompleted(StageCompletedContext ctx) {
-        DetachedProcessContext processContext = ctx.getProcessContext();
-        String initiatingAppName = _includeAllTags ? processContext.getInitiatingAppName() : "";
-        String initiatorId = _includeAllTags ? processContext.getInitiatorId() : "";
-        String stageId = processContext.getStageId();
+        DetachedProcessContext procCtx = ctx.getProcessContext();
+        if (suppressStageMetrics(ctx, procCtx)) {
+            return;
+        }
+
+        String initiatingAppName = _includeAllTags ? procCtx.getInitiatingAppName() : "";
+        String initiatorId = _includeAllTags ? procCtx.getInitiatorId() : "";
+        String stageId = procCtx.getStageId();
         int stageIndex = ctx.getStage().getStageConfig().getStageIndex();
 
         ExecutionMetrics executionMetrics = _executionMetricsCache.getOrCreate(new ExecutionMetricsParams("stage",
@@ -509,6 +530,39 @@ public class MatsMicrometerInterceptor
     }
 
     // =======================
+
+    private boolean suppressInitMetrics(List<MatsSentOutgoingMessage> outgoingMessages) {
+        // It is the message that carries the information about suppression (it is a trace property), thus we need to
+        // inspect the initiated outgoing message(s). (If there are none, we'll have to conclude that we shall log.)
+
+        // Might be multiple messages: All messages must say suppress to actually do suppression.
+        for (MatsSentOutgoingMessage outgoingMessage : outgoingMessages) {
+            Boolean suppressed = outgoingMessage.getTraceProperty(SUPPRESS_METRICS_TRACE_PROPERTY_KEY, Boolean.class);
+            // ?: Does this message NOT want suppression?
+            if (suppressed != Boolean.TRUE) {
+                // -> This message does NOT want suppression, so we shall NOT suppress.
+                return false;
+            }
+        }
+        // All messages wanted suppression.
+        return true;
+    }
+
+    private static boolean suppressStageMetrics(StageCommonContext ctx, DetachedProcessContext procCtx) {
+        // ?: Does this Mats Flow want metrics-suppression?
+        if (Boolean.TRUE.equals(procCtx
+                .getTraceProperty(SUPPRESS_METRICS_TRACE_PROPERTY_KEY, Boolean.class))) {
+            // -> Yes, Mats Flow want metrics suppression.
+            // ?: But does this Endpoint allow it?
+            if (ctx.getStage().getParentEndpoint().getEndpointConfig()
+                    .getAttribute(SUPPRESS_METRICS_ENDPOINT_ALLOWS_ATTRIBUTE_KEY, Boolean.class)
+                    .orElse(false)) {
+                // -> Yes, Endpoint allows metrics suppression, so we just skip this stage.
+                return true;
+            }
+        }
+        return false;
+    }
 
     private void userTimingsAndMeasurements(CommonCompletedContext ctx, String executionType, String initiatingAppName,
             String initiatorId, String stageId, String initOrStageId, int stageIndex) {

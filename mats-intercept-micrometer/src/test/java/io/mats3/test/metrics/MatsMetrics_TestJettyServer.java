@@ -46,6 +46,7 @@ import org.slf4j.LoggerFactory;
 
 import io.mats3.MatsFactory;
 import io.mats3.MatsInitiator.KeepTrace;
+import io.mats3.api.intercept.MatsMetricsInterceptor;
 import io.mats3.impl.jms.JmsMatsFactory;
 import io.mats3.impl.jms.JmsMatsJmsSessionHandler_Pooling;
 import io.mats3.intercept.micrometer.MatsMicrometerInterceptor.SuggestedTimingHistogramsMeterFilter;
@@ -132,6 +133,8 @@ public class MatsMetrics_TestJettyServer {
             PrintWriter out = res.getWriter();
             out.println("<h1>Menu</h1>");
             out.println("<a href=\"./sendRequest\">Send Mats requests</a><br />");
+            out.println("<a href=\"./sendRequest?suppressMetrics\">Send Mats requests, but suppress metrics</a>"
+                    + " (But: Endpoint.Leaf and Terminator does not allow suppression)<br />");
             out.println("<a href=\"./metrics\">Metrics Prometheus Scrape</a><br />");
             out.println("<a href=\"./shutdown\">Shutdown</a><br />");
         }
@@ -155,11 +158,19 @@ public class MatsMetrics_TestJettyServer {
     public static class SendRequestServlet extends HttpServlet {
         @Override
         protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
-            res.setContentType("text/plain; charset=utf-8");
+            res.setContentType("text/html; charset=utf-8");
             log.info("Sending request ..");
-            res.getWriter().println("Sending request ..");
+
+            PrintWriter out = res.getWriter();
+            out.println("Sending request ...<br>");
             MatsFactory matsFactory = (MatsFactory) req.getServletContext().getAttribute(JmsMatsFactory.class
                     .getName());
+
+            // Should we suppress metrics?
+            boolean suppressMetrics = req.getParameter("suppressMetrics") != null;
+            if (suppressMetrics) {
+                out.println("<b>.. adding suppress-metrics TraceProperty..</b><br>");
+            }
 
             StateTO sto = new StateTO(420, 420.024);
             DataTO dto = new DataTO(42, "TheAnswer");
@@ -177,6 +188,10 @@ public class MatsMetrics_TestJettyServer {
                         msg.logTimingMeasurement("test.inittiming3", "Test TIMING 3 from initiation",
                                 1_000_000_000, "labelKeyA", "labelValueA", "labelKeyB", "labelValueB");
 
+                        if (suppressMetrics) {
+                            msg.setTraceProperty(MatsMetricsInterceptor.SUPPRESS_METRICS_TRACE_PROPERTY_KEY, true);
+                        }
+
                         msg.traceId(MatsTestHelp.traceId())
                                 .keepTrace(KeepTrace.FULL)
                                 .from("/sendRequestInitiated")
@@ -184,7 +199,8 @@ public class MatsMetrics_TestJettyServer {
                                 .replyTo(SetupTestMatsEndpoints.TERMINATOR, sto)
                                 .request(dto);
                     });
-            res.getWriter().println(".. Request sent.");
+            out.println(".. Request sent.<br>");
+            out.println("<a href=\"./\">Back</a>");
         }
     }
 

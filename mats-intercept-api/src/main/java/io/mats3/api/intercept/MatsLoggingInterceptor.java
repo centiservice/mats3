@@ -40,24 +40,28 @@ public interface MatsLoggingInterceptor {
      * to suppress logging. Thus, you should instead perform whatever checking to decide whether to send a message
      * before going into initiation.
      * <p>
-     * Note: The <code>MatsMetricsLoggingInterceptor</code> has logic whereby every X minutes, the number of suppressed
-     * logs are output (if any), grouped into matsFactory/initApp/initiatorId/stageId, so that it is possible to assert
-     * liveliness of the system, and also get an idea of how heavy usage it leads to.
+     * Note: The <code>MatsMetricsLoggingInterceptor</code> has logic whereby every X minutes, a summary of suppressed
+     * logs lines is output (if any), grouped into matsFactory/initApp/initiatorId/stageId, so that it is possible to
+     * assert liveliness of the system, and also get an idea of how much messages are actually processed even if
+     * suppressed. Note that also the first ever flow (init and stages), and any flow after such a summarization, will
+     * be logged fully. The rationale behind this is that the summary doesn't contain any metrics (timings and sizes),
+     * so to get at least a hunch of this, a "normal" log line is output.
      * <p>
      * Note: Suppression of logging effectively removes these initiations and processing from any aggregate metrics
-     * based on the log system, e.g. doing "number of message per second" in Kibana will lose out on these messages
-     * since they aren't logged (except for the aggregate every X minutes mentioned above). Metrics in form of
-     * <code>MatsMicrometerInterceptor</code> are not affected.
+     * based on the log system, e.g. doing "number of messages per second" in Kibana will lose out on these messages
+     * since they aren't logged (except for the summary every X minutes mentioned above, but those won't be caught by
+     * your standard Kibana queries). Metrics in form of <code>MatsMicrometerInterceptor</code> are not affected -
+     * unless those also are {@link MatsMetricsInterceptor#SUPPRESS_METRICS_TRACE_PROPERTY_KEY suppressed!}
      *
      * @see #SUPPRESS_LOGGING_ENDPOINT_ALLOWS_ATTRIBUTE_KEY
+     * @see MatsMetricsInterceptor#SUPPRESS_METRICS_TRACE_PROPERTY_KEY
      */
     String SUPPRESS_LOGGING_TRACE_PROPERTY_KEY = "mats.SuppressLogging";
 
     /**
      * {@link #SUPPRESS_LOGGING_TRACE_PROPERTY_KEY Suppression of loglines} will only be done if the affected endpoints
-     * allows it. Allowance is done by setting an
-     * {@link EndpointConfig#setAttribute(String, Object) EndpointConfig attribute} for the allowing Endpoint with this
-     * as key, with the value {@link Boolean#TRUE}.
+     * allows it. Allowance is done by setting an {@link EndpointConfig#setAttribute(String, Object) EndpointConfig
+     * attribute} for the allowing Endpoint with this as key, with the value {@link Boolean#TRUE}.
      *
      * @see #SUPPRESS_LOGGING_TRACE_PROPERTY_KEY
      */

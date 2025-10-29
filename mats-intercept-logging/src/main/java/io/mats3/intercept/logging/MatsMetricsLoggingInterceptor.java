@@ -694,7 +694,7 @@ public class MatsMetricsLoggingInterceptor
             // -> Yes, this initiation want log suppression.
             // Find initiatorId, pick first message.
             // Suppression of init can only happen if there are outgoing messages, so there is at least one.
-            MatsSentOutgoingMessage outgoingMessage = outgoingMessages.get(0);
+            MatsSentOutgoingMessage outgoingMessage = outgoingMessages.getFirst();
             String suppressedId = "logsuppress:"
                     + factoryConfig.getName()
                     + SUPPRESSION_MDC_KEY_PARTS_SEPARATOR
@@ -745,7 +745,7 @@ public class MatsMetricsLoggingInterceptor
         }
         else {
             // -> Yes, there are outgoing messages. Use first message's initiatorId and interactive flag.
-            MatsSentOutgoingMessage firstMessage = outgoingMessages.get(0);
+            MatsSentOutgoingMessage firstMessage = outgoingMessages.getFirst();
             firstMsgInitiatorId = firstMessage.getInitiatorId();
             interactive = firstMessage.isInteractive();
         }
