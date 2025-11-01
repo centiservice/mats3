@@ -1,4 +1,4 @@
-## B-2.0.0.B0+2025-10-22
+## 2.0.0+2025-11-01
 
 * New major version, due to Java 21 and Jakarta namespaces.
 * **Moved over to jakarta-namespace for all javax libraries, most notably JMS.**
@@ -15,14 +15,14 @@
   * Jakarta Inject 2.0.1
   * Jakarta Annotations 3.0.0
   * Micrometer 1.15.5
-  * Jupiter/JUnit 6.0.0 (still works on v5, Mats<sup>3</sup> also have good-'ol JUnit v4.13.2 support)
+  * Jupiter/JUnit 6.0.1 (still works on v5, Mats<sup>3</sup> also have good-'ol JUnit v4.13.2 support)
 * "Dev dependencies":
   * ActiveMQ 6.1.8
   * Artemis 2.43.0
   * Hibernate 7.1.5.Final, w/ Jakarta Persistence 3.2.0
   * Jetty 12.1.3, w/ _ee11_, Jakarta Servlet 6.1.0
   * Logback 1.5.20
-* Upgraded to Gradle 9.1.0. Finally, no "Deprecated Gradle features were used in this build..."!
+* Upgraded to Gradle 9.2.0. Finally, no "Deprecated Gradle features were used in this build..."!
 
 ## 1.0.1+2025-10-20
 
