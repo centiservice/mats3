@@ -8,7 +8,7 @@ plugins {
 
 // Customize the Gradle Wrapper generation task.
 wrapper {
-    gradleVersion = "9.1.0"
+    gradleVersion = "9.2.0"
     // Use "-all"-version of distribution, since IntelliJ works better then..
     setDistributionType(Wrapper.DistributionType.ALL)
 }
@@ -155,7 +155,6 @@ subprojects {
 
         // Concurrency, on top of config-cache concurrency
         if (project.name == 'mats-util') {
-            println "Special for ${project.name}"
             maxParallelForks = 2
         }
     }
