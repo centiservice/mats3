@@ -215,7 +215,7 @@ tasks.register('alljavadoc', Javadoc) {
     def relevantProjects = subprojects.findAll { ! it.name.startsWith('mats-api-test') }
     source relevantProjects.collect { it.sourceSets.main.allJava }
     classpath = files(relevantProjects.collect { it.sourceSets.main.compileClasspath })
-    destinationDir = file("${layout.buildDirectory}/docs/javadoc")
+    destinationDir = layout.buildDirectory.dir("docs/javadoc").get().asFile
     options.addStringOption('Xdoclint:none', '-quiet')
     options.addStringOption('--frames')
 }
