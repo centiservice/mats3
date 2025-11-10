@@ -99,9 +99,6 @@ subprojects {
     }
 
     javadoc {
-        // without the -quiet option, the build fails due to errors&warns
-        options.addStringOption('Xdoclint:none', '-quiet')
-        options.addStringOption('--frames')
     }
 
     jar {
@@ -206,6 +203,7 @@ clean {
     // Vanniktech publish plugin creates this, so clean it too.
     delete "build/"
     // Note: "build-gradle" pops back up after any gradle run, as config cache and problem report puts things there.
+    delete "build-gradle/docs/" // alljavadoc
 }
 
 // For "all JavaDoc" task, sweeping together all sources to make a complete set of JavaDoc in one go.
@@ -216,8 +214,6 @@ tasks.register('alljavadoc', Javadoc) {
     source relevantProjects.collect { it.sourceSets.main.allJava }
     classpath = files(relevantProjects.collect { it.sourceSets.main.compileClasspath })
     destinationDir = layout.buildDirectory.dir("docs/javadoc").get().asFile
-    options.addStringOption('Xdoclint:none', '-quiet')
-    options.addStringOption('--frames')
 }
 // .. ensure 'alljavadoc' is run together with './gradlew clean javadoc', thus building 'all' + submodules.
 javadoc.dependsOn alljavadoc
