@@ -39,9 +39,9 @@ dependencies {
     testRuntimeOnly "org.slf4j:log4j-over-slf4j:$slf4jVersion"
     testImplementation "ch.qos.logback:logback-classic:$logbackVersion"
     // Jackson for the tests, ref compileOnly above.
-    testImplementation "tools.jackson.core:jackson-databind:${jacksonVersion}"
+    testImplementation "tools.jackson.core:jackson-databind:$jacksonVersion"
     // Including the Blackbird module for Jackson, which is dynamically loaded by the FieldBasedJacksonMapper.
-    testImplementation "tools.jackson.module:jackson-module-blackbird:${jacksonVersion}"
+    testImplementation "tools.jackson.module:jackson-module-blackbird:$jacksonVersion"
 
     // Storebrand HealthCheck implementation
     testImplementation "com.storebrand.healthcheck:healthcheck-impl:$stbHealthCheckVersion"

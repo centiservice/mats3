@@ -21,12 +21,11 @@ source is a good place to learn about Mats<sup>3</sup>, explained [here](https:/
 To use Mats in a project, fetch [`mats-impl-jms`](https://mvnrepository.com/artifact/io.mats3/mats-impl-jms)
 from [Maven Central](https://mvnrepository.com/artifact/io.mats3).
 
-Versioning:
-
+**Versioning:**
 * **v2**: Java 21+, `jakarta.jms`
 * **v1**: Java 11+, `javax.jms`
 
-License: [Apache License, Version 2.0](LICENSE)
+**License:** [Apache License, Version 2.0](LICENSE)
 
 If you find Mats<sup>3</sup> interesting, you might want to check out the companion
 project [MatsSocket](https://github.com/centiservice/matssocket), which provides WebSocket based bidirectional

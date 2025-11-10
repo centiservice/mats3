@@ -67,5 +67,4 @@ public interface MatsMetricsInterceptor {
      * @see #SUPPRESS_METRICS_TRACE_PROPERTY_KEY
      */
     String SUPPRESS_METRICS_ENDPOINT_ALLOWS_ATTRIBUTE_KEY = "mats.SuppressMetricsAllowed";
-
 }
